@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useMessages } from '@/lib/messages';
+import FaIcon from '@/components/FaIcon';
+import { faMessage } from '@/lib/icons/fa/message';
 
 export default function MessagesBell() {
   const { totalUnreadCount } = useMessages();
@@ -13,7 +15,7 @@ export default function MessagesBell() {
       className="ea-icon-btn inline-flex items-center justify-center shrink-0"
       aria-label={hasUnread ? `Messages, ${totalUnreadCount} unread` : 'Messages'}
     >
-      <i className="fas fa-comment-alt text-xl" aria-hidden="true"></i>
+      <FaIcon icon={faMessage} className="text-xl" />
       {hasUnread && (
         // A DOT, not a number. The exact count is not actionable from here —
         // you open messages either way — and the old 20px circle could not fit

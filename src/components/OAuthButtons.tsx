@@ -7,6 +7,8 @@ import {
   appleOAuthEnabled,
   type OAuthProvider,
 } from '@/lib/oauth';
+import FaIcon from '@/components/FaIcon';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // Inline brand marks: the official multicolor Google G (FA's fab fa-google is
 // monochrome) and the Apple glyph in white per Apple's HIG black button.
@@ -92,7 +94,7 @@ export default function OAuthButtons({ onError, divider = 'above', signupRole = 
           >
             {redirecting === 'google' ? (
               <>
-                <i className="fas fa-spinner fa-spin"></i> Redirecting…
+                <FaIcon icon={faSpinner} spin /> Redirecting…
               </>
             ) : (
               <>
@@ -110,7 +112,7 @@ export default function OAuthButtons({ onError, divider = 'above', signupRole = 
           >
             {redirecting === 'apple' ? (
               <>
-                <i className="fas fa-spinner fa-spin"></i> Redirecting…
+                <FaIcon icon={faSpinner} spin /> Redirecting…
               </>
             ) : (
               <>

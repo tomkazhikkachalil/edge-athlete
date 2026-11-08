@@ -3,6 +3,11 @@
 import { useEffect } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 import { COPY } from '@/lib/copy';
+import FaIcon from '@/components/FaIcon';
+import { faCircle } from '@/lib/icons/fa/circle';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faHouse } from '@/lib/icons/fa/house';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 export default function GoodbyePage() {
   useEffect(() => {
@@ -29,7 +34,7 @@ export default function GoodbyePage() {
         <div className="bg-surface rounded-2xl shadow-xl p-8 sm:p-12 text-center">
           {/* Icon */}
           <div className="w-20 h-20 bg-violet-100 dark:bg-violet-950/60 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="fas fa-circle-check text-brand-fg text-3xl"></i>
+            <FaIcon icon={faCircleCheck} className="text-brand-fg text-3xl" />
           </div>
 
           {/* Heading */}
@@ -48,19 +53,19 @@ export default function GoodbyePage() {
           {/* What Happened Section */}
           <div className="text-left bg-surface-muted rounded-lg p-6 mb-8">
             <h2 className="font-semibold text-primary mb-3 flex items-center gap-2">
-              <i className="fas fa-check-circle text-green-600 dark:text-green-400"></i>
+              <FaIcon icon={faCircleCheck} className="text-green-600 dark:text-green-400" />
               {COPY.ACCOUNT.DELETE_GOES_TITLE}
             </h2>
             <ul className="space-y-2 text-sm text-secondary">
               {COPY.ACCOUNT.DELETE_GOES.map(text => (
                 <li key={text} className="flex items-start gap-2">
-                  <i className="fas fa-circle text-xs text-decor mt-1.5" aria-hidden="true"></i>
+                  <FaIcon icon={faCircle} className="text-xs text-decor mt-1.5" />
                   <span>{text}</span>
                 </li>
               ))}
             </ul>
             <h2 className="font-semibold text-primary mt-6 mb-3 flex items-center gap-2">
-              <i className="fas fa-trophy text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faTrophy} className="text-brand-fg" />
               {COPY.ACCOUNT.DELETE_STAYS_TITLE}
             </h2>
             <p className="text-sm text-secondary">{COPY.ACCOUNT.DELETE_STAYS}</p>
@@ -72,7 +77,7 @@ export default function GoodbyePage() {
               onClick={handleReturnHome}
               className="inline-flex items-center justify-center gap-2 px-12 py-4 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors font-semibold text-lg shadow-lg hover:shadow-xl"
             >
-              <i className="fas fa-home"></i>
+              <FaIcon icon={faHouse} />
               Return to Home
             </button>
           </div>

@@ -2,6 +2,8 @@
 
 import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
+import FaIcon from '@/components/FaIcon';
+import { faCircleInfo } from '@/lib/icons/fa/circle-info';
 
 // ── Explanatory text behind an (i) (Oct 28 2026) ─────────────────────────────
 // Tom: a paragraph that only says what a section is for is not on screen
@@ -61,7 +63,7 @@ export function InfoButton({ d, dense = false, className = '' }: { d: InfoDisclo
         d.open ? 'text-brand-fg' : 'text-muted'
       } ${className}`}
     >
-      <i className="fas fa-circle-info text-base" aria-hidden="true"></i>
+      <FaIcon icon={faCircleInfo} className="text-base" />
     </button>
   );
 }

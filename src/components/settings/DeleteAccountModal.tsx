@@ -5,6 +5,16 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { COPY } from '@/lib/copy';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faArrowRight } from '@/lib/icons/fa/arrow-right';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faTrashCan } from '@/lib/icons/fa/trash-can';
+import { faTriangleExclamation } from '@/lib/icons/fa/triangle-exclamation';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface DeleteAccountModalProps {
   isOpen: boolean;
@@ -178,7 +188,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
         <div className="sticky top-0 bg-surface-raised border-b border-border px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-red-100 dark:bg-red-950/60 rounded-full flex items-center justify-center">
-              <i className="fas fa-exclamation-triangle text-red-600 dark:text-red-400"></i>
+              <FaIcon icon={faTriangleExclamation} className="text-red-600 dark:text-red-400" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-primary">Delete Account</h2>
@@ -191,7 +201,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
             aria-label="Close"
             className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-tertiary disabled:opacity-50"
           >
-            <i className="fas fa-times text-xl"></i>
+            <FaIcon icon={faXmark} className="text-xl" />
           </button>
         </div>
 
@@ -201,7 +211,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
           {needsReauth && (
             <div className="mb-6 bg-yellow-50 dark:bg-yellow-950/40 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
               <div className="flex items-start gap-3 mb-4">
-                <i className="fas fa-shield-alt text-yellow-600 dark:text-yellow-400 mt-1"></i>
+                <FaIcon icon={faShieldHalved} className="text-yellow-600 dark:text-yellow-400 mt-1" />
                 <div>
                   <h4 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
                     Security Check Required
@@ -227,12 +237,12 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                 >
                   {isReauthenticating ? (
                     <>
-                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      <FaIcon icon={faSpinner} spin className="mr-2" />
                       Verifying...
                     </>
                   ) : (
                     <>
-                      <i className="fas fa-check mr-2"></i>
+                      <FaIcon icon={faCheck} className="mr-2" />
                       Verify Password
                     </>
                   )}
@@ -260,7 +270,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                 <div className="space-y-2">
                   {COPY.ACCOUNT.DELETE_GOES.map((text, index) => (
                     <div key={index} className="flex items-center gap-3 text-secondary">
-                      <i className="fas fa-times text-red-600 dark:text-red-400 w-5 text-center" aria-hidden="true"></i>
+                      <FaIcon icon={faXmark} className="text-red-600 dark:text-red-400 w-5 text-center" />
                       <span className="text-sm">{text}</span>
                     </div>
                   ))}
@@ -270,7 +280,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
               {/* Departed accounts (Sep 24 2026): what outlives the account. */}
               <div className="bg-surface-muted border border-border rounded-lg p-4" data-delete-stays="">
                 <h4 className="font-semibold text-primary mb-2">
-                  <i className="fas fa-trophy text-brand-fg mr-2" aria-hidden="true"></i>
+                  <FaIcon icon={faTrophy} className="text-brand-fg mr-2" />
                   {COPY.ACCOUNT.DELETE_STAYS_TITLE}
                 </h4>
                 <p className="text-sm text-secondary">{COPY.ACCOUNT.DELETE_STAYS}</p>
@@ -349,7 +359,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                 disabled={isDeleting}
                 className="px-4 py-2 text-secondary hover:text-primary font-medium transition-colors disabled:opacity-50"
               >
-                <i className="fas fa-arrow-left mr-2"></i>
+                <FaIcon icon={faArrowLeft} className="mr-2" />
                 Back
               </button>
             )}
@@ -370,7 +380,7 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
                 className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue to Confirm
-                <i className="fas fa-arrow-right ml-2"></i>
+                <FaIcon icon={faArrowRight} className="ml-2" />
               </button>
             ) : (
               <button
@@ -385,12 +395,12 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
               >
                 {isDeleting ? (
                   <>
-                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    <FaIcon icon={faSpinner} spin className="mr-2" />
                     Deleting Account...
                   </>
                 ) : (
                   <>
-                    <i className="fas fa-trash-alt mr-2"></i>
+                    <FaIcon icon={faTrashCan} className="mr-2" />
                     Delete My Account
                   </>
                 )}

@@ -29,6 +29,16 @@ import GifPicker from '@/components/GifPicker';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faCirclePlay } from '@/lib/icons/fa/circle-play';
+import { faImages } from '@/lib/icons/fa/images';
+import { faPaperPlane } from '@/lib/icons/fa/paper-plane';
+import { faPaperclip } from '@/lib/icons/fa/paperclip';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faVideo } from '@/lib/icons/fa/video';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Props {
   conversationId: string;
@@ -422,7 +432,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           )}
           {replyingTo.type === 'video' && !replyThumbnailUrl && (
             <div className="w-10 h-10 bg-gray-800 rounded flex items-center justify-center shrink-0">
-              <i className="fas fa-play-circle text-white text-sm"></i>
+              <FaIcon icon={faCirclePlay} className="text-white text-sm" />
             </div>
           )}
           <button
@@ -431,7 +441,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             className="shrink-0 p-1 text-faint hover:text-tertiary transition-colors"
             title="Cancel reply"
           >
-            <i className="fas fa-times text-sm"></i>
+            <FaIcon icon={faXmark} className="text-sm" />
           </button>
         </div>
       )}
@@ -448,7 +458,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             <img src={attachedPreview} alt="Attachment" className="h-16 w-16 object-cover rounded-lg border border-border" />
           ) : (
             <div className="h-16 w-16 bg-gray-800 rounded-lg flex items-center justify-center">
-              <i className="fas fa-play-circle text-white text-2xl"></i>
+              <FaIcon icon={faCirclePlay} className="text-white text-2xl" />
             </div>
           )}
           <button
@@ -457,7 +467,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
             aria-label="Remove attachment"
             className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
           >
-            <i className="fas fa-times text-xs"></i>
+            <FaIcon icon={faXmark} className="text-xs" />
           </button>
         </div>
       )}
@@ -507,7 +517,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
                   title="More options"
                   aria-expanded={leadingOpen}
                 >
-                  <i className="fas fa-chevron-right text-sm"></i>
+                  <FaIcon icon={faChevronRight} className="text-sm" />
                 </button>
               </div>
 
@@ -527,7 +537,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
                   title="Attach a photo or video"
                   aria-expanded={attachMenuOpen}
                 >
-                  <i className="fas fa-paperclip text-lg"></i>
+                  <FaIcon icon={faPaperclip} className="text-lg" />
                 </button>
                 {/* GIF */}
                 <button
@@ -557,7 +567,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
                     }}
                     className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
                   >
-                    <i className="fas fa-camera w-4 text-center" aria-hidden="true"></i> Take photo
+                    <FaIcon icon={faCamera} className="w-4 text-center" /> Take photo
                   </button>
                   <button
                     type="button"
@@ -567,7 +577,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
                     }}
                     className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
                   >
-                    <i className="fas fa-video w-4 text-center" aria-hidden="true"></i> Record video
+                    <FaIcon icon={faVideo} className="w-4 text-center" /> Record video
                   </button>
                   <button
                     type="button"
@@ -577,7 +587,7 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
                     }}
                     className="w-full px-3 min-h-[40px] text-left text-sm text-secondary hover:bg-surface-sunken flex items-center gap-2"
                   >
-                    <i className="fas fa-images w-4 text-center" aria-hidden="true"></i> Choose from library
+                    <FaIcon icon={faImages} className="w-4 text-center" /> Choose from library
                   </button>
                 </div>
               )}
@@ -665,9 +675,9 @@ export default function MessageInput({ conversationId, currentUserId, onSend, di
           aria-label="Send message"
         >
           {sending ? (
-            <i className="fas fa-spinner fa-spin text-sm"></i>
+            <FaIcon icon={faSpinner} spin className="text-sm" />
           ) : (
-            <i className="fas fa-paper-plane text-sm"></i>
+            <FaIcon icon={faPaperPlane} className="text-sm" />
           )}
         </button>
       </div>

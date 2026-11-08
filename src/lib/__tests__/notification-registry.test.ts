@@ -160,10 +160,10 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
 
 describe('lookups and fallbacks', () => {
   it('icons resolve; absent icons and unknown types fall to fa-bell', () => {
-    expect(getNotificationIcon('like')).toBe('fa-heart');
-    expect(getNotificationIcon('transfer_update')).toBe('fa-right-left');
-    expect(getNotificationIcon('event_invite')).toBe('fa-bell'); // never had a case
-    expect(getNotificationIcon('not_a_type')).toBe('fa-bell');
+    expect(getNotificationIcon('like')).toBe('heart');
+    expect(getNotificationIcon('transfer_update')).toBe('right-left');
+    expect(getNotificationIcon('event_invite')).toBe('bell'); // never had a case
+    expect(getNotificationIcon('not_a_type')).toBe('bell');
   });
 
   it('unknown types belong to no named tab (All/Unread reachability preserved)', () => {

@@ -4,10 +4,13 @@ import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
 import NotificationActionRow from '@/components/NotificationActionRow';
-import { getNotificationIcon } from '@/lib/notification-registry';
+import { notificationGlyph } from '@/lib/notification-icons';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
+import FaIcon from '@/components/FaIcon';
+import { faBell } from '@/lib/icons/fa/bell';
+import { faBellSlash } from '@/lib/icons/fa/bell-slash';
 
 /**
  * The bell. Opening it IS seeing it (Tom, Oct 4 2026 — Instagram's rule):
@@ -80,7 +83,7 @@ export default function NotificationBell() {
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         aria-expanded={showDropdown}
       >
-        <i className="fas fa-bell text-xl" aria-hidden="true"></i>
+        <FaIcon icon={faBell} className="text-xl" />
 
         {/* A DOT, not a number — matching MessagesBell. The count is announced
             to screen readers via aria-label instead, which is where it is
@@ -113,7 +116,7 @@ export default function NotificationBell() {
           <div className="overflow-y-auto flex-1">
             {recentNotifications.length === 0 ? (
               <div className="px-4 py-8 text-center">
-                <i className="fas fa-bell-slash text-4xl text-gray-300 dark:text-decor mb-2"></i>
+                <FaIcon icon={faBellSlash} className="text-4xl text-gray-300 dark:text-decor mb-2" />
                 <p className="text-muted text-sm">No new notifications</p>
               </div>
             ) : (
@@ -151,7 +154,7 @@ export default function NotificationBell() {
                         />
                       ) : (
                         <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center">
-                          <i className={`fas ${getNotificationIcon(notification.type)} text-brand-fg`}></i>
+                          <FaIcon icon={notificationGlyph(notification.type)} className="text-brand-fg" />
                         </div>
                       )}
 

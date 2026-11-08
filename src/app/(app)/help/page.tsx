@@ -11,6 +11,10 @@ import RecoverForm from '@/components/help/RecoverForm';
 import { SubmitRequest, MyRequests } from '@/components/settings/SupportSettings';
 import { COPY } from '@/lib/copy';
 import { HELP_TOPICS, HELP_TOPIC_LABELS, type HelpTopic, type PublicHelpArticle } from '@/lib/help/types';
+import FaIcon from '@/components/FaIcon';
+import { faCirclePlay } from '@/lib/icons/fa/circle-play';
+import { faEnvelope } from '@/lib/icons/fa/envelope';
+import { faLifeRing } from '@/lib/icons/fa/life-ring';
 
 // The Help Center (Support & Reporting, Spec 3) — the doc's four parts, top
 // to bottom: how-to videos, the searchable article list by topic, Submit a
@@ -74,7 +78,7 @@ export default function HelpCenterPage() {
       <AppHeader showSearch={false} />
       <main className="max-w-3xl mx-auto px-4 py-8" data-help-center="">
         <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-1">
-          <i className="fas fa-life-ring mr-2 text-brand-fg"></i>
+          <FaIcon icon={faLifeRing} className="mr-2 text-brand-fg" />
           Help Center
         </h1>
         <p className="text-sm text-tertiary mb-4">How-to videos, short articles, and a way to reach us that gets a ticket number.</p>
@@ -126,7 +130,7 @@ export default function HelpCenterPage() {
                 {list.map(a => (
                   <li key={a.slug}>
                     <Link href={`/help/${a.slug}`} className="block ea-surface ea-surface-raised rounded-lg p-4 ea-interactive" data-help-article={a.slug}>
-                      <p className="text-sm font-semibold text-primary">{a.videoId ? <i className="fas fa-circle-play text-brand-fg mr-2" aria-hidden="true"></i> : null}{a.title}</p>
+                      <p className="text-sm font-semibold text-primary">{a.videoId ? <FaIcon icon={faCirclePlay} className="text-brand-fg mr-2" /> : null}{a.title}</p>
                       {a.excerpt && <p className="text-xs text-muted mt-1">{a.excerpt}</p>}
                     </Link>
                   </li>
@@ -191,7 +195,7 @@ export default function HelpCenterPage() {
             <p className="text-sm font-semibold text-primary">{COPY.SUPPORT.CONTACT_NAME}</p>
             <p className="text-xs text-muted">{COPY.SUPPORT.CONTACT_ROLE}</p>
             <a href={`mailto:${COPY.SUPPORT.CONTACT_EMAIL}`} className="inline-flex items-center gap-2 mt-2 text-sm text-brand-fg hover:underline min-h-[44px]">
-              <i className="fas fa-envelope" aria-hidden="true"></i>
+              <FaIcon icon={faEnvelope} />
               {COPY.SUPPORT.CONTACT_EMAIL}
             </a>
           </div>

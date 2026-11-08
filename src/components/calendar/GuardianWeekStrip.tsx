@@ -9,6 +9,9 @@ import { findConflicts, conflictDayKeys, type ConflictEvent } from '@/lib/calend
 import { venueTimeLabel } from '@/lib/calendar/venue-time';
 import { personDotClass } from '@/lib/calendar/layers';
 import type { FamilyEvent, FamilyWeekAthlete } from '@/lib/calendar/use-family-week';
+import FaIcon from '@/components/FaIcon';
+import { faCalendarPlus } from '@/lib/icons/fa/calendar-plus';
+import { faTriangleExclamation } from '@/lib/icons/fa/triangle-exclamation';
 
 const CalendarSyncModal = dynamic(() => import('./CalendarSyncModal'), { ssr: false });
 
@@ -91,7 +94,7 @@ export default function GuardianWeekStrip({
           onClick={() => setSyncOpen(true)}
           className="inline-flex min-h-[44px] items-center gap-1.5 text-xs font-semibold text-brand-fg-strong hover:underline"
         >
-          <i className="fas fa-calendar-plus text-[10px]"></i>
+          <FaIcon icon={faCalendarPlus} className="text-[10px]" />
           Add to your calendar
         </button>
       </div>
@@ -144,7 +147,7 @@ export default function GuardianWeekStrip({
                         />
                       ))}
                       {hasConflict && (
-                        <i className="fas fa-triangle-exclamation text-[8px] text-amber-500"></i>
+                        <FaIcon icon={faTriangleExclamation} className="text-[8px] text-amber-500" />
                       )}
                     </span>
                   </button>
@@ -155,7 +158,7 @@ export default function GuardianWeekStrip({
             <div className="mt-2 border-t border-border-subtle pt-2">
               {selectedHasConflict && (
                 <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-200 mb-2">
-                  <i className="fas fa-triangle-exclamation"></i>
+                  <FaIcon icon={faTriangleExclamation} />
                   Schedule conflict — two commitments overlap this day.
                 </div>
               )}

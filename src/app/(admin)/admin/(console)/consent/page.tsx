@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/lib/admin/use-admin-auth';
 import AdminHeader from '@/components/admin/AdminHeader';
+import FaIcon from '@/components/FaIcon';
+import { faFileSignature } from '@/lib/icons/fa/file-signature';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
 
 interface PendingItem {
   recordId: string;
@@ -104,7 +107,7 @@ export default function ConsentReviewPage() {
               onClick={() => { setState('loading'); setRetryKey(k => k + 1); }}
               className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition"
             >
-              <i className="fas fa-rotate-right text-xs"></i>
+              <FaIcon icon={faRotateRight} className="text-xs" />
               Try again
             </button>
           </div>
@@ -177,7 +180,7 @@ export default function ConsentReviewPage() {
                 rel="noopener noreferrer"
                 className="inline-flex min-h-[44px] items-center mt-1 text-sm text-brand-fg hover:underline active:underline"
               >
-                <i className="fas fa-file-signature mr-1"></i>{' '}
+                <FaIcon icon={faFileSignature} className="mr-1" />{' '}
                 {item.method === 'typed_signature' || item.method === 'drawn_signature'
                   ? 'View signature'
                   : 'View signed form'}

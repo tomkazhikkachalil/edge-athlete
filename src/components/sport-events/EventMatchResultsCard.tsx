@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { roundLabelOf, type PostSportEvent } from '@/lib/sport-events/feed';
 import { formatDateOnly, formatLabel } from '@/lib/sport-events/format';
+import FaIcon from '@/components/FaIcon';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
 
 /**
  * The feed's results card for a MATCH round (Events program, phase 3,
@@ -21,7 +23,7 @@ export default function EventMatchResultsCard({ event }: { event: PostSportEvent
     <Link href={href} onClick={e => e.stopPropagation()} className="ea-surface ea-surface-raised block rounded-lg p-4 mb-3" data-event-match-results={event.id}>
       <div className="flex items-center gap-2 text-xs mb-1">
         <span className="px-2 py-0.5 rounded-md font-semibold bg-surface-muted text-secondary">Final</span>
-        <span className="text-muted"><i className="fas fa-flag-checkered mr-1" aria-hidden="true"></i>Match play</span>
+        <span className="text-muted"><FaIcon icon={faFlagCheckered} className="mr-1" />Match play</span>
         {roundLabel && <span className="text-muted" data-event-announce-round={event.sequence}>{roundLabel}{event.round_name ? ` · ${event.round_name}` : ''}</span>}
         {!roundLabel && event.round_name && <span className="text-muted">{event.round_name}</span>}
       </div>

@@ -8,6 +8,9 @@ import { GET_STARTED_DISMISSED_EVENT } from '@/lib/get-started';
 import { useInstallApp } from '@/components/install/InstallAppProvider';
 import { cardDecision, isSnoozed, parseSnooze, pushRefusedMessage, PUSH_CARD_SNOOZE_KEY, snoozeUntil } from '@/lib/push/card';
 import { usePhoneNotifications } from './usePhoneNotifications';
+import FaIcon from '@/components/FaIcon';
+import { faBell } from '@/lib/icons/fa/bell';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 /**
  * The feed's invitation to turn phone notifications on (mig 248) — only in
@@ -107,7 +110,7 @@ export default function PushCard() {
           aria-hidden="true"
           className="shrink-0 w-10 h-10 rounded-lg bg-brand-soft text-brand-fg flex items-center justify-center"
         >
-          <i className="fas fa-bell"></i>
+          <FaIcon icon={faBell} />
         </span>
         <div className="min-w-0 flex-1">
           <SectionInfo heading="Know when something happens" label="phone notifications" headingClassName="font-bold text-primary" dense>
@@ -121,7 +124,7 @@ export default function PushCard() {
               data-push-cta=""
               className="ea-cta inline-flex items-center gap-2 min-h-[44px] px-4 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
             >
-              <i className="fas fa-bell" aria-hidden="true"></i>
+              <FaIcon icon={faBell} />
               Turn on notifications
             </button>
             <button
@@ -140,7 +143,7 @@ export default function PushCard() {
           aria-label="Not now — ask me again in a week"
           className="ea-icon-btn inline-flex items-center justify-center shrink-0 text-muted hover:text-secondary"
         >
-          <i className="fas fa-times" aria-hidden="true"></i>
+          <FaIcon icon={faXmark} />
         </button>
       </div>
     </section>

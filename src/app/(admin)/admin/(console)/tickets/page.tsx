@@ -9,6 +9,11 @@ import { SeverityChip, StatusChip, TypeChip, ago, reasonLabel } from '@/componen
 import { TICKET_SEVERITIES, TICKET_TYPES, type TicketSeverity, type TicketType } from '@/lib/tickets/types';
 import type { AdminTicketView } from '@/lib/tickets/visibility';
 import type { QueueCounts, TicketStats } from '@/lib/tickets/server';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faLifeRing } from '@/lib/icons/fa/life-ring';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
 
 // The support queue (Support & Reporting, Spec 1): open tickets sorted
 // severity first, then age, with an overdue marker and the open counts.
@@ -76,16 +81,16 @@ export default function SupportQueuePage() {
       <AdminHeader />
       <main className="max-w-3xl mx-auto px-4 py-8">
         <button type="button" onClick={() => router.push('/admin')} className="text-sm text-brand-fg hover:underline mb-4 inline-flex items-center gap-2">
-          <i className="fas fa-arrow-left text-xs"></i> Admin
+          <FaIcon icon={faArrowLeft} className="text-xs" /> Admin
         </button>
         <h1 className="text-2xl font-bold text-primary mb-1">
-          <i className="fas fa-life-ring mr-2 text-brand-fg"></i>
+          <FaIcon icon={faLifeRing} className="mr-2 text-brand-fg" />
           Support queue
         </h1>
         <p className="text-sm text-tertiary mb-2">Help requests, reports and suggestions — critical first, then oldest. Targets are guidance; nothing escalates on its own.</p>
         {/* Authority PR 4: the recovery panels (owner-only; the API decides). */}
         <Link href="/admin/recovery" className="text-sm text-brand-fg hover:underline mb-6 inline-flex items-center gap-2 min-h-[44px]" data-recovery-door="">
-          <i className="fas fa-user-shield text-xs"></i> Recovery tools — clubs, leagues and events
+          <FaIcon icon={faUserShield} className="text-xs" /> Recovery tools — clubs, leagues and events
         </Link>
 
         {counts && (
@@ -142,7 +147,7 @@ export default function SupportQueuePage() {
           <div className="bg-surface border border-border rounded-lg p-6 text-center">
             <p role="alert" className="text-sm text-tertiary mb-4">Couldn&apos;t load the queue.</p>
             <button type="button" onClick={() => { setState('loading'); setRetryKey(k => k + 1); }} className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition">
-              <i className="fas fa-rotate-right text-xs"></i> Try again
+              <FaIcon icon={faRotateRight} className="text-xs" /> Try again
             </button>
           </div>
         )}

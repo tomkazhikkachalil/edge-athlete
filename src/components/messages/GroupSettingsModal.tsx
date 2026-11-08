@@ -8,6 +8,12 @@ import type { Conversation, ConversationParticipant } from '@/types/messages';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useTypeahead } from '@/hooks/useTypeahead';
 import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
+import FaIcon from '@/components/FaIcon';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faRightFromBracket } from '@/lib/icons/fa/right-from-bracket';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Props {
   conversation: Conversation;
@@ -180,7 +186,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-lg font-bold text-primary">Group Settings</h2>
           <button onClick={onClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center shrink-0">
-            <i className="fas fa-times"></i>
+            <FaIcon icon={faXmark} />
           </button>
         </div>
 
@@ -207,7 +213,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                   disabled={savingName || !name.trim() || name.trim() === conversation.name}
                   className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
                 >
-                  {savingName ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}
+                  {savingName ? <FaIcon icon={faSpinner} spin /> : 'Save'}
                 </button>
               </div>
             </div>
@@ -261,7 +267,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                         className="relative after:absolute after:content-[''] after:-inset-2.5 text-red-400 hover:text-red-600 active:text-red-600 dark:hover:text-red-400 p-1 shrink-0"
                         title="Remove from group"
                       >
-                        <i className="fas fa-times text-xs"></i>
+                        <FaIcon icon={faXmark} className="text-xs" />
                       </button>
                     )}
                   </div>
@@ -275,7 +281,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
             <div>
               <label className="block text-sm font-semibold text-secondary mb-2">Add Members</label>
               <div className="relative">
-                <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
+                <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -288,7 +294,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                 <div className="mt-2 border border-border rounded-lg overflow-hidden">
                   {searching ? (
                     <div className="px-3 py-3 text-center text-faint text-sm">
-                      <i className="fas fa-spinner fa-spin mr-2"></i>Searching…
+                      <FaIcon icon={faSpinner} spin className="mr-2" />Searching…
                     </div>
                   ) : (
                     searchResults.map(result => {
@@ -317,7 +323,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
                             <p className="text-sm font-medium text-primary truncate">{rName}</p>
                             {result.handle && <p className="text-xs text-faint">@{result.handle}</p>}
                           </div>
-                          <i className="fas fa-plus text-brand-fg text-xs shrink-0"></i>
+                          <FaIcon icon={faPlus} className="text-brand-fg text-xs shrink-0" />
                         </button>
                       );
                     })
@@ -334,7 +340,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
               disabled={saving}
               className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors disabled:opacity-40"
             >
-              <i className="fas fa-sign-out-alt"></i>
+              <FaIcon icon={faRightFromBracket} />
               {saving ? 'Leaving…' : 'Leave Group'}
             </button>
           </div>

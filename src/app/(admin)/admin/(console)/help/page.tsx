@@ -8,6 +8,11 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { COPY } from '@/lib/copy';
 import { HELP_LIMITS, HELP_TOPICS, HELP_TOPIC_LABELS, slugify, type HelpArticle, type HelpTopic } from '@/lib/help/types';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faBookOpen } from '@/lib/icons/fa/book-open';
+import { faCirclePlay } from '@/lib/icons/fa/circle-play';
+import { faPlus } from '@/lib/icons/fa/plus';
 
 // The owner's article editor (Support & Reporting, Spec 3): the doc's "Tom
 // can add articles from the admin console without a code change". A list
@@ -102,10 +107,10 @@ export default function HelpArticlesAdminPage() {
       <AdminHeader />
       <main className="max-w-3xl mx-auto px-4 py-8">
         <button type="button" onClick={requestClose} className="text-sm text-brand-fg hover:underline mb-4 inline-flex items-center gap-2">
-          <i className="fas fa-arrow-left text-xs"></i> Admin
+          <FaIcon icon={faArrowLeft} className="text-xs" /> Admin
         </button>
         <h1 className="text-2xl font-bold text-primary mb-1">
-          <i className="fas fa-book-open mr-2 text-brand-fg"></i>
+          <FaIcon icon={faBookOpen} className="mr-2 text-brand-fg" />
           Help articles
         </h1>
         <p className="text-sm text-tertiary mb-6">What the Help Center shows. A video is an article with a YouTube link. Drafts are invisible until published.</p>
@@ -119,7 +124,7 @@ export default function HelpArticlesAdminPage() {
           <>
             {editing === null && (
               <button type="button" onClick={startNew} className="mb-4 px-4 py-2 min-h-[44px] rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-hover transition" data-help-new="">
-                <i className="fas fa-plus mr-2" aria-hidden="true"></i>New article
+                <FaIcon icon={faPlus} className="mr-2" />New article
               </button>
             )}
             {editing !== null && (
@@ -184,7 +189,7 @@ export default function HelpArticlesAdminPage() {
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${a.published ? 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300' : 'bg-surface-muted text-muted'}`}>{a.published ? 'Published' : 'Draft'}</span>
                         <span className="text-xs text-muted">{HELP_TOPIC_LABELS[a.topic]} · #{a.sort_order}</span>
-                        {a.video_url && <i className="fas fa-circle-play text-brand-fg text-xs" aria-label="Has a video"></i>}
+                        {a.video_url && <FaIcon icon={faCirclePlay} className="text-brand-fg text-xs" aria-label="Has a video" />}
                       </div>
                       <p className="text-sm font-semibold text-primary">{a.title}</p>
                       <p className="text-xs text-muted font-mono">/help/{a.slug}</p>

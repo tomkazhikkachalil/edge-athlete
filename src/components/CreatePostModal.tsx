@@ -46,6 +46,29 @@ import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import FeedToggle from '@/components/posts/FeedToggle';
 import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { POST_VISIBILITY, isPrivateAccount } from '@/lib/posts/audience';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faCircleInfo } from '@/lib/icons/fa/circle-info';
+import { faClockRotateLeft } from '@/lib/icons/fa/clock-rotate-left';
+import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
+import { faCommentRegular } from '@/lib/icons/fa/comment-regular';
+import { faEye } from '@/lib/icons/fa/eye';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faHeartRegular } from '@/lib/icons/fa/heart-regular';
+import { faPaperPlane } from '@/lib/icons/fa/paper-plane';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
+import { faShare } from '@/lib/icons/fa/share';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUser } from '@/lib/icons/fa/user';
+import { faUserTag } from '@/lib/icons/fa/user-tag';
+import { faVideo } from '@/lib/icons/fa/video';
+import { faXmark } from '@/lib/icons/fa/xmark';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -995,7 +1018,7 @@ export default function CreatePostModal({
                 onClick={openPhoto}
                 className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
               >
-                <i className="fas fa-camera text-lg text-brand-fg" aria-hidden="true"></i>
+                <FaIcon icon={faCamera} className="text-lg text-brand-fg" />
                 <span className="text-xs font-semibold">Take photo</span>
               </button>
               <button
@@ -1003,7 +1026,7 @@ export default function CreatePostModal({
                 onClick={openVideo}
                 className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
               >
-                <i className="fas fa-video text-lg text-brand-fg" aria-hidden="true"></i>
+                <FaIcon icon={faVideo} className="text-lg text-brand-fg" />
                 <span className="text-xs font-semibold">Record video</span>
               </button>
               <button
@@ -1011,7 +1034,7 @@ export default function CreatePostModal({
                 onClick={() => fileInputRef.current?.click()}
                 className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
               >
-                <i className="fas fa-cloud-upload-alt text-lg text-brand-fg" aria-hidden="true"></i>
+                <FaIcon icon={faCloudArrowUp} className="text-lg text-brand-fg" />
                 <span className="text-xs font-semibold">Upload</span>
               </button>
             </div>
@@ -1029,7 +1052,7 @@ export default function CreatePostModal({
             like photos, so the plain claim is honest). */}
         {mediaFiles.length > 0 && (activeProfile || profile?.supervision_state === 'supervised') && (
           <p className="mt-1 text-xs text-muted">
-            <i className="fas fa-shield-alt mr-1" aria-hidden="true"></i>
+            <FaIcon icon={faShieldHalved} className="mr-1" />
             Location data is removed from photos and videos before upload.
           </p>
         )}
@@ -1124,7 +1147,7 @@ export default function CreatePostModal({
                     aria-label="Retry upload"
                     data-media-retry=""
                   >
-                    <i className="fas fa-rotate-right" aria-hidden="true"></i>
+                    <FaIcon icon={faRotateRight} />
                     <span>Upload failed — tap to retry</span>
                   </button>
                 )}
@@ -1137,7 +1160,7 @@ export default function CreatePostModal({
                   className="absolute top-0 right-0 p-2 group"
                 >
                   <span className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-red-600 transition-colors">
-                    <i className="fas fa-times text-xs"></i>
+                    <FaIcon icon={faXmark} className="text-xs" />
                   </span>
                 </button>
 
@@ -1151,7 +1174,7 @@ export default function CreatePostModal({
                     className="absolute bottom-0 right-0 p-2 group"
                   >
                     <span className="bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-black/80 transition-colors">
-                      <i className="fas fa-pen text-xs"></i>
+                      <FaIcon icon={faPen} className="text-xs" />
                     </span>
                   </button>
                 )}
@@ -1206,7 +1229,7 @@ export default function CreatePostModal({
             className="ea-icon-btn inline-flex items-center justify-center"
             aria-label="Close modal"
           >
-            <i className="fas fa-times text-muted text-lg"></i>
+            <FaIcon icon={faXmark} className="text-muted text-lg" />
           </button>
         </div>
 
@@ -1215,7 +1238,7 @@ export default function CreatePostModal({
           {/* Crash-recovery draft notice — restore is a choice, never automatic */}
           {availableDraft && caption.trim() === '' && (
             <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2">
-              <i className="fas fa-clock-rotate-left text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faClockRotateLeft} className="text-brand-fg" />
               <p className="text-sm text-violet-900 dark:text-violet-200 flex-1 min-w-40">
                 You have an unfinished post{availableDraft.caption ? ` — “${availableDraft.caption.slice(0, 40)}${availableDraft.caption.length > 40 ? '…' : ''}”` : ''}
                 {availableDraft.mediaCount ? ` (${availableDraft.mediaCount} ${availableDraft.mediaCount === 1 ? 'photo or video' : 'photos or videos'})` : ''}
@@ -1274,7 +1297,7 @@ export default function CreatePostModal({
                 className="ea-interactive inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 -ml-2 text-left"
                 aria-label="Change sport"
               >
-                <i className={`${getSportDefinition(postType as SportKey).icon_id} text-brand-fg`} aria-hidden="true"></i>
+                <FaIcon icon={sportIcon(postType as SportKey)} className="text-brand-fg" />
                 <span className="font-semibold text-primary">{getSportDefinition(postType as SportKey).display_name}</span>
                 <span className="text-sm font-medium text-brand-fg">Change</span>
               </button>
@@ -1287,7 +1310,7 @@ export default function CreatePostModal({
                 }}
                 className="ea-interactive inline-flex min-h-[44px] items-center text-sm text-muted hover:text-primary"
               >
-                <i className="fas fa-times mr-1" aria-hidden="true"></i>
+                <FaIcon icon={faXmark} className="mr-1" />
                 Remove sport
               </button>
             </div>
@@ -1301,13 +1324,10 @@ export default function CreatePostModal({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-lg bg-surface-sunken group-hover:bg-violet-100 dark:group-hover:bg-violet-950/60 flex items-center justify-center transition-colors">
-                    <i className={`${
-                      postType === 'general'
-                        ? 'fas fa-edit'
-                        : getSportDefinition(postType as SportKey).icon_id
-                    } text-xl ${
-                      postType === 'general' ? 'text-muted' : 'text-brand-fg'
-                    } group-hover:text-brand-fg`}></i>
+                    <FaIcon
+                      icon={postType === 'general' ? faPenToSquare : sportIcon(postType as SportKey)}
+                      className={`text-xl ${postType === 'general' ? 'text-muted' : 'text-brand-fg'} group-hover:text-brand-fg`}
+                    />
                   </div>
                   <div>
                     <div className="font-semibold text-primary">
@@ -1326,7 +1346,7 @@ export default function CreatePostModal({
                 </div>
                 <div className="flex items-center gap-2 text-brand-fg">
                   <span className="text-sm font-medium">Change</span>
-                  <i className="fas fa-chevron-right"></i>
+                  <FaIcon icon={faChevronRight} />
                 </div>
               </div>
             </button>
@@ -1343,7 +1363,7 @@ export default function CreatePostModal({
                 }}
                 className="ea-interactive mt-2 text-sm text-muted hover:text-primary"
               >
-                <i className="fas fa-times mr-1" aria-hidden="true"></i>
+                <FaIcon icon={faXmark} className="mr-1" />
                 Remove sport
               </button>
             )}
@@ -1399,7 +1419,7 @@ export default function CreatePostModal({
                   }`}
                 >
                   {selectedTags.includes(tag.value) && (
-                    <i className="fas fa-check mr-1 text-xs"></i>
+                    <FaIcon icon={faCheck} className="mr-1 text-xs" />
                   )}
                   {tag.label}
                 </button>
@@ -1435,7 +1455,7 @@ export default function CreatePostModal({
                       aria-label={`Remove ${hashtag}`}
                       className="ml-0.5 -my-2 -mr-2 p-2 hover:text-violet-900 dark:hover:text-violet-200 inline-flex items-center justify-center"
                     >
-                      <i className="fas fa-times text-xs"></i>
+                      <FaIcon icon={faXmark} className="text-xs" />
                     </button>
                   </span>
                 ))}
@@ -1499,7 +1519,7 @@ export default function CreatePostModal({
                 onClick={() => setShowTagModal(true)}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm text-brand-fg hover:text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
               >
-                <i className="fas fa-user-tag"></i>
+                <FaIcon icon={faUserTag} />
                 {taggedProfiles.length > 0 ? `Tagged (${taggedProfiles.length})` : 'Add Tags'}
               </button>
             </div>
@@ -1512,14 +1532,14 @@ export default function CreatePostModal({
                     key={profile.id}
                     className="inline-flex items-center gap-2 px-3 py-1.5 bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-200 rounded-full text-sm font-medium border border-violet-300 dark:border-violet-700"
                   >
-                    <i className="fas fa-user text-xs"></i>
+                    <FaIcon icon={faUser} className="text-xs" />
                     {profile.name}
                     <button
                       onClick={() => removeTaggedPerson(profile.id)}
                       aria-label={`Remove ${profile.name}`}
                       className="ml-1 hover:text-violet-900 dark:hover:text-violet-200"
                     >
-                      <i className="fas fa-times text-xs"></i>
+                      <FaIcon icon={faXmark} className="text-xs" />
                     </button>
                   </span>
                 ))}
@@ -1528,7 +1548,7 @@ export default function CreatePostModal({
 
             {taggedProfilesData.length === 0 && (
               <p className="text-sm text-muted">
-                <i className="fas fa-info-circle mr-1"></i>
+                <FaIcon icon={faCircleInfo} className="mr-1" />
                 Tag people who are in your photos or videos
               </p>
             )}
@@ -1557,7 +1577,7 @@ export default function CreatePostModal({
                 error before anything was tried (Oct 9 2026 appearance round). */}
             {!isValidForSubmission() && (
               <span className="text-secondary" data-composer-hint="">
-                <i className="fas fa-circle-info mr-1.5 text-brand-fg" aria-hidden="true"></i>
+                <FaIcon icon={faCircleInfo} className="mr-1.5 text-brand-fg" />
                 {hasTooLongVideo ? (
                   // Videos program (296): a game, a tournament, a broadcast is
                   // longer than a clip — it lives on YouTube and is linked.
@@ -1589,7 +1609,7 @@ export default function CreatePostModal({
               disabled={!isValidForSubmission()}
               className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-secondary bg-surface-sunken border border-border-strong rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <i className="fas fa-eye mr-2"></i>
+              <FaIcon icon={faEye} className="mr-2" />
               Preview
             </button>
 
@@ -1602,12 +1622,12 @@ export default function CreatePostModal({
             >
               {isSubmitting ? (
                 <>
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  <FaIcon icon={faSpinner} spin className="mr-2" />
                   {uploadingLine(mediaFiles.map(f => uploads.itemFor(f.id)?.progress)) ?? 'Creating...'}
                 </>
               ) : (
                 <>
-                  <i className="fas fa-paper-plane mr-2"></i>
+                  <FaIcon icon={faPaperPlane} className="mr-2" />
                   Create Post
                 </>
               )}
@@ -1836,7 +1856,7 @@ function PostPreview({
             aria-label="Close preview"
             className="p-2 hover:bg-gray-200 dark:hover:bg-stone-800 rounded-lg transition-colors"
           >
-            <i className="fas fa-times text-tertiary"></i>
+            <FaIcon icon={faXmark} className="text-tertiary" />
           </button>
         </div>
 
@@ -1911,7 +1931,7 @@ function PostPreview({
                       key={person.id}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-soft text-brand-fg-strong text-sm rounded-full font-semibold border border-violet-200 dark:border-violet-800"
                     >
-                      <i className="fas fa-user text-xs"></i>
+                      <FaIcon icon={faUser} className="text-xs" />
                       {person.name}
                     </span>
                   ))}
@@ -1942,7 +1962,7 @@ function PostPreview({
               {postType === 'golf' && sharedRoundDetails && (
                 <div className="mb-4 p-4 bg-green-50 dark:bg-green-950/40 rounded-lg border border-green-200 dark:border-green-800">
                   <div className="flex items-center gap-2 mb-2">
-                    <i className="fas fa-golf-ball text-green-600 dark:text-green-400"></i>
+                    <FaIcon icon={faGolfBallTee} className="text-green-600 dark:text-green-400" />
                     <span className="font-semibold text-green-800 dark:text-green-200">
                       Golf Round
                     </span>
@@ -1970,13 +1990,13 @@ function PostPreview({
             <div className="px-4 py-3 border-t border-border-subtle flex justify-between text-muted">
               <div className="flex gap-4">
                 <button className="hover:text-brand-fg transition-colors">
-                  <i className="far fa-heart mr-1"></i> Like
+                  <FaIcon icon={faHeartRegular} className="mr-1" /> Like
                 </button>
                 <button className="hover:text-brand-fg transition-colors">
-                  <i className="far fa-comment mr-1"></i> Comment
+                  <FaIcon icon={faCommentRegular} className="mr-1" /> Comment
                 </button>
                 <button className="hover:text-brand-fg transition-colors">
-                  <i className="fas fa-share mr-1"></i> Share
+                  <FaIcon icon={faShare} className="mr-1" /> Share
                 </button>
               </div>
             </div>
@@ -1995,7 +2015,7 @@ function PostPreview({
             onClick={onPost}
             className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
           >
-            <i className="fas fa-paper-plane mr-2"></i>
+            <FaIcon icon={faPaperPlane} className="mr-2" />
             Post Now
           </button>
         </div>

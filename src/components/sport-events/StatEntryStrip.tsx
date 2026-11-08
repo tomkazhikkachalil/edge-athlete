@@ -3,6 +3,8 @@
 import { applyIncrement, type StatValues } from '@/lib/sport-events/stats';
 import type { SportStatSchema } from '@/lib/sports/stat-schemas';
 import type { StatOutboxEntry } from '@/lib/sport-events/stat-outbox';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Props {
   name: string;
@@ -37,7 +39,7 @@ export default function StatEntryStrip({ name, schema, stats, entry, onChange, o
           <p className="text-sm font-bold text-primary truncate">{name}</p>
           <span className="text-xs text-muted" data-stat-strip-state={entry?.state ?? 'saved'}>{entry?.state === 'pending' ? 'Saving…' : entry?.state === 'conflict' ? 'Conflict' : entry?.state === 'error' ? 'Not saved' : 'Saved'}</span>
           <button type="button" onClick={onClose} className="ea-icon-btn text-secondary" aria-label="Close">
-            <i className="fas fa-times" aria-hidden="true"></i>
+            <FaIcon icon={faXmark} />
           </button>
         </div>
         {entry?.state === 'conflict' && (

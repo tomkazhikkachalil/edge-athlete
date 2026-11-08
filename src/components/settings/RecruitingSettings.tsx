@@ -9,6 +9,7 @@ import { parseRecruitingStatus, type RecruitingProfile, type RecruitingStatus } 
 import { shortlistedByLabel } from '@/lib/recruiting/shortlist';
 import RecruitingFields from '@/components/recruiting/RecruitingFields';
 import SupervisedSettingCard from './SupervisedSettingCard';
+import { faGraduationCap } from '@/lib/icons/fa/graduation-cap';
 
 // ── Settings → Recruiting (Oct 4 2026) ────────────────────────────────────
 // Tom: "the recruiting shouldn't be displayed on the user profile … moved
@@ -111,7 +112,7 @@ export default function RecruitingSettings() {
 
       {supervised ? (
         <SupervisedSettingCard
-          icon="fa-graduation-cap"
+          icon={faGraduationCap}
           iconColor="text-brand-fg"
           label="Recruiting"
           description="A guardian decides whether you are recruiting."

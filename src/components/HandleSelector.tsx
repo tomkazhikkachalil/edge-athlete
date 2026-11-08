@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { validateHandleFormat, checkHandleAvailability, generateHandleSuggestions } from '@/lib/handle-validation';
+import FaIcon from '@/components/FaIcon';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faCircleXmark } from '@/lib/icons/fa/circle-xmark';
 
 interface HandleSelectorProps {
   initialHandle?: string;
@@ -172,9 +175,9 @@ export default function HandleSelector({
             {isChecking ? (
               <div className="animate-spin h-5 w-5 border-2 border-violet-500 border-t-transparent rounded-full"></div>
             ) : isValid ? (
-              <i className="fas fa-check-circle text-green-500 text-xl"></i>
+              <FaIcon icon={faCircleCheck} className="text-green-500 text-xl" />
             ) : validationMessage ? (
-              <i className="fas fa-times-circle text-red-500 text-xl"></i>
+              <FaIcon icon={faCircleXmark} className="text-red-500 text-xl" />
             ) : null}
           </div>
         </div>

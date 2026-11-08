@@ -16,6 +16,8 @@ import { toParColorClass } from '@/lib/golf/scoring';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { AvatarImage } from '@/components/OptimizedImage';
 import { getInitials, parseDateLocal } from '@/lib/formatters';
+import FaIcon from '@/components/FaIcon';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 const RESULT_STYLES: Record<string, string> = {
   W: 'bg-green-600 text-white',
@@ -100,10 +102,7 @@ export default function StatHighlightCard({
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-start gap-2 min-w-0">
           {sportDef && (
-            <i
-              className={`${sportDef.icon_id} text-brand-fg-strong shrink-0 mt-0.5`}
-              aria-hidden="true"
-            ></i>
+            <FaIcon icon={sportIcon(sportDef.sport_key)} className="text-brand-fg-strong shrink-0 mt-0.5" />
           )}
           <div className="min-w-0">
             <div className="font-semibold text-primary text-sm truncate">{moment}</div>

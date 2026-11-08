@@ -16,6 +16,12 @@ import type { EventListItem } from './types';
 import FilterChip from './FilterChip';
 import { useHouseholdRoster } from './useHouseholdRoster';
 import { fetchJson, readCached } from '@/lib/net/query-cache';
+import FaIcon from '@/components/FaIcon';
+import { faArrowsRotate } from '@/lib/icons/fa/arrows-rotate';
+import { faCalendarDays } from '@/lib/icons/fa/calendar-days';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faReply } from '@/lib/icons/fa/reply';
 
 const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: false });
 const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
@@ -76,7 +82,7 @@ function EventRow({ event, onClick }: { event: EventListItem; onClick: () => voi
         <span className="block text-sm text-primary truncate">
           {event.my_status === 'maybe' && <span className="font-bold mr-0.5">?</span>}
           {event.title}
-          {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] text-decor"></i>}
+          {event.series_id && <FaIcon icon={faArrowsRotate} className="ml-1 text-[9px] text-decor" />}
         </span>
         <span className="block text-xs text-muted">
           {event.all_day ? format(start, 'EEE, MMM d') : format(start, 'EEE, MMM d · h:mm a')}
@@ -332,7 +338,7 @@ export default function FeedCalendarWidget() {
     <div className="bg-surface rounded-lg shadow-sm border border-border p-4" data-testid="feed-calendar">
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-bold text-primary">
-          <i className="fas fa-calendar-days text-brand-fg mr-2"></i>
+          <FaIcon icon={faCalendarDays} className="text-brand-fg mr-2" />
           Calendar
         </h3>
         <button
@@ -410,7 +416,7 @@ export default function FeedCalendarWidget() {
                 ))}
               {hasInvites && (
                 <FilterChip size="sm" selected={needsReply} onClick={toggleNeedsReply}>
-                  <i className="fas fa-reply text-[10px]" aria-hidden="true"></i>
+                  <FaIcon icon={faReply} className="text-[10px]" />
                   Needs reply
                 </FilterChip>
               )}
@@ -466,7 +472,7 @@ export default function FeedCalendarWidget() {
                   onClick={() => pageMonth(-1)}
                   className="w-10 h-10 rounded text-faint hover:text-brand-fg hover:bg-brand-soft"
                 >
-                  <i className="fas fa-chevron-left text-xs"></i>
+                  <FaIcon icon={faChevronLeft} className="text-xs" />
                 </button>
                 <p className="text-sm font-semibold text-primary">{format(focusMonth, 'MMMM yyyy')}</p>
                 <button
@@ -475,7 +481,7 @@ export default function FeedCalendarWidget() {
                   onClick={() => pageMonth(1)}
                   className="w-10 h-10 rounded text-faint hover:text-brand-fg hover:bg-brand-soft"
                 >
-                  <i className="fas fa-chevron-right text-xs"></i>
+                  <FaIcon icon={faChevronRight} className="text-xs" />
                 </button>
               </div>
               <div className="grid grid-cols-7 mb-0.5">

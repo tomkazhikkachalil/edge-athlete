@@ -1,14 +1,19 @@
 'use client';
 
 import { GOLF_LABEL } from '@/components/golf/golf-form-styles';
+import FaIcon from '@/components/FaIcon';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faPeopleArrows } from '@/lib/icons/fa/people-arrows';
+import { faStar } from '@/lib/icons/fa/star';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 export type GolfGameFormat = 'stroke' | 'stableford' | 'match';
 
 export const GAME_FORMAT_OPTIONS = [
-  { value: 'stroke', label: 'Stroke Play', icon: 'fa-golf-ball' },
-  { value: 'stableford', label: 'Stableford', icon: 'fa-star' },
-  { value: 'match', label: 'Match Play', icon: 'fa-people-arrows' },
-] as const satisfies readonly { value: GolfGameFormat; label: string; icon: string }[];
+  { value: 'stroke', label: 'Stroke Play', icon: faGolfBallTee },
+  { value: 'stableford', label: 'Stableford', icon: faStar },
+  { value: 'match', label: 'Match Play', icon: faPeopleArrows },
+] as const satisfies readonly { value: GolfGameFormat; label: string; icon: FaIconDef }[];
 
 export function gameFormatLabel(value: GolfGameFormat): string {
   return GAME_FORMAT_OPTIONS.find(o => o.value === value)?.label ?? value;
@@ -43,7 +48,7 @@ export default function FormatStep({ value, onChange }: FormatStepProps) {
                 : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
             }`}
           >
-            <i className={`fas ${icon} mr-1.5`} aria-hidden="true"></i>
+            <FaIcon icon={icon} className="mr-1.5" />
             {label}
           </button>
         ))}

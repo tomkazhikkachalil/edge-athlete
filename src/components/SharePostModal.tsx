@@ -5,6 +5,13 @@ import Image from 'next/image';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { Conversation, ConversationParticipant } from '@/types/messages';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faLink } from '@/lib/icons/fa/link';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faPaperPlane } from '@/lib/icons/fa/paper-plane';
+import { faShareNodes } from '@/lib/icons/fa/share-nodes';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface SharePostModalProps {
   isOpen: boolean;
@@ -189,14 +196,14 @@ export default function SharePostModal({
             aria-label="Close"
             className="ea-icon-btn inline-flex items-center justify-center shrink-0"
           >
-            <i className="fas fa-times text-lg"></i>
+            <FaIcon icon={faXmark} className="text-lg" />
           </button>
         </div>
 
         {/* Search */}
         <div className="px-4 py-3 border-b border-border-subtle">
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-sm"></i>
+            <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 text-decor text-sm" />
             <input
               type="text"
               value={search}
@@ -242,7 +249,7 @@ export default function SharePostModal({
                           )}
                           {sent.has(contact.conversationId) && (
                             <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                              <i className="fas fa-check text-white text-[10px]"></i>
+                              <FaIcon icon={faCheck} className="text-white text-[10px]" />
                             </div>
                           )}
                           {sending === contact.conversationId && (
@@ -305,7 +312,7 @@ export default function SharePostModal({
                           {/* Send / Sent indicator */}
                           {isSent ? (
                             <span className="text-xs font-medium text-green-600 dark:text-green-400 flex items-center gap-1">
-                              <i className="fas fa-check"></i> Sent
+                              <FaIcon icon={faCheck} /> Sent
                             </span>
                           ) : isSending ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand"></div>
@@ -326,7 +333,7 @@ export default function SharePostModal({
                     <p className="text-sm text-muted">No conversations match &ldquo;{search}&rdquo;</p>
                   ) : (
                     <>
-                      <i className="fas fa-paper-plane text-3xl text-gray-300 dark:text-stone-600 mb-2"></i>
+                      <FaIcon icon={faPaperPlane} className="text-3xl text-gray-300 dark:text-stone-600 mb-2" />
                       <p className="text-sm text-muted">No conversations yet</p>
                     </>
                   )}
@@ -344,7 +351,7 @@ export default function SharePostModal({
               onClick={handleCopyLink}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-sunken rounded-lg text-sm font-medium text-secondary hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors"
             >
-              <i className={`fas ${copySuccess ? 'fa-check text-green-600 dark:text-green-400' : 'fa-link'}`}></i>
+              <FaIcon icon={copySuccess ? faCheck : faLink} className={copySuccess ? 'text-green-600 dark:text-green-400' : ''} />
               {copySuccess ? 'Copied!' : 'Copy Link'}
             </button>
             {typeof navigator !== 'undefined' && 'share' in navigator && (
@@ -352,7 +359,7 @@ export default function SharePostModal({
                 onClick={handleNativeShare}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-sunken rounded-lg text-sm font-medium text-secondary hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors"
               >
-                <i className="fas fa-share-alt"></i>
+                <FaIcon icon={faShareNodes} />
                 More
               </button>
             )}

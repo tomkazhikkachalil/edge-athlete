@@ -1,6 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faCopy } from '@/lib/icons/fa/copy';
 
 /**
  * A guardian-invite link the user shares THEMSELVES — the email is a
@@ -40,7 +43,7 @@ export default function InviteLinkShare({ url, hint }: { url: string; hint?: str
           onClick={copy}
           className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-brand-fg ea-interactive"
         >
-          <i className={`fas ${copied ? 'fa-check' : 'fa-copy'}`} aria-hidden="true"></i>
+          <FaIcon icon={copied ? faCheck : faCopy} />
           {copied ? 'Copied' : 'Copy link'}
         </button>
       </div>

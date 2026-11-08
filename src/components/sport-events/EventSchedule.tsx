@@ -5,6 +5,9 @@ import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import { formatDateOnly, formatTeeTime, holesLabel, ROUND_STATUS_LABEL, startTimeLine } from '@/lib/sport-events/format';
 import { ROUND_ACTION_LABEL, roundActionsFor, type RoundAction } from '@/lib/sport-events/page-rules';
 import { activeRounds, MAX_ROUNDS } from '@/lib/sport-events/rounds';
+import FaIcon from '@/components/FaIcon';
+import { faCalendarPlus } from '@/lib/icons/fa/calendar-plus';
+import { faPlus } from '@/lib/icons/fa/plus';
 
 /**
  * The Schedule tab (Events program): every round as a card — its date,
@@ -101,11 +104,11 @@ export default function EventSchedule({ view, busy = false, onRoundAction, onAdd
       })}
       <div className="flex flex-wrap gap-2">
         {canAdd && (
-          <button type="button" disabled={busy} onClick={onAddRound} className={BTN} data-round-add=""><i className="fas fa-plus mr-2" aria-hidden="true"></i>Add a round</button>
+          <button type="button" disabled={busy} onClick={onAddRound} className={BTN} data-round-add=""><FaIcon icon={faPlus} className="mr-2" />Add a round</button>
         )}
         {event.status !== 'cancelled' && activeRounds(rounds).length > 0 && (
           // The .ics download (phase 2b): one entry per round; cookie-authed, so a plain link.
-          <a href={`/api/sport-events/${event.id}/ics`} className={`${BTN} inline-flex items-center`} data-event-ics=""><i className="fas fa-calendar-plus mr-2" aria-hidden="true"></i>Add to calendar</a>
+          <a href={`/api/sport-events/${event.id}/ics`} className={`${BTN} inline-flex items-center`} data-event-ics=""><FaIcon icon={faCalendarPlus} className="mr-2" />Add to calendar</a>
         )}
       </div>
     </div>

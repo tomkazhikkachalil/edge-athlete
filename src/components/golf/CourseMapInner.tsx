@@ -27,6 +27,15 @@ import type { HoleElevation } from '@/lib/golf/elevation';
 import { OSM_TILES, SATELLITE_TILES } from '@/lib/maps/tiles';
 import { followDefault, shouldPan } from '@/lib/golf/map-follow';
 import { COPY } from '@/lib/copy';
+import FaIcon from '@/components/FaIcon';
+import { faBullseye } from '@/lib/icons/fa/bullseye';
+import { faCrosshairs } from '@/lib/icons/fa/crosshairs';
+import { faFlag } from '@/lib/icons/fa/flag';
+import { faLocationCrosshairs } from '@/lib/icons/fa/location-crosshairs';
+import { faMap } from '@/lib/icons/fa/map';
+import { faPersonWalking } from '@/lib/icons/fa/person-walking';
+import { faSatellite } from '@/lib/icons/fa/satellite';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 export interface CourseMapInnerProps {
   lat: number;
@@ -572,7 +581,7 @@ export default function CourseMapInner({
       aria-live="polite"
       className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-border bg-surface/90 py-1 pl-3 pr-1 text-sm font-bold text-primary shadow-sm"
     >
-      <i className="fas fa-bullseye text-orange-500" aria-hidden="true"></i>
+      <FaIcon icon={faBullseye} className="text-orange-500" />
       <span>
         {!playerFix && <span className="font-medium text-secondary">from tee: </span>}
         {targetYds.toTarget} to target · {targetYds.targetToGreen} to green
@@ -583,7 +592,7 @@ export default function CourseMapInner({
         aria-label="Clear target"
         className="ea-icon-btn inline-flex items-center justify-center text-secondary"
       >
-        <i className="fas fa-xmark text-xs" aria-hidden="true"></i>
+        <FaIcon icon={faXmark} className="text-xs" />
       </button>
     </div>
   );
@@ -630,7 +639,7 @@ export default function CourseMapInner({
         compact && tracking ? 'max-sm:bg-brand max-sm:text-white' : ''
       }`}
     >
-      <i className="fas fa-location-crosshairs" aria-hidden="true"></i>
+      <FaIcon icon={faLocationCrosshairs} />
       <span className={labelClass}>{tracking ? 'Stop tracking' : 'Track my position'}</span>
     </button>
   );
@@ -651,7 +660,7 @@ export default function CourseMapInner({
         compact && follow === true ? 'max-sm:bg-brand max-sm:text-white' : ''
       }`}
     >
-      <i className="fas fa-person-walking" aria-hidden="true"></i>
+      <FaIcon icon={faPersonWalking} />
       <span className={labelClass}>{COPY.GOLF_HOLE.FOLLOW_ME}</span>
     </button>
   );
@@ -663,7 +672,7 @@ export default function CourseMapInner({
       className={`inline-flex min-h-[40px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface/90 ${controlPad} py-1.5 text-sm font-medium text-secondary shadow-sm ea-interactive`}
       aria-label={layer === 'satellite' ? 'Switch to map view' : 'Switch to satellite view'}
     >
-      <i className={`fas ${layer === 'satellite' ? 'fa-map' : 'fa-satellite'}`} aria-hidden="true"></i>
+      <FaIcon icon={layer === 'satellite' ? faMap : faSatellite} />
       <span className={labelClass}>{layer === 'satellite' ? 'Map' : 'Satellite'}</span>
     </button>
   );
@@ -690,7 +699,7 @@ export default function CourseMapInner({
                 aria-label="Re-center on my position"
                 className={`inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg border border-border bg-surface/90 ${controlPad} py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive`}
               >
-                <i className="fas fa-crosshairs" aria-hidden="true"></i>
+                <FaIcon icon={faCrosshairs} />
                 <span className={labelClass}>Re-center</span>
               </button>
             )}
@@ -702,7 +711,7 @@ export default function CourseMapInner({
                 className="inline-flex min-h-[40px] flex-col items-start justify-center rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-bold text-primary shadow-sm"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <i className="fas fa-flag text-green-600" aria-hidden="true"></i>
+                  <FaIcon icon={faFlag} className="text-green-600" />
                   {greenLabel(pillLive)}
                 </span>
                 {playsLikeShort(pillLive) && (

@@ -4,6 +4,10 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
 import { PRIVACY_SETTINGS_HREF, isPrivateAccount, whoSeesPost } from '@/lib/posts/audience';
+import FaIcon from '@/components/FaIcon';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { faUserGroup } from '@/lib/icons/fa/user-group';
+import { faLock } from '@/lib/icons/fa/lock';
 
 interface AccountAudienceLineProps {
   /** The POSTING account's visibility (a guardian acting for an athlete
@@ -26,10 +30,10 @@ export default function AccountAudienceLine({ accountVisibility, legacyFansOnly,
   const visibility = accountVisibility !== undefined ? accountVisibility : profile?.visibility;
   const privateAccount = isPrivateAccount(visibility);
   const line = legacyFansOnly ? COPY.AUDIENCE.LEGACY_FANS_ONLY : whoSeesPost(visibility);
-  const icon = legacyFansOnly ? 'fa-lock' : privateAccount ? 'fa-user-group' : 'fa-globe';
+  const icon = legacyFansOnly ? faLock : privateAccount ? faUserGroup : faGlobe;
   return (
     <p className={`flex items-start gap-2 text-sm text-secondary ${className}`} data-account-audience={legacyFansOnly ? 'fans-only' : privateAccount ? 'private' : 'public'}>
-      <i className={`fas ${icon} mt-0.5 w-4 text-center text-tertiary`} aria-hidden="true" />
+      <FaIcon icon={icon} className="mt-0.5 w-4 text-center text-tertiary" />
       <span className="flex-1 min-w-0">
         {line}
         {!hideChange && !legacyFansOnly && (

@@ -1,11 +1,14 @@
+import { faCompass } from '@/lib/icons/fa/compass';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 /**
  * The Sports section (Events program, phase-1-minimal navigation): Sports
  * replaces Explore in the header; under it, three places. Pure.
  */
 export const SPORTS_SECTIONS = [
-  { key: 'explore', path: '/sports/explore', label: 'Explore', icon: 'fa-compass' },
-  { key: 'events', path: '/sports/events', label: 'Events', icon: 'fa-flag-checkered' },
-  { key: 'leaderboards', path: '/sports/leaderboards', label: 'Leaderboards', icon: 'fa-trophy' },
+  { key: 'explore', path: '/sports/explore', label: 'Explore', icon: faCompass },
+  { key: 'events', path: '/sports/events', label: 'Events', icon: faFlagCheckered },
+  { key: 'leaderboards', path: '/sports/leaderboards', label: 'Leaderboards', icon: faTrophy },
 ] as const;
 export type SportsSectionKey = (typeof SPORTS_SECTIONS)[number]['key'];
 

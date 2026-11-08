@@ -10,6 +10,11 @@ import { useToast } from '@/components/Toast';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faSitemap } from '@/lib/icons/fa/sitemap';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // Admin structure console (0.5): seasons → divisions → team entries, plus
 // the org's persistent teams. The ONLY structure writer in v1 (Tom,
@@ -278,7 +283,7 @@ export default function AdminStructurePage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-lock text-2xl text-decor" aria-hidden="true"></i>
+              <FaIcon icon={faLock} className="text-2xl text-decor" />
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Admin access required</h1>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
@@ -298,7 +303,7 @@ export default function AdminStructurePage() {
             ← Admin
           </Link>
           <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-primary">
-            <i className="fas fa-sitemap mr-2 text-brand-fg"></i>
+            <FaIcon icon={faSitemap} className="mr-2 text-brand-fg" />
             Structure
           </h1>
         </div>
@@ -409,7 +414,7 @@ export default function AdminStructurePage() {
                             aria-label={`Delete ${season.label}`}
                             className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
                           >
-                            <i className="fas fa-trash" aria-hidden="true"></i>
+                            <FaIcon icon={faTrash} />
                           </button>
                         </div>
                       </div>
@@ -498,7 +503,7 @@ export default function AdminStructurePage() {
                                       aria-label={`Delete ${division.name}`}
                                       className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
                                     >
-                                      <i className="fas fa-trash" aria-hidden="true"></i>
+                                      <FaIcon icon={faTrash} />
                                     </button>
                                   </div>
                                   <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -521,7 +526,7 @@ export default function AdminStructurePage() {
                                           aria-label="Remove entry"
                                           className="text-muted hover:text-red-600"
                                         >
-                                          <i className="fas fa-times" aria-hidden="true"></i>
+                                          <FaIcon icon={faXmark} />
                                         </button>
                                       </span>
                                     ))}
@@ -624,7 +629,7 @@ export default function AdminStructurePage() {
                           aria-label={`Delete ${team.name}`}
                           className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
                         >
-                          <i className="fas fa-trash" aria-hidden="true"></i>
+                          <FaIcon icon={faTrash} />
                         </button>
                       </div>
                     </li>

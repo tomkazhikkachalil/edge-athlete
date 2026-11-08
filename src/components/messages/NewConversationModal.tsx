@@ -18,6 +18,13 @@ import {
   groupDraftError,
   toggleGroupMember,
 } from './group-draft';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUser } from '@/lib/icons/fa/user';
+import { faUsers } from '@/lib/icons/fa/users';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // The shared search shape — the local narrower duplicate drifted from what
 // /api/search actually returns.
@@ -146,7 +153,7 @@ export default function NewConversationModal({ onClose }: Props) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <h2 className="text-lg font-bold text-primary">New Message</h2>
           <button onClick={requestClose} aria-label="Close" className="ea-icon-btn inline-flex items-center justify-center shrink-0">
-            <i className="fas fa-times"></i>
+            <FaIcon icon={faXmark} />
           </button>
         </div>
 
@@ -158,7 +165,7 @@ export default function NewConversationModal({ onClose }: Props) {
               tab === 'dm' ? 'border-brand text-brand-fg' : 'border-transparent text-muted hover:text-secondary'
             }`}
           >
-            <i className="fas fa-user mr-2"></i>Direct Message
+            <FaIcon icon={faUser} className="mr-2" />Direct Message
           </button>
           <button
             onClick={() => { setTab('group'); resetSearch(); setError(''); }}
@@ -166,7 +173,7 @@ export default function NewConversationModal({ onClose }: Props) {
               tab === 'group' ? 'border-brand text-brand-fg' : 'border-transparent text-muted hover:text-secondary'
             }`}
           >
-            <i className="fas fa-users mr-2"></i>Group Chat
+            <FaIcon icon={faUsers} className="mr-2" />Group Chat
           </button>
         </div>
 
@@ -199,7 +206,7 @@ export default function NewConversationModal({ onClose }: Props) {
                   >
                     {mName}
                     <button onClick={() => handleToggleMember(m)} aria-label={`Remove ${mName}`} className="hover:text-violet-900 dark:hover:text-violet-100">
-                      <i className="fas fa-times text-xs"></i>
+                      <FaIcon icon={faXmark} className="text-xs" />
                     </button>
                   </span>
                 );
@@ -209,7 +216,7 @@ export default function NewConversationModal({ onClose }: Props) {
 
           {/* Search */}
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
+            <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs" />
             <input
               type="text"
               value={searchQuery}
@@ -223,7 +230,7 @@ export default function NewConversationModal({ onClose }: Props) {
           {/* Results */}
           {searching ? (
             <div className="text-center py-4 text-faint text-sm">
-              <i className="fas fa-spinner fa-spin mr-2"></i>Searching…
+              <FaIcon icon={faSpinner} spin className="mr-2" />Searching…
             </div>
           ) : searchResults.length > 0 ? (
             <div className="space-y-1">
@@ -260,7 +267,7 @@ export default function NewConversationModal({ onClose }: Props) {
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                         isSelected ? 'bg-brand border-brand' : 'border-border-strong'
                       }`}>
-                        {isSelected && <i className="fas fa-check text-white text-xs"></i>}
+                        {isSelected && <FaIcon icon={faCheck} className="text-white text-xs" />}
                       </div>
                     )}
                   </button>
@@ -281,7 +288,7 @@ export default function NewConversationModal({ onClose }: Props) {
               className="w-full py-2.5 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover disabled:opacity-40 transition-colors"
             >
               {creating ? (
-                <><i className="fas fa-spinner fa-spin mr-2"></i>Creating…</>
+                <><FaIcon icon={faSpinner} spin className="mr-2" />Creating…</>
               ) : (
                 `Create Group (${selectedMembers.length} members)`
               )}

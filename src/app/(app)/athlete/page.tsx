@@ -39,6 +39,9 @@ import {
   getInitials,
 } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
+import FaIcon from '@/components/FaIcon';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faPlus } from '@/lib/icons/fa/plus';
 
 
 export default function AthleteProfilePage() {
@@ -383,7 +386,7 @@ export default function AthleteProfilePage() {
                   )}
                   {profile?.user_type === 'organizer' && (
                     <span className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand-fg-strong mb-2">
-                      <i className="fas fa-building" aria-hidden="true"></i> Organizer account
+                      <FaIcon icon={faBuilding} /> Organizer account
                     </span>
                   )}
 
@@ -489,7 +492,7 @@ export default function AthleteProfilePage() {
                 onClick={() => setIsCreatePostModalOpen(true)}
                 className="bg-brand text-white px-4 py-2 rounded-lg hover:bg-brand-hover transition-colors flex items-center gap-2"
               >
-                <i className="fas fa-plus"></i>
+                <FaIcon icon={faPlus} />
                 Create Post
               </button>
             </div>

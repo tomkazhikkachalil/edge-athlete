@@ -7,6 +7,9 @@ import { useAuth } from '@/lib/auth';
 import { getSportDefinition, getSportAdapter, type SportKey } from '@/lib/sports';
 import { getStatSchema, isStatLineData, type StatLineData } from '@/lib/sports/stat-schemas';
 import StatLineCard from '@/components/StatLineCard';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface ActivityPost {
   id: string;
@@ -116,7 +119,7 @@ export default function SportActivityDetailPage() {
             onClick={() => backOr(router, '/athlete')}
             className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-brand hover:bg-brand-hover transition-colors"
           >
-            <i className="fas fa-arrow-left mr-2"></i>
+            <FaIcon icon={faArrowLeft} className="mr-2" />
             Go Back
           </button>
         </div>
@@ -138,7 +141,7 @@ export default function SportActivityDetailPage() {
             onClick={() => backOr(router, '/athlete')}
             className="inline-flex items-center text-sm text-tertiary hover:text-primary transition-colors"
           >
-            <i className="fas fa-arrow-left mr-2"></i>
+            <FaIcon icon={faArrowLeft} className="mr-2" />
             Back to Activity
           </button>
         </div>
@@ -148,7 +151,7 @@ export default function SportActivityDetailPage() {
         {statLine ? (
           <div className="bg-surface rounded-lg shadow-sm p-base">
             <div className="flex items-center gap-3 mb-4">
-              <i className={`${sportDef.icon_id} text-2xl text-brand-fg`} aria-hidden="true"></i>
+              <FaIcon icon={sportIcon(sportDef.sport_key)} className="text-2xl text-brand-fg" />
               <div>
                 <h1 className="text-h3 font-bold text-primary">
                   {sportDef.display_name} {getStatSchema(sportKey)?.activityNoun}
@@ -171,7 +174,7 @@ export default function SportActivityDetailPage() {
         ) : (
           <div className="bg-surface rounded-lg shadow-sm p-base">
             <div className="text-center py-12">
-              <i className={`${sportDef.icon_id} text-6xl text-gray-300 dark:text-decor mb-6`}></i>
+              <FaIcon icon={sportIcon(sportDef.sport_key)} className="text-6xl text-gray-300 dark:text-decor mb-6" />
               <h1 className="text-3xl font-bold text-primary mb-4">
                 {sportDef.display_name} Activity Details
               </h1>

@@ -19,6 +19,10 @@ import Link from 'next/link';
 import { firstActivityCopy } from '@/lib/sports/first-activity-copy';
 import { useAuth } from '@/lib/auth';
 import { GET_STARTED_DISMISSED_EVENT, LEGACY_DISMISS_KEY, dismissKeyFor, shouldReserveGetStarted } from '@/lib/get-started';
+import FaIcon from '@/components/FaIcon';
+import { faCircle } from '@/lib/icons/fa/circle';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 const FOLLOW_TARGET = 3;
 
@@ -202,17 +206,14 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
           aria-label="Dismiss get started checklist"
           className="ea-icon-btn inline-flex items-center justify-center shrink-0 text-muted hover:text-secondary"
         >
-          <i className="fas fa-times" aria-hidden="true"></i>
+          <FaIcon icon={faXmark} />
         </button>
       </div>
 
       <ul className="space-y-2.5">
         {steps.map(step => (
           <li key={step.key} className="flex items-start gap-3">
-            <i
-              className={`fas ${step.done ? 'fa-circle-check text-green-600 dark:text-green-400' : 'fa-circle text-decor'} mt-0.5`}
-              aria-hidden="true"
-            ></i>
+            <FaIcon icon={step.done ? faCircleCheck : faCircle} className={step.done ? 'mt-0.5 text-green-600 dark:text-green-400' : 'mt-0.5 text-decor'} />
             <div className="min-w-0 flex-1 sm:flex sm:items-start sm:gap-3">
               <div className="min-w-0 sm:flex-1">
                 <span className={`text-sm font-medium ${step.done ? 'text-muted line-through' : 'text-primary'}`}>

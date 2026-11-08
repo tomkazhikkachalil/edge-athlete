@@ -20,6 +20,10 @@ import CourseCard from '@/components/golf/CourseCard';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
+import FaIcon from '@/components/FaIcon';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faLocationCrosshairs } from '@/lib/icons/fa/location-crosshairs';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
 
 const LIMIT = 12;
 const NEAR_RADIUS_KM = 100;
@@ -204,10 +208,7 @@ export default function ExploreCoursesSection({ initialCourseId = null }: { init
           Golf Courses
         </h2>
         <div className="relative w-full sm:w-80">
-          <i
-            className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-sm"
-            aria-hidden="true"
-          ></i>
+          <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 text-decor text-sm" />
           <input
             type="search"
             value={query}
@@ -254,7 +255,7 @@ export default function ExploreCoursesSection({ initialCourseId = null }: { init
             filters.near ? 'border-brand bg-brand text-white' : 'border-border bg-surface text-brand-fg'
           }`}
         >
-          <i className="fas fa-location-crosshairs" aria-hidden="true"></i>
+          <FaIcon icon={faLocationCrosshairs} />
           Near me
         </button>
       </div>
@@ -272,10 +273,7 @@ export default function ExploreCoursesSection({ initialCourseId = null }: { init
         </div>
       ) : courses.length === 0 ? (
         <div className="bg-surface rounded-lg border border-border p-8 text-center text-muted">
-          <i
-            className="fas fa-golf-ball-tee text-3xl text-gray-300 dark:text-stone-600 mb-3"
-            aria-hidden="true"
-          ></i>
+          <FaIcon icon={faGolfBallTee} className="text-3xl text-gray-300 dark:text-stone-600 mb-3" />
           <p>No courses found{query ? ` for “${query.trim()}”` : hasFilter ? ' here' : ' yet'}.</p>
           <p className="mt-1 text-xs text-faint">Try a city, province or country — or the course&apos;s club name.</p>
         </div>

@@ -4,6 +4,8 @@ import { useRef } from 'react';
 import GifPicker from '@/components/GifPicker';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useFollowVisualViewport } from '@/hooks/useThreadViewport';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Props {
   onGifSelect: (gifUrl: string) => void;
@@ -39,7 +41,7 @@ export default function GifPickerModal({ onGifSelect, onClose, title = 'Choose a
             aria-label="Close"
             className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-tertiary"
           >
-            <i className="fas fa-times"></i>
+            <FaIcon icon={faXmark} />
           </button>
         </div>
         <GifPicker

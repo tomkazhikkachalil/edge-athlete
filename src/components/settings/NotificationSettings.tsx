@@ -5,6 +5,8 @@ import SectionInfo, { InfoButton, InfoPanel, useInfoDisclosure } from '@/compone
 import { useToast } from '@/components/Toast';
 import Toggle from '@/components/settings/Toggle';
 import PhoneNotificationsSection from '@/components/push/PhoneNotificationsSection';
+import FaIcon from '@/components/FaIcon';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
 
 // In-app notification type preferences. Enforced at creation time inside
 // create_notification's preference gate — turning one off means the row is
@@ -163,7 +165,7 @@ export default function NotificationSettings() {
               </p>
               {lockedFields.includes('email_enabled') && (
                 <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
-                  <i className="fas fa-user-shield" aria-hidden="true"></i>
+                  <FaIcon icon={faUserShield} />
                   <span>Managed by your guardian</span>
                 </p>
               )}

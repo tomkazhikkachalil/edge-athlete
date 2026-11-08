@@ -17,6 +17,15 @@ import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { FEATURE_FLAGS } from '@/lib/features';
 import type { OrgKind } from '@/lib/orgs/org-ref';
 import { COPY } from '@/lib/copy';
+import FaIcon from '@/components/FaIcon';
+import { faBinoculars } from '@/lib/icons/fa/binoculars';
+import { faLocationDot } from '@/lib/icons/fa/location-dot';
+import { faPersonRunning } from '@/lib/icons/fa/person-running';
+import { faShield } from '@/lib/icons/fa/shield';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faStar } from '@/lib/icons/fa/star';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
 
 export default function Home() {
   // NEXT_PUBLIC_*: inlined at build time, the same value the middleware reads.
@@ -555,12 +564,12 @@ export default function Home() {
                           placeholder="Enter postal code"
                         />
                         <span aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 text-decor sm:hidden">
-                          <i className="fas fa-location-dot text-sm"></i>
+                          <FaIcon icon={faLocationDot} className="text-sm" />
                         </span>
                       </div>
                     </div>
                     <span aria-hidden="true" className="pointer-events-none hidden sm:block absolute right-2 top-1/2 transform -translate-y-1/2 text-decor">
-                      <i className="fas fa-location-dot"></i>
+                      <FaIcon icon={faLocationDot} />
                     </span>
                   </div>
                 </div>
@@ -602,11 +611,11 @@ export default function Home() {
                 >
                   {isSubmitting ? (
                     <>
-                      <i className="fas fa-spinner fa-spin mr-2"></i> Creating Account...
+                      <FaIcon icon={faSpinner} spin className="mr-2" /> Creating Account...
                     </>
                   ) : (
                     <>
-                      <i className="fas fa-user-plus mr-2"></i> Create Account
+                      <FaIcon icon={faUserPlus} className="mr-2" /> Create Account
                     </>
                   )}
                 </button>
@@ -694,7 +703,7 @@ export default function Home() {
               >
                 {isSubmitting ? (
                   <>
-                    <i className="fas fa-spinner fa-spin mr-2"></i> Logging in...
+                    <FaIcon icon={faSpinner} spin className="mr-2" /> Logging in...
                   </>
                 ) : (
                   'Login'
@@ -725,28 +734,28 @@ export default function Home() {
                   className="bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                   onClick={handleAthleteClick}
                 >
-                  <i className="fas fa-person-running mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
+                  <FaIcon icon={faPersonRunning} className="mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base" />
                   <span>Athlete</span>
                 </button>
                 <button 
                   onClick={() => handleOrgClick('club')}
                   className="bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
-                  <i className="fas fa-shield mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
+                  <FaIcon icon={faShield} className="mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base" />
                   <span>Club</span>
                 </button>
                 <button 
                   onClick={() => handleOrgClick('league')}
                   className="bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
-                  <i className="fas fa-trophy mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
+                  <FaIcon icon={faTrophy} className="mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base" />
                   <span>League</span>
                 </button>
                 <button 
                   onClick={() => handleWaitlistClick('Fan')}
                   className="bg-white text-violet-600 dark:bg-white/10 dark:text-white dark:ring-1 dark:ring-white/15 dark:hover:bg-white/15 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
-                  <i className="fas fa-star mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
+                  <FaIcon icon={faStar} className="mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base" />
                   <span>Fan</span>
                 </button>
               </div>
@@ -756,7 +765,7 @@ export default function Home() {
                 onClick={() => router.push('/sports/explore')}
                 className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-surface hover:text-brand-fg transition duration-300 flex items-center justify-center text-sm sm:text-base"
               >
-                <i className="fas fa-binoculars mr-2"></i> Explore as Guest
+                <FaIcon icon={faBinoculars} className="mr-2" /> Explore as Guest
               </button>
               {/* Phase 9 V6 + program 11 L3: the public directories — real pages, no account. */}
               <Link

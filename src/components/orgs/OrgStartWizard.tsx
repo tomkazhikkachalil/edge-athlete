@@ -25,6 +25,8 @@ import {
 } from '@/lib/orgs/wizard-draft';
 import type { ConnectionsDraftInput, DivisionDraftRow } from '@/lib/orgs/wizard-validate';
 import { isSmallPath, stepsFor, type WizardStep } from '@/lib/orgs/wizard-steps';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── The org onboarding wizard (phase 1 round 2) ─────────────────────────────
 // RegistrationSteps' named-union machine: all state hoisted here, sibling
@@ -826,7 +828,7 @@ export default function OrgStartWizard({
                       aria-label={`Remove ${t}`}
                       className="text-muted hover:text-red-600"
                     >
-                      <i className="fas fa-times text-xs" aria-hidden="true"></i>
+                      <FaIcon icon={faXmark} className="text-xs" />
                     </button>
                   </li>
                 ))}

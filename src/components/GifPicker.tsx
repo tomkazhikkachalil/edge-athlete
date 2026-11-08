@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import FaIcon from '@/components/FaIcon';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
 
 interface GifItem {
   id: string;
@@ -157,7 +159,7 @@ export default function GifPicker({ onGifSelect, onClose, variant = 'popover' }:
       {/* Search */}
       <div className="p-2 border-b border-border-subtle shrink-0">
         <div className="relative">
-          <i className="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
+          <FaIcon icon={faMagnifyingGlass} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-decor text-xs" />
           <input
             type="text"
             value={query}

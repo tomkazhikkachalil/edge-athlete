@@ -15,6 +15,14 @@ import { coursePar } from '@/lib/sports/post-stat-highlights';
 import { classifyScore, SCORE_CELL_RING } from '@/lib/golf/scoring';
 import { holeCountLabel, playedHoleCount } from '@/lib/golf/round-display';
 import { parseDateLocal } from '@/lib/formatters';
+import FaIcon from '@/components/FaIcon';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faCloudSun } from '@/lib/icons/fa/cloud-sun';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faTemperatureHalf } from '@/lib/icons/fa/temperature-half';
+import { faTree } from '@/lib/icons/fa/tree';
+import { faWarehouse } from '@/lib/icons/fa/warehouse';
+import { faWind } from '@/lib/icons/fa/wind';
 
 export default function GolfRoundCard({
   round,
@@ -43,17 +51,17 @@ export default function GolfRoundCard({
             the score badge out of the card. */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <i className="fas fa-golf-ball text-green-600 dark:text-green-400 text-base shrink-0"></i>
+            <FaIcon icon={faGolfBallTee} className="text-green-600 dark:text-green-400 text-base shrink-0" />
             <span className="font-bold text-green-900 dark:text-green-100 text-base min-w-0 truncate">{round.course}</span>
             {/* Round Type Badge - Indoor or Outdoor */}
             {round.round_type === 'indoor' ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand text-white text-xs font-bold rounded-full">
-                <i className="fas fa-warehouse text-[10px]"></i>
+                <FaIcon icon={faWarehouse} className="text-[10px]" />
                 INDOOR
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-600 text-white text-xs font-bold rounded-full">
-                <i className="fas fa-tree text-[10px]"></i>
+                <FaIcon icon={faTree} className="text-[10px]" />
                 OUTDOOR
               </span>
             )}
@@ -124,13 +132,13 @@ export default function GolfRoundCard({
         <div className="flex flex-wrap items-center gap-4 text-xs bg-surface/40 rounded px-3 py-1.5 mb-2">
           {round.weather && (
             <div className="flex items-center gap-1.5">
-              <i className="fas fa-cloud-sun text-green-700 dark:text-green-300"></i>
+              <FaIcon icon={faCloudSun} className="text-green-700 dark:text-green-300" />
               <span className="font-semibold text-green-900 dark:text-green-100">{round.weather}</span>
             </div>
           )}
           {round.temperature != null && (
             <div className="flex items-center gap-1.5">
-              <i className="fas fa-thermometer-half text-green-700 dark:text-green-300"></i>
+              <FaIcon icon={faTemperatureHalf} className="text-green-700 dark:text-green-300" />
               {/* The column is Fahrenheit; the viewer's unit decides the words (units.ts). */}
               <span className="font-semibold text-green-900 dark:text-green-100" data-round-temperature="">
                 {formatQuantity('temp', fromInput('temp', round.temperature, 'imperial'), unitSys)}
@@ -142,7 +150,7 @@ export default function GolfRoundCard({
           )}
           {round.wind && (
             <div className="flex items-center gap-1.5">
-              <i className="fas fa-wind text-green-700 dark:text-green-300"></i>
+              <FaIcon icon={faWind} className="text-green-700 dark:text-green-300" />
               <span className="font-semibold text-green-900 dark:text-green-100">{round.wind}</span>
             </div>
           )}
@@ -169,7 +177,7 @@ export default function GolfRoundCard({
           onToggle={(e) => setScorecardOpen(e.currentTarget.open)}
         >
           <summary className="cursor-pointer text-xs font-medium text-green-700 dark:text-green-300 hover:text-green-900 dark:text-green-100 active:text-green-900 dark:active:text-green-100 flex items-center gap-1 min-h-[44px]">
-            <i className="fas fa-chevron-right group-open:rotate-90 transition-transform text-[10px]"></i>
+            <FaIcon icon={faChevronRight} className="group-open:rotate-90 transition-transform text-[10px]" />
             View Scorecard ({round.golf_holes.length} holes)
           </summary>
           <div className="mt-3 -mx-3 sm:mx-0">

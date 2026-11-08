@@ -10,6 +10,8 @@ import type { Theme } from 'emoji-picker-react';
 import type { EmojiClickData } from 'emoji-picker-react';
 import { useTheme } from '@/lib/use-theme';
 import { placePanel } from '@/lib/panel-placement';
+import FaIcon from '@/components/FaIcon';
+import { faFaceSmile } from '@/lib/icons/fa/face-smile';
 
 // Lazy-load the picker so it doesn't bloat the initial bundle
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
@@ -192,7 +194,7 @@ export default function EmojiPickerButton({
         aria-label="Add emoji"
         title="Add emoji"
       >
-        <i className="fas fa-smile text-lg"></i>
+        <FaIcon icon={faFaceSmile} className="text-lg" />
       </button>
 
       {open && !portal && (

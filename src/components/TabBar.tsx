@@ -7,6 +7,7 @@ import { useLiveNow } from '@/hooks/useLiveNow';
 import { useAuth } from '@/lib/auth';
 import { activeNavPath } from '@/lib/nav-active';
 import { showsTabBar, TAB_BAR_LINKS } from '@/lib/tab-bar';
+import FaIcon from '@/components/FaIcon';
 
 /**
  * The phone tab bar (Events program, phase 2b, B4): five places, fixed to
@@ -64,7 +65,7 @@ export default function TabBar() {
                 className={`flex flex-col items-center justify-center gap-0.5 min-h-[56px] text-[11px] font-semibold transition-colors ${active ? 'text-brand-fg-strong' : 'text-secondary'}`}
               >
                 <span className="relative inline-flex">
-                  <i className={`fas ${link.icon} text-lg leading-none`} aria-hidden="true"></i>
+                  <FaIcon icon={link.icon} className="text-lg leading-none" />
                   {link.key === 'live' && liveCount > 0 && (
                     <span className="absolute -top-0.5 -right-1.5 h-2 w-2 rounded-full bg-red-600 ea-live-dot" aria-hidden="true" data-tab-live-dot="" />
                   )}

@@ -20,6 +20,11 @@ import { tilesFor } from '@/lib/activities/tiles';
 import type { WeekTotal } from '@/lib/activities/totals';
 import type { ActivityView } from '@/lib/activities/visibility';
 import RouteThumb from './RouteThumb';
+import FaIcon from '@/components/FaIcon';
+import { faLink } from '@/lib/icons/fa/link';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faPersonRunning } from '@/lib/icons/fa/person-running';
+import { activityGlyph } from '@/lib/activities/activity-icons';
 
 interface Page {
   items: ActivityView[];
@@ -115,7 +120,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
                 never to a guardian looking at their athlete's Training. */}
             {FEATURE_FLAGS.FEATURE_CONNECTED_APPS && isSelf && (
               <Link href="/settings?tab=connections" className="tr-pill inline-flex shrink-0 items-center gap-1.5 min-h-[44px] px-5 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted hover:text-primary transition-colors" data-activities-connect-link>
-                <i className="fas fa-link text-xs" aria-hidden="true" />
+                <FaIcon icon={faLink} className="text-xs" />
                 Connect a watch
               </Link>
             )}
@@ -125,7 +130,7 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
 
       {state.count === 0 ? (
         <div className="ea-surface rounded-lg p-8 text-center">
-          <i className="fas fa-person-running text-3xl text-brand-fg mb-3" aria-hidden="true" />
+          <FaIcon icon={faPersonRunning} className="text-3xl text-brand-fg mb-3" />
           <p className="font-semibold text-primary">{state.isOwner ? 'Your walks, runs, rides and more' : 'No activities yet'}</p>
           {state.isOwner && <p className="text-sm text-secondary mt-1">Record one live from your phone — a walk, run, ride or swim, with a map.</p>}
         </div>
@@ -168,12 +173,12 @@ export default function ActivitiesTab({ profileId }: { profileId: string }) {
                 <li key={a.id}>
                   <Link href={`/activities/${a.id}`} className="ea-surface ea-interactive flex items-center gap-3 rounded-lg p-3" data-activity-item={a.id}>
                     <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-brand-fg">
-                      {a.routePreview ? <RouteThumb preview={a.routePreview} className="h-full w-full" w={96} h={64} /> : <i className={`fas fa-${def.icon} text-xl`} aria-hidden="true" />}
+                      {a.routePreview ? <RouteThumb preview={a.routePreview} className="h-full w-full" w={96} h={64} /> : <FaIcon icon={activityGlyph(def.icon)} className="text-xl" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-primary">
                         {a.name}
-                        {a.owner?.onlyMe && <i className="fas fa-lock ml-2 text-xs text-muted" aria-label="Only me" />}
+                        {a.owner?.onlyMe && <FaIcon icon={faLock} className="ml-2 text-xs text-muted" aria-label="Only me" />}
                       </p>
                       <p className="text-xs text-muted">
                         {def.label} · {shortDate(a.occurredOn)}

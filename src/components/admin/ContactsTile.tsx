@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ContactsPage } from '@/lib/contacts/admin-server';
+import FaIcon from '@/components/FaIcon';
+import { faAddressBook } from '@/lib/icons/fa/address-book';
 
 /**
  * The console's door to the contact list (266): the counts from
@@ -37,7 +39,7 @@ export default function ContactsTile() {
       data-contacts-tile=""
     >
       <p className="text-sm font-semibold text-primary">
-        <i className="fas fa-address-book text-brand-fg mr-2" aria-hidden="true"></i>
+        <FaIcon icon={faAddressBook} className="text-brand-fg mr-2" />
         Contacts
       </p>
       <p className="text-xs text-muted mt-1">

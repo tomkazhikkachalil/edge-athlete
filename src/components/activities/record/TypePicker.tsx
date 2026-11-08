@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { ACTIVITY_GROUP_LABELS, ACTIVITY_TYPE_DEFS, activityTypesInGroup, type ActivityGroup, type ActivityType } from '@/lib/activities/catalog';
 import { readRecentTypes, rememberRecentType } from '@/lib/activities/record/recent-types';
+import FaIcon from '@/components/FaIcon';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { activityGlyph } from '@/lib/activities/activity-icons';
 
 const GROUPS: ActivityGroup[] = ['outdoor', 'indoor', 'duration', 'sport'];
 const RECORDING_CHIP: Record<string, string> = { gps: 'GPS', timer: 'Timer', duration: 'Timer', gps_optional: 'Timer · map optional' };
@@ -20,7 +23,7 @@ function TypeTile({ type, onPick, recent }: { type: ActivityType; onPick: (type:
       {...(recent ? { 'data-record-recent-type': type } : { 'data-record-type': type })}
       className="ea-interactive ea-surface flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-center"
     >
-      <i className={`fas fa-${def.icon} text-xl text-brand-fg`} aria-hidden="true"></i>
+      <FaIcon icon={activityGlyph(def.icon)} className="text-xl text-brand-fg" />
       <span className="text-sm font-semibold text-primary leading-tight">{def.label}</span>
       <span className="text-[11px] text-muted">{RECORDING_CHIP[def.recording]}</span>
     </button>
@@ -55,7 +58,7 @@ export default function TypePicker({ onPick, onStrength }: { onPick: (type: Acti
             {/* A10: strength is the Workout — sets, reps, weight and the rest timer — not a timed activity. */}
             {group === 'indoor' && onStrength && (
               <button type="button" onClick={onStrength} data-record-strength="" className="ea-interactive ea-surface flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-center">
-                <i className="fas fa-dumbbell text-xl text-brand-fg" aria-hidden="true"></i>
+                <FaIcon icon={faDumbbell} className="text-xl text-brand-fg" />
                 <span className="text-sm font-semibold text-primary leading-tight">Strength training</span>
                 <span className="text-[11px] text-muted">Sets & reps</span>
               </button>

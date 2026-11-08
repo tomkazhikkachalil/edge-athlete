@@ -58,7 +58,7 @@ describe('bundle weight — the verdict', () => {
     expect(judgeBundle({ rootGz: ROOT_GZIP_BUDGET_BYTES, routes: [{ route: 'x', gz: ROUTE_GZIP_BUDGET_BYTES }] })).toEqual([]);
   });
 
-  it('keeps the budgets where the ratchet left them (Nov 7 2026, Phase 3b: root 150 KB — 132 measured — and route 600 KB gz — the athlete page is 575)', () => {
+  it('keeps the budgets where the ratchet left them (Nov 8 2026, the icons round: root 150 KB — 132 measured — and route 600 KB gz — the athlete page is 586 with its icons on the sprite)', () => {
     expect(ROOT_GZIP_BUDGET_BYTES).toBe(150 * 1024);
     expect(ROUTE_GZIP_BUDGET_BYTES).toBe(600 * 1024);
   });

@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import FaIcon from '@/components/FaIcon';
+import { faArrowDown } from '@/lib/icons/fa/arrow-down';
+import { faArrowUp } from '@/lib/icons/fa/arrow-up';
 
 /**
  * The reorder control — Site Builder program 3, D1 (Sep 13 2026). ONE
@@ -72,10 +75,10 @@ export default function ReorderList({
           </span>
           <span className="flex shrink-0 items-center gap-1">
             <button type="button" onClick={() => move(i, i - 1)} disabled={i === 0} className={ICON} aria-label={`Move ${item.label} up`} data-sb-reorder-up="">
-              <i className="fas fa-arrow-up" aria-hidden="true"></i>
+              <FaIcon icon={faArrowUp} />
             </button>
             <button type="button" onClick={() => move(i, i + 1)} disabled={i === items.length - 1} className={ICON} aria-label={`Move ${item.label} down`} data-sb-reorder-down="">
-              <i className="fas fa-arrow-down" aria-hidden="true"></i>
+              <FaIcon icon={faArrowDown} />
             </button>
           </span>
         </li>

@@ -12,6 +12,9 @@ import { buildDraftsList, type DraftItem } from '@/lib/drafts/list';
 import { recordingDraftLike } from '@/lib/drafts/recording-like';
 import { useRecording } from '@/components/activities/record/RecordingProvider';
 import DraftRow from '@/components/drafts/DraftRow';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faPenToSquareRegular } from '@/lib/icons/fa/pen-to-square-regular';
 
 // ── Drafts (Drafts round, Oct 2026) ──────────────────────────────────────────
 // The private list of what you started or finished but have not posted:
@@ -70,7 +73,7 @@ export default function DraftsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-center gap-4 mb-2">
             <button onClick={() => backOr(router, '/athlete')} className="text-tertiary hover:text-primary ea-icon-btn" aria-label="Back">
-              <i className="fas fa-arrow-left text-xl"></i>
+              <FaIcon icon={faArrowLeft} className="text-xl" />
             </button>
             <h1 className="text-2xl font-bold text-primary">Drafts</h1>
           </div>
@@ -84,7 +87,7 @@ export default function DraftsPage() {
         <div className="max-w-2xl mx-auto space-y-8">
           {total === 0 && (
             <div className="text-center py-12" data-drafts-empty="">
-              <i className="far fa-pen-to-square text-6xl text-gray-300 dark:text-decor mb-4"></i>
+              <FaIcon icon={faPenToSquareRegular} className="text-6xl text-gray-300 dark:text-decor mb-4" />
               <h2 className="text-xl font-semibold text-secondary mb-2">No drafts</h2>
               <p className="text-muted">
                 A round you are playing, or one you finished but have not posted, waits here. Nothing is posted until you tap Post.

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import FaIcon from '@/components/FaIcon';
+import { faPlay } from '@/lib/icons/fa/play';
 
 /**
  * A YouTube how-to (Support & Reporting, Spec 3): click-to-play. The
@@ -36,7 +38,7 @@ export default function HelpVideo({ videoId, title }: { videoId: string; title: 
       <img src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
       <span className="absolute inset-0 flex items-center justify-center">
         <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-black/70 text-white">
-          <i className="fas fa-play text-lg ml-1" aria-hidden="true"></i>
+          <FaIcon icon={faPlay} className="text-lg ml-1" />
         </span>
       </span>
     </button>

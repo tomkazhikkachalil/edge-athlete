@@ -11,6 +11,8 @@ import OrgManageMenu, { type ManageItem } from './OrgManageMenu';
 import { SIDE_COPY } from './side-copy';
 import type { OrgInfo } from './types';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faFlag } from '@/lib/icons/fa/flag';
 
 // The org page's hero — Org Pages R2 (Sep 8 2026), the first surface to
 // carry the org's own media in the app. The public site's hero photo and
@@ -145,7 +147,7 @@ export default function OrgHero({
     ) : null;
   const reportControl = onReport ? (
     <button type="button" onClick={onReport} className={`${linkClass} inline-flex min-h-[40px] items-center gap-1`} data-org-report="">
-      <i className="fas fa-flag text-xs" aria-hidden="true"></i> Report
+      <FaIcon icon={faFlag} className="text-xs" /> Report
     </button>
   ) : null;
 

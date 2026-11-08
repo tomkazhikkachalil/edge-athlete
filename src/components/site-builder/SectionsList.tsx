@@ -7,6 +7,11 @@ import { canMove, moveInstance, readingOrder, resizeToPreset } from '@/lib/site-
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import SizeControl from './SizeControl';
 import { fitOf, withFit } from '@/lib/site-builder/fit';
+import FaIcon from '@/components/FaIcon';
+import { faArrowDown } from '@/lib/icons/fa/arrow-down';
+import { faArrowUp } from '@/lib/icons/fa/arrow-up';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── The Sections list — the phone editor (Sep 11 2026) ───────────────────
 // Below `lg` the canvas has no room, but a manager on a phone still needs to
@@ -53,18 +58,18 @@ export default function SectionsList({ site, layout, onCommit, onRemove, onSelec
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <button type="button" onClick={() => onSelect(w.id)} className={ICON} aria-label={`Edit ${title}`} data-sb-edit="">
-                  <i className="fas fa-pen" aria-hidden="true"></i>
+                  <FaIcon icon={faPen} />
                 </button>
                 {!isHero && (
                   <>
                   <button type="button" onClick={() => onCommit(moveInstance(layout, w.id, 'up'))} disabled={!canMove(layout, w.id, 'up')} className={ICON} aria-label={`Move ${title} up`} data-sb-move="up">
-                    <i className="fas fa-arrow-up" aria-hidden="true"></i>
+                    <FaIcon icon={faArrowUp} />
                   </button>
                   <button type="button" onClick={() => onCommit(moveInstance(layout, w.id, 'down'))} disabled={!canMove(layout, w.id, 'down')} className={ICON} aria-label={`Move ${title} down`} data-sb-move="down">
-                    <i className="fas fa-arrow-down" aria-hidden="true"></i>
+                    <FaIcon icon={faArrowDown} />
                   </button>
                   <button type="button" onClick={() => onRemove(w.id)} className={ICON} aria-label={`Remove ${title}`}>
-                    <i className="fas fa-times" aria-hidden="true"></i>
+                    <FaIcon icon={faXmark} />
                   </button>
                   </>
                 )}

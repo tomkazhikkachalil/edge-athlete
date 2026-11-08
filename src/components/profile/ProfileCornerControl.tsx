@@ -1,6 +1,9 @@
 'use client';
 
 import ActionMenu from '@/components/ActionMenu';
+import FaIcon from '@/components/FaIcon';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faFlag } from '@/lib/icons/fa/flag';
 
 /**
  * The ONE control in the cover photo's top-right corner (Tom, Oct 14 2026 —
@@ -33,7 +36,7 @@ export default function ProfileCornerControl(props: Props) {
         data-profile-edit=""
         className={`${CORNER} ${SCRIM} w-11 h-11 rounded-full inline-flex items-center justify-center transition-colors`}
       >
-        <i className="fas fa-pen text-sm" aria-hidden="true"></i>
+        <FaIcon icon={faPen} className="text-sm" />
       </button>
     );
   }
@@ -44,7 +47,7 @@ export default function ProfileCornerControl(props: Props) {
       triggerTone="scrim"
       triggerClassName={CORNER}
       // Spec 2: report this profile (Block + Mute are offered after).
-      items={[{ key: 'report', label: 'Report profile', icon: 'fa-flag', onSelect: props.onReport }]}
+      items={[{ key: 'report', label: 'Report profile', icon: faFlag, onSelect: props.onReport }]}
     />
   );
 }

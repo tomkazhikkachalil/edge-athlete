@@ -4,6 +4,12 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import ConversationItem from './ConversationItem';
 import { useMessages } from '@/lib/messages';
 import type { Conversation } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faMessage } from '@/lib/icons/fa/message';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 interface Props {
   conversations: Conversation[];
@@ -74,14 +80,14 @@ export default function ConversationList({
           className="w-10 h-10 flex items-center justify-center text-tertiary hover:text-brand-fg hover:bg-brand-soft rounded-lg transition-colors"
           aria-label="New conversation"
         >
-          <i className="fas fa-edit text-base"></i>
+          <FaIcon icon={faPenToSquare} className="text-base" />
         </button>
       </div>
 
       {/* Search */}
       <div className="px-4 py-2 border-b border-border-subtle">
         <div className="relative">
-          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
+          <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs" />
           <input
             type="text"
             value={search}
@@ -96,19 +102,19 @@ export default function ConversationList({
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <i className="fas fa-spinner fa-spin text-decor text-xl"></i>
+            <FaIcon icon={faSpinner} spin className="text-decor text-xl" />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
             {search ? (
               <>
-                <i className="fas fa-search text-gray-300 dark:text-decor text-3xl mb-3"></i>
+                <FaIcon icon={faMagnifyingGlass} className="text-gray-300 dark:text-decor text-3xl mb-3" />
                 <p className="text-sm text-muted">No conversations match &ldquo;{search}&rdquo;</p>
               </>
             ) : (
               <>
                 <div className="w-14 h-14 bg-surface-sunken rounded-full flex items-center justify-center mb-3">
-                  <i className="fas fa-comment-alt text-decor text-xl"></i>
+                  <FaIcon icon={faMessage} className="text-decor text-xl" />
                 </div>
                 <p className="text-sm font-semibold text-secondary mb-1">No conversations yet</p>
                 <p className="text-xs text-muted mb-4">Start a conversation with another athlete.</p>
@@ -116,7 +122,7 @@ export default function ConversationList({
                   onClick={onNewConversation}
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors"
                 >
-                  <i className="fas fa-plus text-xs"></i>
+                  <FaIcon icon={faPlus} className="text-xs" />
                   New Message
                 </button>
               </>
@@ -135,7 +141,7 @@ export default function ConversationList({
             ))}
             {hasMoreConversations && !search && (
               <div ref={sentinelRef} className="flex items-center justify-center py-3">
-                <i className="fas fa-spinner fa-spin text-decor text-sm" aria-label="Loading more conversations"></i>
+                <FaIcon icon={faSpinner} spin className="text-decor text-sm" aria-label="Loading more conversations" />
               </div>
             )}
           </div>

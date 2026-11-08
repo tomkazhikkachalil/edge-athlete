@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import VideoFrame from '@/components/media/VideoFrame';
 import { useToast } from '@/components/Toast';
+import FaIcon from '@/components/FaIcon';
+import { faFilm } from '@/lib/icons/fa/film';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── Contest media entry for ONE contest (phase 4 R3) ────────────────────────
 // The PlayerStatsPanel pattern: mounted inside a contest row's expander on
@@ -138,7 +142,7 @@ export default function ContestMediaPanel({
         className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-fg hover:text-brand-fg-strong min-h-[44px]"
         data-contest-full-game=""
       >
-        <i className="fas fa-film" aria-hidden="true"></i>
+        <FaIcon icon={faFilm} />
         Add a YouTube full game →
       </Link>
 
@@ -188,7 +192,7 @@ export default function ContestMediaPanel({
                           aria-label={`Remove tag ${tag.displayName}`}
                           className="text-muted hover:text-red-600"
                         >
-                          <i className="fas fa-xmark" aria-hidden="true"></i>
+                          <FaIcon icon={faXmark} />
                         </button>
                       </span>
                     ))}
@@ -265,7 +269,7 @@ export default function ContestMediaPanel({
                     aria-label="Delete media"
                     className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
                   >
-                    <i className="fas fa-trash" aria-hidden="true"></i>
+                    <FaIcon icon={faTrash} />
                   </button>
                 </div>
               </div>

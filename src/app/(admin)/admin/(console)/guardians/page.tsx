@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/lib/admin/use-admin-auth';
 import AdminHeader from '@/components/admin/AdminHeader';
+import FaIcon from '@/components/FaIcon';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 interface ParkedItem {
   id: string;
@@ -187,7 +189,7 @@ export default function GuardianSupportPage() {
                     disabled={acting === item.id || !(inviteEmail[item.id] ?? '').includes('@')}
                     className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
                   >
-                    {acting === item.id ? <i className="fas fa-spinner fa-spin"></i> : 'Invite guardian'}
+                    {acting === item.id ? <FaIcon icon={faSpinner} spin /> : 'Invite guardian'}
                   </button>
                 </div>
               )}
@@ -280,7 +282,7 @@ export default function GuardianSupportPage() {
                       disabled={acting === item.id}
                       className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
                     >
-                      {acting === item.id ? <i className="fas fa-spinner fa-spin"></i> : 'Re-mint invite link'}
+                      {acting === item.id ? <FaIcon icon={faSpinner} spin /> : 'Re-mint invite link'}
                     </button>
                   )}
                 </div>

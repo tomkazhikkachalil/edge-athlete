@@ -5,6 +5,8 @@ import { postEventState, roundLabelOf, type PostSportEvent } from '@/lib/sport-e
 import { formatDateOnly, formatLabel, holesLabel, joinLine, STATUS_LABEL } from '@/lib/sport-events/format';
 import { isMatchFormat } from '@/lib/sport-events/types';
 import { scoreLabel } from '@/lib/sport-events/game';
+import FaIcon from '@/components/FaIcon';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
 
 /**
  * The feed's announce card (Events program, PR 15 — the freeze lift, this
@@ -25,7 +27,7 @@ export default function EventAnnounceCard({ event }: { event: PostSportEvent }) 
           {live && <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-600 ea-live-dot align-middle" aria-hidden="true" />}
           {live ? 'Live now' : state === 'results' ? 'Final' : state === 'cancelled' ? 'Cancelled' : STATUS_LABEL[event.status as keyof typeof STATUS_LABEL] ?? event.status}
         </span>
-        <span className="text-muted"><i className="fas fa-flag-checkered mr-1" aria-hidden="true"></i>Event</span>
+        <span className="text-muted"><FaIcon icon={faFlagCheckered} className="mr-1" />Event</span>
         {roundLabel && <span className="text-muted" data-event-announce-round={event.sequence}>{roundLabel}{event.round_name ? ` · ${event.round_name}` : ''}</span>}
         {!roundLabel && event.round_name && <span className="text-muted" data-event-announce-round-name="">{event.round_name}</span>}
       </div>

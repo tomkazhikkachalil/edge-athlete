@@ -25,6 +25,10 @@ import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 import { groupRowsByPool, type PoolGroup } from '@/lib/competitions/pools';
 import { listTimeZones, viewerTimeZone } from '@/lib/calendar/venue-time';
 import { ORG_ROUTE_FAMILY, isOrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -875,7 +879,7 @@ export default function CompetitionDetailPage() {
               ← Console
             </Link>
             <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-primary">
-              <i className="fas fa-trophy mr-2 text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faTrophy} className="mr-2 text-brand-fg" />
               {participantAgg.competition.name}
             </h1>
             <p className="mt-1 text-sm text-muted">
@@ -961,7 +965,7 @@ export default function CompetitionDetailPage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-lock text-2xl text-decor" aria-hidden="true"></i>
+              <FaIcon icon={faLock} className="text-2xl text-decor" />
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Managers only</h1>
             <p className="text-sm text-tertiary mb-4">
@@ -992,7 +996,7 @@ export default function CompetitionDetailPage() {
             ← Console
           </Link>
           <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-primary">
-            <i className="fas fa-trophy mr-2 text-brand-fg" aria-hidden="true"></i>
+            <FaIcon icon={faTrophy} className="mr-2 text-brand-fg" />
             {competition.name}
           </h1>
           <p className="mt-1 text-sm text-muted">
@@ -1929,7 +1933,7 @@ export default function CompetitionDetailPage() {
                           aria-label="Delete game"
                           className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
                         >
-                          <i className="fas fa-trash" aria-hidden="true"></i>
+                          <FaIcon icon={faTrash} />
                         </button>
                       </div>
                     </div>

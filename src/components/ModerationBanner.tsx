@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { effectiveState } from '@/lib/moderation/state';
+import FaIcon from '@/components/FaIcon';
+import { faGavel } from '@/lib/icons/fa/gavel';
 
 // Support & Reporting, Spec 2 (migration 223): a limited / suspended /
 // banned account sees why on every screen, with the door to the notice
@@ -30,7 +32,7 @@ export default function ModerationBanner() {
   return (
     <div className="bg-amber-600 text-white px-4 py-2 text-sm flex flex-wrap items-center justify-center gap-x-3 gap-y-1" role="alert" data-moderation-banner={state}>
       <span>
-        <i className="fas fa-gavel mr-2" aria-hidden="true"></i>
+        <FaIcon icon={faGavel} className="mr-2" />
         {words}
       </span>
       <Link href={href} className="inline-flex min-h-[44px] items-center -my-2 font-bold underline underline-offset-2 hover:text-amber-100">

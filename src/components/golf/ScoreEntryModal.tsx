@@ -37,6 +37,18 @@ import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
+import { faFloppyDisk } from '@/lib/icons/fa/floppy-disk';
+import { faMapLocationDot } from '@/lib/icons/fa/map-location-dot';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faVideo } from '@/lib/icons/fa/video';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 const HOLE_MEDIA_EDITOR_CONFIG: EditorConfig = {
   aspectRatios: ['free', '1:1', '4:5', '9:16', '16:9'],
@@ -757,17 +769,17 @@ export default function ScoreEntryModal({
                 className="text-white hover:text-white/80 text-xl font-bold min-w-[44px] min-h-[44px] -my-2 -mr-2 flex items-center justify-center"
                 aria-label="Close"
               >
-                <i className="fas fa-times"></i>
+                <FaIcon icon={faXmark} />
               </button>
             </div>
           </div>
           <div className="text-sm font-semibold flex items-center gap-2">
             <span>Hole {currentHole} of {holesPlayed}</span>
             {isLive && savingHole === currentHole && (
-              <span className="text-xs font-normal opacity-90"><i className="fas fa-spinner fa-spin mr-1"></i>Saving…</span>
+              <span className="text-xs font-normal opacity-90"><FaIcon icon={faSpinner} spin className="mr-1" />Saving…</span>
             )}
             {isLive && savingHole !== currentHole && savedHoles.has(currentHole) && !dirtyHoles.has(currentHole) && (
-              <span className="text-xs font-normal opacity-90"><i className="fas fa-check mr-1"></i>Saved</span>
+              <span className="text-xs font-normal opacity-90"><FaIcon icon={faCheck} className="mr-1" />Saved</span>
             )}
             {/* The way to the GPS map, said in a word (Oct 2026): it was a bare
                 icon beside the X. The live page's Scorecard tab is the way
@@ -780,7 +792,7 @@ export default function ScoreEntryModal({
                 aria-label="Open course map"
                 data-scorer-map=""
               >
-                <i className="fas fa-map-location-dot" aria-hidden="true"></i>
+                <FaIcon icon={faMapLocationDot} />
                 Map
               </button>
             )}
@@ -912,7 +924,7 @@ export default function ScoreEntryModal({
                     : 'bg-surface-sunken text-secondary hover:bg-border active:bg-border'
                 }`}
               >
-                <i className="fas fa-check mr-1"></i>
+                <FaIcon icon={faCheck} className="mr-1" />
                 FIR
               </button>
               <button
@@ -923,7 +935,7 @@ export default function ScoreEntryModal({
                     : 'bg-surface-sunken text-secondary hover:bg-border active:bg-border'
                 }`}
               >
-                <i className="fas fa-check mr-1"></i>
+                <FaIcon icon={faCheck} className="mr-1" />
                 GIR
               </button>
             </div>
@@ -970,7 +982,7 @@ export default function ScoreEntryModal({
                   disabled={!isPenaltyType(penaltyType)}
                   className="shrink-0 py-2 px-3 min-h-[44px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border active:bg-border transition-colors disabled:opacity-50"
                 >
-                  <i className="fas fa-plus mr-1"></i>
+                  <FaIcon icon={faPlus} className="mr-1" />
                   Add
                 </button>
               </div>
@@ -990,7 +1002,7 @@ export default function ScoreEntryModal({
                         className="-my-1.5 -mr-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-tertiary hover:text-primary"
                         aria-label={`Remove ${PENALTY_LABELS[type]} penalties`}
                       >
-                        <i className="fas fa-times"></i>
+                        <FaIcon icon={faXmark} />
                       </button>
                     </div>
                   ))}
@@ -1015,7 +1027,7 @@ export default function ScoreEntryModal({
                 Hole {currentHoleData.hole_number} media
                 {(mediaCountByHole[currentHoleData.hole_number ?? -1] ?? 0) > 0 && (
                   <span className="ml-2 text-green-700 dark:text-green-300 font-bold">
-                    <i className="fas fa-check mr-1"></i>
+                    <FaIcon icon={faCheck} className="mr-1" />
                     {mediaCountByHole[currentHoleData.hole_number ?? -1]}
                   </span>
                 )}
@@ -1028,7 +1040,7 @@ export default function ScoreEntryModal({
                       disabled={uploadingMedia}
                       className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
                     >
-                      <i className="fas fa-camera mr-1.5" aria-hidden="true"></i>
+                      <FaIcon icon={faCamera} className="mr-1.5" />
                       Take photo
                     </button>
                     <button
@@ -1036,7 +1048,7 @@ export default function ScoreEntryModal({
                       disabled={uploadingMedia}
                       className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
                     >
-                      <i className="fas fa-video mr-1.5" aria-hidden="true"></i>
+                      <FaIcon icon={faVideo} className="mr-1.5" />
                       Record video
                     </button>
                     <button
@@ -1045,9 +1057,9 @@ export default function ScoreEntryModal({
                       className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
                     >
                       {uploadingMedia ? (
-                        <><i className="fas fa-spinner fa-spin mr-1.5"></i>Uploading…</>
+                        <><FaIcon icon={faSpinner} spin className="mr-1.5" />Uploading…</>
                       ) : (
-                        <><i className="fas fa-cloud-upload-alt mr-1.5" aria-hidden="true"></i>Library</>
+                        <><FaIcon icon={faCloudArrowUp} className="mr-1.5" />Library</>
                       )}
                     </button>
                   </div>
@@ -1112,7 +1124,7 @@ export default function ScoreEntryModal({
                     {hole.hole_number}
                     {isSaved && !isCurrent && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
-                        <i className="fas fa-check text-white" style={{ fontSize: '7px' }}></i>
+                        <FaIcon icon={faCheck} className="text-white" style={{ fontSize: '7px' }} />
                       </span>
                     )}
                     {/* Penalty count — top-LEFT corner (the saved check owns
@@ -1139,7 +1151,7 @@ export default function ScoreEntryModal({
               disabled={currentHole === 1 || savingHole !== null}
               className="flex-1 bg-surface-sunken hover:bg-border disabled:opacity-50 disabled:cursor-not-allowed text-secondary font-bold py-3 px-4 rounded-lg transition-colors"
             >
-              <i className="fas fa-chevron-left mr-2"></i>
+              <FaIcon icon={faChevronLeft} className="mr-2" />
               Previous
             </button>
 
@@ -1150,9 +1162,9 @@ export default function ScoreEntryModal({
                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
                 {savingHole === currentHole ? (
-                  <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
+                  <><FaIcon icon={faSpinner} spin className="mr-2" />Saving…</>
                 ) : (
-                  <>Next<i className="fas fa-chevron-right ml-2"></i></>
+                  <>Next<FaIcon icon={faChevronRight} className="ml-2" /></>
                 )}
               </button>
             ) : isLive ? (
@@ -1162,9 +1174,9 @@ export default function ScoreEntryModal({
                 className="flex-1 bg-brand hover:bg-brand-hover disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
                 {saving || savingHole !== null ? (
-                  <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
+                  <><FaIcon icon={faSpinner} spin className="mr-2" />Saving…</>
                 ) : (
-                  <><i className="fas fa-check mr-2"></i>Done</>
+                  <><FaIcon icon={faCheck} className="mr-2" />Done</>
                 )}
               </button>
             ) : (
@@ -1175,12 +1187,12 @@ export default function ScoreEntryModal({
               >
                 {saving ? (
                   <>
-                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    <FaIcon icon={faSpinner} spin className="mr-2" />
                     Saving...
                   </>
                 ) : (
                   <>
-                    <i className="fas fa-save mr-2"></i>
+                    <FaIcon icon={faFloppyDisk} className="mr-2" />
                     Save Scores
                   </>
                 )}

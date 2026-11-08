@@ -11,6 +11,15 @@ import { useEditProfile } from '@/components/EditProfileHost';
 import { formatDisplayName, formatHeight, parseDateLocal } from '@/lib/formatters';
 import { COPY } from '@/lib/copy';
 import InstallSettingsCard from '@/components/install/InstallSettingsCard';
+import FaIcon from '@/components/FaIcon';
+import { faChartLine } from '@/lib/icons/fa/chart-line';
+import { faCircleXmark } from '@/lib/icons/fa/circle-xmark';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faTrashCan } from '@/lib/icons/fa/trash-can';
+import { faTriangleExclamation } from '@/lib/icons/fa/triangle-exclamation';
+import { faUser } from '@/lib/icons/fa/user';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { faLock } from '@/lib/icons/fa/lock';
 
 export default function AccountSettings() {
   const { profile } = useAuth();
@@ -38,7 +47,7 @@ export default function AccountSettings() {
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 bg-violet-100 dark:bg-violet-950/60 rounded-lg flex items-center justify-center">
-                <i className="fas fa-user text-brand-fg text-lg"></i>
+                <FaIcon icon={faUser} className="text-brand-fg text-lg" />
               </div>
               <h4 className="text-lg font-bold text-primary tracking-tight">Basic Information</h4>
             </div>
@@ -64,7 +73,7 @@ export default function AccountSettings() {
                 </p>
                 {!profile?.handle && profile?.full_name && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1">
-                    <i className="fas fa-exclamation-triangle"></i>
+                    <FaIcon icon={faTriangleExclamation} />
                     Using legacy username. Update to new handle format.
                   </p>
                 )}
@@ -90,7 +99,7 @@ export default function AccountSettings() {
           <div className="pt-8 border-t border-border">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 bg-purple-100 dark:bg-purple-950/60 rounded-lg flex items-center justify-center">
-                <i className="fas fa-chart-line text-purple-600 dark:text-purple-400 text-lg"></i>
+                <FaIcon icon={faChartLine} className="text-purple-600 dark:text-purple-400 text-lg" />
               </div>
               <h4 className="text-lg font-bold text-primary tracking-tight">Body Metrics & Details</h4>
             </div>
@@ -155,7 +164,7 @@ export default function AccountSettings() {
                       ? 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
                       : 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800'
                   }`}>
-                    <i className={`fas fa-${profile?.visibility === 'public' ? 'globe' : 'lock'}`}></i>
+                    <FaIcon icon={profile?.visibility === 'public' ? faGlobe : faLock} />
                     {profile?.visibility === 'public' ? 'Public' : 'Private'}
                   </span>
                 </div>
@@ -192,7 +201,7 @@ export default function AccountSettings() {
               onClick={() => editProfile.open()}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand text-white font-semibold rounded-lg hover:bg-brand-hover transition-colors shadow-sm"
             >
-              <i className="fas fa-edit"></i>
+              <FaIcon icon={faPenToSquare} />
               Edit Profile Details
             </button>
           </div>
@@ -211,7 +220,7 @@ export default function AccountSettings() {
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
               <div className="w-12 h-12 bg-red-100 dark:bg-red-950/60 rounded-full flex items-center justify-center">
-                <i className="fas fa-exclamation-triangle text-red-600 dark:text-red-400 text-xl"></i>
+                <FaIcon icon={faTriangleExclamation} className="text-red-600 dark:text-red-400 text-xl" />
               </div>
             </div>
             <div className="flex-1">
@@ -223,7 +232,7 @@ export default function AccountSettings() {
                 onClick={() => setIsDeleteModalOpen(true)}
                 className="bg-red-600 text-white px-6 py-2.5 rounded-lg hover:bg-red-700 transition-colors font-medium text-sm flex items-center gap-2"
               >
-                <i className="fas fa-trash-alt"></i>
+                <FaIcon icon={faTrashCan} />
                 <span>Delete my account</span>
               </button>
             </div>
@@ -246,7 +255,7 @@ export default function AccountSettings() {
                 'All sport-specific data (rounds, games, etc.)',
               ].map((item, index) => (
                 <div key={index} className="flex items-center gap-2 text-sm text-red-800 dark:text-red-200">
-                  <i className="fas fa-times-circle text-red-600 dark:text-red-400 text-xs"></i>
+                  <FaIcon icon={faCircleXmark} className="text-red-600 dark:text-red-400 text-xs" />
                   <span>{item}</span>
                 </div>
               ))}

@@ -13,6 +13,12 @@ import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 import type { GroupedFacets } from '@/lib/search/all';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { formatPlace } from '@/lib/geo/regions';
+import FaIcon from '@/components/FaIcon';
+import { faCircleNotch } from '@/lib/icons/fa/circle-notch';
+import { faFilter } from '@/lib/icons/fa/filter';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faTriangleExclamation } from '@/lib/icons/fa/triangle-exclamation';
 
 // ONE ordered result array for all five kinds — every kind is navigable
 // as of /club/[id] (117), which retired the last inert special case.
@@ -246,7 +252,7 @@ export default function AdvancedSearchBar() {
              local override here fought the app-wide :focus-visible ring. */
           className="w-full px-4 py-2.5 pl-10 pr-14 sm:pr-32 border border-border-strong rounded-lg outline-none transition-all"
         />
-        <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-decor"></i>
+        <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-decor" />
 
         {/* Filter Toggle Button - Positioned inside search bar */}
         <button
@@ -260,7 +266,7 @@ export default function AdvancedSearchBar() {
         >
           {/* Icon-only on phones: the full label + pr-32 left ~150px of
               typing space at 360px */}
-          <i className="fas fa-filter text-xs"></i>
+          <FaIcon icon={faFilter} className="text-xs" />
           <span className="hidden sm:inline">Filters</span>
           {hasActiveFilters && (
             <span className="ml-0.5 bg-white text-violet-600 rounded-full w-5 h-5 inline-flex items-center justify-center text-xs font-semibold">
@@ -470,18 +476,18 @@ export default function AdvancedSearchBar() {
             /* A failed request must not read as "nothing matched" — that
                confusion is what let the original search bug survive. */
             <div className="p-4 text-center text-muted">
-              <i className="fas fa-triangle-exclamation text-2xl mb-2"></i>
+              <FaIcon icon={faTriangleExclamation} className="text-2xl mb-2" />
               <p>Search is unavailable right now. Try again in a moment.</p>
             </div>
           ) : items.length === 0 ? (
             loading ? (
               <div className="p-4 text-center text-muted">
-                <i className="fas fa-circle-notch fa-spin text-2xl mb-2"></i>
+                <FaIcon icon={faCircleNotch} spin className="text-2xl mb-2" />
                 <p>Searching…</p>
               </div>
             ) : (
               <div className="p-4 text-center text-muted">
-                <i className="fas fa-search text-2xl mb-2"></i>
+                <FaIcon icon={faMagnifyingGlass} className="text-2xl mb-2" />
                 <p>No results found</p>
               </div>
             )
@@ -550,7 +556,7 @@ export default function AdvancedSearchBar() {
                         </div>
                       </div>
                       {athlete.visibility === 'private' && (
-                        <i className="fas fa-lock text-decor text-sm"></i>
+                        <FaIcon icon={faLock} className="text-decor text-sm" />
                       )}
                     </div>
                   ))}

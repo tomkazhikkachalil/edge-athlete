@@ -15,6 +15,8 @@ import { useEffect, useRef, useState } from 'react';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import SeasonRollups from './SeasonRollups';
 import type { SportKey } from '@/lib/sports/SportRegistry';
+import FaIcon from '@/components/FaIcon';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
 
 interface StatLinesResponse {
   sport: string;
@@ -190,7 +192,7 @@ export default function StatLineBreakdown({
                   <td className="py-2 pr-4 text-secondary whitespace-nowrap">
                     {row.date ? shortDate(row.date) : '—'}
                     <span className="block text-[11px] text-brand-fg">
-                      <i className="fas fa-shield-halved mr-1" aria-hidden="true"></i>
+                      <FaIcon icon={faShieldHalved} className="mr-1" />
                       {OFFICIAL_PROVENANCE_LABELS[row.provenance] ?? row.provenance}
                     </span>
                     {row.disputed && (

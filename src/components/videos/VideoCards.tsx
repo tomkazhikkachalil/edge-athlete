@@ -5,6 +5,9 @@ import LazyImage from '@/components/LazyImage';
 import { formatLiveWhen, liveBadgeFor } from '@/lib/videos/live-rules';
 import { formatTimestamp } from '@/lib/videos/rules';
 import type { VideoView } from '@/lib/videos/types';
+import FaIcon from '@/components/FaIcon';
+import { faFilm } from '@/lib/icons/fa/film';
+import { faPlay } from '@/lib/icons/fa/play';
 
 /**
  * The cards (Videos program, 296): the YouTube poster, the title, the
@@ -32,7 +35,7 @@ export function VideoCard({ video, priority = false }: { video: VideoView; prior
         <LazyImage src={video.thumb_url} alt="" className="absolute inset-0 w-full h-full object-cover" priority={priority} />
         <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
           <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-black/60 text-white">
-            <i className="fas fa-play text-sm ml-0.5"></i>
+            <FaIcon icon={faPlay} className="text-sm ml-0.5" />
           </span>
         </span>
         {live?.kind === 'live' && <LivePill className="absolute top-2 right-2" />}
@@ -75,7 +78,7 @@ export function VideoCardGrid({ videos }: { videos: VideoView[] }) {
 export function AddVideoLink({ href, label = 'Add a full game', className = '' }: { href: string; label?: string; className?: string }) {
   return (
     <Link href={href} className={`ea-interactive inline-flex items-center gap-2 border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold ${className}`} data-video-add="">
-      <i className="fas fa-film" aria-hidden="true"></i>
+      <FaIcon icon={faFilm} />
       {label}
     </Link>
   );

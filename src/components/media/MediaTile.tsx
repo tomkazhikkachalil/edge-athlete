@@ -24,6 +24,8 @@ import Image from 'next/image';
 import { useOptimizedSrc } from './useOptimizedSrc';
 import VideoFrame from './VideoFrame';
 import BlurBox from './BlurBox';
+import FaIcon from '@/components/FaIcon';
+import { faImage } from '@/lib/icons/fa/image';
 
 interface MediaTileProps {
   src: string;
@@ -100,7 +102,7 @@ export default function MediaTile({
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-200 dark:bg-stone-800">
-          <i className="fas fa-image text-decor text-lg" aria-hidden="true"></i>
+          <FaIcon icon={faImage} className="text-decor text-lg" />
         </div>
       )}
 

@@ -6,6 +6,8 @@ import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import FaIcon from '@/components/FaIcon';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // ── Blocked users (Round I) ───────────────────────────────────────────────────
 // The first block-list surface in the app: until now blocking existed only as
@@ -197,7 +199,7 @@ export default function BlockedUsersList({
             disabled={searching || !query.trim()}
             className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50 shrink-0"
           >
-            {searching ? <i className="fas fa-spinner fa-spin"></i> : 'Search'}
+            {searching ? <FaIcon icon={faSpinner} spin /> : 'Search'}
           </button>
         </form>
       )}

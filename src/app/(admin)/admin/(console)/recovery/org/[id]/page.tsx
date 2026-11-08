@@ -7,6 +7,8 @@ import { useAdminAuth } from '@/lib/admin/use-admin-auth';
 import AdminHeader from '@/components/admin/AdminHeader';
 import type { OrgKind } from '@/lib/orgs/org-ref';
 import { PersonBadges, RecoverySection, actButton, actionWords, dangerButton, fieldClass, useRecoveryAct, when } from '@/components/authority/RecoveryKit';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
 
 // ── The org recovery panel (Authority PR 4) ─────────────────────────────────
 // Everything the Edge Athlete team needs to give an org back or stop its
@@ -86,7 +88,7 @@ function OrgRecovery() {
       <AdminHeader />
       <main className="max-w-3xl mx-auto px-4 py-8">
         <Link href={`/admin/recovery${act.ticket ? `?ticket=${encodeURIComponent(act.ticket)}` : ''}`} className="text-sm text-brand-fg hover:underline mb-4 inline-flex items-center gap-2">
-          <i className="fas fa-arrow-left text-xs"></i> Recovery
+          <FaIcon icon={faArrowLeft} className="text-xs" /> Recovery
         </Link>
 
         {state === 'loading' && <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>}

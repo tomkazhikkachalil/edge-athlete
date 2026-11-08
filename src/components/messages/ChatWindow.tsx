@@ -21,6 +21,24 @@ import { requestDockConversation } from '@/lib/chat-dock-open';
 import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
 import ReportSheet from '@/components/tickets/ReportSheet';
+import FaIcon from '@/components/FaIcon';
+import { faArrowDown } from '@/lib/icons/fa/arrow-down';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faBan } from '@/lib/icons/fa/ban';
+import { faBell } from '@/lib/icons/fa/bell';
+import { faBellSlash } from '@/lib/icons/fa/bell-slash';
+import { faCircleExclamation } from '@/lib/icons/fa/circle-exclamation';
+import { faDownLeftAndUpRightToCenter } from '@/lib/icons/fa/down-left-and-up-right-to-center';
+import { faEllipsisVertical } from '@/lib/icons/fa/ellipsis-vertical';
+import { faFlag } from '@/lib/icons/fa/flag';
+import { faGear } from '@/lib/icons/fa/gear';
+import { faMessage } from '@/lib/icons/fa/message';
+import { faRightFromBracket } from '@/lib/icons/fa/right-from-bracket';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUser } from '@/lib/icons/fa/user';
+import { faUserClock } from '@/lib/icons/fa/user-clock';
+import { faUsers } from '@/lib/icons/fa/users';
 
 interface Props {
   conversationId: string;
@@ -649,7 +667,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
   if (loading) {
     return (
       <div className="flex flex-col h-full bg-surface items-center justify-center">
-        <i className="fas fa-spinner fa-spin text-decor text-2xl"></i>
+        <FaIcon icon={faSpinner} spin className="text-decor text-2xl" />
       </div>
     );
   }
@@ -657,7 +675,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
   if (error) {
     return (
       <div className="flex flex-col h-full bg-surface items-center justify-center px-4 text-center">
-        <i className="fas fa-exclamation-circle text-red-400 text-3xl mb-3"></i>
+        <FaIcon icon={faCircleExclamation} className="text-red-400 text-3xl mb-3" />
         <p className="text-sm text-secondary mb-4">{error}</p>
         <button
           onClick={() => router.push('/messages')}
@@ -685,7 +703,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
             className="shrink-0 flex min-w-[44px] min-h-[44px] -my-2 -ml-3 items-center justify-center text-tertiary hover:text-primary active:text-primary lg:hidden"
             aria-label="Back"
           >
-            <i className="fas fa-arrow-left text-lg"></i>
+            <FaIcon icon={faArrowLeft} className="text-lg" />
           </button>
         )}
 
@@ -706,7 +724,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
           )}
           {conversation?.type === 'group' && (
             <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center">
-              <i className="fas fa-users text-tertiary" style={{ fontSize: '7px' }}></i>
+              <FaIcon icon={faUsers} className="text-tertiary" style={{ fontSize: '7px' }} />
             </div>
           )}
         </div>
@@ -732,7 +750,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
           )}
           {isMuted && (
             <p className="text-xs text-faint flex items-center gap-1">
-              <i className="fas fa-bell-slash" style={{ fontSize: '9px' }}></i>
+              <FaIcon icon={faBellSlash} style={{ fontSize: '9px' }} />
               Muted
             </p>
           )}
@@ -747,7 +765,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
             title="Minimize to dock"
             className="hidden lg:flex shrink-0 min-w-[44px] min-h-[44px] -my-2 text-faint hover:text-tertiary transition-colors items-center justify-center"
           >
-            <i className="fas fa-down-left-and-up-right-to-center"></i>
+            <FaIcon icon={faDownLeftAndUpRightToCenter} />
           </button>
         )}
 
@@ -758,7 +776,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
             className="flex min-w-[44px] min-h-[44px] -my-2 -mr-2 items-center justify-center text-faint hover:text-tertiary active:text-tertiary transition-colors"
             aria-label="Conversation options"
           >
-            <i className="fas fa-ellipsis-v"></i>
+            <FaIcon icon={faEllipsisVertical} />
           </button>
 
           {showMenu && (
@@ -769,7 +787,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
                   onClick={handleMuteToggle}
                   className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                 >
-                  <i className={`fas ${isMuted ? 'fa-bell' : 'fa-bell-slash'} w-4 text-center`}></i>
+                  <FaIcon icon={isMuted ? faBell : faBellSlash} className="w-4 text-center" />
                   {isMuted ? 'Unmute' : 'Mute'}
                 </button>
 
@@ -781,7 +799,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
                     }}
                     className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                   >
-                    <i className="fas fa-user w-4 text-center"></i>
+                    <FaIcon icon={faUser} className="w-4 text-center" />
                     View Profile
                   </button>
                 )}
@@ -791,7 +809,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
                     onClick={() => { setShowGroupSettings(true); setShowMenu(false); }}
                     className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                   >
-                    <i className="fas fa-cog w-4 text-center"></i>
+                    <FaIcon icon={faGear} className="w-4 text-center" />
                     Group Settings
                   </button>
                 )}
@@ -802,7 +820,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
                   onClick={() => setConfirmAction('leave')}
                   className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-3"
                 >
-                  <i className="fas fa-sign-out-alt w-4 text-center"></i>
+                  <FaIcon icon={faRightFromBracket} className="w-4 text-center" />
                   Leave Conversation
                 </button>
 
@@ -811,7 +829,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
                     onClick={() => { setShowMenu(false); setShowEscalateConfirm(true); }}
                     className="w-full text-left px-4 py-2.5 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
                   >
-                    <i className="fas fa-shield-halved w-4 text-center"></i>
+                    <FaIcon icon={faShieldHalved} className="w-4 text-center" />
                     Show this to my guardian
                   </button>
                 )}
@@ -822,7 +840,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
                   className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                   data-thread-report=""
                 >
-                  <i className="fas fa-flag w-4 text-center"></i>
+                  <FaIcon icon={faFlag} className="w-4 text-center" />
                   Report conversation
                 </button>
                 {isDM && (
@@ -830,7 +848,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
                     onClick={() => setConfirmAction('block')}
                     className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-3"
                   >
-                    <i className="fas fa-ban w-4 text-center"></i>
+                    <FaIcon icon={faBan} className="w-4 text-center" />
                     Block User
                   </button>
                 )}
@@ -844,7 +862,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
           this conversation yet — say so honestly; composing stays open. */}
       {otherHeld && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
-          <i className="fas fa-user-clock" aria-hidden="true"></i>
+          <FaIcon icon={faUserClock} />
           Waiting for their guardian to approve this conversation. You can keep
           writing — messages deliver once approved.
         </div>
@@ -865,7 +883,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
           {hasMore && (
             <div ref={sentinelRef} className="flex items-center justify-center py-4">
               {loadingMore ? (
-                <i className="fas fa-spinner fa-spin text-decor"></i>
+                <FaIcon icon={faSpinner} spin className="text-decor" />
               ) : (
                 <div className="h-4" />
               )}
@@ -905,7 +923,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
           {messages.length === 0 && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
               <div className="w-14 h-14 bg-surface-sunken rounded-full flex items-center justify-center mb-3">
-                <i className="fas fa-comment-alt text-decor text-xl"></i>
+                <FaIcon icon={faMessage} className="text-decor text-xl" />
               </div>
               <p className="text-sm font-semibold text-secondary mb-1">No messages yet</p>
               <p className="text-xs text-faint">Send the first message!</p>
@@ -922,7 +940,7 @@ export default function ChatWindow({ conversationId, onBack, autoFocusComposer =
             className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 min-h-[36px] px-3 rounded-full bg-brand text-white text-xs font-semibold shadow-lg inline-flex items-center gap-1.5"
           >
             {scroll.unseenCount === 1 ? 'New message' : `${scroll.unseenCount} new messages`}
-            <i className="fas fa-arrow-down text-[10px]" aria-hidden="true"></i>
+            <FaIcon icon={faArrowDown} className="text-[10px]" />
           </button>
         )}
       </div>

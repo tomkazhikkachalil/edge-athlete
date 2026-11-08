@@ -7,6 +7,9 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { MAX_GUESTS } from '@/lib/calendar/events';
 import { useTypeahead } from '@/hooks/useTypeahead';
 import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
+import FaIcon from '@/components/FaIcon';
+import { faEnvelope } from '@/lib/icons/fa/envelope';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 export interface GuestChip {
   kind: 'profile' | 'email';
@@ -102,7 +105,7 @@ export default function GuestPicker({
               chip.kind === 'email' ? 'bg-surface-sunken text-secondary' : 'bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong'
             }`}
           >
-            {chip.kind === 'email' && <i className="fas fa-envelope text-decor"></i>}
+            {chip.kind === 'email' && <FaIcon icon={faEnvelope} className="text-decor" />}
             {chip.label}
             <button
               type="button"
@@ -110,7 +113,7 @@ export default function GuestPicker({
               aria-label={`Remove ${chip.label}`}
               className="w-4 h-4 rounded-full hover:bg-black/10 flex items-center justify-center"
             >
-              <i className="fas fa-xmark text-[10px]"></i>
+              <FaIcon icon={faXmark} className="text-[10px]" />
             </button>
           </span>
         ))}
@@ -164,7 +167,7 @@ export default function GuestPicker({
               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-brand-soft border-t border-border-subtle"
             >
               <span className="w-7 h-7 rounded-full bg-surface-sunken flex items-center justify-center shrink-0">
-                <i className="fas fa-envelope text-decor text-xs"></i>
+                <FaIcon icon={faEnvelope} className="text-decor text-xs" />
               </span>
               <span className="text-sm text-primary">Invite {emailCandidate} by email</span>
             </button>

@@ -1,6 +1,12 @@
 'use client';
 
 import VideoFrame from '@/components/media/VideoFrame';
+import FaIcon from '@/components/FaIcon';
+import { faCalendarCheck } from '@/lib/icons/fa/calendar-check';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faVideo } from '@/lib/icons/fa/video';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 /**
  * One picked file in the guardian batch upload (Wave 5): thumbnail, which
@@ -65,7 +71,7 @@ export default function BatchUploadItemCard({
         )}
         {kind === 'video' && (
           <span className="absolute bottom-1 right-1 text-white text-[10px] bg-black/60 rounded px-1">
-            <i className="fas fa-video" aria-hidden="true"></i>
+            <FaIcon icon={faVideo} />
           </span>
         )}
       </div>
@@ -83,7 +89,7 @@ export default function BatchUploadItemCard({
             aria-label="Remove from batch"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded text-faint hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
           >
-            <i className="fas fa-trash text-xs" aria-hidden="true"></i>
+            <FaIcon icon={faTrash} className="text-xs" />
           </button>
         </div>
 
@@ -105,7 +111,7 @@ export default function BatchUploadItemCard({
                     : 'border-border-strong text-secondary hover:bg-surface-muted'
                 }`}
               >
-                {on && <i className="fas fa-check text-xs mr-1.5" aria-hidden="true"></i>}
+                {on && <FaIcon icon={faCheck} className="text-xs mr-1.5" />}
                 {a.name}
               </button>
             );
@@ -121,7 +127,7 @@ export default function BatchUploadItemCard({
           >
             {s.decision === 'attached' ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 dark:bg-violet-950/60 px-3 py-1.5 text-brand-fg-strong font-medium">
-                <i className="fas fa-calendar-check text-xs" aria-hidden="true"></i>
+                <FaIcon icon={faCalendarCheck} className="text-xs" />
                 <span className="min-w-0 truncate max-w-[14rem]">{s.title}</span>
                 <button
                   type="button"
@@ -130,7 +136,7 @@ export default function BatchUploadItemCard({
                   aria-label={`Detach ${s.title}`}
                   className="ml-1 text-brand-fg hover:text-brand-fg-strong"
                 >
-                  <i className="fas fa-times text-xs" aria-hidden="true"></i>
+                  <FaIcon icon={faXmark} className="text-xs" />
                 </button>
               </span>
             ) : s.decision === 'declined' ? (

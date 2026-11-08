@@ -13,6 +13,7 @@ import { PILL_KIND_ICON, pickPillSession, pillElapsedS, pillLabel, pillMetric, p
 import { getProgressVersion, readProgress, subscribeProgress } from '@/lib/sessions/progress-store';
 import { formatElapsed } from '@/lib/workouts/summary';
 import type { DraftItem } from '@/lib/drafts/list';
+import FaIcon from '@/components/FaIcon';
 
 // ── The resume pill (resume pill program, Oct 12 2026) ───────────────────────
 // Tom: after starting a workout, a run or a round it was hard to get back
@@ -72,7 +73,7 @@ function Pill({ item, onOpen, distance }: { item: DraftItem; onOpen: () => void;
         className="ea-interactive pointer-events-auto flex max-w-full min-h-[44px] items-center gap-2.5 rounded-full border border-border bg-surface/95 px-4 py-2 text-sm text-primary shadow-lg backdrop-blur-md"
       >
         <span className="relative inline-flex shrink-0">
-          <i className={`fas ${PILL_KIND_ICON[item.kind]} text-base text-brand-fg-strong`} aria-hidden="true"></i>
+          <FaIcon icon={PILL_KIND_ICON[item.kind]} className="text-base text-brand-fg-strong" />
           <span className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-red-600 ea-live-dot" aria-hidden="true" />
         </span>
         <span className="min-w-0 truncate font-semibold" data-resume-pill-title="">{item.title}</span>

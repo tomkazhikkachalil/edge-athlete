@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
 import ReactionDetails from './ReactionDetails';
 import type { AggregatedReaction } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Props {
   messageId: string;
@@ -152,7 +154,7 @@ export default function ReactionBar({
               className="absolute -top-1 -right-1 w-5 h-5 after:absolute after:content-[''] after:-inset-2.5 bg-surface border border-border text-faint hover:text-tertiary active:text-tertiary rounded-full flex items-center justify-center text-[10px] shadow-sm"
               aria-label="Close"
             >
-              <i className="fas fa-times"></i>
+              <FaIcon icon={faXmark} />
             </button>
           </div>
         ) : (

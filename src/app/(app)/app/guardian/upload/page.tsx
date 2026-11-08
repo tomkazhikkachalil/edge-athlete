@@ -19,6 +19,12 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faImages } from '@/lib/icons/fa/images';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faVideo } from '@/lib/icons/fa/video';
 
 // ── Guardian batch upload (Wave 5) ───────────────────────────────────────────
 // One camera roll → posts across the household. Every picked file goes
@@ -418,7 +424,7 @@ export default function GuardianBatchUploadPage() {
               href="/app/guardian/add-athlete"
               className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors"
             >
-              <i className="fas fa-plus text-xs"></i>
+              <FaIcon icon={faPlus} className="text-xs" />
               Add athlete
             </Link>
           </div>
@@ -474,7 +480,7 @@ export default function GuardianBatchUploadPage() {
                     disabled={running || items.length >= MAX_ITEMS}
                     className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand px-4 py-2 font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
                   >
-                    <i className="fas fa-camera" aria-hidden="true"></i>
+                    <FaIcon icon={faCamera} />
                     Take photo
                   </button>
                   <button
@@ -483,7 +489,7 @@ export default function GuardianBatchUploadPage() {
                     disabled={running || items.length >= MAX_ITEMS}
                     className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand px-4 py-2 font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
                   >
-                    <i className="fas fa-video" aria-hidden="true"></i>
+                    <FaIcon icon={faVideo} />
                     Record video
                   </button>
                   <button
@@ -492,7 +498,7 @@ export default function GuardianBatchUploadPage() {
                     disabled={running || items.length >= MAX_ITEMS}
                     className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border-2 border-border-strong px-4 py-2 font-bold text-secondary transition-colors hover:border-violet-500 hover:bg-brand-soft disabled:opacity-60"
                   >
-                    <i className="fas fa-images" aria-hidden="true"></i>
+                    <FaIcon icon={faImages} />
                     Choose from library
                   </button>
                 </div>
@@ -561,7 +567,7 @@ export default function GuardianBatchUploadPage() {
                     disabled={startDisabled}
                     className="px-4 py-2 min-h-[44px] inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
                   >
-                    {running && <i className="fas fa-spinner fa-spin" aria-hidden="true"></i>}
+                    {running && <FaIcon icon={faSpinner} spin />}
                     {running && progress
                       ? `Posting ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…`
                       : 'Post the batch'}

@@ -8,6 +8,9 @@ import { supabase } from '@/lib/supabase';
 import PostCard from '@/components/PostCard';
 import AppHeader from '@/components/AppHeader';
 import type { GolfRound } from '@/types/golf';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faBookmarkRegular } from '@/lib/icons/fa/bookmark-regular';
 
 interface PostMedia {
   id: string;
@@ -299,7 +302,7 @@ export default function SavedPostsPage() {
               aria-label="Back"
               className="text-tertiary hover:text-primary"
             >
-              <i className="fas fa-arrow-left text-xl"></i>
+              <FaIcon icon={faArrowLeft} className="text-xl" />
             </button>
             <h1 className="text-2xl font-bold text-primary">Saved Posts</h1>
           </div>
@@ -315,7 +318,7 @@ export default function SavedPostsPage() {
           {/* Saved Posts List */}
         {savedPosts.length === 0 ? (
           <div className="text-center py-12">
-            <i className="far fa-bookmark text-6xl text-gray-300 dark:text-decor mb-4"></i>
+            <FaIcon icon={faBookmarkRegular} className="text-6xl text-gray-300 dark:text-decor mb-4" />
             <h2 className="text-xl font-semibold text-secondary mb-2">No saved posts yet</h2>
             <p className="text-muted">
               Posts you save will appear here. Tap the bookmark icon on any post to save it.

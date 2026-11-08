@@ -6,6 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAdminAuth } from '@/lib/admin/use-admin-auth';
 import AdminHeader from '@/components/admin/AdminHeader';
 import { actButton, fieldClass } from '@/components/authority/RecoveryKit';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 // ── Recovery — find the thing (Authority PR 4) ──────────────────────────────
 // The Edge Athlete team's door to the recovery panels: a ticket number, an
@@ -85,10 +91,10 @@ function RecoverySearch() {
       <AdminHeader />
       <main className="max-w-3xl mx-auto px-4 py-8">
         <Link href="/admin/tickets" className="text-sm text-brand-fg hover:underline mb-4 inline-flex items-center gap-2">
-          <i className="fas fa-arrow-left text-xs"></i> Support queue
+          <FaIcon icon={faArrowLeft} className="text-xs" /> Support queue
         </Link>
         <h1 className="text-2xl font-bold text-primary mb-1">
-          <i className="fas fa-user-shield mr-2 text-brand-fg"></i>
+          <FaIcon icon={faUserShield} className="mr-2 text-brand-fg" />
           Recovery
         </h1>
         <p className="text-sm text-tertiary mb-6">
@@ -117,7 +123,7 @@ function RecoverySearch() {
             {hits.map(h => (
               <li key={`${h.subject}:${h.id}`}>
                 <Link href={href(h)} className="ea-surface ea-interactive rounded-lg p-4 flex items-center gap-3 min-h-[44px]" data-recovery-hit={h.id}>
-                  <i className={`fas ${h.subject === 'org' ? (h.kind === 'league' ? 'fa-trophy' : 'fa-building') : 'fa-flag-checkered'} text-brand-fg`} aria-hidden="true"></i>
+                  <FaIcon icon={h.subject === 'org' ? (h.kind === 'league' ? faTrophy : faBuilding) : faFlagCheckered} className="text-brand-fg" />
                   <span className="min-w-0">
                     <span className="block font-semibold text-primary truncate">{h.name}</span>
                     <span className="block text-xs text-muted">{h.subject === 'org' ? h.kind : `event · ${h.kind}`}{h.detail ? ` · ${h.detail}` : ''}</span>

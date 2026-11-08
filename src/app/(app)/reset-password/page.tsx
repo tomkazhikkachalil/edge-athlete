@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import BrandBar from '@/components/BrandBar';
 import { supabase } from '@/lib/supabase';
+import FaIcon from '@/components/FaIcon';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // Landing page for the Supabase password-recovery email link. The PKCE
 // browser client exchanges the ?code= in the URL for a session automatically;
@@ -172,7 +174,7 @@ export default function ResetPasswordPage() {
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Updating…</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Updating…</>
                   ) : (
                     'Update password'
                   )}

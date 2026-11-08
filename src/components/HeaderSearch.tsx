@@ -5,6 +5,9 @@ import { createPortal } from 'react-dom';
 import AdvancedSearchBar from '@/components/AdvancedSearchBar';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { isTypingTarget, matchesSearchShortcut } from '@/lib/keyboard';
+import FaIcon from '@/components/FaIcon';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 /**
  * Search, collapsed into the header.
@@ -78,7 +81,7 @@ export default function HeaderSearch() {
         aria-haspopup="dialog"
         className="ea-interactive inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-lg border border-[color:var(--ea-hairline)] bg-surface/60 py-2 pl-3 pr-2 text-sm text-muted lg:w-64 xl:w-80"
       >
-        <i className="fas fa-search text-xs" aria-hidden="true"></i>
+        <FaIcon icon={faMagnifyingGlass} className="text-xs" />
         {/* Label and hint now appear at `lg`, which only became affordable
             when Messages and Connections left the nav for the icon cluster.
             Re-measured at exactly 1024px: that width overflowed the row by 89px
@@ -124,7 +127,7 @@ export default function HeaderSearch() {
                   aria-label="Close search"
                   className="ea-icon-btn inline-flex items-center justify-center -my-1 -mr-1"
                 >
-                  <i className="fas fa-times" aria-hidden="true"></i>
+                  <FaIcon icon={faXmark} />
                 </button>
               </div>
               {/* The filters panel AdvancedSearchBar opens is ~500px tall — on a

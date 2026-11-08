@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { getSportAdapter } from '@/lib/sports';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import { getSportDefinition } from '@/lib/sports/SportRegistry';
+import FaIcon from '@/components/FaIcon';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 /**
  * Link chips to a sport's dedicated pages (rounds list, trends, …).
@@ -52,7 +54,7 @@ export default function SportQuickLinks({ sport, variant = 'chips' }: SportQuick
     return (
       <div className="bg-surface rounded-lg shadow-sm border border-border p-4">
         <h3 className="font-bold text-primary mb-3">
-          <i className={`${getSportDefinition(key).icon_id} mr-2 text-brand-fg`} aria-hidden="true"></i>
+          <FaIcon icon={sportIcon(key)} className="mr-2 text-brand-fg" />
           Your {getSportDefinition(key).display_name}
         </h3>
         {chips}

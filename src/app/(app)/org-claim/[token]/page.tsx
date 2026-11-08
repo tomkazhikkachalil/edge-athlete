@@ -9,6 +9,10 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { formatPlace } from '@/lib/geo/regions';
 import { clearParkedOrgClaim, saveParkedOrgClaim } from '@/lib/org-claim-parked';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 // ── /org-claim/[token] — take ownership of a stub org (phase 1 round 2) ─────
 // The activate/[token] shape: BrandBar (reachable while accountless), a
@@ -144,10 +148,7 @@ export default function OrgClaimPage() {
           {(state === 'ready' || state === 'claiming') && org && (
             <div className="text-center">
               <div className="w-14 h-14 bg-brand-soft rounded-full flex items-center justify-center mx-auto mb-4">
-                <i
-                  className={`fas ${org.side === 'league' ? 'fa-trophy' : 'fa-building'} text-xl text-brand-fg`}
-                  aria-hidden="true"
-                ></i>
+                <FaIcon icon={org.side === 'league' ? faTrophy : faBuilding} className="text-xl text-brand-fg" />
               </div>
               <h1 className="text-xl font-bold text-primary mb-1">{org.name}</h1>
               {orgLine && <p className="text-sm text-muted mb-2">{orgLine}</p>}
@@ -189,7 +190,7 @@ export default function OrgClaimPage() {
           {state === 'claimed' && (
             <div className="text-center">
               <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-circle-check text-xl text-emerald-600" aria-hidden="true"></i>
+                <FaIcon icon={faCircleCheck} className="text-xl text-emerald-600" />
               </div>
               <h1 className="text-xl font-bold text-primary mb-2">
                 {recovery ? `You're an owner of ${org?.name ?? 'the organization'}` : `${org?.name ?? 'Your organization'} is yours`}

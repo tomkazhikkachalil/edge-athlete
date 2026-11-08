@@ -25,6 +25,15 @@ import { getHandle } from '@/lib/profile-display';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { formatPlace } from '@/lib/geo/regions';
+import FaIcon from '@/components/FaIcon';
+import { faBolt } from '@/lib/icons/fa/bolt';
+import { faComment } from '@/lib/icons/fa/comment';
+import { faHeart } from '@/lib/icons/fa/heart';
+import { faImage } from '@/lib/icons/fa/image';
+import { faLocationCrosshairs } from '@/lib/icons/fa/location-crosshairs';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faUsers } from '@/lib/icons/fa/users';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface ExploreAthlete {
   id: string;
@@ -175,7 +184,7 @@ function ExploreInner() {
             Near me. Guest-safe — the endpoint serves public profiles only. */}
         <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-decor" aria-hidden="true"></i>
+            <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-decor" />
             <input
               type="search"
               value={qInput}
@@ -230,7 +239,7 @@ function ExploreInner() {
               nearMe ? 'border-brand bg-brand text-white' : 'border-border bg-surface text-brand-fg'
             }`}
           >
-            <i className="fas fa-location-crosshairs" aria-hidden="true"></i>
+            <FaIcon icon={faLocationCrosshairs} />
             Near me
           </button>
         </div>
@@ -269,7 +278,7 @@ function ExploreInner() {
               }`}
               title={enabledKeys.has(sport.sport_key) ? sport.display_name : `${sport.display_name} — coming soon`}
             >
-              <i className={sport.icon_id} aria-hidden="true"></i>
+              <FaIcon icon={sportIcon(sport.sport_key)} />
               {sport.display_name}
             </button>
           ))}
@@ -304,7 +313,7 @@ function ExploreInner() {
               </h2>
               {athletes.length === 0 ? (
                 <div className="bg-surface rounded-lg border border-border p-8 text-center text-muted">
-                  <i className="fas fa-users text-3xl text-gray-300 dark:text-stone-600 mb-3" aria-hidden="true"></i>
+                  <FaIcon icon={faUsers} className="text-3xl text-gray-300 dark:text-stone-600 mb-3" />
                   <p>No athletes found{selectedSport ? ' for this sport yet' : ''}.</p>
                   <p className="text-sm mt-1">Invite your teammates to join Edge Athlete!</p>
                 </div>
@@ -358,7 +367,7 @@ function ExploreInner() {
               </h2>
               {posts.length === 0 ? (
                 <div className="bg-surface rounded-lg border border-border p-8 text-center text-muted">
-                  <i className="fas fa-bolt text-3xl text-gray-300 dark:text-stone-600 mb-3" aria-hidden="true"></i>
+                  <FaIcon icon={faBolt} className="text-3xl text-gray-300 dark:text-stone-600 mb-3" />
                   <p>No public activity{selectedSport ? ' for this sport yet' : ''}.</p>
                 </div>
               ) : (
@@ -392,16 +401,16 @@ function ExploreInner() {
                           )}
                           {p.media.length > 0 && (
                             <span>
-                              <i className="fas fa-image mr-1" aria-hidden="true"></i>
+                              <FaIcon icon={faImage} className="mr-1" />
                               {p.media.length}
                             </span>
                           )}
                           <span>
-                            <i className="fas fa-heart mr-1" aria-hidden="true"></i>
+                            <FaIcon icon={faHeart} className="mr-1" />
                             {p.likes_count}
                           </span>
                           <span>
-                            <i className="fas fa-comment mr-1" aria-hidden="true"></i>
+                            <FaIcon icon={faComment} className="mr-1" />
                             {p.comments_count}
                           </span>
                         </div>

@@ -20,6 +20,12 @@ import { getSportDefinition } from '@/lib/sports/SportRegistry';
 import type { SkillProvenance, SportSkillCard } from '@/lib/sports/server/types';
 import { provenanceIcon } from '../SportSkillCards';
 import { useToast } from '../Toast';
+import FaIcon from '@/components/FaIcon';
+import { faChevronDown } from '@/lib/icons/fa/chevron-down';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faChevronUp } from '@/lib/icons/fa/chevron-up';
+import { faThumbtack } from '@/lib/icons/fa/thumbtack';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface ProfileSportsProps {
   /** Already in pinned-then-rest order (the reader's). */
@@ -83,11 +89,7 @@ export default function ProfileSports({ cards, isOwner, onOpenSport, onCardsChan
       <span className="flex items-baseline gap-1.5 min-w-0">
         <span className={`${large ? 'text-2xl' : 'text-base'} font-bold text-primary tabular-nums`}>{card.headline.value}</span>
         <span className="text-xs text-muted truncate">{card.headline.label}</span>
-        <i
-          className={`fas ${provenanceIcon(card.headline.provenance)} ${card.headline.provenance === 'entered' || card.headline.provenance === 'imported' ? 'text-muted' : 'text-brand-fg'} text-[10px]`}
-          title={PROVENANCE_TITLE[card.headline.provenance]}
-          aria-hidden="true"
-        ></i>
+        <FaIcon icon={provenanceIcon(card.headline.provenance)} className={`${card.headline.provenance === 'entered' || card.headline.provenance === 'imported' ? 'text-muted' : 'text-brand-fg'} text-[10px]`} title={PROVENANCE_TITLE[card.headline.provenance]} />
       </span>
     ) : card.progress ? (
       <span className="text-xs text-muted">{card.progress.count} of {card.progress.needed} {card.progress.label}</span>
@@ -106,7 +108,7 @@ export default function ProfileSports({ cards, isOwner, onOpenSport, onCardsChan
         aria-pressed={card.pinned}
         data-sport-pin={card.sportKey}
       >
-        <i className={`fas fa-thumbtack ${card.pinned ? 'text-brand-fg' : 'text-muted'}`} aria-hidden="true"></i>
+        <FaIcon icon={faThumbtack} className={card.pinned ? 'text-brand-fg' : 'text-muted'} />
       </button>
     ) : null;
 
@@ -120,17 +122,17 @@ export default function ProfileSports({ cards, isOwner, onOpenSport, onCardsChan
               <div key={card.sportKey} className="bg-surface rounded-xl shadow-sm border border-border p-4 flex flex-col gap-3" data-sport-card={card.sportKey} data-sport-pinned="">
                 <div className="flex items-center gap-3">
                   <span className="w-10 h-10 rounded-full bg-brand-soft text-brand-fg-strong flex items-center justify-center shrink-0">
-                    <i className={`${def.icon_id} text-lg`} aria-hidden="true"></i>
+                    <FaIcon icon={sportIcon(def.sport_key)} className="text-lg" />
                   </span>
                   <span className="text-base font-bold text-primary min-w-0 truncate">{card.sportLabel}</span>
                   <span className="ml-auto flex items-center gap-1">
                     {canControl && pinned.length > 1 && (
                       <>
                         <button type="button" onClick={() => change({ kind: 'move', key: card.sportKey, position: i })} disabled={i === 0 || busy === card.sportKey} className="ea-icon-btn text-secondary disabled:opacity-40" aria-label={`Move ${card.sportLabel} up`}>
-                          <i className="fas fa-chevron-up text-xs" aria-hidden="true"></i>
+                          <FaIcon icon={faChevronUp} className="text-xs" />
                         </button>
                         <button type="button" onClick={() => change({ kind: 'move', key: card.sportKey, position: i + 2 })} disabled={i === pinned.length - 1 || busy === card.sportKey} className="ea-icon-btn text-secondary disabled:opacity-40" aria-label={`Move ${card.sportLabel} down`}>
-                          <i className="fas fa-chevron-down text-xs" aria-hidden="true"></i>
+                          <FaIcon icon={faChevronDown} className="text-xs" />
                         </button>
                       </>
                     )}
@@ -164,16 +166,16 @@ export default function ProfileSports({ cards, isOwner, onOpenSport, onCardsChan
                     className="ea-interactive flex-1 flex items-center gap-3 px-4 py-3 text-left min-h-[48px] min-w-0"
                     aria-label={`${card.sportLabel} stats`}
                   >
-                    <i className={`${def.icon_id} text-brand-fg-strong w-5 text-center shrink-0`} aria-hidden="true"></i>
+                    <FaIcon icon={sportIcon(def.sport_key)} className="text-brand-fg-strong w-5 text-center shrink-0" />
                     <span className="text-sm font-semibold text-primary shrink-0">{card.sportLabel}</span>
                     <span className="ml-auto flex items-baseline gap-1.5 min-w-0">
                       {headlineOf(card, false)}
-                      <i className="fas fa-chevron-right text-xs text-decor shrink-0" aria-hidden="true"></i>
+                      <FaIcon icon={faChevronRight} className="text-xs text-decor shrink-0" />
                     </span>
                   </button>
                 ) : (
                   <div className="flex-1 flex items-center gap-3 px-4 py-3 min-h-[48px] min-w-0">
-                    <i className={`${def.icon_id} text-brand-fg-strong w-5 text-center shrink-0`} aria-hidden="true"></i>
+                    <FaIcon icon={sportIcon(def.sport_key)} className="text-brand-fg-strong w-5 text-center shrink-0" />
                     <span className="text-sm font-semibold text-primary shrink-0">{card.sportLabel}</span>
                     <span className="ml-auto text-xs text-muted">Stats coming soon</span>
                   </div>

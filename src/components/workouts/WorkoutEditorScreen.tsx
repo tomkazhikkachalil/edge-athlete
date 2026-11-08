@@ -60,6 +60,10 @@ import { useAuth } from '@/lib/auth';
 import { clearFinishDraft, readFinishDraft, writeFinishDraft, type FinishStep } from '@/lib/workouts/finish-draft';
 import { publishProgress } from '@/lib/sessions/progress-store';
 import { useWakeLock } from '@/lib/device/wake-lock';
+import { faStopwatch } from '@/lib/icons/fa/stopwatch';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faEye } from '@/lib/icons/fa/eye';
+import { faEyeSlash } from '@/lib/icons/fa/eye-slash';
 
 type Phase = FinishStep;
 
@@ -1087,14 +1091,14 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
             items={[
               ...(effectiveMode === 'live' && session
                 ? [
-                    { key: 'hide-timer', label: timerHidden ? 'Show timer' : 'Hide timer', icon: timerHidden ? 'fa-eye' : 'fa-eye-slash', onSelect: toggleTimerHidden, testId: 'workout-menu-hide-timer' },
-                    { key: 'timed', label: timed ? "Don't time this workout" : 'Time this workout', icon: 'fa-stopwatch', onSelect: () => void patchClock({ timed: !timed }, 'Could not change the timer'), disabled: clockBusy, testId: 'workout-menu-timed' },
+                    { key: 'hide-timer', label: timerHidden ? 'Show timer' : 'Hide timer', icon: timerHidden ? faEye : faEyeSlash, onSelect: toggleTimerHidden, testId: 'workout-menu-hide-timer' },
+                    { key: 'timed', label: timed ? "Don't time this workout" : 'Time this workout', icon: faStopwatch, onSelect: () => void patchClock({ timed: !timed }, 'Could not change the timer'), disabled: clockBusy, testId: 'workout-menu-timed' },
                   ]
                 : []),
               ...(effectiveMode === 'review' && session
-                ? [{ key: 'hide', label: profileHidden ? 'Show on my profile' : 'Hide from my profile', icon: profileHidden ? 'fa-eye' : 'fa-eye-slash', onSelect: () => void toggleProfileHidden(), disabled: hideBusy, testId: profileHidden ? 'workout-menu-show-profile' : 'workout-menu-hide-profile' }]
+                ? [{ key: 'hide', label: profileHidden ? 'Show on my profile' : 'Hide from my profile', icon: profileHidden ? faEye : faEyeSlash, onSelect: () => void toggleProfileHidden(), disabled: hideBusy, testId: profileHidden ? 'workout-menu-show-profile' : 'workout-menu-hide-profile' }]
                 : []),
-              { key: 'discard', label: effectiveMode === 'review' ? 'Delete workout' : 'Discard workout', icon: 'fa-trash', tone: 'danger', onSelect: () => setDiscardOpen(true), testId: 'workout-menu-discard' },
+              { key: 'discard', label: effectiveMode === 'review' ? 'Delete workout' : 'Discard workout', icon: faTrash, tone: 'danger', onSelect: () => setDiscardOpen(true), testId: 'workout-menu-discard' },
             ]}
           />
         </div>

@@ -4,6 +4,10 @@ import { formatDistanceToNow } from 'date-fns';
 import LazyImage from './LazyImage';
 import QuotedPostEmbed, { type QuotedPost } from './QuotedPostEmbed';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import FaIcon from '@/components/FaIcon';
+import { faCommentRegular } from '@/lib/icons/fa/comment-regular';
+import { faHeartRegular } from '@/lib/icons/fa/heart-regular';
+import { faUserTag } from '@/lib/icons/fa/user-tag';
 
 /** The slice of a profile-media RPC row a statement card renders. */
 export interface StatementItem {
@@ -62,7 +66,7 @@ export default function StatementCard({ item, onClick }: StatementCardProps) {
         <span className="text-sm font-bold text-primary truncate">{name}</span>
         {item.is_tagged && !item.is_own_post && (
           <span className="px-2 py-0.5 bg-green-600 text-white text-[10px] font-semibold rounded-full flex-shrink-0">
-            <i className="fas fa-user-tag mr-1"></i>
+            <FaIcon icon={faUserTag} className="mr-1" />
             Tagged
           </span>
         )}
@@ -83,11 +87,11 @@ export default function StatementCard({ item, onClick }: StatementCardProps) {
 
       <div className="flex items-center gap-3 mt-2 text-xs text-tertiary">
         <span>
-          <i className="far fa-heart mr-1"></i>
+          <FaIcon icon={faHeartRegular} className="mr-1" />
           {item.likes_count}
         </span>
         <span>
-          <i className="far fa-comment mr-1"></i>
+          <FaIcon icon={faCommentRegular} className="mr-1" />
           {item.comments_count}
         </span>
         <span className="ml-auto truncate">

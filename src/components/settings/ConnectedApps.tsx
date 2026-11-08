@@ -13,6 +13,12 @@ import {
   isConnectionProvider,
   type ConnectionView,
 } from '@/lib/activities/connections';
+import FaIcon from '@/components/FaIcon';
+import { faHeartPulse } from '@/lib/icons/fa/heart-pulse';
+import { faMountain } from '@/lib/icons/fa/mountain';
+import { faPersonBiking } from '@/lib/icons/fa/person-biking';
+import { faStopwatch } from '@/lib/icons/fa/stopwatch';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 /**
  * Settings → Connected apps (fix round part 3, mig 247).
@@ -43,6 +49,14 @@ const STATE_CHIP: Record<ConnectionView['state'], { label: string; className: st
   needs_attention: { label: 'Needs attention', className: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300' },
   available: null,
   coming: { label: 'Coming', className: 'bg-surface-muted text-tertiary' },
+};
+
+/** The connections' glyphs, by the catalog's icon NAME (connections.ts stays pure). */
+const CONNECTION_GLYPHS: Readonly<Record<string, FaIconDef>> = {
+  'heart-pulse': faHeartPulse,
+  'mountain': faMountain,
+  'person-biking': faPersonBiking,
+  'stopwatch': faStopwatch,
 };
 
 export default function ConnectedApps() {
@@ -174,7 +188,7 @@ export default function ConnectedApps() {
                 >
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand-fg" aria-hidden="true">
-                      <i className={`fas fa-${c.icon}`}></i>
+                      <FaIcon icon={CONNECTION_GLYPHS[c.icon] ?? faStopwatch} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">

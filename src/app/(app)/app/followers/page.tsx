@@ -9,6 +9,12 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import LazyImage from '@/components/LazyImage';
 import { useToast } from '@/components/Toast';
 import AppHeader from '@/components/AppHeader';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUserClock } from '@/lib/icons/fa/user-clock';
+import { faUserGroup } from '@/lib/icons/fa/user-group';
+import { faUsers } from '@/lib/icons/fa/users';
 
 interface FollowerProfile {
   id: string;
@@ -328,7 +334,7 @@ function FollowersContent() {
               className="ea-icon-btn inline-flex items-center justify-center -ml-2 text-tertiary hover:text-primary"
               aria-label="Go back"
             >
-              <i className="fas fa-arrow-left text-xl"></i>
+              <FaIcon icon={faArrowLeft} className="text-xl" />
             </button>
             <h1 className="text-2xl font-bold text-primary">Connections</h1>
           </div>
@@ -379,7 +385,7 @@ function FollowersContent() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {loading ? (
           <div className="text-center py-12">
-            <i className="fas fa-spinner fa-spin text-3xl text-decor mb-3"></i>
+            <FaIcon icon={faSpinner} spin className="text-3xl text-decor mb-3" />
             <p className="text-tertiary">Loading...</p>
           </div>
         ) : (
@@ -389,7 +395,7 @@ function FollowersContent() {
               <div className="space-y-3">
                 {followers.length === 0 ? (
                   <div className="bg-surface rounded-lg shadow-sm border border-border p-12 text-center">
-                    <i className="fas fa-users text-6xl text-gray-300 dark:text-stone-600 mb-4"></i>
+                    <FaIcon icon={faUsers} className="text-6xl text-gray-300 dark:text-stone-600 mb-4" />
                     <h3 className="text-xl font-bold text-primary mb-2">No fans yet</h3>
                     <p className="text-tertiary">When people become your fans, they&apos;ll appear here.</p>
                   </div>
@@ -409,7 +415,7 @@ function FollowersContent() {
               <div className="space-y-3">
                 {following.length === 0 ? (
                   <div className="bg-surface rounded-lg shadow-sm border border-border p-12 text-center">
-                    <i className="fas fa-user-friends text-6xl text-gray-300 dark:text-stone-600 mb-4"></i>
+                    <FaIcon icon={faUserGroup} className="text-6xl text-gray-300 dark:text-stone-600 mb-4" />
                     <h3 className="text-xl font-bold text-primary mb-2">Not a fan of anyone yet</h3>
                     <p className="text-tertiary">Find athletes to become a fan of and see their activity.</p>
                   </div>
@@ -431,7 +437,7 @@ function FollowersContent() {
               <div className="space-y-3">
                 {requests.length === 0 ? (
                   <div className="bg-surface rounded-lg shadow-sm border border-border p-12 text-center">
-                    <i className="fas fa-user-clock text-6xl text-gray-300 dark:text-stone-600 mb-4"></i>
+                    <FaIcon icon={faUserClock} className="text-6xl text-gray-300 dark:text-stone-600 mb-4" />
                     <h3 className="text-xl font-bold text-primary mb-2">No pending fan requests</h3>
                     <p className="text-tertiary">Fan requests will appear here.</p>
                   </div>
@@ -533,7 +539,7 @@ export default function FollowersPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-canvas flex items-center justify-center">
-        <i className="fas fa-spinner fa-spin text-3xl text-decor"></i>
+        <FaIcon icon={faSpinner} spin className="text-3xl text-decor" />
       </div>
     }>
       <FollowersContent />

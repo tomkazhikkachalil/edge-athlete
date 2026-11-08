@@ -22,6 +22,9 @@ import {
   type TicketSeverity,
 } from '@/lib/tickets/types';
 import type { AdminTicketDetail } from '@/lib/tickets/server';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
 
 // One ticket (Support & Reporting, Spec 1): the admin projection, the whole
 // history, the reporter / target context (masked names, the DERIVED strike
@@ -136,7 +139,7 @@ export default function SupportTicketPage() {
       <AdminHeader />
       <main className="max-w-3xl mx-auto px-4 py-8">
         <button type="button" onClick={requestClose} className="text-sm text-brand-fg hover:underline mb-4 inline-flex items-center gap-2">
-          <i className="fas fa-arrow-left text-xs"></i> Support queue
+          <FaIcon icon={faArrowLeft} className="text-xs" /> Support queue
         </button>
 
         {state === 'loading' && <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>}
@@ -146,7 +149,7 @@ export default function SupportTicketPage() {
           <div className="bg-surface border border-border rounded-lg p-6 text-center">
             <p role="alert" className="text-sm text-tertiary mb-4">Couldn&apos;t load the ticket.</p>
             <button type="button" onClick={() => { setState('loading'); loadRef.current(); }} className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition">
-              <i className="fas fa-rotate-right text-xs"></i> Try again
+              <FaIcon icon={faRotateRight} className="text-xs" /> Try again
             </button>
           </div>
         )}

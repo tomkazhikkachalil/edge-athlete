@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { clearParkedOrgInvite, loadParkedOrgInvite, type ParkedOrgInvite } from '@/lib/org-invite-parked';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── The way back to a parked staff invite (org staff program, 178) ──────────
 // ResumeOrgClaimBanner's twin: rendered by AppHeader on every authed
@@ -38,7 +40,7 @@ export default function ResumeOrgInviteBanner() {
         aria-label="Dismiss invite reminder"
         className="text-muted hover:text-secondary"
       >
-        <i className="fas fa-times text-xs" aria-hidden="true"></i>
+        <FaIcon icon={faXmark} className="text-xs" />
       </button>
     </div>
   );

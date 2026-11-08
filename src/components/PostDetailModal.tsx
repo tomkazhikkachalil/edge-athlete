@@ -5,6 +5,11 @@ import { likedFor, rememberLike } from '@/lib/likes/store';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 import PostCard from './PostCard';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faCircleExclamation } from '@/lib/icons/fa/circle-exclamation';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // PostDetailModal uses a flexible post type to accommodate the PostCard interface
 // which includes additional fields like stats_data and media
@@ -273,7 +278,7 @@ export default function PostDetailModal({
           className="absolute top-2 right-2 z-10 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
           aria-label="Close"
         >
-          <i className="fas fa-times text-sm"></i>
+          <FaIcon icon={faXmark} className="text-sm" />
         </button>
 
         {/* Navigation Buttons */}
@@ -284,14 +289,14 @@ export default function PostDetailModal({
               className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
               aria-label="Previous post"
             >
-              <i className="fas fa-chevron-left"></i>
+              <FaIcon icon={faChevronLeft} />
             </button>
             <button
               onClick={() => onNavigate('next')}
               className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-11 h-11 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
               aria-label="Next post"
             >
-              <i className="fas fa-chevron-right"></i>
+              <FaIcon icon={faChevronRight} />
             </button>
           </>
         )}
@@ -311,7 +316,7 @@ export default function PostDetailModal({
           {error && (
             <div className="text-center py-12">
               <div className="text-red-500 mb-4">
-                <i className="fas fa-exclamation-circle text-4xl"></i>
+                <FaIcon icon={faCircleExclamation} className="text-4xl" />
               </div>
               <p className="text-secondary">{error}</p>
               <button

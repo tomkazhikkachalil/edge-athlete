@@ -144,7 +144,7 @@ describe('runSessionReminders — the daily step', () => {
     const daily = read('src/app/api/cron/daily/route.ts');
     expect(daily).toMatch(/summary\.sessionReminders = await runSessionReminders\(admin\)/);
     expect(daily.indexOf('runSessionReminders(admin)')).toBeLessThan(daily.indexOf('runRoundSweep(admin)'));
-    expect(read('src/lib/notification-registry.ts')).toMatch(/session_reminder: \{ tab: null, icon: 'fa-hourglass-half' \}/);
+    expect(read('src/lib/notification-registry.ts')).toMatch(/session_reminder: \{ tab: null, icon: 'hourglass-half' \}/);
     expect(read('database/migrations/259_session_reminder.sql')).toMatch(/'session_reminder'\n  \)\);/);
   });
 });

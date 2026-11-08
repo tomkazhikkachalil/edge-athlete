@@ -19,6 +19,8 @@ import { getSportDefinition, getSportAdapter, type SportKey } from '@/lib/sports
 import { pluralNoun } from '@/lib/sports/adapters/StatLinePostAdapter';
 import type { Rollups } from '@/lib/performance/rollups';
 import { headlineDirection } from '@/lib/performance/types';
+import FaIcon from '@/components/FaIcon';
+import { faChartLine } from '@/lib/icons/fa/chart-line';
 
 const shortDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const longDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -78,7 +80,7 @@ export default function SportTrendsPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-              <i className="fas fa-chart-line mr-2 text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faChartLine} className="mr-2 text-brand-fg" />
               {sport.display_name} Trends
             </h1>
             {rollups && !loading && (

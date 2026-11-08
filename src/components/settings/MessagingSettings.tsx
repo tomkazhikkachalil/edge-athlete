@@ -8,12 +8,19 @@ import type { MessagingPermission } from '@/types/messages';
 import GuardiansCard from './GuardiansCard';
 import SupervisedSettingCard from './SupervisedSettingCard';
 import BlockedUsersList from './BlockedUsersList';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faBan } from '@/lib/icons/fa/ban';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { faUserCheck } from '@/lib/icons/fa/user-check';
+import { faUsers } from '@/lib/icons/fa/users';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 interface PermissionOption {
   value: MessagingPermission;
   label: string;
   description: string;
-  icon: string;
+  icon: FaIconDef;
   iconColor: string;
 }
 
@@ -22,28 +29,28 @@ const options: PermissionOption[] = [
     value: 'everyone',
     label: 'Everyone',
     description: 'Any Edge Athlete user can send you a direct message.',
-    icon: 'fa-globe',
+    icon: faGlobe,
     iconColor: 'text-brand-fg',
   },
   {
     value: 'fans_only',
     label: 'Fans Only',
     description: 'Only athletes who follow you can send you messages.',
-    icon: 'fa-user-check',
+    icon: faUserCheck,
     iconColor: 'text-green-600 dark:text-green-400',
   },
   {
     value: 'mutual_fans',
     label: 'Mutual Fans',
     description: 'Only athletes you both follow each other can message you.',
-    icon: 'fa-users',
+    icon: faUsers,
     iconColor: 'text-purple-600 dark:text-purple-400',
   },
   {
     value: 'nobody',
     label: 'Nobody',
     description: 'Turn off direct messages entirely. No one can message you.',
-    icon: 'fa-ban',
+    icon: faBan,
     iconColor: 'text-red-600 dark:text-red-400',
   },
 ];
@@ -142,12 +149,12 @@ export default function MessagingSettings() {
                     : 'border-border-strong'
                 }`}>
                   {permission === opt.value && (
-                    <i className="fas fa-check text-white text-xs"></i>
+                    <FaIcon icon={faCheck} className="text-white text-xs" />
                   )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <i className={`fas ${opt.icon} ${opt.iconColor}`}></i>
+                    <FaIcon icon={opt.icon} className={opt.iconColor} />
                     <h4 className="font-semibold text-primary">{opt.label}</h4>
                   </div>
                   <p className="text-sm text-tertiary">{opt.description}</p>

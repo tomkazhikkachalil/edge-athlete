@@ -35,6 +35,17 @@ import {
 import type { ConsentState } from '@/lib/consent';
 import { COPY } from '@/lib/copy';
 import { MASKED_CONSENT_VERSIONS } from '@/lib/account-departure';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faEnvelope } from '@/lib/icons/fa/envelope';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
+import { faCircle } from '@/lib/icons/fa/circle';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faClock } from '@/lib/icons/fa/clock';
 
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 const BlockedUsersList = dynamic(() => import('@/components/settings/BlockedUsersList'), { ssr: false });
@@ -637,7 +648,7 @@ export default function GuardianAthletePage() {
           href="/app/guardian"
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           Family console
         </Link>
 
@@ -654,7 +665,7 @@ export default function GuardianAthletePage() {
               onClick={() => { setState('loading'); setRetryKey(k => k + 1); }}
               className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover"
             >
-              <i className="fas fa-rotate-right text-xs"></i>
+              <FaIcon icon={faRotateRight} className="text-xs" />
               Try again
             </button>
           </div>
@@ -701,7 +712,7 @@ export default function GuardianAthletePage() {
                 {!transferred && (
                   <div className="flex flex-wrap items-center gap-x-4">
                     <label className={`inline-flex items-center gap-1.5 mt-1 text-xs font-semibold cursor-pointer min-h-[32px] ${avatarBusy ? 'text-muted' : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300'}`}>
-                      <i className={`fas ${avatarBusy ? 'fa-spinner fa-spin' : 'fa-camera'} text-[11px]`} aria-hidden="true"></i>
+                      <FaIcon icon={avatarBusy ? faSpinner : faCamera} spin={avatarBusy ? true : false} className="text-[11px]" />
                       {athlete.avatar_url ? 'Change photo' : 'Add a photo'}
                       <input
                         type="file"
@@ -720,7 +731,7 @@ export default function GuardianAthletePage() {
                         Broad accept on purpose — capture + narrow MIME is
                         unreliable on Android; the upload route re-checks. */}
                     <label className={`inline-flex items-center gap-1.5 mt-1 text-xs font-semibold cursor-pointer min-h-[32px] ${avatarBusy ? 'text-muted' : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300'}`}>
-                      <i className="fas fa-camera text-[11px]" aria-hidden="true"></i>
+                      <FaIcon icon={faCamera} className="text-[11px]" />
                       Take photo
                       <input
                         type="file"
@@ -741,7 +752,7 @@ export default function GuardianAthletePage() {
                       disabled={editLoading}
                       className={`inline-flex items-center gap-1.5 mt-1 text-xs font-semibold min-h-[32px] ${editLoading ? 'text-muted' : 'text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300'}`}
                     >
-                      <i className={`fas ${editLoading ? 'fa-spinner fa-spin' : 'fa-pen'} text-[11px]`} aria-hidden="true"></i>
+                      <FaIcon icon={editLoading ? faSpinner : faPen} spin={editLoading ? true : false} className="text-[11px]" />
                       Edit profile
                     </button>
                   </div>
@@ -768,16 +779,10 @@ export default function GuardianAthletePage() {
                       <ul className="space-y-2">
                         {steps.map(step => (
                           <li key={step.key} className="flex items-center gap-2.5 text-sm">
-                            <i
-                              className={`fas ${
-                                step.state === 'done'
-                                  ? 'fa-circle-check text-green-600 dark:text-green-400'
-                                  : step.state === 'waiting'
-                                  ? 'fa-clock text-amber-600 dark:text-amber-400'
-                                  : 'fa-circle text-violet-300 dark:text-violet-700'
-                              }`}
-                              aria-hidden="true"
-                            ></i>
+                            <FaIcon
+                                icon={step.state === 'done' ? faCircleCheck : step.state === 'waiting' ? faClock : faCircle}
+                                className={step.state === 'done' ? 'text-green-600 dark:text-green-400' : step.state === 'waiting' ? 'text-amber-600 dark:text-amber-400' : 'text-violet-300 dark:text-violet-700'}
+                              />
                             {step.href && step.state !== 'done' ? (
                               <Link
                                 href={step.href}
@@ -1228,7 +1233,7 @@ export default function GuardianAthletePage() {
                   {pendingInvites.map(inv => (
                     <div key={inv.id} className="flex items-center justify-between gap-3 bg-surface-sunken rounded-lg px-3 py-2 mb-2">
                       <p className="text-sm text-secondary min-w-0 truncate">
-                        <i className="fas fa-envelope text-xs mr-2 text-muted"></i>
+                        <FaIcon icon={faEnvelope} className="text-xs mr-2 text-muted" />
                         {inv.invited_email}
                         <span className="text-xs text-muted">
                           {' '}· {inv.grant_role === 'viewer' ? 'view-only, ' : ''}invited, expires {new Date(inv.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -1279,7 +1284,7 @@ export default function GuardianAthletePage() {
                         disabled={inviteBusy || !inviteEmail.trim()}
                         className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 border border-violet-300 dark:border-violet-800 rounded-lg text-sm font-semibold text-brand-fg-strong hover:bg-brand-soft disabled:opacity-60 transition-colors"
                       >
-                        <i className={`fas ${inviteBusy ? 'fa-spinner fa-spin' : 'fa-user-plus'} text-xs`}></i>
+                        <FaIcon icon={inviteBusy ? faSpinner : faUserPlus} spin={inviteBusy ? true : false} className="text-xs" />
                         Invite
                       </button>
                     </form>
@@ -1362,7 +1367,7 @@ export default function GuardianAthletePage() {
                           disabled={!deleteConfirmMatches || deleteBusy}
                           className="bg-red-600 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-semibold hover:bg-red-700 transition disabled:opacity-50"
                         >
-                          {deleteBusy ? <><i className="fas fa-spinner fa-spin mr-2"></i>Deleting…</> : 'Permanently delete'}
+                          {deleteBusy ? <><FaIcon icon={faSpinner} spin className="mr-2" />Deleting…</> : 'Permanently delete'}
                         </button>
                         <button
                           type="button"

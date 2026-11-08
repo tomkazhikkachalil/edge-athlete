@@ -16,6 +16,8 @@ import ScoreControl from './ScoreControl';
 import StatEntryStrip from './StatEntryStrip';
 import LiveCheers from '@/components/play/LiveCheers';
 import EventLiveVideos from './EventLiveVideos';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
 
 interface Props {
   eventId: string;
@@ -78,7 +80,7 @@ export default function EventLiveScreen({ eventId, initialView, token, roundPara
       <AppHeader />
       <main className={`max-w-2xl mx-auto px-4 py-4 ${selectedLine ? 'pb-48' : 'pb-8'}`} data-live-stats="">
         <Link href={`/events/${eventId}?tab=stats`} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-live-stats-back="">
-          <i className="fas fa-chevron-left text-xs" aria-hidden="true"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           {view?.event.name ?? 'Event'}
         </Link>
         {body}

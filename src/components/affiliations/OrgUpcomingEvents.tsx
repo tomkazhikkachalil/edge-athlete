@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faCalendarDays } from '@/lib/icons/fa/calendar-days';
 
 // The org page's schedule section (119) — public upcoming events attached
 // to this league/club. Renders nothing when the org has no scheduled
@@ -71,7 +73,7 @@ export default function OrgUpcomingEvents({ side, orgId, bare = false }: OrgUpco
       <ul className="space-y-2">
         {events.map(ev => (
           <li key={ev.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-surface-muted">
-            <i className="fas fa-calendar-days text-brand-fg mt-1 shrink-0" aria-hidden="true"></i>
+            <FaIcon icon={faCalendarDays} className="text-brand-fg mt-1 shrink-0" />
             <div className="min-w-0">
               <p className="font-medium text-primary truncate">{ev.title}</p>
               <p className="text-sm text-muted truncate">

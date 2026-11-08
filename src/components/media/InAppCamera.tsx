@@ -30,6 +30,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import FaIcon from '@/components/FaIcon';
+import { faRotate } from '@/lib/icons/fa/rotate';
 
 export type CameraFacing = 'environment' | 'user';
 export type CameraMode = 'photo' | 'video';
@@ -435,7 +437,7 @@ export default function InAppCamera({
           className="min-h-[44px] px-3 rounded-full text-sm font-semibold hover:bg-white/10 disabled:opacity-40"
           aria-label="Flip camera"
         >
-          <i className="fas fa-sync-alt" aria-hidden="true"></i>
+          <FaIcon icon={faRotate} />
         </button>
       </div>
 

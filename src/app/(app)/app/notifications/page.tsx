@@ -6,10 +6,18 @@ import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
 import NotificationActionRow from '@/components/NotificationActionRow';
-import { getNotificationIcon, notificationTab } from '@/lib/notification-registry';
+import { notificationTab} from '@/lib/notification-registry';
+import { notificationGlyph } from '@/lib/notification-icons';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
+import FaIcon from '@/components/FaIcon';
+import { faBellSlash } from '@/lib/icons/fa/bell-slash';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faBullhorn } from '@/lib/icons/fa/bullhorn';
+import { faHeart } from '@/lib/icons/fa/heart';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
 
 
 // Opening this screen IS seeing it (Tom, Oct 4 2026 — Instagram's rule):
@@ -198,9 +206,9 @@ export default function NotificationsPage() {
           <div className="flex items-center gap-1 mt-6 border-b border-border overflow-x-auto scrollbar-hide">
             {[
               { id: 'all' as Tab, label: 'All', count: notifications.length },
-              { id: 'follow' as Tab, label: 'Fans', icon: 'fa-user-plus' },
-              { id: 'engagement' as Tab, label: 'Engagement', icon: 'fa-heart' },
-              { id: 'system' as Tab, label: 'System', icon: 'fa-bullhorn' }
+              { id: 'follow' as Tab, label: 'Fans', icon: faUserPlus },
+              { id: 'engagement' as Tab, label: 'Engagement', icon: faHeart },
+              { id: 'system' as Tab, label: 'System', icon: faBullhorn }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -211,7 +219,7 @@ export default function NotificationsPage() {
                     : 'text-tertiary hover:text-primary'
                 }`}
               >
-                {tab.icon && <i className={`fas ${tab.icon} mr-2`}></i>}
+                {tab.icon && <FaIcon icon={tab.icon} className="mr-2" />}
                 {tab.label}
                 {tab.count !== undefined && tab.count > 0 && (
                   <span className="ml-2 px-2 py-0.5 text-xs bg-violet-100 dark:bg-violet-950/60 text-brand-fg rounded-full">
@@ -232,7 +240,7 @@ export default function NotificationsPage() {
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="text-center py-12">
-            <i className="fas fa-bell-slash text-5xl text-gray-300 dark:text-decor mb-4"></i>
+            <FaIcon icon={faBellSlash} className="text-5xl text-gray-300 dark:text-decor mb-4" />
             <h3 className="text-lg font-medium text-primary mb-2">No notifications</h3>
             <p className="text-tertiary">
               When you receive notifications, they&apos;ll appear here.
@@ -288,7 +296,7 @@ export default function NotificationsPage() {
                             </div>
                           ) : (
                             <div className="w-12 h-12 bg-violet-100 dark:bg-violet-950/60 rounded-full flex items-center justify-center flex-shrink-0">
-                              <i className={`fas ${getNotificationIcon(notification.type)} text-brand-fg`}></i>
+                              <FaIcon icon={notificationGlyph(notification.type)} className="text-brand-fg" />
                             </div>
                           )}
 
@@ -321,7 +329,7 @@ export default function NotificationsPage() {
                               className="p-2 text-faint hover:text-red-600 dark:hover:text-red-400 transition-colors"
                               title="Delete notification"
                             >
-                              <i className="fas fa-trash text-sm"></i>
+                              <FaIcon icon={faTrash} className="text-sm" />
                             </button>
                           </div>
                         </div>
@@ -342,7 +350,7 @@ export default function NotificationsPage() {
                 >
                   {loading ? (
                     <>
-                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      <FaIcon icon={faSpinner} spin className="mr-2" />
                       Loading...
                     </>
                   ) : (

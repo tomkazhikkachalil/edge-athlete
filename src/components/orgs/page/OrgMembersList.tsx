@@ -5,6 +5,8 @@ import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { ROSTER_CHIP_LABELS, type MemberRow } from './types';
 import type { OrgPageController } from './useOrgPage';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // The Members card — a pure move of the page twins' inline block (R1, Sep 8
 // 2026), markup verbatim: every button label here is an e2e contract
@@ -184,7 +186,7 @@ export default function OrgMembersList({
                     aria-label={`Remove ${name}`}
                     className="ea-icon-btn inline-flex items-center justify-center shrink-0 text-muted hover:text-red-600"
                   >
-                    <i className="fas fa-times" aria-hidden="true"></i>
+                    <FaIcon icon={faXmark} />
                   </button>
                 )}
                 {claimLinks[member.profile_id] && (

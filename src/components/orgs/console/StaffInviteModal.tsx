@@ -8,6 +8,8 @@ import { COPY } from '@/lib/copy';
 import { ORG_SECTIONS, type OrgSection } from '@/lib/orgs/authz';
 import { SECTION_LABELS } from '@/lib/orgs/staff-validate';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── Invite someone to manage sections (org staff program, round 5) ───────────
 // Opened from any node of the Hierarchy section with that node as the
@@ -132,7 +134,7 @@ export default function StaffInviteModal({ side, orgId, seasons, scopeOptions, i
         <div className="px-5 pt-5 pb-3 border-b border-border-subtle flex items-center justify-between">
           <h2 className="text-lg font-semibold text-primary">Invite someone to help</h2>
           <button type="button" onClick={requestClose} aria-label="Close" className="ea-icon-btn text-muted hover:text-secondary">
-            <i className="fas fa-times" aria-hidden="true"></i>
+            <FaIcon icon={faXmark} />
           </button>
         </div>
 

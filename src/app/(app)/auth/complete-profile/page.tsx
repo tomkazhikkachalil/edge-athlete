@@ -8,6 +8,10 @@ import InviteLinkShare from '@/components/InviteLinkShare';
 import HandleSelector from '@/components/HandleSelector';
 import { deriveNamesFromMetadata } from '@/lib/oauth-profile';
 import { FEATURE_FLAGS } from '@/lib/features';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faEnvelopeCircleCheck } from '@/lib/icons/fa/envelope-circle-check';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // One-time stop for first-time OAuth users: their auth session exists but no
 // profiles row does (profiles are route-created, and the handle must be set
@@ -217,7 +221,7 @@ export default function CompleteProfilePage() {
         <BrandBar hideEscape />
         <div className="flex-grow flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8 text-center">
-            <i className="fas fa-envelope-circle-check text-brand-fg text-4xl mb-4"></i>
+            <FaIcon icon={faEnvelopeCircleCheck} className="text-brand-fg text-4xl mb-4" />
             <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
               Check with your parent or guardian
             </h2>
@@ -381,11 +385,11 @@ export default function CompleteProfilePage() {
             >
               {submitting ? (
                 <>
-                  <i className="fas fa-spinner fa-spin mr-2"></i> Setting up...
+                  <FaIcon icon={faSpinner} spin className="mr-2" /> Setting up...
                 </>
               ) : (
                 <>
-                  <i className="fas fa-check mr-2"></i> Continue
+                  <FaIcon icon={faCheck} className="mr-2" /> Continue
                 </>
               )}
             </button>

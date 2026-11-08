@@ -12,12 +12,19 @@ import {
   timeValueToMinutes,
   type ThemeMode,
 } from '@/lib/theme-prefs';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faCircleHalfStroke } from '@/lib/icons/fa/circle-half-stroke';
+import { faClock } from '@/lib/icons/fa/clock';
+import { faMoon } from '@/lib/icons/fa/moon';
+import { faSun } from '@/lib/icons/fa/sun';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 interface ModeOption {
   value: ThemeMode;
   label: string;
   description: string;
-  icon: string;
+  icon: FaIconDef;
   iconColor: string;
 }
 
@@ -29,28 +36,28 @@ const options: ModeOption[] = [
     value: 'scheduled',
     label: 'Schedule',
     description: 'Dark in the evening and overnight, light in the day. You choose the hours.',
-    icon: 'fa-clock',
+    icon: faClock,
     iconColor: 'text-success-fg',
   },
   {
     value: 'off',
     label: 'Light',
     description: 'Light theme, always.',
-    icon: 'fa-sun',
+    icon: faSun,
     iconColor: 'text-warning-fg',
   },
   {
     value: 'on',
     label: 'Dark',
     description: 'Dark theme, always.',
-    icon: 'fa-moon',
+    icon: faMoon,
     iconColor: 'text-brand-fg',
   },
   {
     value: 'system',
     label: 'Match system',
     description: "Follow your device's appearance setting.",
-    icon: 'fa-circle-half-stroke',
+    icon: faCircleHalfStroke,
     iconColor: 'text-tertiary',
   },
 ];
@@ -171,11 +178,11 @@ export default function AppearanceSettings() {
                     mode === opt.value ? 'border-brand bg-brand' : 'border-border-strong'
                   }`}
                 >
-                  {mode === opt.value && <i className="fas fa-check text-white text-xs"></i>}
+                  {mode === opt.value && <FaIcon icon={faCheck} className="text-white text-xs" />}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <i className={`fas ${opt.icon} ${opt.iconColor}`}></i>
+                    <FaIcon icon={opt.icon} className={opt.iconColor} />
                     <h4 className="font-semibold text-primary">{opt.label}</h4>
                   </div>
                   <p className="text-sm text-tertiary">{opt.description}</p>

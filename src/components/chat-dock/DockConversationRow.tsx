@@ -4,6 +4,9 @@ import LazyImage from '@/components/LazyImage';
 import { getRelativeTime, getLastMessagePreview } from '@/components/messages/ConversationItem';
 import { conversationIdentity, isConversationPartnerOnline } from './conversation-identity';
 import type { Conversation } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faBellSlash } from '@/lib/icons/fa/bell-slash';
+import { faUsers } from '@/lib/icons/fa/users';
 
 // A conversation row sized for the dock's 320px chrome. The full page's
 // ConversationItem is deliberately left alone — its 48px avatar and
@@ -57,7 +60,7 @@ export default function DockConversationRow({
         </span>
         {identity.isGroup && (
           <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center">
-            <i className="fas fa-users text-tertiary" style={{ fontSize: '7px' }}></i>
+            <FaIcon icon={faUsers} className="text-tertiary" style={{ fontSize: '7px' }} />
           </span>
         )}
         {online && (
@@ -75,7 +78,7 @@ export default function DockConversationRow({
             {identity.title}
           </span>
           {conversation.my_participant?.is_muted && (
-            <i className="fas fa-bell-slash text-decor" style={{ fontSize: '10px' }}></i>
+            <FaIcon icon={faBellSlash} className="text-decor" style={{ fontSize: '10px' }} />
           )}
           <span className="text-xs text-faint shrink-0">{getRelativeTime(timestamp)}</span>
         </span>

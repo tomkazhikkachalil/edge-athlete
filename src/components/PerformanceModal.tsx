@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { Performance } from '@/lib/supabase';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface PerformanceModalProps {
   isOpen: boolean;
@@ -157,7 +159,7 @@ export default function PerformanceModal({
                 aria-label="Close"
                 className="text-faint hover:text-muted transition-colors"
               >
-                <i className="fas fa-times text-xl"></i>
+                <FaIcon icon={faXmark} className="text-xl" />
               </button>
             </div>
           </div>

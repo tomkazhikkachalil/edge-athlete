@@ -7,6 +7,9 @@ import RolloverCarryPicker from './RolloverCarryPicker';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import FaIcon from '@/components/FaIcon';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── The console's Seasons section (teams & divisions program, leftovers) ────
 // Lifted out of the console page byte for byte (every label the specs read
@@ -323,7 +326,7 @@ export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst,
                     aria-label={`Delete ${season.label}`}
                     className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
                   >
-                    <i className="fas fa-trash" aria-hidden="true"></i>
+                    <FaIcon icon={faTrash} />
                   </button>
                 </div>
               </div>
@@ -565,7 +568,7 @@ export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst,
                                 aria-label={`Delete ${division.name}`}
                                 className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
                               >
-                                <i className="fas fa-trash" aria-hidden="true"></i>
+                                <FaIcon icon={faTrash} />
                               </button>
                             </div>
                           </div>
@@ -601,7 +604,7 @@ export default function SeasonsSection({ side, orgId, seasons, teams, golfFirst,
                                   aria-label="Remove entry"
                                   className="text-muted hover:text-red-600"
                                 >
-                                  <i className="fas fa-times" aria-hidden="true"></i>
+                                  <FaIcon icon={faXmark} />
                                 </button>
                               </span>
                             ))}

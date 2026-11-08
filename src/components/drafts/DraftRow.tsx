@@ -7,6 +7,11 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useToast } from '@/components/Toast';
 import { COPY } from '@/lib/copy';
 import { draftReviewHref, type DraftItem } from '@/lib/drafts/list';
+import FaIcon from '@/components/FaIcon';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faPersonWalking } from '@/lib/icons/fa/person-walking';
 
 // ── One row of the Drafts list (Drafts round, Oct 2026) ──────────────────────
 // In progress: Resume (the live page / the workout / the recorder); a round's
@@ -22,7 +27,7 @@ function when(iso: string | null): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-const KIND_ICON: Record<DraftItem['kind'], string> = { round: 'fa-golf-ball-tee', workout: 'fa-dumbbell', recording: 'fa-person-walking' };
+const KIND_ICON: Record<DraftItem['kind'], FaIconDef> = { round: faGolfBallTee, workout: faDumbbell, recording: faPersonWalking };
 // inline-flex + centred on BOTH: Resume / Post it / Review are links, and an
 // <a> does not centre its label the way a <button> does (Oct 9 2026 — Resume
 // sat taller with its label at the top). The cta's transparent border keeps
@@ -96,7 +101,7 @@ export default function DraftRow({ item, onChanged }: { item: DraftItem; onChang
 
   return (
     <li className="flex flex-col sm:flex-row sm:items-center gap-3 p-4" data-draft-row={`${item.kind}:${item.id}`} data-draft-state={item.state}>
-      <i className={`fas ${KIND_ICON[item.kind]} text-tertiary w-5 text-center hidden sm:block`} aria-hidden="true"></i>
+      <FaIcon icon={KIND_ICON[item.kind]} className="text-tertiary w-5 text-center hidden sm:block" />
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-primary truncate">{item.title}</p>
         <p className="text-sm text-tertiary">{stateLine}{date ? ` · ${date}` : ''}</p>

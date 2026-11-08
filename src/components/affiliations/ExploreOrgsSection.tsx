@@ -6,6 +6,9 @@ import { formatPlace } from '@/lib/geo/regions';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 // Explore's org discovery section (connections PR B) — mirrors
 // ExploreCoursesSection: fully self-contained (own search box + near-me,
@@ -114,10 +117,7 @@ export default function ExploreOrgsSection({ sportKey }: ExploreOrgsSectionProps
           href={kind === 'league' ? `/league/${org.id}` : `/club/${org.id}`}
           className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-surface-muted transition-colors min-w-0"
         >
-          <i
-            className={`fas ${kind === 'league' ? 'fa-trophy' : 'fa-building'} text-brand-fg shrink-0`}
-            aria-hidden="true"
-          ></i>
+          <FaIcon icon={kind === 'league' ? faTrophy : faBuilding} className="text-brand-fg shrink-0" />
           <div className="min-w-0">
             <p className="font-medium text-primary truncate">
               {org.name}

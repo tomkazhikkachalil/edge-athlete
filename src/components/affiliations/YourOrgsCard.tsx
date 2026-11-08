@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import type { OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
+import FaIcon from '@/components/FaIcon';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faFlag } from '@/lib/icons/fa/flag';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 // The feed sidebar's org card — replaces the long-standing "Your Club /
 // coming soon" placeholder with the viewer's real memberships. Empty state
@@ -49,10 +53,7 @@ export default function YourOrgsCard() {
                   href={org.kind === 'league' ? `/league/${org.id}` : `/club/${org.id}`}
                   className="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-muted transition-colors min-w-0 flex-1"
                 >
-                  <i
-                    className={`fas ${org.kind === 'league' ? 'fa-trophy' : 'fa-building'} text-brand-fg text-sm shrink-0`}
-                    aria-hidden="true"
-                  ></i>
+                  <FaIcon icon={org.kind === 'league' ? faTrophy : faBuilding} className="text-brand-fg text-sm shrink-0" />
                   <span className="text-sm font-medium text-primary truncate">{org.name}</span>
                   {org.pending && (
                     <span className="text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300 shrink-0">
@@ -78,7 +79,7 @@ export default function YourOrgsCard() {
       ) : (
         <div className="flex flex-col items-center justify-center py-6 text-center">
           <div className="w-10 h-10 bg-green-50 dark:bg-green-950/40 rounded-full flex items-center justify-center mb-3">
-            <i className="fas fa-flag text-green-400 text-lg" aria-hidden="true"></i>
+            <FaIcon icon={faFlag} className="text-green-400 text-lg" />
           </div>
           <p className="text-sm font-medium text-secondary mb-1">No clubs or leagues yet</p>
           <p className="text-xs text-faint mb-3">Join one from Explore or search — or start your own.</p>

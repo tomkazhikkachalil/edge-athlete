@@ -13,6 +13,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { getOnline, getOnlineServer, subscribeOnline } from '@/lib/net/online';
 import { COPY } from '@/lib/copy';
+import FaIcon from '@/components/FaIcon';
+import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
+import { faWifi } from '@/lib/icons/fa/wifi';
 
 const BACK_ONLINE_MS = 2500;
 
@@ -53,7 +56,7 @@ export default function OfflineBanner() {
               : 'bg-stone-900 text-white ring-white/10 dark:bg-stone-800 dark:text-stone-50 dark:ring-white/15'
           }`}
         >
-          <i className={`fas ${online ? 'fa-wifi' : 'fa-cloud-arrow-up'} mt-0.5`} aria-hidden="true"></i>
+          <FaIcon icon={online ? faWifi : faCloudArrowUp} className="mt-0.5" />
           <span>{online ? COPY.NETWORK.BACK_ONLINE : COPY.NETWORK.OFFLINE}</span>
         </p>
       )}

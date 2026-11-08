@@ -24,6 +24,21 @@ import { flattenReplies, collectDescendantIds, commentAuthorHref } from '@/lib/c
 import MentionText, { type MentionResolvedProfile } from '@/components/MentionText';
 import MentionSuggestions from '@/components/MentionSuggestions';
 import { useMentionTypeahead, type MentionCandidate } from '@/hooks/useMentionTypeahead';
+import FaIcon from '@/components/FaIcon';
+import { faBan } from '@/lib/icons/fa/ban';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faClock } from '@/lib/icons/fa/clock';
+import { faComment } from '@/lib/icons/fa/comment';
+import { faHeart } from '@/lib/icons/fa/heart';
+import { faHeartRegular } from '@/lib/icons/fa/heart-regular';
+import { faPaperPlane } from '@/lib/icons/fa/paper-plane';
+import { faRotateLeft } from '@/lib/icons/fa/rotate-left';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faThumbtack } from '@/lib/icons/fa/thumbtack';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
+import { faXmark } from '@/lib/icons/fa/xmark';
+import { faFlag } from '@/lib/icons/fa/flag';
 
 /** Comments' typeahead source: public ∪ my accepted follows (server-gated). */
 async function searchMentionCandidates(query: string): Promise<MentionCandidate[]> {
@@ -596,7 +611,7 @@ export default function CommentSection({
                 )}
                 {comment.is_pinned && (
                   <span className="flex items-center gap-1 flex-shrink-0 text-xs text-amber-600 dark:text-amber-400 font-medium">
-                    <i className="fas fa-thumbtack text-[10px]" />
+                    <FaIcon icon={faThumbtack} className="text-[10px]" />
                     Pinned
                   </span>
                 )}
@@ -613,7 +628,7 @@ export default function CommentSection({
                     }`}
                     title={comment.is_pinned ? 'Unpin comment' : 'Pin comment'}
                   >
-                    <i className="fas fa-thumbtack" />
+                    <FaIcon icon={faThumbtack} />
                   </button>
                 )}
                 {/* Delete button — own comments, plus a guardian moderating
@@ -625,7 +640,7 @@ export default function CommentSection({
                     className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 min-w-[44px] min-h-[44px] -m-3 inline-flex items-center justify-center"
                     title="Delete comment"
                   >
-                    <i className="fas fa-trash" />
+                    <FaIcon icon={faTrash} />
                   </button>
                 )}
                 {/* Spec 2: a comment that is not yours (nor a managed athlete's) can be reported. */}
@@ -634,7 +649,7 @@ export default function CommentSection({
                     ariaLabel="Comment options"
                     triggerTestAttr="comment-menu"
                     triggerClassName="-m-3"
-                    items={[{ key: 'report', label: 'Report comment', icon: 'fa-flag', onSelect: () => { setReportTargetProfileId(comment.profile_id); setReportCommentId(comment.id); } }]}
+                    items={[{ key: 'report', label: 'Report comment', icon: faFlag, onSelect: () => { setReportTargetProfileId(comment.profile_id); setReportCommentId(comment.id); } }]}
                   />
                 )}
               </div>
@@ -705,13 +720,13 @@ export default function CommentSection({
                 rows, so these chips are self-view only by construction. */}
             {comment.status === 'pending_approval' && (
               <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                <i className="fas fa-clock" aria-hidden="true"></i>
+                <FaIcon icon={faClock} />
                 Held for your guardian&apos;s review
               </span>
             )}
             {comment.status === 'rejected' && (
               <span className="inline-flex items-center gap-1 text-red-500 dark:text-red-400">
-                <i className="fas fa-ban" aria-hidden="true"></i>
+                <FaIcon icon={faBan} />
                 Not approved
               </span>
             )}
@@ -721,7 +736,7 @@ export default function CommentSection({
                 width at 375px (phone-parity catch). */}
             {comment.status === 'changes_requested' && (
               <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 shrink-0">
-                <i className="fas fa-rotate-left" aria-hidden="true"></i>
+                <FaIcon icon={faRotateLeft} />
                 Sent back
                 {user?.id === comment.profile_id && sendBackEdit?.id !== comment.id && (
                   <button
@@ -739,7 +754,7 @@ export default function CommentSection({
                 behalf — say so, quietly. */}
             {comment.created_by && comment.created_by.id !== comment.profile_id && (
               <span className="inline-flex items-center gap-1 min-w-0">
-                <i className="fas fa-user-shield" aria-hidden="true"></i>
+                <FaIcon icon={faUserShield} />
                 <span className="truncate">
                   via {formatDisplayName(comment.created_by.first_name, null, comment.created_by.last_name, comment.created_by.full_name)}
                 </span>
@@ -758,7 +773,7 @@ export default function CommentSection({
                 } disabled:opacity-50`}
                 title="Like comment"
               >
-                <i className={isLiked ? 'fas fa-heart' : 'far fa-heart'} />
+                <FaIcon icon={isLiked ? faHeart : faHeartRegular} />
                 {comment.likes_count ? (
                   <span className="font-medium">{comment.likes_count}</span>
                 ) : null}
@@ -820,7 +835,7 @@ export default function CommentSection({
             className="absolute -top-4 -right-4 p-3 group"
           >
             <span className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center group-hover:bg-red-600">
-              <i className="fas fa-times text-xs"></i>
+              <FaIcon icon={faXmark} className="text-xs" />
             </span>
           </button>
         </div>
@@ -854,7 +869,7 @@ export default function CommentSection({
               title="More options"
               aria-expanded={replyLeadingOpen}
             >
-              <i className="fas fa-chevron-right text-sm"></i>
+              <FaIcon icon={faChevronRight} className="text-sm" />
             </button>
           </div>
           <div
@@ -918,7 +933,7 @@ export default function CommentSection({
             title="Post reply"
             className="sm:hidden absolute right-1 bottom-1 w-8 h-8 flex items-center justify-center bg-brand text-white rounded-full hover:bg-brand-hover disabled:opacity-50 transition-colors"
           >
-            <i className={isSubmitting ? 'fas fa-spinner fa-spin text-xs' : 'fas fa-paper-plane text-xs'}></i>
+            <FaIcon icon={isSubmitting ? faSpinner : faPaperPlane} spin={isSubmitting ? true : false} className="text-xs" />
           </button>
         </div>
         <button
@@ -929,7 +944,7 @@ export default function CommentSection({
           title="Post reply"
           className="hidden w-10 h-10 shrink-0 sm:flex items-center justify-center bg-brand text-white rounded-full hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          <i className={isSubmitting ? 'fas fa-spinner fa-spin text-sm' : 'fas fa-paper-plane text-sm'}></i>
+          <FaIcon icon={isSubmitting ? faSpinner : faPaperPlane} spin={isSubmitting ? true : false} className="text-sm" />
         </button>
         <button
           type="button"
@@ -937,7 +952,7 @@ export default function CommentSection({
           className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 p-1.5 text-faint hover:text-tertiary active:text-tertiary transition-colors shrink-0"
           title="Cancel"
         >
-          <i className="fas fa-times text-sm"></i>
+          <FaIcon icon={faXmark} className="text-sm" />
         </button>
       </div>
     </div>
@@ -950,7 +965,7 @@ export default function CommentSection({
         onClick={() => setShowComments(!showComments)}
         className="w-full px-4 py-3 text-left text-sm font-medium text-tertiary hover:bg-surface-muted transition-colors"
       >
-        <i className={`fas fa-comment mr-2 ${showComments ? 'text-brand-fg' : ''}`} />
+        <FaIcon icon={faComment} className={`mr-2 ${showComments ? 'text-brand-fg' : ''}`} />
         {showComments ? 'Hide' : 'View'} Comments ({commentsCount})
       </button>
 
@@ -975,7 +990,7 @@ export default function CommentSection({
                     className="absolute -top-4 -right-4 p-3 group"
                   >
                     <span className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center group-hover:bg-red-600">
-                      <i className="fas fa-times text-xs"></i>
+                      <FaIcon icon={faXmark} className="text-xs" />
                     </span>
                   </button>
                 </div>
@@ -1010,7 +1025,7 @@ export default function CommentSection({
                       title="More options"
                       aria-expanded={mainLeadingOpen}
                     >
-                      <i className="fas fa-chevron-right text-sm"></i>
+                      <FaIcon icon={faChevronRight} className="text-sm" />
                     </button>
                   </div>
                   <div
@@ -1082,7 +1097,7 @@ export default function CommentSection({
                     title="Post comment"
                     className="sm:hidden absolute right-1 bottom-1.5 w-8 h-8 flex items-center justify-center bg-brand text-white rounded-full hover:bg-brand-hover disabled:opacity-50 transition-colors"
                   >
-                    <i className={isSubmitting ? 'fas fa-spinner fa-spin text-xs' : 'fas fa-paper-plane text-xs'}></i>
+                    <FaIcon icon={isSubmitting ? faSpinner : faPaperPlane} spin={isSubmitting ? true : false} className="text-xs" />
                   </button>
                 </div>
                 <button

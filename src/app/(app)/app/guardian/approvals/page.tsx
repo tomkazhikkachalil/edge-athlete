@@ -13,6 +13,16 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faRotateLeft } from '@/lib/icons/fa/rotate-left';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUserTag } from '@/lib/icons/fa/user-tag';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── Guardian approval queue ──────────────────────────────────────────────────
 // Pending posts across all of the guardian's managed athletes, oldest first.
@@ -320,7 +330,7 @@ export default function GuardianApprovalsPage() {
           href="/app/guardian"
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           Family console
         </Link>
         <SectionInfo as="h1" heading="Approval queue" headingClassName="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200" className="mb-6">
@@ -355,7 +365,7 @@ export default function GuardianApprovalsPage() {
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
         ) : visiblePosts.length === 0 && visibleComments.length === 0 ? (
           <div className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">
-            <i className="fas fa-circle-check text-violet-400 text-2xl mb-2 block"></i>
+            <FaIcon icon={faCircleCheck} className="text-violet-400 text-2xl mb-2 block" />
             {athleteFilter
               ? 'Nothing from this athlete is waiting for approval.'
               : 'All caught up — nothing is waiting for approval.'}
@@ -391,12 +401,12 @@ export default function GuardianApprovalsPage() {
                 <div className="flex flex-wrap items-center gap-1.5 mb-3">
                   {post.visibility === 'public' ? (
                     <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
-                      <i className="fas fa-globe mr-1"></i>
+                      <FaIcon icon={faGlobe} className="mr-1" />
                       Public — anyone can see this
                     </span>
                   ) : (
                     <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-surface-sunken text-tertiary">
-                      <i className="fas fa-lock mr-1"></i>
+                      <FaIcon icon={faLock} className="mr-1" />
                       Private — fans only
                     </span>
                   )}
@@ -409,7 +419,7 @@ export default function GuardianApprovalsPage() {
 
                 {(post.taggedPeople ?? []).length > 0 && (
                   <p className="text-xs text-muted mb-3">
-                    <i className="fas fa-user-tag mr-1"></i>
+                    <FaIcon icon={faUserTag} className="mr-1" />
                     Tagged: {post.taggedPeople
                       .map(t => formatDisplayName(t.first_name, null, t.last_name, t.full_name))
                       .join(', ')}
@@ -463,9 +473,9 @@ export default function GuardianApprovalsPage() {
                     className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover transition disabled:opacity-50"
                   >
                     {acting === post.id ? (
-                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      <FaIcon icon={faSpinner} spin className="mr-2" />
                     ) : (
-                      <i className="fas fa-check mr-2"></i>
+                      <FaIcon icon={faCheck} className="mr-2" />
                     )}
                     Approve
                   </button>
@@ -474,7 +484,7 @@ export default function GuardianApprovalsPage() {
                     disabled={acting === post.id}
                     className="border border-violet-300 dark:border-violet-800 text-brand-fg-strong px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-soft transition disabled:opacity-50"
                   >
-                    <i className="fas fa-rotate-left mr-2"></i>
+                    <FaIcon icon={faRotateLeft} className="mr-2" />
                     Send back
                   </button>
                   <button
@@ -482,7 +492,7 @@ export default function GuardianApprovalsPage() {
                     disabled={acting === post.id}
                     className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition disabled:opacity-50"
                   >
-                    <i className="fas fa-xmark mr-2"></i>
+                    <FaIcon icon={faXmark} className="mr-2" />
                     Reject
                   </button>
                 </div>
@@ -529,9 +539,9 @@ export default function GuardianApprovalsPage() {
                         className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover transition disabled:opacity-50"
                       >
                         {acting === comment.id ? (
-                          <i className="fas fa-spinner fa-spin mr-2"></i>
+                          <FaIcon icon={faSpinner} spin className="mr-2" />
                         ) : (
-                          <i className="fas fa-check mr-2"></i>
+                          <FaIcon icon={faCheck} className="mr-2" />
                         )}
                         Approve
                       </button>
@@ -540,7 +550,7 @@ export default function GuardianApprovalsPage() {
                         disabled={acting === comment.id}
                         className="border border-violet-300 dark:border-violet-800 text-brand-fg-strong px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-soft transition disabled:opacity-50"
                       >
-                        <i className="fas fa-rotate-left mr-2"></i>
+                        <FaIcon icon={faRotateLeft} className="mr-2" />
                         Send back
                       </button>
                       <button
@@ -548,7 +558,7 @@ export default function GuardianApprovalsPage() {
                         disabled={acting === comment.id}
                         className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition disabled:opacity-50"
                       >
-                        <i className="fas fa-xmark mr-2"></i>
+                        <FaIcon icon={faXmark} className="mr-2" />
                         Reject
                       </button>
                     </div>

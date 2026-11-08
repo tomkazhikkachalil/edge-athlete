@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import SectionInfo from '@/components/SectionInfo';
 import { COPY } from '@/lib/copy';
+import FaIcon from '@/components/FaIcon';
+import { faFileArrowDown } from '@/lib/icons/fa/file-arrow-down';
 
 type State = { kind: 'idle' } | { kind: 'working' } | { kind: 'done' } | { kind: 'failed'; message: string };
 
@@ -55,7 +57,7 @@ export default function ExportDataCard() {
           className="ea-btn-secondary inline-flex items-center gap-2 text-sm font-medium disabled:opacity-60"
           data-export-download
         >
-          <i className="fas fa-file-download" aria-hidden="true"></i>
+          <FaIcon icon={faFileArrowDown} />
           <span>{state.kind === 'working' ? COPY.ACCOUNT.EXPORT_WORKING : COPY.ACCOUNT.EXPORT_BUTTON}</span>
         </button>
         {state.kind === 'done' && (

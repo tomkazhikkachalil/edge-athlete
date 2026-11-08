@@ -8,6 +8,10 @@ import {
   type Visibility,
   type MessagingPermission,
 } from '@/lib/profile-privacy';
+import FaIcon from '@/components/FaIcon';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faLinkSlash } from '@/lib/icons/fa/link-slash';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // ── Post-transfer activation + review ────────────────────────────────────────
 // The link from the "your account is now yours" email. Three beats, one page:
@@ -112,7 +116,7 @@ export default function ActivatePage() {
 
           {state === 'invalid' && (
             <div className="text-center py-6">
-              <i className="fas fa-link-slash text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faLinkSlash} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 This activation link has expired or was already used
               </h2>
@@ -132,7 +136,7 @@ export default function ActivatePage() {
 
           {state === 'password' && needsManualLogin && (
             <div className="text-center py-6">
-              <i className="fas fa-circle-check text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faCircleCheck} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Password set!</h2>
               <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 Please sign in with your email and new password.
@@ -194,7 +198,7 @@ export default function ActivatePage() {
                   disabled={busy}
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
-                  {busy ? <><i className="fas fa-spinner fa-spin mr-2"></i> Setting up...</> : 'Set password & continue'}
+                  {busy ? <><FaIcon icon={faSpinner} spin className="mr-2" /> Setting up...</> : 'Set password & continue'}
                 </button>
               </form>
             </>
@@ -268,7 +272,7 @@ export default function ActivatePage() {
                 disabled={busy}
                 className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
               >
-                {busy ? <><i className="fas fa-spinner fa-spin mr-2"></i> Saving...</> : 'Done'}
+                {busy ? <><FaIcon icon={faSpinner} spin className="mr-2" /> Saving...</> : 'Done'}
               </button>
               <p className="text-xs text-muted text-center mt-3">
                 You can change any of this later in Settings.

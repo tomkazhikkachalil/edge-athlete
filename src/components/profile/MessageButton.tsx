@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useMessages } from '@/lib/messages';
 import { useToast } from '@/components/Toast';
+import FaIcon from '@/components/FaIcon';
+import { faComment } from '@/lib/icons/fa/comment';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 /**
  * The Message door on another athlete's profile (Tom, Oct 14 2026 — fix 4):
@@ -69,7 +72,7 @@ export default function MessageButton({ profileId, className = '' }: MessageButt
       data-profile-message=""
       className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium min-h-[40px] whitespace-nowrap rounded-full border border-border-strong bg-surface text-brand-fg hover:bg-surface-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
     >
-      {opening ? <i className="fas fa-spinner fa-spin" aria-hidden="true"></i> : <i className="fas fa-comment" aria-hidden="true"></i>}
+      {opening ? <FaIcon icon={faSpinner} spin /> : <FaIcon icon={faComment} />}
       Message
     </button>
   );

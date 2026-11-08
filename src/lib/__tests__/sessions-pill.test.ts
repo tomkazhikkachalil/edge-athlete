@@ -87,7 +87,7 @@ describe('what the pill shows', () => {
     expect(pillLabel({ kind: 'recording', title: 'Walk (on this phone)' }, '0:30', null)).toBe('Resume your walk · 0:30');
   });
   it('an icon per kind, the Drafts rows\' spelling', () => {
-    expect(PILL_KIND_ICON).toEqual({ round: 'fa-golf-ball-tee', workout: 'fa-dumbbell', recording: 'fa-person-walking' });
+    expect({ round: PILL_KIND_ICON.round.name, workout: PILL_KIND_ICON.workout.name, recording: PILL_KIND_ICON.recording.name }).toEqual({ round: 'golf-ball-tee', workout: 'dumbbell', recording: 'person-walking' });
   });
 });
 

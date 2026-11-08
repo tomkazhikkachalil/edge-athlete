@@ -3,6 +3,10 @@
 import VideoFrame from './media/VideoFrame';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import FaIcon from '@/components/FaIcon';
+import { faCirclePlayRegular } from '@/lib/icons/fa/circle-play-regular';
+import { faImage } from '@/lib/icons/fa/image';
+import { faRetweet } from '@/lib/icons/fa/retweet';
 
 /** The wire shape of a repost's quoted original (gated server-side —
  *  null means "not visible to this viewer" OR "original deleted"). */
@@ -38,7 +42,7 @@ export default function QuotedPostEmbed({ post, compact = false, onClick }: Quot
   if (!post) {
     return (
       <div className="rounded-lg border border-border bg-surface-muted p-3 flex items-center gap-2 text-sm text-tertiary">
-        <i className="fas fa-retweet"></i>
+        <FaIcon icon={faRetweet} />
         <span>This post is unavailable</span>
       </div>
     );
@@ -102,7 +106,7 @@ export default function QuotedPostEmbed({ post, compact = false, onClick }: Quot
         )}
         {compact && thumbnail && (
           <div className="flex items-center gap-1.5 mt-1.5 text-xs text-tertiary">
-            <i className={`far ${thumbnail.media_type === 'video' ? 'fa-play-circle' : 'fa-image'}`}></i>
+            <FaIcon icon={thumbnail.media_type === 'video' ? faCirclePlayRegular : faImage} />
             <span>{thumbnail.media_type === 'video' ? 'Video' : 'Photo'}</span>
           </div>
         )}

@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import BrandBar from '@/components/BrandBar';
+import FaIcon from '@/components/FaIcon';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // Public contact form — wires the (previously caller-less) /api/contact
 // endpoint to an actual page. Works logged-in or logged-out.
@@ -97,7 +99,7 @@ export default function ContactPage() {
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition font-medium disabled:opacity-50"
                 >
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i>Sending…</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" />Sending…</>
                   ) : (
                     'Send message'
                   )}

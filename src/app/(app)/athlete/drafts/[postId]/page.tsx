@@ -15,6 +15,8 @@ import { refreshDrafts } from '@/hooks/useDrafts';
 import FeedToggle from '@/components/posts/FeedToggle';
 import { readFeedDefault } from '@/lib/posts/feed-memory';
 import { POST_VISIBILITY } from '@/lib/posts/audience';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
 
 // ── The review screen (Drafts round, Oct 2026) ───────────────────────────────
 // After Finish, before Post. The draft's own card, a notes field (the post's
@@ -177,7 +179,7 @@ export default function DraftReviewPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-center gap-4">
             <button onClick={() => void handleKeep()} className="text-tertiary hover:text-primary ea-icon-btn" aria-label="Back">
-              <i className="fas fa-arrow-left text-xl"></i>
+              <FaIcon icon={faArrowLeft} className="text-xl" />
             </button>
             <h1 className="text-2xl font-bold text-primary">{roundInProgress ? 'Still being played' : 'Review and post'}</h1>
           </div>

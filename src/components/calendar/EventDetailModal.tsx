@@ -19,6 +19,14 @@ import { allDayDayLabels } from '@/lib/calendar/grid';
 import { describeRecurrence } from '@/lib/calendar/recurrence';
 import { REMINDER_OPTIONS, REMINDER_LABELS } from '@/lib/calendar/reminders';
 import type { EventDetail, EventGuest, MyStatus, ViewerAccess } from './types';
+import FaIcon from '@/components/FaIcon';
+import { faArrowsRotate } from '@/lib/icons/fa/arrows-rotate';
+import { faBell } from '@/lib/icons/fa/bell';
+import { faCarSide } from '@/lib/icons/fa/car-side';
+import { faDownload } from '@/lib/icons/fa/download';
+import { faEnvelope } from '@/lib/icons/fa/envelope';
+import { faLocationDot } from '@/lib/icons/fa/location-dot';
+import { faPeopleGroup } from '@/lib/icons/fa/people-group';
 
 // The event's home: full details, live guest list with per-person status,
 // the organizer's running tally, and the viewer's respond buttons. The
@@ -354,7 +362,7 @@ export default function EventDetailModal({
               {when!.secondary && <p className="text-muted text-xs">{when!.secondary}</p>}
               {event.location && (
                 <p className="text-secondary">
-                  <i className="fas fa-location-dot text-decor mr-1.5"></i>
+                  <FaIcon icon={faLocationDot} className="text-decor mr-1.5" />
                   {event.location}
                 </p>
               )}
@@ -364,14 +372,14 @@ export default function EventDetailModal({
               </p>
               {event.series && (
                 <p className="text-muted text-xs">
-                  <i className="fas fa-arrows-rotate text-decor mr-1"></i>
+                  <FaIcon icon={faArrowsRotate} className="text-decor mr-1" />
                   {describeRecurrence(event.series, event.timezone)}
                 </p>
               )}
               {(event.league_id || event.club_id || event.division_id || event.team_id) &&
                 event.org_name && (
                   <p className="text-muted text-xs">
-                    <i className="fas fa-people-group text-decor mr-1"></i>
+                    <FaIcon icon={faPeopleGroup} className="text-decor mr-1" />
                     {event.league_id
                       ? 'League event'
                       : event.club_id
@@ -411,7 +419,7 @@ export default function EventDetailModal({
                     href={`/api/calendar/events/${event.id}/ics`}
                     className="text-brand-fg hover:underline font-medium"
                   >
-                    <i className="fas fa-download mr-1"></i>
+                    <FaIcon icon={faDownload} className="mr-1" />
                     Add to calendar
                   </a>
                 </p>
@@ -535,7 +543,7 @@ export default function EventDetailModal({
             {myGuestRow && !cancelled && (
               <div className="border-t border-border-subtle pt-3 flex items-center gap-2 flex-wrap">
                 <label htmlFor="ev-reminder" className="text-sm font-semibold text-primary">
-                  <i className="fas fa-bell text-decor mr-1.5"></i>
+                  <FaIcon icon={faBell} className="text-decor mr-1.5" />
                   Remind me
                 </label>
                 <select
@@ -575,7 +583,7 @@ export default function EventDetailModal({
                     <div key={guest.id} className="flex items-center gap-2">
                       <span className="relative w-7 h-7 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60 flex items-center justify-center shrink-0">
                         {guest.invited_email ? (
-                          <i className="fas fa-envelope text-decor text-xs"></i>
+                          <FaIcon icon={faEnvelope} className="text-decor text-xs" />
                         ) : guest.profiles?.avatar_url ? (
                           <Image
                             src={guest.profiles.avatar_url}
@@ -763,7 +771,7 @@ function CarpoolSection({ eventId, viewerId }: { eventId: string; viewerId: stri
     <div className="border-t border-border-subtle pt-3">
       <div className="flex items-center justify-between mb-2">
         <p className="text-sm font-semibold text-primary">
-          <i className="fas fa-car-side text-xs mr-1.5 text-muted"></i>
+          <FaIcon icon={faCarSide} className="text-xs mr-1.5 text-muted" />
           Carpool
         </p>
         {!myOffer && !offering && (

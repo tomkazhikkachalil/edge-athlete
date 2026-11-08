@@ -17,6 +17,9 @@ import type { SportKey } from '@/lib/sports/SportRegistry';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { ProvenanceChip, TileGrid } from '../SportSkillCards';
 import SportSettingsRow from '../SportSettingsRow';
+import FaIcon from '@/components/FaIcon';
+import { faChevronDown } from '@/lib/icons/fa/chevron-down';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface SportBreakdownHeaderProps {
   card: SportSkillCard;
@@ -36,7 +39,7 @@ export default function SportBreakdownHeader({ card, children }: SportBreakdownH
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-secondary flex items-center gap-2">
-            <i className={sportDef.icon_id} aria-hidden="true"></i>
+            <FaIcon icon={sportIcon(sportDef.sport_key)} />
             {card.sportLabel}
           </h2>
 
@@ -76,10 +79,7 @@ export default function SportBreakdownHeader({ card, children }: SportBreakdownH
             className="ea-interactive shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border-strong px-3 py-2 text-sm font-semibold text-secondary"
           >
             {expanded ? 'Less' : 'Full breakdown'}
-            <i
-              className={`fas fa-chevron-down text-xs transition-transform ${expanded ? 'rotate-180' : ''}`}
-              aria-hidden="true"
-            ></i>
+            <FaIcon icon={faChevronDown} className={`text-xs transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </button>
         )}
       </div>

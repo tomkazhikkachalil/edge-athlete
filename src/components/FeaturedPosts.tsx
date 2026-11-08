@@ -7,6 +7,9 @@ import OptimizedImage from './OptimizedImage';
 import PostDetailModal from './PostDetailModal';
 import { buildStatsSummary } from '@/lib/sports/stats-summary';
 import type { GolfRound } from '@/types/golf';
+import FaIcon from '@/components/FaIcon';
+import { faThumbtack } from '@/lib/icons/fa/thumbtack';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // Shape of the posts-list API response we consume (subset)
 interface FeaturedPost {
@@ -97,7 +100,7 @@ export default function FeaturedPosts({
   return (
     <div className="mb-6">
       <div className="flex items-center gap-2 mb-3">
-        <i className="fas fa-thumbtack text-amber-500 text-sm" aria-hidden="true"></i>
+        <FaIcon icon={faThumbtack} className="text-amber-500 text-sm" />
         <h3 className="text-lg font-bold text-black dark:text-primary">Featured</h3>
       </div>
 
@@ -188,7 +191,7 @@ function FeaturedTile({
           title="Unpin from profile"
           aria-label="Unpin from profile"
         >
-          <i className="fas fa-times text-xs"></i>
+          <FaIcon icon={faXmark} className="text-xs" />
         </button>
       )}
     </div>

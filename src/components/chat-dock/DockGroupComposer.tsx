@@ -11,6 +11,10 @@ import {
   groupDraftError,
   toggleGroupMember,
 } from '@/components/messages/group-draft';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // Start a GROUP chat without leaving the dock. The board's NewConversationModal
 // cannot be reused here — it is a 448px fixed-inset card that sits above the
@@ -136,7 +140,7 @@ export default function DockGroupComposer({
                     aria-label={`Remove ${mName}`}
                     className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-violet-200"
                   >
-                    <i className="fas fa-xmark text-[10px]"></i>
+                    <FaIcon icon={faXmark} className="text-[10px]" />
                   </button>
                 </span>
               );
@@ -211,7 +215,7 @@ export default function DockGroupComposer({
                   }`}
                   aria-hidden="true"
                 >
-                  {selected && <i className="fas fa-check text-[10px]"></i>}
+                  {selected && <FaIcon icon={faCheck} className="text-[10px]" />}
                 </span>
               </button>
             );
@@ -228,7 +232,7 @@ export default function DockGroupComposer({
         >
           {creating ? (
             <>
-              <i className="fas fa-spinner fa-spin mr-2"></i>Creating…
+              <FaIcon icon={faSpinner} spin className="mr-2" />Creating…
             </>
           ) : (
             `Create group (${members.length})`

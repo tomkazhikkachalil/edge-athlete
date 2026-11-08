@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import type { ChannelUpload } from '@/lib/videos/google-youtube-server';
+import FaIcon from '@/components/FaIcon';
+import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
+import { faChevronDown } from '@/lib/icons/fa/chevron-down';
+import { faChevronUp } from '@/lib/icons/fa/chevron-up';
 
 /**
  * "Pick from your channel" (Videos program Phase 3): the connected channel's
@@ -41,9 +45,9 @@ export default function ChannelPicker({ owner, onPick }: { owner: string; onPick
         aria-expanded={open}
         data-channel-picker-toggle=""
       >
-        <i className="fab fa-youtube text-red-600" aria-hidden="true"></i>
+        <FaIcon icon={faYoutubeBrands} className="text-red-600" />
         <span className="text-sm font-semibold text-primary flex-1">Pick from your channel</span>
-        <i className={`fas fa-chevron-${open ? 'up' : 'down'} text-muted`} aria-hidden="true"></i>
+        <FaIcon icon={open ? faChevronUp : faChevronDown} className="text-muted" />
       </button>
       {open && (
         <div className="border-t border-border-subtle px-3 py-2">

@@ -9,6 +9,9 @@ import type { GolfCourse } from '@/types/golf';
 import BrandLogo from '@/components/BrandLogo';
 import { websiteDomain } from '@/lib/logo-dev';
 import { formatPlace } from '@/lib/geo/regions';
+import FaIcon from '@/components/FaIcon';
+import { faChevronDown } from '@/lib/icons/fa/chevron-down';
+import { faChevronUp } from '@/lib/icons/fa/chevron-up';
 
 export default function CourseCard({
   course,
@@ -51,10 +54,7 @@ export default function CourseCard({
               : 'Tap for details'}
           </div>
         </div>
-        <i
-          className={`fas fa-chevron-${expanded ? 'up' : 'down'} text-xs text-decor mt-1`}
-          aria-hidden="true"
-        ></i>
+        <FaIcon icon={expanded ? faChevronUp : faChevronDown} className="text-xs text-decor mt-1" />
       </div>
     </button>
   );

@@ -4,7 +4,6 @@ import { Inter } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme-script';
 import { THEME_COLOR } from '@/lib/theme-colors';
 import '../globals.css';
-import '@fortawesome/fontawesome-free/css/all.min.css';
 
 // ── The ADMIN root layout (flow changes program, item 2 — Oct 19 2026) ──────
 // A third root layout via route groups: the console is its own door with

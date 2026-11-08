@@ -7,6 +7,10 @@ import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
 import GuardiansCard from './GuardiansCard';
 import SupervisedSettingCard from './SupervisedSettingCard';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { faLock } from '@/lib/icons/fa/lock';
 
 export default function PrivacySettings() {
   const { profile, refreshProfile } = useAuth();
@@ -75,7 +79,7 @@ export default function PrivacySettings() {
           // The server strips it from self-service PUTs; show the posture
           // read-only instead of dead buttons.
           <SupervisedSettingCard
-            icon={visibility === 'public' ? 'fa-globe' : 'fa-lock'}
+            icon={visibility === 'public' ? faGlobe : faLock}
             iconColor={visibility === 'public' ? 'text-brand-fg' : 'text-purple-600 dark:text-purple-400'}
             label={visibility === 'public' ? 'Public' : 'Private'}
             description={
@@ -104,12 +108,12 @@ export default function PrivacySettings() {
                   : 'border-border-strong'
               }`}>
                 {visibility === 'public' && (
-                  <i className="fas fa-check text-white text-xs"></i>
+                  <FaIcon icon={faCheck} className="text-white text-xs" />
                 )}
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <i className="fas fa-globe text-brand-fg"></i>
+                  <FaIcon icon={faGlobe} className="text-brand-fg" />
                   <h4 className="font-semibold text-primary">Public</h4>
                 </div>
                 <p className="text-sm text-tertiary">
@@ -137,12 +141,12 @@ export default function PrivacySettings() {
                   : 'border-border-strong'
               }`}>
                 {visibility === 'private' && (
-                  <i className="fas fa-check text-white text-xs"></i>
+                  <FaIcon icon={faCheck} className="text-white text-xs" />
                 )}
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <i className="fas fa-lock text-purple-600 dark:text-purple-400"></i>
+                  <FaIcon icon={faLock} className="text-purple-600 dark:text-purple-400" />
                   <h4 className="font-semibold text-primary">Private</h4>
                 </div>
                 <p className="text-sm text-tertiary">

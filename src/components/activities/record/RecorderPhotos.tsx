@@ -4,6 +4,11 @@ import VideoFrame from '@/components/media/VideoFrame';
 
 import CaptureInputs from '@/components/media/CaptureInputs';
 import type { RecordingPhoto } from '@/lib/activities/record/recording';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faImage } from '@/lib/icons/fa/image';
+import { faVideo } from '@/lib/icons/fa/video';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 /**
  * Photos during a recording: a capture is a TILE at once (capture v2) and
@@ -32,11 +37,11 @@ export default function RecorderPhotos({
           {({ openPhoto, openVideo }) => (
             <>
               <button type="button" onClick={openPhoto} disabled={disabled} className="ea-icon-btn ea-surface inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-lg text-brand-fg disabled:opacity-50" aria-label="Take a photo" data-record-photo="">
-                <i className="fas fa-camera text-xl" aria-hidden="true"></i>
+                <FaIcon icon={faCamera} className="text-xl" />
               </button>
               {openVideo && (
                 <button type="button" onClick={openVideo} disabled={disabled} className="ea-icon-btn ea-surface inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-lg text-brand-fg disabled:opacity-50" aria-label="Record a clip">
-                  <i className="fas fa-video text-xl" aria-hidden="true"></i>
+                  <FaIcon icon={faVideo} className="text-xl" />
                 </button>
               )}
             </>
@@ -52,7 +57,7 @@ export default function RecorderPhotos({
                 <img src={previews[p.localId]} alt="" className="h-full w-full object-cover" />
               )
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-muted"><i className="fas fa-image" aria-hidden="true"></i></div>
+              <div className="flex h-full w-full items-center justify-center text-muted"><FaIcon icon={faImage} /></div>
             )}
             {!p.url && !p.failed && <span className="absolute inset-x-0 bottom-0 h-1 animate-pulse bg-brand" aria-label="Uploading" />}
             {p.failed && (
@@ -61,7 +66,7 @@ export default function RecorderPhotos({
               </button>
             )}
             <button type="button" onClick={() => onRemove(p.localId)} className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-bl-lg bg-black/60 text-white" aria-label="Remove photo">
-              <i className="fas fa-times text-[10px]" aria-hidden="true"></i>
+              <FaIcon icon={faXmark} className="text-[10px]" />
             </button>
           </div>
         ))}

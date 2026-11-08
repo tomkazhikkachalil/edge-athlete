@@ -7,6 +7,8 @@ import { useAuth } from '@/lib/auth';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { bannerCopy, type ClientTransfer } from '@/lib/transfer-ui';
 import StickyBanner from '@/components/StickyBanner';
+import FaIcon from '@/components/FaIcon';
+import { faKey } from '@/lib/icons/fa/key';
 
 // Supervised-athlete banner (guardian-profiles): when an account handover is
 // in flight for the signed-in supervised athlete, surface it on every screen
@@ -53,7 +55,7 @@ export default function TransferBanner() {
       {/* flex-wrap + truncate: long transfer copy wraps the action onto its
           own line instead of pushing the row past a 320px screen. */}
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
-        <i className="fas fa-key text-brand-fg-strong shrink-0"></i>
+        <FaIcon icon={faKey} className="text-brand-fg-strong shrink-0" />
         <span className="text-violet-900 font-medium min-w-0 truncate">{bannerCopy(transfer.state)}</span>
         <Link
           href={`/app/transfer/${user!.id}`}

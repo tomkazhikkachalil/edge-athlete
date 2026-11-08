@@ -7,6 +7,9 @@ import type { JoinControl } from '@/lib/sport-events/join-state';
 import EventJoinButton from './EventJoinButton';
 import EventPlayerSheet from './EventPlayerSheet';
 import type { EventApi } from '@/lib/sport-events/client';
+import FaIcon from '@/components/FaIcon';
+import { faLayerGroup } from '@/lib/icons/fa/layer-group';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
 
 interface Props {
   view: SportEventViewPayload;
@@ -162,12 +165,12 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
         <div className="flex flex-wrap gap-2">
           {canManage && onOpenFlights && playing.length > 0 && event.status !== 'completed' && event.status !== 'cancelled' && (
             <button type="button" onClick={onOpenFlights} className={BTN} data-event-flights-open="">
-              <i className="fas fa-layer-group mr-2" aria-hidden="true"></i>Flights
+              <FaIcon icon={faLayerGroup} className="mr-2" />Flights
             </button>
           )}
           {canInvite && (
             <button type="button" onClick={onOpenInvite} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center" data-event-invite-open="">
-              <i className="fas fa-user-plus mr-2" aria-hidden="true"></i>Invite
+              <FaIcon icon={faUserPlus} className="mr-2" />Invite
             </button>
           )}
         </div>

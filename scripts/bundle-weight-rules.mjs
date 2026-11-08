@@ -11,7 +11,11 @@
 // where the app is today and RATCHET DOWN as the diet lands — a PR that
 // raises one says why in its body and the devlog. The ratchet so far: root
 // 200 → 150 KB (the browser Sentry SDK off the page load, Phase 3b: 185 →
-// 132 KB measured), route 640 → 600 KB (the athlete page 627 → 575).
+// 132 KB measured), route 640 → 600 KB (the athlete page 627 → 575). The
+// icons round (Nov 8) tried the glyph PATHS as JavaScript first — +40 KB gz
+// on every route — and settled on one cached SVG sprite with path-less
+// modules: +8–11 KB gz per route for the symbol ids and boxes, the webfont
+// stylesheet (23 KB gz on EVERY page) and its three font files (259 KB) gone.
 
 /** The chunks every page loads (build-manifest.json rootMainFiles), gzipped. */
 export const ROOT_GZIP_BUDGET_BYTES = 150 * 1024;

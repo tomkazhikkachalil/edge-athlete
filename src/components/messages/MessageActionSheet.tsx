@@ -15,6 +15,12 @@ import QuotedReply from './QuotedReply';
 import { clampSheetTop, SHEET_VIEWPORT_MARGIN_PX } from './action-sheet-layout';
 import { EMOJI_PANEL_WIDTH_PX, EMOJI_PANEL_HEIGHT_PX } from './composer-layout';
 import type { Message, ParticipantProfile } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faCopy } from '@/lib/icons/fa/copy';
+import { faFlag } from '@/lib/icons/fa/flag';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faReply } from '@/lib/icons/fa/reply';
+import { faTrash } from '@/lib/icons/fa/trash';
 
 const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
   ssr: false,
@@ -210,30 +216,30 @@ export default function MessageActionSheet({
 
             <div className="bg-surface-raised border border-border rounded-xl shadow-lg py-1 min-w-[180px]">
               <button onClick={onReply} className={`${actionRowClass} text-secondary hover:bg-surface-muted`}>
-                <i className="fas fa-reply text-xs w-4"></i>
+                <FaIcon icon={faReply} className="text-xs w-4" />
                 Reply
               </button>
               {message.type === 'text' && (
                 <button onClick={onCopy} className={`${actionRowClass} text-secondary hover:bg-surface-muted`}>
-                  <i className="fas fa-copy text-xs w-4"></i>
+                  <FaIcon icon={faCopy} className="text-xs w-4" />
                   Copy
                 </button>
               )}
               {canEdit && (
                 <button onClick={onEdit} className={`${actionRowClass} text-secondary hover:bg-surface-muted`}>
-                  <i className="fas fa-pen text-xs w-4"></i>
+                  <FaIcon icon={faPen} className="text-xs w-4" />
                   Edit
                 </button>
               )}
               {!isOwn && (
                 <button onClick={onReport} className={`${actionRowClass} text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40`}>
-                  <i className="fas fa-flag text-xs w-4"></i>
+                  <FaIcon icon={faFlag} className="text-xs w-4" />
                   Report
                 </button>
               )}
               {isOwn && (
                 <button onClick={onDelete} className={`${actionRowClass} text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40`}>
-                  <i className="fas fa-trash text-xs w-4"></i>
+                  <FaIcon icon={faTrash} className="text-xs w-4" />
                   Delete
                 </button>
               )}

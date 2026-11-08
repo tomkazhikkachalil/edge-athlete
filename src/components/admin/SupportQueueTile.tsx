@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TicketStats } from '@/lib/tickets/server';
+import FaIcon from '@/components/FaIcon';
+import { faLifeRing } from '@/lib/icons/fa/life-ring';
 
 /**
  * The dashboard's door to the support queue (Support & Reporting, Spec 1):
@@ -41,7 +43,7 @@ export default function SupportQueueTile() {
       data-support-queue-tile=""
     >
       <p className="text-sm font-semibold text-primary">
-        <i className="fas fa-life-ring text-brand-fg mr-2"></i>
+        <FaIcon icon={faLifeRing} className="text-brand-fg mr-2" />
         Support queue
         {critical !== null && critical > 0 && (
           <span className="ml-2 inline-flex items-center rounded-full bg-red-600 text-white px-2 py-0.5 text-xs font-semibold">{critical} critical</span>

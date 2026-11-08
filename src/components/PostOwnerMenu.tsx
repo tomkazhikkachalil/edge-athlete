@@ -1,6 +1,12 @@
 'use client';
 
 import ActionMenu, { type ActionMenuItem } from '@/components/ActionMenu';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { faEye } from '@/lib/icons/fa/eye';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faThumbtack } from '@/lib/icons/fa/thumbtack';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faEyeSlash } from '@/lib/icons/fa/eye-slash';
 
 /**
  * The post card's owner actions (pin / edit / hide / delete) as ONE "…"
@@ -29,13 +35,13 @@ interface Props {
 
 export default function PostOwnerMenu({ isPinned, pinBusy, onTogglePin, onEdit, onEditWorkout, onDelete, deleteLabel, onShowAgain, onDeleteForGood }: Props) {
   const items: ActionMenuItem[] = [
-    { key: 'pin', label: isPinned ? 'Unpin from profile' : 'Pin to profile', icon: 'fa-thumbtack', onSelect: onTogglePin, disabled: pinBusy },
-    { key: 'edit', label: 'Edit post', icon: 'fa-edit', onSelect: onEdit },
+    { key: 'pin', label: isPinned ? 'Unpin from profile' : 'Pin to profile', icon: faThumbtack, onSelect: onTogglePin, disabled: pinBusy },
+    { key: 'edit', label: 'Edit post', icon: faPenToSquare, onSelect: onEdit },
     // A posted WORKOUT (Training fixes PR 5, Oct 21 2026): the sets and media change in the workout editor; the post's summary follows.
-    ...(onEditWorkout ? [{ key: 'edit-workout', label: 'Edit workout', icon: 'fa-dumbbell', onSelect: onEditWorkout }] : []),
-    ...(onShowAgain ? [{ key: 'show', label: 'Show on profile', icon: 'fa-eye', onSelect: onShowAgain }] : []),
-    ...(onDelete ? [{ key: 'delete', label: deleteLabel ?? 'Delete post', icon: deleteLabel ? 'fa-eye-slash' : 'fa-trash', onSelect: onDelete, ...(deleteLabel ? {} : { tone: 'danger' as const }) }] : []),
-    ...(onDeleteForGood ? [{ key: 'delete-for-good', label: 'Delete for good', icon: 'fa-trash', onSelect: onDeleteForGood, tone: 'danger' as const }] : []),
+    ...(onEditWorkout ? [{ key: 'edit-workout', label: 'Edit workout', icon: faDumbbell, onSelect: onEditWorkout }] : []),
+    ...(onShowAgain ? [{ key: 'show', label: 'Show on profile', icon: faEye, onSelect: onShowAgain }] : []),
+    ...(onDelete ? [{ key: 'delete', label: deleteLabel ?? 'Delete post', icon: deleteLabel ? faEyeSlash : faTrash, onSelect: onDelete, ...(deleteLabel ? {} : { tone: 'danger' as const }) }] : []),
+    ...(onDeleteForGood ? [{ key: 'delete-for-good', label: 'Delete for good', icon: faTrash, onSelect: onDeleteForGood, tone: 'danger' as const }] : []),
   ];
   return <ActionMenu items={items} ariaLabel="Post options" />;
 }

@@ -9,6 +9,10 @@ import AppHeader from '@/components/AppHeader';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
+import { faVideo } from '@/lib/icons/fa/video';
 
 // Household archive (Wave 9): the family's shared history — every post
 // across the household, newest first, month-grouped, phone-first. Read-only
@@ -140,7 +144,7 @@ export default function HouseholdArchivePage() {
           href="/app/guardian"
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           Family console
         </Link>
         <h1 className="text-2xl font-bold text-primary mb-1">Family archive</h1>
@@ -185,7 +189,7 @@ export default function HouseholdArchivePage() {
               onClick={() => setRetryKey(k => k + 1)}
               className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition"
             >
-              <i className="fas fa-rotate-right text-xs"></i>
+              <FaIcon icon={faRotateRight} className="text-xs" />
               Try again
             </button>
           </div>
@@ -224,7 +228,7 @@ export default function HouseholdArchivePage() {
                             <div key={i} className="relative aspect-square rounded-md overflow-hidden bg-surface-sunken">
                               {m.type === 'video' && !m.thumbnailUrl ? (
                                 <span className="absolute inset-0 flex items-center justify-center text-muted">
-                                  <i className="fas fa-video"></i>
+                                  <FaIcon icon={faVideo} />
                                 </span>
                               ) : (
                                 <Image
@@ -238,7 +242,7 @@ export default function HouseholdArchivePage() {
                               )}
                               {m.type === 'video' && m.thumbnailUrl && (
                                 <span className="absolute bottom-1 right-1 text-white text-xs drop-shadow">
-                                  <i className="fas fa-video"></i>
+                                  <FaIcon icon={faVideo} />
                                 </span>
                               )}
                             </div>

@@ -9,6 +9,17 @@ import { loadParkedInvite, saveParkedInvite, clearParkedInvite } from '@/lib/par
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 import type { OrgKind } from '@/lib/orgs/org-ref';
 import { COPY } from '@/lib/copy';
+import FaIcon from '@/components/FaIcon';
+import { faBinoculars } from '@/lib/icons/fa/binoculars';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faEnvelopeCircleCheck } from '@/lib/icons/fa/envelope-circle-check';
+import { faEnvelopeOpenText } from '@/lib/icons/fa/envelope-open-text';
+import { faPersonRunning } from '@/lib/icons/fa/person-running';
+import { faRightToBracket } from '@/lib/icons/fa/right-to-bracket';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
 
 // Registration step machine (guardian-profiles feature).
 //
@@ -476,7 +487,7 @@ export default function RegistrationSteps({
                   onClick={onBackToLogin}
                   className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition"
                 >
-                  <i className="fas fa-right-to-bracket text-brand-fg text-2xl mb-2"></i>
+                  <FaIcon icon={faRightToBracket} className="text-brand-fg text-2xl mb-2" />
                   <p className="font-bold text-primary">Yes, sign me in</p>
                   <p className="text-sm text-tertiary mt-1">You&apos;ll land in the {orgKind} setup right after.</p>
                 </button>
@@ -485,7 +496,7 @@ export default function RegistrationSteps({
                   onClick={() => setStep('organizer')}
                   className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition"
                 >
-                  <i className="fas fa-building text-brand-fg text-2xl mb-2"></i>
+                  <FaIcon icon={faBuilding} className="text-brand-fg text-2xl mb-2" />
                   <p className="font-bold text-primary">No, create one</p>
                   <p className="text-sm text-tertiary mt-1">An organizer account: just your name, email and a password.</p>
                 </button>
@@ -533,7 +544,7 @@ export default function RegistrationSteps({
                 </div>
                 <button type="submit" disabled={submitting} className={primaryBtn}>
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Creating Account...</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Creating Account...</>
                   ) : (
                     'Create Account'
                   )}
@@ -604,7 +615,7 @@ export default function RegistrationSteps({
                 </div>
                 <button type="submit" disabled={submitting} className={primaryBtn}>
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Creating Account...</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Creating Account...</>
                   ) : (
                     'Create Account'
                   )}
@@ -635,7 +646,7 @@ export default function RegistrationSteps({
                   onClick={() => { setRole('athlete'); setStep('dob'); }}
                   className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition"
                 >
-                  <i className="fas fa-person-running text-brand-fg text-2xl mb-2"></i>
+                  <FaIcon icon={faPersonRunning} className="text-brand-fg text-2xl mb-2" />
                   <p className="font-bold text-primary">I&apos;m the athlete</p>
                   <p className="text-sm text-tertiary mt-1">This account is for me.</p>
                 </button>
@@ -644,7 +655,7 @@ export default function RegistrationSteps({
                   onClick={() => { setRole('parent'); setStep('dob'); }}
                   className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition"
                 >
-                  <i className="fas fa-user-shield text-brand-fg text-2xl mb-2"></i>
+                  <FaIcon icon={faUserShield} className="text-brand-fg text-2xl mb-2" />
                   <p className="font-bold text-primary">I&apos;m a parent or guardian</p>
                   <p className="text-sm text-tertiary mt-1">I&apos;m setting this up for my athlete.</p>
                 </button>
@@ -654,7 +665,7 @@ export default function RegistrationSteps({
                   className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition sm:col-span-2"
                   data-scout-door=""
                 >
-                  <i className="fas fa-binoculars text-brand-fg text-2xl mb-2"></i>
+                  <FaIcon icon={faBinoculars} className="text-brand-fg text-2xl mb-2" />
                   <p className="font-bold text-primary">I&apos;m a coach or scout</p>
                   <p className="text-sm text-tertiary mt-1">A scout account: find and shortlist recruitable athletes. Just your name, email and a password.</p>
                 </button>
@@ -732,7 +743,7 @@ export default function RegistrationSteps({
                 </div>
                 <button type="submit" disabled={submitting} className={primaryBtn}>
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Creating Account...</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Creating Account...</>
                   ) : (
                     'Create Account'
                   )}
@@ -754,7 +765,7 @@ export default function RegistrationSteps({
 
           {step === 'check-email' && (
             <div className="text-center py-8" data-check-email>
-              <i className="fas fa-envelope-open-text text-brand-fg text-4xl mb-4" aria-hidden="true"></i>
+              <FaIcon icon={faEnvelopeOpenText} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">{COPY.AUTH.CHECK_EMAIL_TITLE}</h2>
               <p className="text-sm text-tertiary max-w-md mx-auto mb-2">
                 {COPY.AUTH.CHECK_EMAIL_BODY.replace('{email}', confirmEmail)}
@@ -762,7 +773,7 @@ export default function RegistrationSteps({
               <p className="text-xs text-muted max-w-md mx-auto mb-6">{COPY.AUTH.CHECK_EMAIL_SPAM}</p>
               <button type="button" onClick={() => void resendConfirmation()} disabled={resend === 'sending'} className={`${primaryBtn} max-w-xs mx-auto`} data-check-email-resend>
                 {resend === 'sending' ? (
-                  <><i className="fas fa-spinner fa-spin mr-2"></i> Sending…</>
+                  <><FaIcon icon={faSpinner} spin className="mr-2" /> Sending…</>
                 ) : (
                   COPY.AUTH.CHECK_EMAIL_RESEND
                 )}
@@ -777,7 +788,7 @@ export default function RegistrationSteps({
 
           {step === 'parent-done' && (
             <div className="text-center py-8">
-              <i className="fas fa-circle-check text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faCircleCheck} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">You&apos;re all set</h2>
               <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 Next step: add your athlete. Sign in and we&apos;ll walk you
@@ -892,9 +903,9 @@ export default function RegistrationSteps({
                 )}
                 <button type="submit" disabled={submitting} className={primaryBtn}>
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Creating Account...</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Creating Account...</>
                   ) : (
-                    <><i className="fas fa-user-plus mr-2"></i> Create Account</>
+                    <><FaIcon icon={faUserPlus} className="mr-2" /> Create Account</>
                   )}
                 </button>
               </form>
@@ -940,7 +951,7 @@ export default function RegistrationSteps({
                 </div>
                 <button type="submit" disabled={submitting} className={primaryBtn}>
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Sending...</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Sending...</>
                   ) : (
                     'Send the link'
                   )}
@@ -959,7 +970,7 @@ export default function RegistrationSteps({
 
           {step === 'parked' && (
             <div className="text-center py-8">
-              <i className="fas fa-envelope-circle-check text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faEnvelopeCircleCheck} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Check with your parent or guardian</h2>
               <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 {parkedMessage || "We've emailed your parent or guardian a link to finish setting up your profile."}

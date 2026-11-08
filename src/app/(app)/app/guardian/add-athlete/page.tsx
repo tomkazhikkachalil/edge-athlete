@@ -7,6 +7,10 @@ import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import HandleSelector from '@/components/HandleSelector';
 import { FEATURE_FLAGS } from '@/lib/features';
+import FaIcon from '@/components/FaIcon';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
 
 // Step B: guardian creates a managed athlete profile. Repeatable (one per
 // child — twins welcome; there is deliberately no name+DOB dedupe).
@@ -118,7 +122,7 @@ export default function AddAthletePage() {
         <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8">
           {createdName ? (
             <div className="text-center py-4">
-              <i className="fas fa-circle-check text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faCircleCheck} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 {createdName}&apos;s profile is ready
               </h2>
@@ -206,9 +210,9 @@ export default function AddAthletePage() {
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Creating profile...</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Creating profile...</>
                   ) : (
-                    <><i className="fas fa-user-plus mr-2"></i> Create their profile</>
+                    <><FaIcon icon={faUserPlus} className="mr-2" /> Create their profile</>
                   )}
                 </button>
               </form>

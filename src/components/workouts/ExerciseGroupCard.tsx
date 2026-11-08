@@ -11,6 +11,11 @@ import { MAX_GROUP_ROUNDS } from '@/lib/workouts/entries';
 import { currentRound, GROUP_LABEL, roundHasData, roundsCompleted, type ExerciseGroup } from '@/lib/workouts/groups';
 import { advanceAfterComplete, completionSignature, initialSlide, type GroupView } from '@/lib/workouts/rounds-view';
 import { readSwipeHintSeen, writeSwipeHintSeen } from '@/lib/workouts/timer-prefs';
+import { faArrowsLeftRight } from '@/lib/icons/fa/arrows-left-right';
+import { faList } from '@/lib/icons/fa/list';
+import { faObjectUngroup } from '@/lib/icons/fa/object-ungroup';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faTrash } from '@/lib/icons/fa/trash';
 
 // ── A superset or circuit on the workout screen (PR 3, Oct 12 2026) ─────────
 // Tom: "Each group shows its exercises visually linked, with a round counter.
@@ -111,12 +116,12 @@ export default function ExerciseGroupCard({ group, uploads, view, onSetView, onC
           triggerTestAttr="group-menu"
           triggerClassName="text-tertiary"
           items={[
-            { key: 'add', label: 'Add exercise to this group', icon: 'fa-plus', onSelect: onAddExercise, testId: 'group-menu-add' },
+            { key: 'add', label: 'Add exercise to this group', icon: faPlus, onSelect: onAddExercise, testId: 'group-menu-add' },
             swipe
-              ? { key: 'view', label: 'List view', icon: 'fa-list', onSelect: () => onSetView('list'), testId: 'group-menu-view' }
-              : { key: 'view', label: 'Swipe view', icon: 'fa-arrows-left-right', onSelect: () => onSetView('swipe'), testId: 'group-menu-view' },
-            { key: 'ungroup', label: 'Turn into separate exercises', icon: 'fa-object-ungroup', onSelect: onUngroup, testId: 'group-menu-ungroup' },
-            { key: 'remove', label: 'Remove group', icon: 'fa-trash', tone: 'danger', onSelect: onRemoveGroup, testId: 'group-menu-remove' },
+              ? { key: 'view', label: 'List view', icon: faList, onSelect: () => onSetView('list'), testId: 'group-menu-view' }
+              : { key: 'view', label: 'Swipe view', icon: faArrowsLeftRight, onSelect: () => onSetView('swipe'), testId: 'group-menu-view' },
+            { key: 'ungroup', label: 'Turn into separate exercises', icon: faObjectUngroup, onSelect: onUngroup, testId: 'group-menu-ungroup' },
+            { key: 'remove', label: 'Remove group', icon: faTrash, tone: 'danger', onSelect: onRemoveGroup, testId: 'group-menu-remove' },
           ]}
         />
       </div>

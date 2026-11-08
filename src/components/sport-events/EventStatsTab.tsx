@@ -8,6 +8,8 @@ import type { StatLineView } from '@/lib/sport-events/stats-server';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import { formatDateOnly, startTimeLine } from '@/lib/sport-events/format';
+import FaIcon from '@/components/FaIcon';
+import { faTowerBroadcast } from '@/lib/icons/fa/tower-broadcast';
 
 interface Props {
   view: SportEventViewPayload;
@@ -80,7 +82,7 @@ export default function EventStatsTab({ view, api, version, selected, onSelect }
       )}
       {payload && (live || payload.viewer.can_enter === 'all') && round.status !== 'completed' && (
         <Link href={`/events/${view.event.id}/live?round=${round.id}`} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center" data-event-live-open="">
-          <i className="fas fa-broadcast-tower mr-2" aria-hidden="true"></i>{payload.viewer.can_enter === 'all' || payload.viewer.can_enter.length > 0 ? 'Enter stats live' : 'Watch live'}
+          <FaIcon icon={faTowerBroadcast} className="mr-2" />{payload.viewer.can_enter === 'all' || payload.viewer.can_enter.length > 0 ? 'Enter stats live' : 'Watch live'}
         </Link>
       )}
       {state === 'error' && <p className="text-sm text-red-700 dark:text-red-300">Could not load the stats.</p>}

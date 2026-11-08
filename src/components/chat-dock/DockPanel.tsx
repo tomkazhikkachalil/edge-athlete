@@ -8,6 +8,11 @@ import DockGroupComposer, { EMPTY_GROUP_DRAFT, type GroupDraft } from './DockGro
 import DockConversationRow from './DockConversationRow';
 import { conversationIdentity } from './conversation-identity';
 import type { Conversation, ParticipantProfile } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faMessage } from '@/lib/icons/fa/message';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faUsers } from '@/lib/icons/fa/users';
 
 /** Which body the expanded panel shows. Mutually exclusive by construction. */
 export type DockComposeMode = 'list' | 'direct' | 'group';
@@ -147,7 +152,7 @@ export default function DockPanel({
               className="w-full flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-brand-soft transition-colors"
             >
               <span className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-950/60 text-brand-fg-strong flex items-center justify-center shrink-0">
-                <i className="fas fa-users text-xs"></i>
+                <FaIcon icon={faUsers} className="text-xs" />
               </span>
               <span className="text-sm font-semibold text-primary">New group chat</span>
             </button>
@@ -156,7 +161,7 @@ export default function DockPanel({
           {/* Search — same markup as the full messages page's list search. */}
           <div className="px-3 py-2 border-b border-border-subtle shrink-0">
             <div className="relative">
-              <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs"></i>
+              <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 text-decor text-xs" />
               <input
                 type="text"
                 value={filter}
@@ -217,7 +222,7 @@ export default function DockPanel({
               <div className="px-4 py-8 text-center">
                 {filter ? (
                   <>
-                    <i className="fas fa-search text-gray-300 dark:text-decor text-2xl mb-2"></i>
+                    <FaIcon icon={faMagnifyingGlass} className="text-gray-300 dark:text-decor text-2xl mb-2" />
                     <p className="text-sm text-muted">
                       No conversations match &ldquo;{filter}&rdquo;
                     </p>
@@ -225,7 +230,7 @@ export default function DockPanel({
                 ) : (
                   <>
                     <span className="w-12 h-12 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-3">
-                      <i className="fas fa-comment-alt text-decor text-lg"></i>
+                      <FaIcon icon={faMessage} className="text-decor text-lg" />
                     </span>
                     <p className="text-sm font-semibold text-secondary">No conversations yet</p>
                     <p className="text-xs text-muted mb-4">
@@ -236,7 +241,7 @@ export default function DockPanel({
                       onClick={() => onModeChange('direct')}
                       className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors"
                     >
-                      <i className="fas fa-pen text-xs"></i>
+                      <FaIcon icon={faPen} className="text-xs" />
                       New message
                     </button>
                   </>

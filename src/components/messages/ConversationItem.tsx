@@ -3,6 +3,10 @@
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { Conversation } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faBellSlash } from '@/lib/icons/fa/bell-slash';
+import { faUserClock } from '@/lib/icons/fa/user-clock';
+import { faUsers } from '@/lib/icons/fa/users';
 
 interface Props {
   conversation: Conversation;
@@ -89,7 +93,7 @@ export default function ConversationItem({ conversation, currentUserId, isActive
         )}
         {conversation.type === 'group' && (
           <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center">
-            <i className="fas fa-users text-tertiary" style={{ fontSize: '7px' }}></i>
+            <FaIcon icon={faUsers} className="text-tertiary" style={{ fontSize: '7px' }} />
           </div>
         )}
       </div>
@@ -102,7 +106,7 @@ export default function ConversationItem({ conversation, currentUserId, isActive
           </span>
           <div className="flex items-center gap-1 shrink-0">
             {conversation.my_participant?.is_muted && (
-              <i className="fas fa-bell-slash text-decor" style={{ fontSize: '10px' }}></i>
+              <FaIcon icon={faBellSlash} className="text-decor" style={{ fontSize: '10px' }} />
             )}
             <span className="text-xs text-faint">{getRelativeTime(timestamp)}</span>
           </div>
@@ -113,7 +117,7 @@ export default function ConversationItem({ conversation, currentUserId, isActive
         {conversation.type === 'direct' &&
           conversation.participants.some(p => p.held_at) && (
             <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 mt-0.5">
-              <i className="fas fa-user-clock mr-1" style={{ fontSize: '9px' }}></i>
+              <FaIcon icon={faUserClock} className="mr-1" style={{ fontSize: '9px' }} />
               Pending guardian approval
             </p>
           )}

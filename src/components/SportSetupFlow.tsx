@@ -7,6 +7,8 @@ import StepFlow from '@/components/StepFlow';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { formValuesToSettings, settingsToDisplayItems, type SettingsFormValues, type SportSettingsSchema } from '@/lib/sports/settings-schemas';
 import { stepIndexForKey, stepsForSchema } from '@/lib/sports/settings-steps';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 export type SportSetupSaveResult = { ok: true } | { ok: false; errors: Record<string, string>; message?: string };
 
@@ -84,7 +86,7 @@ export default function SportSetupFlow({ sportKey, sportName, schema, values, on
         <div className="flex items-center gap-3 px-4 pt-4">
           <h2 className="flex-1 min-w-0 truncate text-lg font-bold text-primary">{sportName}</h2>
           <button type="button" onClick={requestClose} disabled={saving} className="ea-icon-btn" aria-label="Close" data-sport-setup-close="">
-            <i className="fas fa-times" aria-hidden="true" />
+            <FaIcon icon={faXmark} />
           </button>
         </div>
         <StepFlow id={`sport-setup-${sportKey}`} steps={steps} index={index} onIndex={setIndex} finishLabel="Save" onFinish={() => void save()} busy={saving} className="flex-1 min-h-0">

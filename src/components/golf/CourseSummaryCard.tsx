@@ -6,6 +6,8 @@ import { courseOverview } from '@/lib/golf/hole-svg';
 import type { HoleLine } from '@/lib/golf/hole-geometry';
 import { teeLabel } from '@/lib/golf/tees';
 import type { GolfCourse } from '@/types/golf';
+import FaIcon from '@/components/FaIcon';
+import { faMapLocationDot } from '@/lib/icons/fa/map-location-dot';
 
 // ── The course at a glance (course flow fixes M3, Oct 2026) ─────────────────
 // Tom: "a bold summary card at the top of a course: hole count, total yardage
@@ -100,7 +102,7 @@ export default function CourseSummaryCard({ course, holeLines, greensOnly = fals
             </svg>
           ) : (
             <span className="flex h-[72px] w-[72px] items-center justify-center rounded bg-surface-muted text-2xl text-brand-fg" aria-hidden="true">
-              <i className="fas fa-map-location-dot"></i>
+              <FaIcon icon={faMapLocationDot} />
             </span>
           )}
           <span className="text-xs font-semibold text-brand-fg">{COPY.GOLF_COURSE.VIEW_MAP}</span>

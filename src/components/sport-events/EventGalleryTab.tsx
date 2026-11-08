@@ -17,6 +17,11 @@ import type { EventMediaView } from '@/lib/sport-events/media';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import { shouldPoll } from '@/lib/net/online';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faPlay } from '@/lib/icons/fa/play';
+import { faVideo } from '@/lib/icons/fa/video';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Props {
   view: SportEventViewPayload;
@@ -116,10 +121,10 @@ export default function EventGalleryTab({ view, api, version }: Props) {
             {controls => (
               <div className="flex gap-2">
                 <button type="button" onClick={controls.openPhoto} disabled={busy > 0} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center" data-event-media-add="">
-                  <i className="fas fa-camera mr-2" aria-hidden="true"></i>{busy > 0 ? `Adding ${busy}…` : 'Add'}
+                  <FaIcon icon={faCamera} className="mr-2" />{busy > 0 ? `Adding ${busy}…` : 'Add'}
                 </button>
                 <button type="button" onClick={controls.openVideo} disabled={busy > 0} className={BTN} aria-label="Add a video" data-event-media-add-video="">
-                  <i className="fas fa-video" aria-hidden="true"></i>
+                  <FaIcon icon={faVideo} />
                 </button>
               </div>
             )}
@@ -137,9 +142,9 @@ export default function EventGalleryTab({ view, api, version }: Props) {
                 {m.media_type === 'image' || m.thumbnail_url ? (
                   <LazyImage src={m.media_type === 'image' ? m.media_url : (m.thumbnail_url as string)} alt="" className="w-full h-full object-cover" width={300} height={300} />
                 ) : (
-                  <span className="w-full h-full flex items-center justify-center text-secondary"><i className="fas fa-play text-2xl" aria-hidden="true"></i></span>
+                  <span className="w-full h-full flex items-center justify-center text-secondary"><FaIcon icon={faPlay} className="text-2xl" /></span>
                 )}
-                {m.media_type === 'video' && <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] font-bold"><i className="fas fa-play mr-1" aria-hidden="true"></i>Video</span>}
+                {m.media_type === 'video' && <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] font-bold"><FaIcon icon={faPlay} className="mr-1" />Video</span>}
               </button>
               {m.can_remove && (
                 confirmRemove === m.id ? (
@@ -149,7 +154,7 @@ export default function EventGalleryTab({ view, api, version }: Props) {
                   </span>
                 ) : (
                   <button type="button" onClick={() => setConfirmRemove(m.id)} className="absolute top-1 right-1 w-8 h-8 rounded-full bg-black/60 text-white text-xs flex items-center justify-center" aria-label="Remove" data-event-media-remove={m.id}>
-                    <i className="fas fa-times" aria-hidden="true"></i>
+                    <FaIcon icon={faXmark} />
                   </button>
                 )
               )}

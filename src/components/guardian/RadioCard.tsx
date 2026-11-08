@@ -1,4 +1,6 @@
 'use client';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
 
 // Full-width labeled radio card (Wave 4: extracted from the guardian athlete
 // page's Safety section so the household-settings page shares the exact
@@ -30,7 +32,7 @@ export default function RadioCard<V extends string>({
             selected ? 'border-brand bg-brand' : 'border-border-strong'
           }`}
         >
-          {selected && <i className="fas fa-check text-white text-xs"></i>}
+          {selected && <FaIcon icon={faCheck} className="text-white text-xs" />}
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="font-semibold text-primary text-sm mb-0.5">{option.label}</h4>

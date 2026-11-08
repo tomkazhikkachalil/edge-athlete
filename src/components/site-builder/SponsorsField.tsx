@@ -5,6 +5,9 @@ import Image from 'next/image';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { validateFiles } from '@/lib/media/validation';
 import { SPONSOR_TIERS, SPONSOR_TIER_LABELS, type SponsorTier } from '@/lib/site-builder/display';
+import FaIcon from '@/components/FaIcon';
+import { faArrowDown } from '@/lib/icons/fa/arrow-down';
+import { faArrowUp } from '@/lib/icons/fa/arrow-up';
 
 /**
  * The sponsors list editor — Site Builder program 3, D2 (Sep 13 2026).
@@ -148,10 +151,10 @@ export default function SponsorsField({
                 </span>
                 <input id={`${rowId}-name`} type="text" value={s.name} maxLength={80} placeholder="Sponsor name" aria-label={`Sponsor ${i + 1} name`} onChange={e => patch(i, { name: e.target.value })} className={INPUT} />
                 <button type="button" onClick={() => move(i, i - 1)} disabled={i === 0} className={ICON} aria-label={`Move sponsor ${i + 1} up`} data-sb-sponsor-up="">
-                  <i className="fas fa-arrow-up" aria-hidden="true"></i>
+                  <FaIcon icon={faArrowUp} />
                 </button>
                 <button type="button" onClick={() => move(i, i + 1)} disabled={i === sponsors.length - 1} className={ICON} aria-label={`Move sponsor ${i + 1} down`} data-sb-sponsor-down="">
-                  <i className="fas fa-arrow-down" aria-hidden="true"></i>
+                  <FaIcon icon={faArrowDown} />
                 </button>
                 <button type="button" onClick={() => remove(i)} className={ICON} aria-label={`Remove sponsor ${i + 1}`}>
                   ×

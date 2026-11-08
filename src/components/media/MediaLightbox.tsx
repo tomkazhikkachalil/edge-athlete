@@ -19,6 +19,10 @@ import Image from 'next/image';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useOptimizedSrc } from './useOptimizedSrc';
 import type { CollageItem } from './MediaCollage';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface MediaLightboxProps {
   items: CollageItem[];
@@ -100,7 +104,7 @@ export default function MediaLightbox({
           autoFocus
           className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10"
         >
-          <i className="fas fa-times text-lg" aria-hidden="true"></i>
+          <FaIcon icon={faXmark} className="text-lg" />
         </button>
         </span>
       </div>
@@ -131,7 +135,7 @@ export default function MediaLightbox({
             aria-label="Previous"
             className="absolute left-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
           >
-            <i className="fas fa-chevron-left" aria-hidden="true"></i>
+            <FaIcon icon={faChevronLeft} />
           </button>
         )}
         {hasNext && (
@@ -141,7 +145,7 @@ export default function MediaLightbox({
             aria-label="Next"
             className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
           >
-            <i className="fas fa-chevron-right" aria-hidden="true"></i>
+            <FaIcon icon={faChevronRight} />
           </button>
         )}
       </div>

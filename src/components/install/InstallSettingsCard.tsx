@@ -3,6 +3,10 @@
 import { COPY } from '@/lib/copy';
 import { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
 import { useInstallApp } from './InstallAppProvider';
+import FaIcon from '@/components/FaIcon';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faDownload } from '@/lib/icons/fa/download';
+import { faMobileScreenButton } from '@/lib/icons/fa/mobile-screen-button';
 
 /**
  * Settings → Account: the door that is always there (the feed card can be
@@ -36,7 +40,7 @@ export default function InstallSettingsCard() {
             aria-hidden="true"
             className="shrink-0 w-10 h-10 bg-violet-100 dark:bg-violet-950/60 rounded-lg flex items-center justify-center"
           >
-            <i className={`fas ${usingApp ? 'fa-circle-check' : 'fa-mobile-screen-button'} text-brand-fg text-lg`}></i>
+            <FaIcon icon={usingApp ? faCircleCheck : faMobileScreenButton} className="text-brand-fg text-lg" />
           </span>
           <div className="min-w-0">
             {usingApp ? (
@@ -60,7 +64,7 @@ export default function InstallSettingsCard() {
                   data-install-cta=""
                   className="ea-cta mt-1 inline-flex items-center gap-2 min-h-[44px] px-5 rounded-lg text-sm font-semibold text-white"
                 >
-                  <i className="fas fa-download" aria-hidden="true"></i>
+                  <FaIcon icon={faDownload} />
                   {COPY.INSTALL.CTA}
                 </button>
               </>

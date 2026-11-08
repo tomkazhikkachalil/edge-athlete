@@ -36,6 +36,8 @@ import {
 } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import { COPY } from '@/lib/copy';
+import FaIcon from '@/components/FaIcon';
+import { faTriangleExclamation } from '@/lib/icons/fa/triangle-exclamation';
 
 /** `GET /api/profile?id=` as this page reads it (the rest of the answer passes through). */
 type ProfileAnswer = { profile: Profile; canView?: boolean; [key: string]: unknown };
@@ -242,7 +244,7 @@ export default function AthleteProfilePage() {
       <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
           <div className="text-red-500 mb-4">
-            <i className="fas fa-exclamation-triangle text-4xl"></i>
+            <FaIcon icon={faTriangleExclamation} className="text-4xl" />
           </div>
           <h1 className="text-xl font-bold text-primary mb-2">{error}</h1>
           <p className="text-primary font-medium mb-4">

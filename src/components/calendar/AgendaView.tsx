@@ -4,6 +4,8 @@ import { format, isSameDay, isSameMonth } from 'date-fns';
 import { eventOverlapsDay, monthMatrix } from '@/lib/calendar/grid';
 import { EventChip } from './EventChip';
 import type { EventListItem } from './types';
+import FaIcon from '@/components/FaIcon';
+import { faCalendarDay } from '@/lib/icons/fa/calendar-day';
 
 // Agenda: the focused month's events as a scrolling day-grouped list —
 // the naturally-mobile view.
@@ -36,7 +38,7 @@ export default function AgendaView({
   if (groups.length === 0) {
     return (
       <div className="bg-surface rounded-lg shadow-sm border border-border p-8 text-center">
-        <i className="fas fa-calendar-day text-gray-300 dark:text-stone-600 text-3xl mb-3 block"></i>
+        <FaIcon icon={faCalendarDay} className="text-gray-300 dark:text-stone-600 text-3xl mb-3 block" />
         <p className="text-sm text-muted">
           Nothing scheduled in {format(focusDate, 'MMMM yyyy')}.
         </p>

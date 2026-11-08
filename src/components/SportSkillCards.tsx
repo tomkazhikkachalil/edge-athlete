@@ -32,6 +32,14 @@ import type {
   SportSkillCard,
 } from '@/lib/sports/server/types';
 import SportSettingsRow from './SportSettingsRow';
+import FaIcon from '@/components/FaIcon';
+import { faMedal } from '@/lib/icons/fa/medal';
+import { faBoxArchive } from '@/lib/icons/fa/box-archive';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
+import { faUserPen } from '@/lib/icons/fa/user-pen';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface SportSkillCardsProps {
   profileId: string;
@@ -51,11 +59,11 @@ interface SportSkillCardsProps {
 // Official log and /help/verified-stats say exactly the same thing.
 const OFFICIAL: Set<SkillProvenance> = new Set(['sanctioned', 'league_verified', 'club_recorded']);
 
-export function provenanceIcon(provenance: SkillProvenance): string {
-  if (OFFICIAL.has(provenance)) return 'fa-shield-halved';
-  if (provenance === 'tracked') return 'fa-circle-check';
-  if (provenance === 'imported') return 'fa-box-archive';
-  return 'fa-user-pen';
+export function provenanceIcon(provenance: SkillProvenance): FaIconDef {
+  if (OFFICIAL.has(provenance)) return faShieldHalved;
+  if (provenance === 'tracked') return faCircleCheck;
+  if (provenance === 'imported') return faBoxArchive;
+  return faUserPen;
 }
 
 export function ProvenanceChip({ provenance }: { provenance: SkillProvenance }) {
@@ -67,7 +75,7 @@ export function ProvenanceChip({ provenance }: { provenance: SkillProvenance }) 
         strong ? 'bg-brand-soft text-brand-fg-strong' : 'bg-surface-muted text-muted'
       }`}
     >
-      <i className={`fas ${provenanceIcon(provenance)}`} aria-hidden="true"></i>
+      <FaIcon icon={provenanceIcon(provenance)} />
       {PROVENANCE_LABEL[provenance]}
     </span>
   );
@@ -86,14 +94,11 @@ export function TileGrid({ tiles }: { tiles: SkillTile[] }) {
             title={PROVENANCE_TITLE[tile.provenance]}
           >
             {tile.label}
-            <i
-              className={`fas ${provenanceIcon(tile.provenance)} ${
+            <FaIcon icon={provenanceIcon(tile.provenance)} className={`${
                 tile.provenance === 'entered' || tile.provenance === 'imported'
                   ? ''
                   : 'text-brand-fg'
-              } text-[10px]`}
-              aria-hidden="true"
-            ></i>
+              } text-[10px]`} />
           </span>
         </div>
       ))}
@@ -106,7 +111,7 @@ function CardBody({ card }: { card: SportSkillCard }) {
   return (
     <>
       <h2 className="text-sm font-semibold text-secondary flex items-center gap-2">
-        <i className={sportDef.icon_id} aria-hidden="true"></i>
+        <FaIcon icon={sportIcon(sportDef.sport_key)} />
         {card.sportLabel}
       </h2>
 
@@ -190,7 +195,7 @@ export default function SportSkillCards({
         <div className="mt-4 bg-surface rounded-xl shadow-sm border border-dashed border-border p-4">
           <SectionInfo
             as="h2"
-            heading={<><i className="fas fa-medal" aria-hidden="true"></i>Sports</>}
+            heading={<><FaIcon icon={faMedal} />Sports</>}
             label="Sports"
             headingClassName="text-sm font-semibold text-secondary flex items-center gap-2"
             dense

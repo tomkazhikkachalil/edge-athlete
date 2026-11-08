@@ -20,6 +20,15 @@ import RouteThumb from '@/components/activities/RouteThumb';
 import { isActivityPostStats } from '@/lib/activities/post-card';
 import { ACTIVITY_TYPE_DEFS } from '@/lib/activities/catalog';
 import { formatDistance, formatDuration as formatActivityDuration, readUnitPreference } from '@/lib/activities/format';
+import FaIcon from '@/components/FaIcon';
+import { faChartLine } from '@/lib/icons/fa/chart-line';
+import { faComment } from '@/lib/icons/fa/comment';
+import { faEyeSlash } from '@/lib/icons/fa/eye-slash';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faHeartRegular } from '@/lib/icons/fa/heart-regular';
+import { faLayerGroup } from '@/lib/icons/fa/layer-group';
+import { faUserTag } from '@/lib/icons/fa/user-tag';
+import { activityGlyph } from '@/lib/activities/activity-icons';
 
 export interface MediaItem {
   id: string;
@@ -163,7 +172,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
            the number and its label always survive. */
         <div className="flex h-full flex-col items-center justify-center gap-1 p-3">
           <span className="hidden min-[380px]:flex h-8 w-8 items-center justify-center rounded-full bg-green-600 shrink-0">
-            <i className="fas fa-golf-ball text-white text-sm" aria-hidden="true"></i>
+            <FaIcon icon={faGolfBallTee} className="text-white text-sm" />
           </span>
           <div className="text-center min-w-0 w-full">
             <div className="text-xs font-bold text-primary line-clamp-2 leading-tight">
@@ -227,13 +236,13 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
           ) : (
             <div className="flex min-h-0 flex-1 items-center justify-center">
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand">
-                <i className={`fas fa-${def.icon} text-white text-sm`} aria-hidden="true"></i>
+                <FaIcon icon={activityGlyph(def.icon)} className="text-white text-sm" />
               </span>
             </div>
           )}
           <div className="px-3 pb-3 pt-1.5">
             <div className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-primary">
-              <i className={`fas fa-${def.icon} text-brand-fg`} aria-hidden="true"></i>
+              <FaIcon icon={activityGlyph(def.icon)} className="text-brand-fg" />
               <span className="truncate">{activity.name}</span>
             </div>
             <div className="text-xs text-secondary tabular-nums truncate">{line}</div>
@@ -254,7 +263,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
                 lands under it. The summary text carries the content; the icon
                 is decoration. */}
             <span className="hidden min-[380px]:flex h-8 w-8 items-center justify-center rounded-full bg-brand shrink-0">
-              <i className="fas fa-chart-line text-white text-sm" aria-hidden="true"></i>
+              <FaIcon icon={faChartLine} className="text-white text-sm" />
             </span>
             <div className="text-center">
               <div className="text-xs font-bold text-primary line-clamp-2 leading-tight">
@@ -367,7 +376,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
           )}
           {mediaCount > 1 && (
             <span className="px-2 py-1 bg-black/60 text-white text-xs font-semibold rounded-full">
-              <i className="fas fa-layer-group mr-1"></i>
+              <FaIcon icon={faLayerGroup} className="mr-1" />
               {mediaCount}
             </span>
           )}
@@ -386,11 +395,11 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
               <span>
                 {/* An outline on purpose (Oct 4 2026): this heart is a COUNT,
                     never the viewer's state — a filled one read as "liked". */}
-                <i className="far fa-heart mr-1"></i>
+                <FaIcon icon={faHeartRegular} className="mr-1" />
                 {item.likes_count}
               </span>
               <span>
-                <i className="fas fa-comment mr-1"></i>
+                <FaIcon icon={faComment} className="mr-1" />
                 {item.comments_count}
               </span>
             </div>
@@ -408,7 +417,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
       {item.profile_hidden && (
         <div className="absolute top-2 left-2" data-tile-profile-hidden="">
           <span className="px-2 py-1 bg-black/70 text-white text-xs font-semibold rounded-full">
-            <i className="fas fa-eye-slash mr-1" aria-hidden="true"></i>
+            <FaIcon icon={faEyeSlash} className="mr-1" />
             Hidden
           </span>
         </div>
@@ -418,7 +427,7 @@ export default function MediaGridItem({ item, viewerId, onClick }: MediaGridItem
       {item.is_tagged && !item.is_own_post && (
         <div className="absolute top-2 left-2">
           <span className="px-2 py-1 bg-green-600 text-white text-xs font-semibold rounded-full">
-            <i className="fas fa-user-tag mr-1"></i>
+            <FaIcon icon={faUserTag} className="mr-1" />
             Tagged
           </span>
         </div>

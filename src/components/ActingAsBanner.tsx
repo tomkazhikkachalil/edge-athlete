@@ -3,6 +3,8 @@
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName } from '@/lib/formatters';
 import StickyBanner from '@/components/StickyBanner';
+import FaIcon from '@/components/FaIcon';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
 
 // Persistent acting-as context indicator (guardian-profiles). Renders on
 // EVERY screen whenever a guardian is acting as a managed athlete — the
@@ -17,7 +19,7 @@ export default function ActingAsBanner() {
       {/* flex-wrap + truncate: a long athlete name wraps the action onto its
           own line instead of pushing the row past a 320px screen. */}
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
-        <i className="fas fa-user-shield text-amber-700 shrink-0"></i>
+        <FaIcon icon={faUserShield} className="text-amber-700 shrink-0" />
         <span className="text-amber-900 font-medium min-w-0 truncate">
           {/* "Posting as", not "Acting as": switching affects composing only —
               settings, messages and notifications stay the guardian's own.

@@ -1,6 +1,9 @@
 'use client';
 
 import type { JoinControl } from '@/lib/sport-events/join-state';
+import FaIcon from '@/components/FaIcon';
+import { faBell } from '@/lib/icons/fa/bell';
+import { faCheck } from '@/lib/icons/fa/check';
 
 interface Props {
   control: JoinControl;
@@ -45,7 +48,7 @@ export default function EventJoinButton({ control, busy, onAccept, onDecline, on
     case 'in':
       return (
         <div className="flex items-center gap-3" data-event-join="in">
-          <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300"><i className="fas fa-check mr-1" aria-hidden="true"></i>You&apos;re in</span>
+          <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300"><FaIcon icon={faCheck} className="mr-1" />You&apos;re in</span>
           <button type="button" onClick={onWithdraw} disabled={busy} className={SECONDARY}>Withdraw</button>
         </div>
       );
@@ -57,9 +60,9 @@ export default function EventJoinButton({ control, busy, onAccept, onDecline, on
         </div>
       );
     case 'follow':
-      return <button type="button" onClick={onFollow} disabled={busy} className={SECONDARY} data-event-join="follow"><i className="fas fa-bell mr-2" aria-hidden="true"></i>Follow</button>;
+      return <button type="button" onClick={onFollow} disabled={busy} className={SECONDARY} data-event-join="follow"><FaIcon icon={faBell} className="mr-2" />Follow</button>;
     case 'following':
-      return <button type="button" onClick={onUnfollow} disabled={busy} className={SECONDARY} data-event-join="following"><i className="fas fa-check mr-2" aria-hidden="true"></i>Following</button>;
+      return <button type="button" onClick={onUnfollow} disabled={busy} className={SECONDARY} data-event-join="following"><FaIcon icon={faCheck} className="mr-2" />Following</button>;
     default:
       return null;
   }

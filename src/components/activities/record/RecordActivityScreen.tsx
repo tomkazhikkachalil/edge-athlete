@@ -63,6 +63,11 @@ import { sportForActivity } from '@/lib/activities/sport-bridge';
 import { isSportEnabled } from '@/lib/features';
 import { COPY } from '@/lib/copy';
 import type { LatLng } from '@/lib/activities/polyline';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 const EMPTY_ROUTE: ActivityPoint[] = [];
 
@@ -324,7 +329,7 @@ export default function RecordActivityScreen() {
       <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-surface/95 px-2 py-2 backdrop-blur pt-[calc(0.5rem+env(safe-area-inset-top))]">
         {/* Leaving changes nothing: the recording goes on under the app's root (the pill brings you back). */}
         <button type="button" onClick={() => backOr(router, '/athlete?tab=activities')} className="ea-icon-btn inline-flex items-center justify-center text-primary" aria-label="Back" data-record-back="">
-          <i className="fas fa-arrow-left text-lg" aria-hidden="true"></i>
+          <FaIcon icon={faArrowLeft} className="text-lg" />
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="truncate text-base font-bold text-primary">{def ? `Record · ${def.label}` : 'Record an activity'}</h1>
@@ -387,7 +392,7 @@ export default function RecordActivityScreen() {
                 <span className="font-semibold">{COPY.FORMS.RECORD_GAP_TITLE}</span> {COPY.FORMS.RECORD_GAP_BODY(gapNotice.seconds)}
               </p>
               <button type="button" onClick={engine.dismissGapNotice} className="ea-icon-btn inline-flex shrink-0 items-center justify-center" aria-label="Dismiss" data-record-gap-dismiss="">
-                <i className="fas fa-times" aria-hidden="true"></i>
+                <FaIcon icon={faXmark} />
               </button>
             </div>
           )}
@@ -443,14 +448,14 @@ export default function RecordActivityScreen() {
                 return live ? (
                   <div key="details" className="mx-4 mt-4">
                     <button type="button" onClick={() => setDetailsOpen(true)} className="ea-interactive ea-surface flex min-h-[48px] w-full items-center gap-3 rounded-lg px-3 text-left text-sm" data-record-details-open="">
-                      <i className="fas fa-pen-to-square text-brand-fg" aria-hidden="true"></i>
+                      <FaIcon icon={faPenToSquare} className="text-brand-fg" />
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold text-primary">Details</span>
                         <span className="block truncate text-xs text-secondary" data-record-details-line="">
                           {[answers?.effort ? `Effort ${answers.effort}` : null, setupLine, answers?.notes.trim() ? 'Notes' : null].filter(Boolean).join(' · ') || 'Add effort, notes and more'}
                         </span>
                       </span>
-                      <i className="fas fa-chevron-right text-xs text-decor" aria-hidden="true"></i>
+                      <FaIcon icon={faChevronRight} className="text-xs text-decor" />
                     </button>
                   </div>
                 ) : null;
