@@ -14,6 +14,7 @@ import { useNotifications } from '@/lib/notifications';
 import type { Conversation, Message } from '@/types/messages';
 import { shouldPoll } from '@/lib/net/online';
 import { adjustPulseUnread, fetchPulse, getPulse, resetPulse, subscribePulse } from '@/lib/pulse/pulse-store';
+import { PULSE_STALE_MS } from '@/lib/pulse/pulse-rules';
 
 interface MessagesContextType {
   conversations: Conversation[];
@@ -74,8 +75,13 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
 
   // The count rides the pulse: one coalesced fetch of /api/me/pulse (the
   // store notifies the subscription below). A failure keeps the last number.
+  // A pulse the header read in the last thirty seconds is reused (the
+  // performance program's Phase 2d, Nov 2026): this provider and the header's
+  // Live dot both asked on mount, and the second read went through because the
+  // first had already landed — two pulse reads on every open, one too many.
   const refreshUnreadCount = useCallback(async () => {
     if (!user) return;
+    if (Date.now() - getPulse().fetchedAt <= PULSE_STALE_MS) return;
     await fetchPulse();
   }, [user]);
 

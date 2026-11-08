@@ -61,12 +61,26 @@ export function resolveAppEnvironment(input: SentryEnvInput): AppEnvironment {
 }
 
 /**
- * Traces are sampled in the deployed environments only. Local dev generates a
- * transaction per HMR navigation — pure noise, and it burns the free-tier
- * quota. Errors themselves are always sent, in every environment.
+ * No performance traces, anywhere (performance program Phase 2d, Nov 2026).
+ * Deployed environments sampled 10 % for a year and nobody read a trace; on
+ * the server the SDK now loads on the first error, so it cannot trace, and
+ * in the browser each sampled page load cost beacons through /api/relay on
+ * the open path (3 of the 23 API calls a cold /feed made). Errors themselves
+ * are always sent, in every environment. Turning traces back on is one
+ * number here and `browserBeaconIntegrations` below.
  */
 function tracesSampleRateFor(environment: AppEnvironment): number {
-  return environment === 'development' ? 0 : 0.1;
+  void environment;
+  return 0;
+}
+
+/** The default browser integrations that send on their own without an
+ *  error — the session (release-health) envelope on every page load and the
+ *  tracing transaction — are left out; everything that captures an error
+ *  stays. Pure: a list of names in, the kept list out. */
+export const BEACON_INTEGRATIONS: ReadonlySet<string> = new Set(['BrowserSession', 'BrowserTracing']);
+export function browserBeaconIntegrations<T extends { name: string }>(defaults: readonly T[]): T[] {
+  return defaults.filter((i) => !BEACON_INTEGRATIONS.has(i.name));
 }
 
 export function resolveSentryConfig(input: SentryEnvInput): ResolvedSentryConfig {
