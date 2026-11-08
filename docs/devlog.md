@@ -1,5 +1,36 @@
 # Development Log
 
+## November 7, 2026 — Performance program, the round's close: what the day measured, what shipped, what is Tom's, what is next
+
+Tom: "when I make updates, the app slows down a lot … think like an engineer and find the best possible way of doing every aspect." Eight PRs in one day, every one zero-DDL except the last, every one proven on production the same hour. The numbers, in the order they were learned:
+
+| What | Before | After | Where |
+| --- | --- | --- | --- |
+| The feed's function (traced bytes a cold start unpacks) | 166.9 MB (ffmpeg, sharp, 91 MB of snapshot PNGs) | < 10 MB; heaviest non-exempt route 10.2 MB | #1443, `check:weight` |
+| A deploy-cold first request per API route | 1.5–2.2 s | 1.05–1.28 s (the boot without Sentry) | #1445, `cold-after-boot-diet.md` |
+| The whole thirteen-at-once open, deploy-cold | 1,846 ms | 1,289 ms | the same |
+| API calls on a cold `/feed` (phone, CPU ×4) | 23 | **14**, asserted on production | #1446 + #1447, `perf-feed.spec.ts` |
+| The code every page loads | 185 KB gz | **132 KB gz** | #1450, `check:weight` |
+| The athlete page's first paint | 627 KB gz | 575 KB gz | the same |
+| The installed app's reopen | an empty shell until three round trips | the remembered profile, badges and feed page paint first | #1448, `hydration.spec.ts` on production |
+| A deploy's first visitor | paid every cold start | the warm workflow runs on every Production deployment | #1444, Actions |
+| What a build costs real users | unknown since March | one row per page view per build, p75 on the console card | #1449, migration 305 |
+
+**Phase 3b on production (de05b6c9, `perf-feed.spec.ts` on edgeathlete.ca, the `mobile` project, budget asserted):** **14 API calls** (`/api/relay` 0, the page-timings beacon counted apart — it measures the open, it is not part of it; the spec says so from this PR on), **first post at 1,488 ms** on the CPU-throttled phone emulation — the same run read 3,018 ms this morning before the three cuts and the browser boot diet.
+
+**What the day taught, for the spec (`docs/specs/performance-budgets.md`, Convention 59, rules 1–14):** the slowdown was never the database; it was the deploy artefact, module evaluation at boot, parallel first requests on Fluid Compute each meeting its own cold instance, a client that started every page from nothing, and a browser SDK on every page load. Each is now a measured number with a gate, a probe or a card behind it.
+
+**Tom's three steps:**
+1. **Migration 305 on production** (`database/migrations/305_page_timings.sql`, the SQL editor) — until then the beacon is dropped at 204 and the console's card says the migration has not run. Then `npm run migrate:mark:prod 305` is NOT needed (the file records itself); `check:schema:prod` should read 305.
+2. **`NEXT_PUBLIC_SW_STATIC_CACHE=1` in Vercel Production**, then a real build (the next merge): the installed app keeps its hashed files across deploys (the carry-forward shipped in #1444; `install-app` and `offline` specs cover it).
+3. **Merge #1356** (the Ignored Build Step) on GitHub: docs-only merges stop redeploying production — today's two docs-only deploys would not have happened.
+
+**Next rounds, in the plan's order, each sized today:**
+- **Phase 3a — Font Awesome → lucide:** 1,332 `fa-*` sites in 275 files, 225 distinct icons, 856 of them the plain `<i className="fas fa-x …">` form a codemod handles, ~60 dynamic forms by hand, and badge rows that store an FA class in `icon_id` (a data mapping). By area in five PRs (app pages 47 files; golf 17; sport-events 15; admin 14; messages/orgs/activities/settings/calendar/videos), the CSS and fonts dropped in the last one: −23 KB gz of CSS and −259 KB of fonts on every page. The inventory is `docs/load/2026-11-07/fa-icons.txt`. Tom's phone walk follows each area.
+- **Phase 4 — media:** the 35 raw `<img>` sites → `LazyImage` with `sizes`; the signed-URL 302 for private media (Tom's decision, COST.md); the upload-complete step's full download is the metadata scrub that must run before a byte is served — it moves to the worker only with a "not yet served" state, a design, not a cut.
+- **Phase 5 — SCALE_AUDIT §6's small open rows** (`.limit()` on the org structure routes, the moderation memo, the achievements / reactions / calendar bounds, the handle-search limiter, keyset paging for the media grid).
+- **The idle-cold and deploy-cold numbers once more after 3a**, and the console card's phone LCP p75 per build from here on — the maintenance checklist reads it beside the prod probe.
+
 ## November 7, 2026 — Performance program, Phase 3b: the browser boot diet — the Sentry browser SDK loads on the first error, never on page load (the code every page loads 185 → 132 KB gzipped)
 
 **Why.** The bundle gate's attribution (a one-off source-map build, then the chunks' own markers) put the browser Sentry SDK at **two of the root chunks every page loads — ~60 KB gzipped — plus most of the app layout's own 107 KB chunk**, downloaded, parsed and run on every open of every page to send nothing on almost all of them: tracing and sessions have been off since Phase 2d and errors are rare. The lazy chunks are right where they should be (the HEIC decoder 699 KB gz and the video tools 174 KB gz load on a pick, never on a page).

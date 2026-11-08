@@ -23,7 +23,8 @@ const BASELINE = process.env.PERF_BASELINE === '1';
  * cut those three — posts 1, notifications 1, messages 1, drafts 1, live-now 1,
  * suggestions 1 (the follow stats ride inside it), me/pulse 1, guardian/athletes
  * 1, calendar/events 1, workout-routines 1, getting-started 1, organizations 1,
- * seen 1, push/config 1. It ratchets DOWN; raising it is a decision in the devlog.
+ * seen 1, push/config 1. The page-timings beacon is counted apart (apiPath).
+ * It ratchets DOWN; raising it is a decision in the devlog.
  */
 const OPEN_PATH_API_BUDGET = 14;
 
@@ -41,6 +42,10 @@ interface Sample {
 function apiPath(url: string): string | null {
   const u = new URL(url);
   if (!u.pathname.startsWith('/api/')) return null;
+  // The page-timings beacon (migration 305) is the INSTRUMENT: one sendBeacon
+  // two seconds after the metrics settle, counted apart — it measures the open,
+  // it is not part of it. Every other /api call is.
+  if (u.pathname === '/api/page-timings') return null;
   return u.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/g, ':id').replace(/\/api\/media\/[^/]+/, '/api/media/:token');
 }
 
