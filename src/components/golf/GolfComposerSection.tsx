@@ -64,6 +64,22 @@ import {
   stepsForRound,
   type RoundStepId,
 } from '@/lib/golf/round-steps';
+import FaIcon from '@/components/FaIcon';
+import { faBolt } from '@/lib/icons/fa/bolt';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faEye } from '@/lib/icons/fa/eye';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { faListOl } from '@/lib/icons/fa/list-ol';
+import { faLocationCrosshairs } from '@/lib/icons/fa/location-crosshairs';
+import { faLocationDot } from '@/lib/icons/fa/location-dot';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faPaperPlane } from '@/lib/icons/fa/paper-plane';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
+import { faXmark } from '@/lib/icons/fa/xmark';
+import { faCircleDot } from '@/lib/icons/fa/circle-dot';
 
 /** Full shared-round form state. CreatePostModal's preview only reads the
  *  display fields, but gameFormat/alreadyPlayed drive submission and the
@@ -927,7 +943,7 @@ export default function GolfComposerSection({
           finishLabel={
             sharedRoundDetails.alreadyPlayed ? (
               <>
-                <i className="fas fa-paper-plane mr-2" aria-hidden="true"></i>
+                <FaIcon icon={faPaperPlane} className="mr-2" />
                 {roundFinishLabel(true)}
               </>
             ) : (
@@ -961,7 +977,7 @@ export default function GolfComposerSection({
             <div className="space-y-6" data-round-step="course">
               <div className={GOLF_SECTION_CARD}>
                 <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                  <i className="fas fa-flag-checkered mr-2 text-green-600 dark:text-green-400"></i>
+                  <FaIcon icon={faFlagCheckered} className="mr-2 text-green-600 dark:text-green-400" />
                   Course Details
                 </h3>
 
@@ -1057,7 +1073,7 @@ export default function GolfComposerSection({
                 </div>
               )}
               {!searchLoading && sharedRoundDetails.courseName && (
-                <i className="fas fa-search absolute right-3 top-1/2 transform -translate-y-1/2 text-decor"></i>
+                <FaIcon icon={faMagnifyingGlass} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-decor" />
               )}
             </div>
             {/* Near me — the ONLY place the composer asks for the
@@ -1073,7 +1089,7 @@ export default function GolfComposerSection({
                   nearFix ? 'border-violet-200 dark:border-violet-800 bg-brand-soft text-brand-fg-strong' : 'border-border bg-surface text-primary'
                 }`}
               >
-                <i className={`fas ${nearBusy ? 'fa-spinner fa-spin' : 'fa-location-crosshairs'}`} aria-hidden="true"></i>
+                <FaIcon icon={nearBusy ? faSpinner : faLocationCrosshairs} spin={nearBusy ? true : false} />
                 {nearBusy ? 'Finding you…' : nearFix ? 'Courses near you' : 'Near me'}
               </button>
               {nearError && <span className="text-xs text-tertiary" role="alert">{nearError}</span>}
@@ -1105,7 +1121,7 @@ export default function GolfComposerSection({
                     className="w-full px-4 py-3 text-left bg-brand-soft hover:bg-violet-100 dark:hover:bg-violet-950/60 transition-colors border-b border-border-subtle"
                   >
                     <div className="font-semibold text-brand-fg-strong">
-                      <i className="fas fa-location-dot mr-2 text-brand-fg" aria-hidden="true"></i>
+                      <FaIcon icon={faLocationDot} className="mr-2 text-brand-fg" />
                       Playing at {nearOffer.course.name}?
                       <span className="ml-2 text-xs font-medium text-brand-fg">· {formatKm(nearOffer.km)}</span>
                     </div>
@@ -1163,7 +1179,7 @@ export default function GolfComposerSection({
                     }}
                     className="w-full px-4 py-3 text-left text-sm font-medium text-brand-fg hover:bg-brand-soft transition-colors border-t border-border-subtle"
                   >
-                    <i className="fas fa-globe mr-2" aria-hidden="true"></i>
+                    <FaIcon icon={faGlobe} className="mr-2" />
                     Search all courses worldwide for &ldquo;{trimmedCourseQuery}&rdquo;
                   </button>
                 )}
@@ -1178,7 +1194,7 @@ export default function GolfComposerSection({
             {/* Selected Course Badge */}
             {selectedCourse && (
               <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-brand-soft text-brand-fg-strong rounded-full text-sm font-medium border border-violet-200 dark:border-violet-800" data-course-chosen="">
-                <i className="fas fa-check-circle text-xs"></i>
+                <FaIcon icon={faCircleCheck} className="text-xs" />
                 {selectedCourse.name}
                 {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
               </div>
@@ -1356,7 +1372,7 @@ export default function GolfComposerSection({
             <div className={GOLF_SECTION_CARD}>
               <SectionInfo
                 as="h3"
-                heading={<><i className="fas fa-edit mr-2 text-brand-fg"></i>Course Par & Yardage (Optional)</>}
+                heading={<><FaIcon icon={faPenToSquare} className="mr-2 text-brand-fg" />Course Par & Yardage (Optional)</>}
                 label="course par and yardage"
                 headingClassName="text-lg font-semibold text-primary flex items-center"
                 className="mb-4"
@@ -1485,7 +1501,7 @@ export default function GolfComposerSection({
                     className="ea-cta flex min-h-[44px] items-center gap-2 px-4 text-sm text-white rounded-lg font-semibold"
                     data-round-add-players=""
                   >
-                    <i className="fas fa-user-plus" aria-hidden="true"></i>
+                    <FaIcon icon={faUserPlus} />
                     Add Others
                   </button>
                 </div>
@@ -1510,7 +1526,7 @@ export default function GolfComposerSection({
                         className="ea-icon-btn text-secondary hover:text-primary"
                         aria-label={`Remove ${participant.name}`}
                       >
-                        <i className="fas fa-times text-xs" aria-hidden="true"></i>
+                        <FaIcon icon={faXmark} className="text-xs" />
                       </button>
                     </li>
                   ))}
@@ -1530,7 +1546,7 @@ export default function GolfComposerSection({
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <div className="flex items-center gap-1">
                 <h3 className="text-lg font-semibold text-primary flex items-center">
-                  <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
+                  <FaIcon icon={faListOl} className="mr-2 text-green-600 dark:text-green-400" />
                   Score Entry
                 </h3>
                 <InfoButton d={scoreInfo} />
@@ -1550,7 +1566,7 @@ export default function GolfComposerSection({
                 disabled={playerScores.length === 0}
                 className="ea-interactive inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap grow sm:grow-0 rounded-lg border border-border-strong px-3 py-2 text-sm font-semibold text-primary disabled:opacity-50"
               >
-                <i className="fas fa-bolt text-amber-500" aria-hidden="true"></i>
+                <FaIcon icon={faBolt} className="text-amber-500" />
                 Quick entry
               </button>
             </div>
@@ -1591,7 +1607,7 @@ export default function GolfComposerSection({
             <div className="space-y-6" data-round-step="finish">
               <div className={GOLF_SECTION_CARD}>
                 <h3 className="text-lg font-semibold text-primary mb-3 flex items-center">
-                  <i className={`fas ${sharedRoundDetails.alreadyPlayed ? 'fa-flag-checkered' : 'fa-circle-dot'} mr-2 ${sharedRoundDetails.alreadyPlayed ? 'text-green-600 dark:text-green-400' : 'text-red-600'}`} aria-hidden="true"></i>
+                  <FaIcon icon={sharedRoundDetails.alreadyPlayed ? faFlagCheckered : faCircleDot} className={`mr-2 ${sharedRoundDetails.alreadyPlayed ? 'text-green-600 dark:text-green-400' : 'text-red-600'}`} />
                   {sharedRoundDetails.alreadyPlayed ? 'Your round' : 'Ready to go live'}
                 </h3>
                 <dl className="divide-y divide-border-subtle" data-round-summary="">
@@ -1635,7 +1651,7 @@ export default function GolfComposerSection({
                   className="ea-interactive inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-border-strong px-4 py-2 text-sm font-semibold text-primary disabled:opacity-50"
                   data-round-preview=""
                 >
-                  <i className="fas fa-eye" aria-hidden="true"></i>
+                  <FaIcon icon={faEye} />
                   Preview
                 </button>
               )}

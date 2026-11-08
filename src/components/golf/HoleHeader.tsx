@@ -6,6 +6,9 @@ import { toParColorClass, toParLabel } from '@/lib/golf/scoring';
 import { formatRise } from '@/lib/golf/elevation';
 import { greenLabel, type HoleHeaderFacts, type LiveLine, type TeeRow } from '@/lib/golf/hole-detail';
 import type { HoleProjection, ProjectedPoint } from '@/lib/golf/hole-svg';
+import FaIcon from '@/components/FaIcon';
+import { faChevronDown } from '@/lib/icons/fa/chevron-down';
+import { faChevronUp } from '@/lib/icons/fa/chevron-up';
 
 // ── The hole in front of you (hole-detail program PR E, Oct 2026) ───────────
 // Replaces the scorer's "Hole N · course · Par P · Y yds" line. Phone-first
@@ -63,7 +66,7 @@ export default function HoleHeader({ holeNumber, facts, tees, live, running, run
               >
                 {factBits.length > 0 && <span aria-hidden="true">·</span>}
                 {facts.teeLabel}
-                <i className={`fas fa-chevron-${teesOpen ? 'up' : 'down'} text-[10px]`} aria-hidden="true"></i>
+                <FaIcon icon={teesOpen ? faChevronUp : faChevronDown} className="text-[10px]" />
               </button>
             ) : (
               <span className="ml-1">· {facts.teeLabel}</span>

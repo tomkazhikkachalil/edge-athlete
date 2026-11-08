@@ -26,15 +26,31 @@ import LazyImage from '../LazyImage';
 import CourseInfoCard from './CourseInfoCard';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
+import FaIcon from '@/components/FaIcon';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faImages } from '@/lib/icons/fa/images';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faPeopleArrows } from '@/lib/icons/fa/people-arrows';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faStar } from '@/lib/icons/fa/star';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faTree } from '@/lib/icons/fa/tree';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faWarehouse } from '@/lib/icons/fa/warehouse';
+import { faXmark } from '@/lib/icons/fa/xmark';
+import { faTable } from '@/lib/icons/fa/table';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 type RoundTabId = 'overview' | 'scorecard' | 'media';
 
-const TABS: Array<{ id: RoundTabId; label: string; icon: string }> = [
-  { id: 'overview', label: 'Overview', icon: 'fas fa-trophy' },
-  { id: 'scorecard', label: 'Full Scorecard', icon: 'fas fa-table' },
+const TABS: Array<{ id: RoundTabId; label: string; icon: FaIconDef }> = [
+  { id: 'overview', label: 'Overview', icon: faTrophy },
+  { id: 'scorecard', label: 'Full Scorecard', icon: faTable },
   // Always present, even with no media: post-round uploads are legal, so the
   // tab is where you go to ADD photos as well as to see them.
-  { id: 'media', label: 'Media', icon: 'fas fa-images' },
+  { id: 'media', label: 'Media', icon: faImages },
 ];
 
 interface SharedRoundFullCardProps {
@@ -550,13 +566,13 @@ export default function SharedRoundFullCard({
                 )}
                 {group_post.status === 'completed' && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 text-white text-xs font-bold rounded-full">
-                    <i className="fas fa-flag-checkered text-[10px]"></i>
+                    <FaIcon icon={faFlagCheckered} className="text-[10px]" />
                     FINAL
                   </span>
                 )}
                 {gameFormat !== 'stroke' && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/15 text-white text-xs font-bold rounded-full">
-                    <i className={`fas ${gameFormat === 'stableford' ? 'fa-star' : 'fa-people-arrows'} text-[10px]`}></i>
+                    <FaIcon icon={gameFormat === 'stableford' ? faStar : faPeopleArrows} className="text-[10px]" />
                     {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
                   </span>
                 )}
@@ -579,12 +595,12 @@ export default function SharedRoundFullCard({
                 <span>
                   {golf_data.round_type === 'indoor' ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/15 rounded-full text-xs">
-                      <i className="fas fa-warehouse"></i>
+                      <FaIcon icon={faWarehouse} />
                       INDOOR
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/15 rounded-full text-xs">
-                      <i className="fas fa-tree"></i>
+                      <FaIcon icon={faTree} />
                       OUTDOOR
                     </span>
                   )}
@@ -601,7 +617,7 @@ export default function SharedRoundFullCard({
                   aria-label="Finish round"
                   data-round-finish=""
                 >
-                  <i className="fas fa-flag-checkered"></i>
+                  <FaIcon icon={faFlagCheckered} />
                   {/* Icon-only below sm — the label crowds the modal title at 360px */}
                   <span className="hidden sm:inline">{endingRound ? 'Finishing…' : 'Finish round'}</span>
                 </button>
@@ -615,7 +631,7 @@ export default function SharedRoundFullCard({
                   className="flex items-center gap-2 bg-white/15 hover:bg-red-600/80 disabled:opacity-60 text-white text-sm font-bold px-3 py-2 rounded-lg transition-colors min-h-[44px] min-w-[44px] justify-center"
                   aria-label="Delete round"
                 >
-                  <i className={`fas ${deleting ? 'fa-spinner fa-spin' : 'fa-trash'}`}></i>
+                  <FaIcon icon={deleting ? faSpinner : faTrash} spin={deleting ? true : false} />
                   <span className="hidden sm:inline">Delete</span>
                 </button>
               )}
@@ -624,7 +640,7 @@ export default function SharedRoundFullCard({
                 className="text-white hover:text-gray-200 text-2xl font-bold min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="Close"
               >
-                <i className="fas fa-times"></i>
+                <FaIcon icon={faXmark} />
               </button>
             </div>
           </div>
@@ -663,7 +679,7 @@ export default function SharedRoundFullCard({
                       : 'border-transparent text-tertiary hover:text-primary'
                   }`}
                 >
-                  <i className={`${tab.icon} mr-2`}></i>
+                  <FaIcon icon={tab.icon} className="mr-2" />
                   {tab.label}
                   {tab.id === 'media' && roundMediaItems.length > 0 && (
                     <span className="ml-1.5 text-xs font-semibold text-muted">
@@ -720,7 +736,7 @@ export default function SharedRoundFullCard({
               {/* Match play status banner */}
               {matchStatus && matchStatus.thru > 0 && (
                 <div className="flex items-center gap-3 bg-surface-muted border border-border rounded-lg px-4 py-3">
-                  <i className="fas fa-people-arrows text-muted text-lg"></i>
+                  <FaIcon icon={faPeopleArrows} className="text-muted text-lg" />
                   <div>
                     <div className="text-base font-black text-primary">
                       {matchStatus.leaderIndex === null
@@ -740,7 +756,7 @@ export default function SharedRoundFullCard({
               <div className="bg-surface rounded-lg border border-border overflow-hidden">
                 <div className="bg-surface-muted px-4 py-3 border-b border-border">
                   <h3 className="text-lg font-black text-primary">
-                    <i className={`fas ${participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? 'fa-trophy' : 'fa-golf-ball'} mr-2`}></i>
+                    <FaIcon icon={participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? faTrophy : faGolfBallTee} className="mr-2" />
                     {participants.filter(p => isActiveParticipant(p.participant.status)).length > 1 ? 'Leaderboard' : 'Your Round'}
                     {gameFormat === 'stableford' && (
                       <span className="ml-2 text-sm font-bold text-muted">(points — highest wins)</span>
@@ -807,7 +823,7 @@ export default function SharedRoundFullCard({
                               {scores.holes_completed} of {golf_data.holes_played} holes
                               {scores.scores_confirmed === false && !isCurrentUser && (
                                 <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">
-                                  <i className="fas fa-pen-to-square mr-1"></i>entered by organizer
+                                  <FaIcon icon={faPenToSquare} className="mr-1" />entered by organizer
                                 </span>
                               )}
                             </div>
@@ -941,7 +957,7 @@ export default function SharedRoundFullCard({
                 onToggle={e => setCourseOpen(e.currentTarget.open)}
               >
                 <summary className="flex cursor-pointer items-center gap-2 px-4 min-h-[44px] text-lg font-black text-primary">
-                  <i className="fas fa-chevron-right group-open:rotate-90 transition-transform text-sm" aria-hidden="true"></i>
+                  <FaIcon icon={faChevronRight} className="group-open:rotate-90 transition-transform text-sm" />
                   Course details
                 </summary>
                 <div className="px-4 pb-4 space-y-4">
@@ -1073,7 +1089,7 @@ export default function SharedRoundFullCard({
 
               {roundMediaItems.length === 0 ? (
                 <div className="py-12 text-center text-muted">
-                  <i className="fas fa-images text-4xl text-gray-300 dark:text-decor mb-3 block" aria-hidden="true"></i>
+                  <FaIcon icon={faImages} className="text-4xl text-gray-300 dark:text-decor mb-3 block" />
                   <p className="font-semibold text-secondary">No photos or videos yet</p>
                   <p className="mt-1 text-sm">
                     Photos added while scoring are tagged to the hole automatically.

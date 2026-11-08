@@ -5,6 +5,18 @@ import SectionInfo from '@/components/SectionInfo';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import { COPY } from '@/lib/copy';
 import type { InstallMode } from '@/lib/install/platform';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faDownload } from '@/lib/icons/fa/download';
+import { faLink } from '@/lib/icons/fa/link';
+import { faCircle } from '@/lib/icons/fa/circle';
+import { faArrowUpFromBracket } from '@/lib/icons/fa/arrow-up-from-bracket';
+import { faCompass } from '@/lib/icons/fa/compass';
+import { faEllipsisVertical } from '@/lib/icons/fa/ellipsis-vertical';
+import { faMobileScreenButton } from '@/lib/icons/fa/mobile-screen-button';
+import { faRightToBracket } from '@/lib/icons/fa/right-to-bracket';
+import { faSquarePlus } from '@/lib/icons/fa/square-plus';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 /**
  * The guide "Download the app" opens when the browser cannot install in one
@@ -20,12 +32,12 @@ interface Props {
 }
 
 /** The step's glyph: what the person is looking for on their own screen. */
-const STEP_ICONS: Partial<Record<InstallMode, readonly string[]>> = {
-  'ios-safari': ['fa-arrow-up-from-bracket', 'fa-square-plus', 'fa-check'],
-  'ios-browser': ['fa-arrow-up-from-bracket', 'fa-square-plus', 'fa-check'],
-  'android-menu': ['fa-ellipsis-vertical', 'fa-mobile-screen-button', 'fa-check'],
-  'ios-in-app': ['fa-compass', 'fa-right-to-bracket', 'fa-mobile-screen-button'],
-  'android-in-app': ['fa-compass', 'fa-right-to-bracket', 'fa-mobile-screen-button'],
+const STEP_ICONS: Partial<Record<InstallMode, readonly FaIconDef[]>> = {
+  'ios-safari': [faArrowUpFromBracket, faSquarePlus, faCheck],
+  'ios-browser': [faArrowUpFromBracket, faSquarePlus, faCheck],
+  'android-menu': [faEllipsisVertical, faMobileScreenButton, faCheck],
+  'ios-in-app': [faCompass, faRightToBracket, faMobileScreenButton],
+  'android-in-app': [faCompass, faRightToBracket, faMobileScreenButton],
 };
 
 function stepsFor(mode: InstallMode, host: string): readonly string[] {
@@ -86,7 +98,7 @@ export default function InstallAppSheet({ mode, onClose, onInstall }: Props) {
               data-install-now=""
               className="ea-cta w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-lg text-sm font-semibold text-white"
             >
-              <i className="fas fa-download" aria-hidden="true"></i>
+              <FaIcon icon={faDownload} />
               {COPY.INSTALL.PROMPT_BUTTON}
             </button>
           </div>
@@ -104,7 +116,7 @@ export default function InstallAppSheet({ mode, onClose, onInstall }: Props) {
                   aria-hidden="true"
                   className="shrink-0 w-10 h-10 rounded-full bg-brand-soft text-brand-fg flex items-center justify-center"
                 >
-                  <i className={`fas ${icons[i] ?? 'fa-circle'}`}></i>
+                  <FaIcon icon={icons[i] ?? faCircle} />
                 </span>
                 <p className="text-base text-primary pt-2 min-w-0">
                   <span className="font-bold">{i + 1}.</span> {step}
@@ -122,7 +134,7 @@ export default function InstallAppSheet({ mode, onClose, onInstall }: Props) {
             onClick={() => void copyLink()}
             className="ea-interactive inline-flex items-center gap-2 min-h-[44px] px-4 rounded-lg border border-border-strong text-sm font-semibold text-secondary"
           >
-            <i className={`fas ${copied ? 'fa-check' : 'fa-link'}`} aria-hidden="true"></i>
+            <FaIcon icon={copied ? faCheck : faLink} />
             <span aria-live="polite">{copied ? COPY.INSTALL.LINK_COPIED : COPY.INSTALL.COPY_LINK}</span>
           </button>
         )}

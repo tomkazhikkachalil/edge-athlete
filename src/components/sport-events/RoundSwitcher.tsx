@@ -2,6 +2,8 @@
 
 import { formatDateOnly } from '@/lib/sport-events/format';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
 
 /**
  * The round switcher (Events program, phase 2): a pill strip shared by the
@@ -51,7 +53,7 @@ export default function RoundSwitcher({ rounds, selected, onChange, includeOvera
         className={`shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-full border text-sm font-semibold transition-colors ${on ? 'bg-brand text-white border-brand' : 'bg-surface text-secondary border-border-strong hover:text-primary'}`}
       >
         {status === 'live' && <span className={`inline-block h-1.5 w-1.5 rounded-full ${on ? 'bg-white' : 'bg-red-600 ea-live-dot'}`} aria-hidden="true" />}
-        {status === 'completed' && <i className="fas fa-check text-xs" aria-hidden="true"></i>}
+        {status === 'completed' && <FaIcon icon={faCheck} className="text-xs" />}
         {text}
       </button>
     );

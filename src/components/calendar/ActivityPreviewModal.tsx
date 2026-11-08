@@ -13,6 +13,8 @@ import CourseInfoCard from '@/components/golf/CourseInfoCard';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
 import type { EmbeddedCourseInfo } from '@/types/group-posts';
 import type { GolfRound } from '@/types/golf';
+import FaIcon from '@/components/FaIcon';
+import { faArrowRight } from '@/lib/icons/fa/arrow-right';
 
 // Preview for a completed activity that was NEVER shared to the feed, so no
 // post exists to render. Shared activities go to PostDetailModal instead —
@@ -162,7 +164,7 @@ export default function ActivityPreviewModal({
                 className="text-sm text-brand-fg hover:underline font-medium"
               >
                 Open full details
-                <i className="fas fa-arrow-right ml-1.5 text-xs"></i>
+                <FaIcon icon={faArrowRight} className="ml-1.5 text-xs" />
               </a>
             </div>
           </div>

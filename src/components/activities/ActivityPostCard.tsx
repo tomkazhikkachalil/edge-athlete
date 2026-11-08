@@ -16,6 +16,8 @@ import { tilesFor } from '@/lib/activities/tiles';
 import { detailLine } from '@/lib/activities/details';
 import { unitSystemOf } from '@/lib/activities/units';
 import RouteThumb from './RouteThumb';
+import FaIcon from '@/components/FaIcon';
+import { activityGlyph } from '@/lib/activities/activity-icons';
 
 export default function ActivityPostCard({ statsData }: { statsData: unknown }) {
   const [unit] = useState<DistanceUnit>(() => (typeof window === 'undefined' ? 'km' : readUnitPreference()));
@@ -36,7 +38,7 @@ export default function ActivityPostCard({ statsData }: { statsData: unknown }) 
       )}
       <div className="p-3">
         <p className="flex items-center gap-2 font-semibold text-primary min-w-0">
-          <i className={`fas fa-${def.icon} text-brand-fg`} aria-hidden="true" />
+          <FaIcon icon={activityGlyph(def.icon)} className="text-brand-fg" />
           <span className="truncate">{s.name}</span>
         </p>
         <dl className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">

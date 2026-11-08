@@ -53,7 +53,7 @@ describe('explanatory text behind an (i): SectionInfo', () => {
   });
 
   it('is a real 44 px target in the house glyph and classes — never an extender, never a focus: style', () => {
-    expect(src).toMatch(/fa-circle-info/);
+    expect(src).toMatch(/faCircleInfo/); // the (i) glyph, drawn inline since the icons round (Nov 2026)
     expect(src).toMatch(/h-11 w-11/);
     expect(src).toMatch(/ea-interactive/);
     expect(src).toMatch(/ea-dropdown-in/);

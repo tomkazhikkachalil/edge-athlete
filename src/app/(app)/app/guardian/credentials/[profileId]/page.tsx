@@ -6,6 +6,10 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import { FEATURE_FLAGS } from '@/lib/features';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faKey } from '@/lib/icons/fa/key';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // Guardian issues/resets the child's login (Phase 4): username is the
 // child's handle; secret is a password or a 4–6 digit PIN (younger kids).
@@ -110,14 +114,14 @@ export default function CredentialsPage() {
           href="/app/guardian"
           className="self-start inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           Family console
         </Link>
         </div>
         <div className="w-full max-w-lg bg-surface rounded-lg shadow-lg p-6 sm:p-8">
           {issued ? (
             <div className="text-center py-4">
-              <i className="fas fa-key text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faKey} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Login ready</h2>
               <p className="text-sm text-tertiary mb-4">
                 Share these with your athlete in person:
@@ -205,7 +209,7 @@ export default function CredentialsPage() {
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Setting up...</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Setting up...</>
                   ) : (
                     'Set their login'
                   )}

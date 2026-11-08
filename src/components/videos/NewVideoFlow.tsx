@@ -20,6 +20,11 @@ import type { YouTubeConnectionView } from '@/lib/videos/youtube-connection';
 import ChannelPicker from '@/components/videos/ChannelPicker';
 import YouTubeUploadPanel from '@/components/videos/YouTubeUploadPanel';
 import YouTubeBroadcastPanel from '@/components/videos/YouTubeBroadcastPanel';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
+import { faTowerBroadcast } from '@/lib/icons/fa/tower-broadcast';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 
@@ -227,7 +232,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     <div className="bg-surface rounded-lg border border-border" data-new-video="">
       <div className="flex items-center gap-2 px-4 pt-4">
         <button type="button" onClick={requestClose} className="ea-icon-btn text-secondary" aria-label="Back" data-new-video-back="">
-          <i className="fas fa-arrow-left" aria-hidden="true"></i>
+          <FaIcon icon={faArrowLeft} />
         </button>
         <h1 className="text-xl font-bold text-primary">Add a full game</h1>
       </div>
@@ -265,16 +270,16 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 <ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />
                 {connection.canUpload && !uploadOpen && !broadcastOpen && (
                   <button type="button" onClick={() => setUploadOpen(true)} className="ea-interactive flex w-full items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-new-video-upload-door="">
-                    <i className="fas fa-cloud-arrow-up text-brand-fg" aria-hidden="true"></i>
+                    <FaIcon icon={faCloudArrowUp} className="text-brand-fg" />
                     <span className="text-sm font-semibold text-primary flex-1">Upload a file to {connection.channelTitle || 'your channel'}</span>
-                    <i className="fas fa-chevron-right text-muted" aria-hidden="true"></i>
+                    <FaIcon icon={faChevronRight} className="text-muted" />
                   </button>
                 )}
                 {connection.canBroadcast && !uploadOpen && !broadcastOpen && (
                   <button type="button" onClick={() => setBroadcastOpen(true)} className="ea-interactive flex w-full items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-new-video-broadcast-door="">
-                    <i className="fas fa-tower-broadcast text-brand-fg" aria-hidden="true"></i>
+                    <FaIcon icon={faTowerBroadcast} className="text-brand-fg" />
                     <span className="text-sm font-semibold text-primary flex-1">Schedule a live broadcast on {connection.channelTitle || 'your channel'}</span>
-                    <i className="fas fa-chevron-right text-muted" aria-hidden="true"></i>
+                    <FaIcon icon={faChevronRight} className="text-muted" />
                   </button>
                 )}
                 {needsScope && (

@@ -9,6 +9,9 @@ import { useAuth } from '@/lib/auth';
 
 import { EVENTS_FILTER_LABEL, EVENTS_FILTERS, parseEventsFilter } from '@/lib/sports-nav';
 import EventCard, { type ListedEvent } from '@/components/sports/EventCard';
+import FaIcon from '@/components/FaIcon';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faPlus } from '@/lib/icons/fa/plus';
 
 /** /sports/events — your events (host or participant), by filter; the New event door. */
 export default function EventsListPage() {
@@ -55,7 +58,7 @@ function EventsListInner() {
           </div>
           {user && (
             <Link href="/sports/events/new" className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center" data-events-new="">
-              <i className="fas fa-plus mr-2" aria-hidden="true"></i>New event
+              <FaIcon icon={faPlus} className="mr-2" />New event
             </Link>
           )}
         </div>
@@ -89,7 +92,7 @@ function EventsListInner() {
               <div className="flex justify-center py-12" aria-busy="true"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand" /></div>
             ) : events && events.length === 0 ? (
               <div className="bg-surface rounded-lg border border-border p-8 text-center text-muted">
-                <i className="fas fa-flag-checkered text-3xl text-gray-300 dark:text-stone-600 mb-3" aria-hidden="true"></i>
+                <FaIcon icon={faFlagCheckered} className="text-3xl text-gray-300 dark:text-stone-600 mb-3" />
                 <p>{filter === 'upcoming' ? 'Nothing coming up.' : filter === 'live' ? 'Nothing live right now.' : filter === 'past' ? 'No past events yet.' : 'No events yet.'}</p>
                 <p className="text-sm mt-1">Create one and invite your group.</p>
               </div>

@@ -23,6 +23,8 @@ import { unitSystemOf } from '@/lib/activities/units';
 import FinishDetailsForm from '@/components/activities/FinishDetailsForm';
 import { TimerSetup } from './RoundTimerPanel';
 import { CLIMB_SCALE_LABELS, CLIMB_SCALES, SCALES_FOR_STYLE, type ClimbStyle } from '@/lib/activities/climbing';
+import FaIcon from '@/components/FaIcon';
+import { faBell } from '@/lib/icons/fa/bell';
 
 const RECORDED_LABEL: Record<Recorded, string> = {
   time: 'Time',
@@ -189,7 +191,7 @@ export default function SetupCard({
             />
           ) : (
             <button type="button" onClick={() => setTimerOpen(true)} className="ea-interactive ea-surface flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-primary" data-record-timer-arm="">
-              <i className="fas fa-bell text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faBell} className="text-brand-fg" />
               Add a round timer
             </button>
           )}

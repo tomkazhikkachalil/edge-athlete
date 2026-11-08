@@ -7,6 +7,8 @@ import AppHeader from '@/components/AppHeader';
 import HelpVideo from '@/components/help/HelpVideo';
 import HelpArticleBody from '@/components/help/HelpArticleBody';
 import { HELP_TOPIC_LABELS, type PublicHelpArticle } from '@/lib/help/types';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
 
 // One help article (Spec 3): the video first when it carries one, then the
 // body as blocks. PUBLIC; a draft or an unknown slug lands on "not found"
@@ -41,7 +43,7 @@ export default function HelpArticlePage() {
       <AppHeader showSearch={false} />
       <main className="max-w-3xl mx-auto px-4 py-8">
         <Link href="/help" className="text-sm text-brand-fg hover:underline mb-4 inline-flex items-center gap-2">
-          <i className="fas fa-arrow-left text-xs"></i> Help Center
+          <FaIcon icon={faArrowLeft} className="text-xs" /> Help Center
         </Link>
         {state === 'loading' && <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>}
         {state === 'missing' && <p className="text-sm text-tertiary">That article does not exist (or is not published yet).</p>}

@@ -7,6 +7,10 @@ import BrandBar from '@/components/BrandBar';
 import { useAuth } from '@/lib/auth';
 import { clearParkedOrgInvite, saveParkedOrgInvite } from '@/lib/org-invite-parked';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 // ── /org-invite/[token] — accept a staff invite (org staff program, 178) ────
 // The org-claim page's shape: BrandBar (reachable while accountless), a
@@ -130,7 +134,7 @@ export default function OrgInvitePage() {
           {(state === 'ready' || state === 'accepting') && peeked && (
             <div className="text-center">
               <div className="w-14 h-14 bg-brand-soft rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className={`fas ${peeked.org.side === 'league' ? 'fa-trophy' : 'fa-building'} text-xl text-brand-fg`} aria-hidden="true"></i>
+                <FaIcon icon={peeked.org.side === 'league' ? faTrophy : faBuilding} className="text-xl text-brand-fg" />
               </div>
               <h1 className="text-xl font-bold text-primary mb-1">Help run {peeked.org.name}</h1>
               <p className="text-sm font-semibold text-secondary mb-1">{peeked.summary}</p>
@@ -170,7 +174,7 @@ export default function OrgInvitePage() {
           {state === 'accepted' && peeked && (
             <div className="text-center">
               <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-circle-check text-xl text-emerald-600" aria-hidden="true"></i>
+                <FaIcon icon={faCircleCheck} className="text-xl text-emerald-600" />
               </div>
               <h1 className="text-xl font-bold text-primary mb-2">You&apos;re on {peeked.org.name}&apos;s staff</h1>
               <p className="text-sm text-tertiary mb-4">{peeked.summary}. The console shows your sections.</p>

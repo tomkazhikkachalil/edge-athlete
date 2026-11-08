@@ -17,6 +17,9 @@ import GameFields from './GameFields';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { RECORDING_MODE_LABEL } from '@/lib/sport-events/recording';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
 
 /**
  * The creation wizard (Events program): basics → round → format → review,
@@ -252,7 +255,7 @@ export default function EventCreateWizard() {
             </section>
           ))}
           {s.rounds.length < MAX_ROUNDS && (
-            <button type="button" onClick={() => { setRefusal(null); setS(prev => addWizardRound(prev)); }} className={SECONDARY} data-wizard-add-round=""><i className="fas fa-plus mr-2" aria-hidden="true"></i>Add a round</button>
+            <button type="button" onClick={() => { setRefusal(null); setS(prev => addWizardRound(prev)); }} className={SECONDARY} data-wizard-add-round=""><FaIcon icon={faPlus} className="mr-2" />Add a round</button>
           )}
           {s.rounds.length > 1 && <p className="text-xs text-muted">Rounds run in date order, one at a time. You start each one from the event page on its day.</p>}
         </div>
@@ -355,7 +358,7 @@ export default function EventCreateWizard() {
           <p className="text-xs text-muted">Publish opens the event: invited players can accept and it appears in your feed. Save draft keeps it to yourself for now.</p>
           {/* Authority PR 2 (Tom): every event needs a backup — a warning, never a block. */}
           <p className="text-xs text-amber-800 dark:text-amber-200" data-event-wizard-backup-hint="">
-            <i className="fas fa-user-shield mr-1" aria-hidden="true"></i>
+            <FaIcon icon={faUserShield} className="mr-1" />
             Every event needs a backup. After you save it, add a co-organizer from the Players tab — they can run it if you can’t.
           </p>
         </div>

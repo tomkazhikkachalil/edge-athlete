@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
 import { CONNECT_ERRORS, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import FaIcon from '@/components/FaIcon';
+import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 
 /**
  * The YouTube channel card (Videos program Phase 3, Nov 5 2026): one per
@@ -72,7 +74,7 @@ export default function YouTubeConnectCard({ owner, compact = false }: { owner: 
       )}
       {!view.connected ? (
         <>
-          <p className="text-sm font-semibold text-primary"><i className="fab fa-youtube text-red-600 mr-1.5" aria-hidden="true"></i>Connect a YouTube channel</p>
+          <p className="text-sm font-semibold text-primary"><FaIcon icon={faYoutubeBrands} className="text-red-600 mr-1.5" />Connect a YouTube channel</p>
           <p className="text-xs text-muted">Link your channel&apos;s uploads in one tap, or upload a full game from here straight to YouTube. You&apos;ll sign in with Google; Edge Athlete never downloads or edits your videos.</p>
           <a href={start('readonly')} className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover" data-youtube-connect="">
             Connect YouTube
@@ -80,7 +82,7 @@ export default function YouTubeConnectCard({ owner, compact = false }: { owner: 
         </>
       ) : (
         <>
-          <p className="text-sm font-semibold text-primary"><i className="fab fa-youtube text-red-600 mr-1.5" aria-hidden="true"></i>{view.channelTitle || 'YouTube channel'} <span className="font-normal text-muted">connected</span></p>
+          <p className="text-sm font-semibold text-primary"><FaIcon icon={faYoutubeBrands} className="text-red-600 mr-1.5" />{view.channelTitle || 'YouTube channel'} <span className="font-normal text-muted">connected</span></p>
           {view.problem && <p className="text-xs text-red-600" data-youtube-problem="">{view.problem}</p>}
           {!view.connectedByMe && <p className="text-xs text-muted" data-youtube-not-mine="">Connected through someone else&apos;s Google account — only they can upload to it; anyone who manages videos can link its uploads.</p>}
           {view.connectedByMe && !view.scopes.includes('upload') && (

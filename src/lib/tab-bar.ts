@@ -1,3 +1,9 @@
+import { faCalendarDays } from '@/lib/icons/fa/calendar-days';
+import { faHouse } from '@/lib/icons/fa/house';
+import { faMedal } from '@/lib/icons/fa/medal';
+import { faTowerBroadcast } from '@/lib/icons/fa/tower-broadcast';
+import { faUser } from '@/lib/icons/fa/user';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 /**
  * The phone tab bar (Events program, phase 2b, B4 — Tom: FIVE tabs, Feed ·
  * Sports · Live · Calendar · Profile, mirroring the desktop header's places;
@@ -15,16 +21,16 @@ export interface TabBarLink {
   key: 'feed' | 'sports' | 'live' | 'calendar' | 'profile';
   path: string;
   label: string;
-  icon: string;
+  icon: FaIconDef;
 }
 
 /** The header's `placeLinksWithLive` order — Live in the middle. */
 export const TAB_BAR_LINKS: ReadonlyArray<TabBarLink> = [
-  { key: 'feed', path: '/feed', label: 'Feed', icon: 'fa-home' },
-  { key: 'sports', path: '/sports', label: 'Sports', icon: 'fa-medal' },
-  { key: 'live', path: '/live', label: 'Live', icon: 'fa-broadcast-tower' },
-  { key: 'calendar', path: '/calendar', label: 'Calendar', icon: 'fa-calendar-alt' },
-  { key: 'profile', path: '/athlete', label: 'Profile', icon: 'fa-user' },
+  { key: 'feed', path: '/feed', label: 'Feed', icon: faHouse },
+  { key: 'sports', path: '/sports', label: 'Sports', icon: faMedal },
+  { key: 'live', path: '/live', label: 'Live', icon: faTowerBroadcast },
+  { key: 'calendar', path: '/calendar', label: 'Calendar', icon: faCalendarDays },
+  { key: 'profile', path: '/athlete', label: 'Profile', icon: faUser },
 ];
 
 const PLACES = ['/feed', '/sports', '/events', '/calendar', '/athlete', '/u', '/app', '/live', '/messages', '/notifications', '/settings', '/league', '/club', '/event', '/explore', '/dashboard'] as const;

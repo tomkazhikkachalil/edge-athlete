@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
 
 /** The coarse kind of a recent post, for a tile with no photo. Public facts only. */
 function recentPostTile(p: { stats_data: unknown; round_id: unknown; group_post_id: unknown; sport_key: string | null }): { kind: 'round' | 'activity' | 'stats' | 'text'; label: string | null; icon: string | null } {
-  if (p.round_id || p.group_post_id) return { kind: 'round', label: 'Golf round', icon: 'golf-ball' };
+  if (p.round_id || p.group_post_id) return { kind: 'round', label: 'Golf round', icon: 'golf-ball-tee' };
   const sd = p.stats_data as { type?: unknown; activity_type?: unknown } | null;
   if (sd && sd.type === 'activity' && isActivityType(sd.activity_type)) {
     const def = ACTIVITY_TYPE_DEFS[sd.activity_type];

@@ -17,6 +17,12 @@ import { backOr } from '@/lib/nav-back';
 import { VIDEO_DESCRIPTION_MAX, VIDEO_TITLE_MAX, type HighlightInput } from '@/lib/videos/rules';
 import type { HighlightRow, VideoView } from '@/lib/videos/types';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faForward } from '@/lib/icons/fa/forward';
+import { faRotateLeft } from '@/lib/icons/fa/rotate-left';
+import { faStop } from '@/lib/icons/fa/stop';
+import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 
 type Load =
   | { state: 'loading' }
@@ -341,7 +347,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
     <div className="space-y-4" data-video-screen={video.id}>
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => backOr(router, ownerHref(video))} className="ea-icon-btn text-secondary" aria-label="Back" data-video-back="">
-          <i className="fas fa-arrow-left" aria-hidden="true"></i>
+          <FaIcon icon={faArrowLeft} />
         </button>
         <h1 className="text-xl sm:text-2xl font-bold text-primary min-w-0 flex-1 truncate" data-video-title="">{video.title}</h1>
         {video.status === 'hidden' && (
@@ -367,7 +373,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
           {/* eslint-disable-next-line @next/next/no-img-element -- a third-party thumbnail; not an optimizer candidate */}
           <img src={video.thumb_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-70" />
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-white">
-            <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-black/70"><i className="fab fa-youtube text-xl" aria-hidden="true"></i></span>
+            <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-black/70"><FaIcon icon={faYoutubeBrands} className="text-xl" /></span>
             <span className="text-sm font-semibold drop-shadow">Open on YouTube</span>
             <span className="text-xs drop-shadow">{LOOKUP_NOTES.no_embed}</span>
           </span>
@@ -385,7 +391,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
           onMode={setPlayerMode}
           overlay={resumeAt !== null ? (
             <button type="button" onClick={resume} className="absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full bg-black/75 px-4 min-h-[44px] text-sm font-semibold text-white" data-video-resume={resumeAt}>
-              <i className="fas fa-rotate-left" aria-hidden="true"></i>
+              <FaIcon icon={faRotateLeft} />
               Resume at {formatTimestamp(resumeAt)}
             </button>
           ) : null}
@@ -394,7 +400,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
       {playerMode === 'api' && highlights.length >= 2 && (
         <div className="flex items-center gap-2">
           <button type="button" onClick={playAll ? () => setPlayAll(null) : playHighlights} className={BTN} data-video-play-highlights={playAll ? 'on' : 'off'}>
-            <i className={`fas ${playAll ? 'fa-stop' : 'fa-forward'} mr-1.5`} aria-hidden="true"></i>
+            <FaIcon icon={playAll ? faStop : faForward} className="mr-1.5" />
             {playAll ? 'Stop the highlights' : 'Play highlights'}
           </button>
           {playAll && <span className="text-xs text-secondary" role="status">Highlight {playAll.index + 1} of {playAll.list.length}</span>}

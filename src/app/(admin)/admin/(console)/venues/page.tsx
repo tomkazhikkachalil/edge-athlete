@@ -9,6 +9,11 @@ import ConfirmModal from '@/components/ConfirmModal';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { useToast } from '@/components/Toast';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
+import FaIcon from '@/components/FaIcon';
+import { faLocationDot } from '@/lib/icons/fa/location-dot';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // Admin venue console (0.4): the ONLY venue creator in v1 (Tom, Aug 30) —
 // org/manager venue UX arrives with phase 1's org dashboard. Venues are
@@ -195,7 +200,7 @@ export default function AdminVenuesPage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-lock text-2xl text-decor" aria-hidden="true"></i>
+              <FaIcon icon={faLock} className="text-2xl text-decor" />
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Admin access required</h1>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
@@ -215,7 +220,7 @@ export default function AdminVenuesPage() {
             ← Admin
           </Link>
           <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-primary">
-            <i className="fas fa-map-marker-alt mr-2 text-brand-fg"></i>
+            <FaIcon icon={faLocationDot} className="mr-2 text-brand-fg" />
             Venues
           </h1>
         </div>
@@ -267,7 +272,7 @@ export default function AdminVenuesPage() {
                     aria-label="Clear golf club"
                     className="ml-2 text-muted hover:text-primary"
                   >
-                    <i className="fas fa-times" aria-hidden="true"></i>
+                    <FaIcon icon={faXmark} />
                   </button>
                 </div>
               ) : (
@@ -349,7 +354,7 @@ export default function AdminVenuesPage() {
                       aria-label={`Remove facility ${index + 1}`}
                       className="ea-icon-btn inline-flex items-center justify-center shrink-0 text-muted hover:text-red-600"
                     >
-                      <i className="fas fa-times" aria-hidden="true"></i>
+                      <FaIcon icon={faXmark} />
                     </button>
                   </div>
                 ))}
@@ -413,7 +418,7 @@ export default function AdminVenuesPage() {
                       aria-label={`Delete ${venue.name}`}
                       className="ea-icon-btn inline-flex items-center justify-center shrink-0 text-muted hover:text-red-600"
                     >
-                      <i className="fas fa-trash" aria-hidden="true"></i>
+                      <FaIcon icon={faTrash} />
                     </button>
                   </div>
                 </li>

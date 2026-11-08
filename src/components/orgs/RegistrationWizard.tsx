@@ -12,6 +12,8 @@ import {
   type RegistrationDraft,
 } from '@/lib/registration/wizard-draft';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faCircleInfo } from '@/lib/icons/fa/circle-info';
 
 // ── The family registration wizard (phase 5 R3) ─────────────────────────────
 // The OrgStartWizard machine: a named-union Step, all state hoisted here,
@@ -536,7 +538,7 @@ export default function RegistrationWizard({
             <ul className="text-sm text-secondary space-y-1">
               {result.warnings.map((w, i) => (
                 <li key={i} className="flex gap-2">
-                  <i className="fas fa-circle-info mt-0.5 text-brand-fg" aria-hidden="true"></i>
+                  <FaIcon icon={faCircleInfo} className="mt-0.5 text-brand-fg" />
                   <span>{w.message} — the registrar will sort this out at placement.</span>
                 </li>
               ))}

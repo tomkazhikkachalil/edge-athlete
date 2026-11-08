@@ -12,6 +12,10 @@ import QuickMessagesToggle from '@/components/messages/QuickMessagesToggle';
 import { useVisualViewportHeight } from '@/hooks/useVisualViewportHeight';
 import { useThreadViewport } from '@/hooks/useThreadViewport';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
+import FaIcon from '@/components/FaIcon';
+import { faMessage } from '@/lib/icons/fa/message';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 function MessagesContent() {
   const router = useRouter();
@@ -49,7 +53,7 @@ function MessagesContent() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <i className="fas fa-spinner fa-spin text-decor text-2xl"></i>
+        <FaIcon icon={faSpinner} spin className="text-decor text-2xl" />
       </div>
     );
   }
@@ -97,7 +101,7 @@ function MessagesContent() {
           <div className="hidden lg:flex flex-1 items-center justify-center bg-surface-muted">
             <div className="text-center">
               <div className="w-16 h-16 bg-gray-200 dark:bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-comment-alt text-decor text-2xl"></i>
+                <FaIcon icon={faMessage} className="text-decor text-2xl" />
               </div>
               <p className="text-sm font-semibold text-secondary mb-1">Your Messages</p>
               <p className="text-xs text-faint mb-4">Select a conversation or start a new one</p>
@@ -105,7 +109,7 @@ function MessagesContent() {
                 onClick={() => setShowNewModal(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors"
               >
-                <i className="fas fa-plus text-xs"></i>
+                <FaIcon icon={faPlus} className="text-xs" />
                 New Message
               </button>
             </div>
@@ -139,7 +143,7 @@ export default function MessagesPage() {
       <div className="flex-1 min-h-0">
         <Suspense fallback={
           <div className="flex items-center justify-center h-full">
-            <i className="fas fa-spinner fa-spin text-decor text-2xl"></i>
+            <FaIcon icon={faSpinner} spin className="text-decor text-2xl" />
           </div>
         }>
           <MessagesContent />

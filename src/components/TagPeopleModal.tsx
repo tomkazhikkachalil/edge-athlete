@@ -7,6 +7,12 @@ import { useToast } from './Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useTypeahead } from '@/hooks/useTypeahead';
 import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
+import FaIcon from '@/components/FaIcon';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUserSlash } from '@/lib/icons/fa/user-slash';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // Nullable, not optional: /api/search has always returned explicit nulls for
 // unset name fields. The old `?: string` shape only compiled because the
@@ -164,7 +170,7 @@ export default function TagPeopleModal({
             className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-tertiary"
             aria-label="Close"
           >
-            <i className="fas fa-times text-xl"></i>
+            <FaIcon icon={faXmark} className="text-xl" />
           </button>
         </div>
 
@@ -178,7 +184,7 @@ export default function TagPeopleModal({
               placeholder="Search people..."
               className="w-full px-4 py-2 pl-10 border border-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
             />
-            <i className="fas fa-search absolute left-3 top-3 text-decor"></i>
+            <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-3 text-decor" />
           </div>
         </div>
 
@@ -203,7 +209,7 @@ export default function TagPeopleModal({
                     aria-label={`Remove ${getDisplayName(profile)}`}
                     className="text-faint hover:text-red-600 dark:hover:text-red-400"
                   >
-                    <i className="fas fa-times text-xs"></i>
+                    <FaIcon icon={faXmark} className="text-xs" />
                   </button>
                 </div>
               ))}
@@ -215,20 +221,20 @@ export default function TagPeopleModal({
         <div className="flex-1 min-h-0 overflow-y-auto">
           {loading && (
             <div className="p-8 text-center">
-              <i className="fas fa-spinner fa-spin text-2xl text-decor"></i>
+              <FaIcon icon={faSpinner} spin className="text-2xl text-decor" />
             </div>
           )}
 
           {!loading && searchQuery.trim().length < 1 && (
             <div className="p-8 text-center">
-              <i className="fas fa-search text-3xl text-gray-300 dark:text-stone-600 mb-2"></i>
+              <FaIcon icon={faMagnifyingGlass} className="text-3xl text-gray-300 dark:text-stone-600 mb-2" />
               <p className="text-tertiary text-sm">Type to search for people</p>
             </div>
           )}
 
           {!loading && searchQuery.trim().length >= 1 && searchResults.length === 0 && (
             <div className="p-8 text-center">
-              <i className="fas fa-user-slash text-3xl text-gray-300 dark:text-stone-600 mb-2"></i>
+              <FaIcon icon={faUserSlash} className="text-3xl text-gray-300 dark:text-stone-600 mb-2" />
               <p className="text-secondary font-medium mb-1">No people found</p>
               <p className="text-muted text-xs">
                 Try searching by name, sport, or school
@@ -276,7 +282,7 @@ export default function TagPeopleModal({
                     </div>
 
                     {isSelected && (
-                      <i className="fas fa-check-circle text-brand-fg text-xl"></i>
+                      <FaIcon icon={faCircleCheck} className="text-brand-fg text-xl" />
                     )}
                   </button>
                 );
@@ -300,7 +306,7 @@ export default function TagPeopleModal({
           >
             {submitting ? (
               <>
-                <i className="fas fa-spinner fa-spin mr-2"></i>
+                <FaIcon icon={faSpinner} spin className="mr-2" />
                 Tagging...
               </>
             ) : (

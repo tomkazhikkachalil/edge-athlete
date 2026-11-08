@@ -4,6 +4,9 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode
 import { createPortal } from 'react-dom';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { placeMenu } from '@/lib/panel-placement';
+import FaIcon from '@/components/FaIcon';
+import { faEllipsis } from '@/lib/icons/fa/ellipsis';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 /**
  * The house "…" menu (Support & Reporting, Spec 2 — lifted out of
@@ -28,7 +31,7 @@ export interface ActionMenuItem {
   key: string;
   label: string;
   /** FontAwesome class, e.g. 'fa-flag'. */
-  icon: string;
+  icon: FaIconDef;
   onSelect: () => void;
   tone?: 'default' | 'danger';
   disabled?: boolean;
@@ -138,7 +141,7 @@ export default function ActionMenu({ items, ariaLabel, triggerClassName, trigger
         className={`${triggerClassName ?? ''} ${TONE[triggerTone]} transition-colors p-2 min-w-[44px] min-h-[44px] rounded-full inline-flex items-center justify-center`}
         {...triggerAttrs}
       >
-        {trigger ?? <i className="fas fa-ellipsis-h text-sm" aria-hidden="true"></i>}
+        {trigger ?? <FaIcon icon={faEllipsis} className="text-sm" />}
       </button>
       {open &&
         createPortal(
@@ -160,7 +163,7 @@ export default function ActionMenu({ items, ariaLabel, triggerClassName, trigger
                 data-menu-item={item.key}
                 className={`${ROW} ${item.tone === 'danger' ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40' : 'text-primary'} disabled:opacity-60`}
               >
-                <i className={`fas ${item.icon} w-4 text-center text-xs`} aria-hidden="true"></i>
+                <FaIcon icon={item.icon} className="w-4 text-center text-xs" />
                 {item.label}
               </button>
             ))}

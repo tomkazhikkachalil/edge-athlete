@@ -11,6 +11,9 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import Link from 'next/link';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { transferStateChip, type TransferState } from '@/lib/transfer-ui';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
 
 // ── Guardian transfers overview ──────────────────────────────────────────────
 // One row per managed athlete with the state of their account handover.
@@ -90,7 +93,7 @@ export default function GuardianTransfersPage() {
           href="/app/guardian"
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           Family console
         </Link>
         <SectionInfo as="h1" heading="Account transfers" headingClassName="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200" className="mb-6">
@@ -141,7 +144,7 @@ export default function GuardianTransfersPage() {
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${CHIP_TONES[chip.tone]}`}>
                   {chip.label}
                 </span>
-                {!transferred && <i className="fas fa-chevron-right text-gray-300 dark:text-decor shrink-0"></i>}
+                {!transferred && <FaIcon icon={faChevronRight} className="text-gray-300 dark:text-decor shrink-0" />}
               </>
             );
             return transferred ? (

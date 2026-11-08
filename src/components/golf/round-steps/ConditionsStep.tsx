@@ -4,6 +4,8 @@ import { GOLF_INPUT, GOLF_LABEL, GOLF_SELECT } from '@/components/golf/golf-form
 import { formatQuantity, fromInput, QUANTITY_UNITS, toDisplay, type UnitSystem } from '@/lib/activities/units';
 import { formatWindKmh, WEATHER_ATTRIBUTION } from '@/lib/weather/weather';
 import type { WeatherStatus } from '@/hooks/useWeather';
+import FaIcon from '@/components/FaIcon';
+import { faCloudSun } from '@/lib/icons/fa/cloud-sun';
 
 export const WEATHER_OPTIONS = [
   { value: 'sunny', label: '☀️ Sunny' },
@@ -98,7 +100,7 @@ export default function ConditionsStep({ value, onChange, sys = 'imperial', onUn
   return (
     <div data-round-step="conditions">
       <h3 className="text-lg font-semibold text-primary mb-1 flex items-center">
-        <i className="fas fa-cloud-sun mr-2 text-violet-500" aria-hidden="true"></i>
+        <FaIcon icon={faCloudSun} className="mr-2 text-violet-500" />
         Playing Conditions
       </h3>
       {/* The "Optional" line is gone (Oct 29 2026): Skip in the footer says it. */}
@@ -113,7 +115,7 @@ export default function ConditionsStep({ value, onChange, sys = 'imperial', onUn
             data-golf-forecast=""
             className="ea-interactive inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-border-strong px-3 text-sm font-semibold text-primary disabled:opacity-60"
           >
-            <i className="fas fa-cloud-sun text-brand-fg" aria-hidden="true"></i>
+            <FaIcon icon={faCloudSun} className="text-brand-fg" />
             {checking ? 'Checking…' : 'Use the forecast at the course'}
           </button>
           {forecast.status === 'unavailable' && (

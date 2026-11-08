@@ -8,6 +8,9 @@ import { cutLabel } from '@/lib/sport-events/format-config';
 import { activeRounds, currentRound } from '@/lib/sport-events/rounds';
 import { isMatchFormat } from '@/lib/sport-events/types';
 import { RECORDING_MODE_LABEL, recordingModeOf } from '@/lib/sport-events/recording';
+import FaIcon from '@/components/FaIcon';
+import { faSliders } from '@/lib/icons/fa/sliders';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 interface Props {
   view: SportEventViewPayload;
@@ -82,12 +85,12 @@ export default function EventOverview({ view, onRotateLink, busy, onOpenFormat, 
         <div className="flex flex-wrap gap-2">
           {onOpenFormat && (many || isMatchFormat(event.format)) && event.status !== 'completed' && event.status !== 'cancelled' && (
             <button type="button" onClick={onOpenFormat} disabled={busy} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-event-format-open="">
-              <i className="fas fa-sliders-h mr-2" aria-hidden="true"></i>Format settings
+              <FaIcon icon={faSliders} className="mr-2" />Format settings
             </button>
           )}
           {onOpenCountsToward && host_org && (event.status === 'draft' || event.status === 'open') && (
             <button type="button" onClick={onOpenCountsToward} disabled={busy} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-event-counts-toward-open="">
-              <i className="fas fa-trophy mr-2" aria-hidden="true"></i>{counts_toward ? 'Counts toward…' : 'Count toward a competition'}
+              <FaIcon icon={faTrophy} className="mr-2" />{counts_toward ? 'Counts toward…' : 'Count toward a competition'}
             </button>
           )}
         </div>

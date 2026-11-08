@@ -12,6 +12,9 @@ import {
   nextValueForKey,
   valueForTypedDigit,
 } from '@/lib/golf/wheel';
+import FaIcon from '@/components/FaIcon';
+import { faMinus } from '@/lib/icons/fa/minus';
+import { faPlus } from '@/lib/icons/fa/plus';
 
 /**
  * A scroll-wheel number selector — swipe, scroll, or use the keyboard.
@@ -191,7 +194,7 @@ export default function NumberWheel({
           onClick={() => step(-1)}
           className="ea-icon-btn inline-flex items-center justify-center shrink-0 disabled:opacity-40 disabled:pointer-events-none"
         >
-          <i className="fas fa-minus text-sm" />
+          <FaIcon icon={faMinus} className="text-sm" />
         </button>
         <label id={labelId} className="text-sm font-medium text-secondary text-center">
           {label}
@@ -204,7 +207,7 @@ export default function NumberWheel({
           onClick={() => step(1)}
           className="ea-icon-btn inline-flex items-center justify-center shrink-0 disabled:opacity-40 disabled:pointer-events-none"
         >
-          <i className="fas fa-plus text-sm" />
+          <FaIcon icon={faPlus} className="text-sm" />
         </button>
       </div>
 

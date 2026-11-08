@@ -13,6 +13,8 @@ import { useRef } from 'react';
 import { fractionToTime, timeToFraction } from '@/lib/media/video-math';
 import type { VideoClip } from '@/lib/media/types';
 import { useTimelineThumbs } from './useTimelineThumbs';
+import FaIcon from '@/components/FaIcon';
+import { faVolumeXmark } from '@/lib/icons/fa/volume-xmark';
 
 interface ClipTimelineProps {
   videoUrl: string;
@@ -156,10 +158,7 @@ export default function ClipTimeline({
                 {i + 1}
               </span>
               {clip.volume === 0 && (
-                <i
-                  className="fas fa-volume-xmark absolute bottom-0.5 left-0.5 text-[10px] text-white/80"
-                  aria-hidden="true"
-                ></i>
+                <FaIcon icon={faVolumeXmark} className="absolute bottom-0.5 left-0.5 text-[10px] text-white/80" />
               )}
             </div>
           );

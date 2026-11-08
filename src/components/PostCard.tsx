@@ -54,6 +54,29 @@ import ActionMenu from '@/components/ActionMenu';
 import ReportSheet from '@/components/tickets/ReportSheet';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 import type { GolfRound } from '@/types/golf';
+import FaIcon from '@/components/FaIcon';
+import { faBolt } from '@/lib/icons/fa/bolt';
+import { faBookmark } from '@/lib/icons/fa/bookmark';
+import { faCalendarDay } from '@/lib/icons/fa/calendar-day';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faCircleMinus } from '@/lib/icons/fa/circle-minus';
+import { faCommentRegular } from '@/lib/icons/fa/comment-regular';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { faEyeRegular } from '@/lib/icons/fa/eye-regular';
+import { faEyeSlash } from '@/lib/icons/fa/eye-slash';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faHeart } from '@/lib/icons/fa/heart';
+import { faHourglassHalf } from '@/lib/icons/fa/hourglass-half';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faRetweet } from '@/lib/icons/fa/retweet';
+import { faRotateLeft } from '@/lib/icons/fa/rotate-left';
+import { faShareFromSquareRegular } from '@/lib/icons/fa/share-from-square-regular';
+import { faThumbtack } from '@/lib/icons/fa/thumbtack';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
+import { faFlag } from '@/lib/icons/fa/flag';
 
 interface PostMedia {
   id: string;
@@ -610,7 +633,7 @@ function PostCard({
           still in progress says so — Finish comes first. */}
       {isDraft && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2" data-post-draft={roundUnfinished ? 'in-progress' : 'draft'}>
-          <i className="fas fa-pen-to-square" aria-hidden="true"></i>
+          <FaIcon icon={faPenToSquare} />
           <span className="min-w-0">{roundUnfinished ? COPY.FORMS.DRAFT_IN_PROGRESS_BANNER : COPY.FORMS.DRAFT_BANNER}</span>
           {isOwner && !roundUnfinished && !actingAs && (
             <span className="ml-auto shrink-0 flex items-center gap-3">
@@ -640,20 +663,20 @@ function PostCard({
           state it's in instead of letting it look published. */}
       {post.status === 'pending_approval' && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
-          <i className="fas fa-hourglass-half" aria-hidden="true"></i>
+          <FaIcon icon={faHourglassHalf} />
           Waiting for a guardian&apos;s OK — not visible to anyone else yet.
         </div>
       )}
       {/* Spec 2 (223): hidden by moderation — the author still sees it, with the reason it is gone for everyone else. */}
       {post.status === 'hidden' && (
         <div className="px-4 py-2 bg-surface-sunken border-b border-border text-xs font-medium text-tertiary flex items-center gap-2" data-post-hidden="">
-          <i className="fas fa-eye-slash" aria-hidden="true"></i>
+          <FaIcon icon={faEyeSlash} />
           Hidden while a report is reviewed — not visible to anyone else. Check Settings → Support.
         </div>
       )}
       {isProfileHidden && (
         <div className="px-4 py-2 bg-surface-sunken border-b border-border text-xs font-medium text-tertiary flex items-center gap-2" data-post-profile-hidden="">
-          <i className="fas fa-eye-slash" aria-hidden="true"></i>
+          <FaIcon icon={faEyeSlash} />
           <span className="min-w-0">{COPY.FORMS.PROFILE_HIDDEN_BANNER}</span>
           {isOwner && (
             <button
@@ -670,7 +693,7 @@ function PostCard({
       )}
       {post.status === 'rejected' && (
         <div className="px-4 py-2 bg-surface-sunken border-b border-border text-xs font-medium text-tertiary flex items-center gap-2">
-          <i className="fas fa-circle-minus" aria-hidden="true"></i>
+          <FaIcon icon={faCircleMinus} />
           Not approved by a guardian — not visible to anyone else.
         </div>
       )}
@@ -679,7 +702,7 @@ function PostCard({
       {post.status === 'changes_requested' && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200">
           <div className="flex items-center gap-2">
-            <i className="fas fa-rotate-left" aria-hidden="true"></i>
+            <FaIcon icon={faRotateLeft} />
             A guardian asked for changes — not visible to anyone else.
             {onEdit && (
               <button
@@ -762,7 +785,7 @@ function PostCard({
                   byline names only the human author. */}
               {post.created_by && post.created_by.id !== post.profile.id && (
                 <span className="text-xs text-muted flex items-center gap-1 min-w-0">
-                  <i className="fas fa-user-shield" aria-hidden="true"></i>
+                  <FaIcon icon={faUserShield} />
                   <span className="truncate">
                     Posted by {formatDisplayName(post.created_by.first_name, null, post.created_by.last_name, post.created_by.full_name)}
                   </span>
@@ -787,7 +810,7 @@ function PostCard({
                 aria-label="Private"
                 title="Private"
               >
-                <i className="fas fa-lock" aria-hidden="true"></i>
+                <FaIcon icon={faLock} />
               </span>
               <div className="hidden sm:block text-xs text-muted bg-surface-sunken px-2 py-1 rounded">
                 Private
@@ -803,7 +826,7 @@ function PostCard({
           {/* The one pinned marker (the retired desktop pin button was it). */}
           {isOwner && isPinned && (
             <span className="text-amber-500 dark:text-amber-400 px-1" role="img" aria-label="Pinned to profile" title="Pinned to profile" data-post-pinned="">
-              <i className="fas fa-thumbtack text-sm" aria-hidden="true"></i>
+              <FaIcon icon={faThumbtack} className="text-sm" />
             </span>
           )}
           {isOwner && (
@@ -826,7 +849,7 @@ function PostCard({
               ariaLabel="More options"
               triggerTestAttr="post-viewer-menu"
               items={[
-                { key: 'report', label: 'Report post', icon: 'fa-flag', onSelect: () => setReportOpen(true) },
+                { key: 'report', label: 'Report post', icon: faFlag, onSelect: () => setReportOpen(true) },
               ]}
             />
           )}
@@ -916,14 +939,14 @@ function PostCard({
                 className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-11 h-11 flex items-center justify-center hover:bg-black/70"
                 aria-label="Previous image"
               >
-                <i className="fas fa-chevron-left text-sm"></i>
+                <FaIcon icon={faChevronLeft} className="text-sm" />
               </button>
               <button
                 onClick={nextMedia}
                 className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-11 h-11 flex items-center justify-center hover:bg-black/70"
                 aria-label="Next image"
               >
-                <i className="fas fa-chevron-right text-sm"></i>
+                <FaIcon icon={faChevronRight} className="text-sm" />
               </button>
               
               {/* Media indicators */}
@@ -959,7 +982,7 @@ function PostCard({
             (the parseDateLocal rule is for date-ONLY strings). */}
         {post.event && (
           <p className="flex items-center gap-1.5 text-sm text-muted mb-3 min-w-0">
-            <i className="fas fa-calendar-day text-xs" aria-hidden="true"></i>
+            <FaIcon icon={faCalendarDay} className="text-xs" />
             <span className="truncate">
               {post.event.title}
               {' · '}
@@ -972,7 +995,7 @@ function PostCard({
             the chip is the way from the feed to the contest's place. */}
         {post.contest && (
           <p className="flex items-center gap-1.5 text-sm text-muted mb-3 min-w-0">
-            <i className="fas fa-trophy text-xs" aria-hidden="true"></i>
+            <FaIcon icon={faTrophy} className="text-xs" />
             <Link
               href={`/event/${post.contest.id}`}
               className="truncate hover:text-brand-fg"
@@ -988,7 +1011,7 @@ function PostCard({
             the chip is the way from the feed to the event's place. */}
         {post.sport_event && (
           <p className="flex items-center gap-1.5 text-sm text-muted mb-3 min-w-0">
-            <i className="fas fa-flag-checkered text-xs" aria-hidden="true"></i>
+            <FaIcon icon={faFlagCheckered} className="text-xs" />
             <Link
               href={`/events/${post.sport_event.id}`}
               className="truncate hover:text-brand-fg"
@@ -1117,7 +1140,7 @@ function PostCard({
         {/* Body-metrics badge — shown on training posts created from a body-metrics entry */}
         {post.stats_data?.type === 'vitals_entry' && (
           <div className="flex items-center gap-2 px-3 py-2 bg-brand-soft rounded-lg text-sm mb-2">
-            <i className="fas fa-dumbbell text-violet-500 text-xs"></i>
+            <FaIcon icon={faDumbbell} className="text-violet-500 text-xs" />
             <span className="font-semibold text-brand-fg-strong">
               {post.stats_data.metric_label as string}
             </span>
@@ -1165,7 +1188,7 @@ function PostCard({
                 isLiked ? 'text-red-600 dark:text-red-400' : 'text-primary hover:text-red-600'
               }`}
             >
-              <i className={`${isLiked ? 'fas' : 'far'} fa-heart text-lg`}></i>
+              <FaIcon icon={faHeart} className={`text-lg ${isLiked ? 'fas' : 'far'}`} />
               <span>{localLikesCount}</span>
             </button>
 
@@ -1174,7 +1197,7 @@ function PostCard({
               data-post-comment=""
               className="flex items-center justify-center gap-2 min-w-[44px] text-base font-bold text-primary hover:text-brand-fg transition-colors min-h-[44px]"
             >
-              <i className="far fa-comment text-lg"></i>
+              <FaIcon icon={faCommentRegular} className="text-lg" />
               <span>{localCommentsCount}</span>
             </button>
 
@@ -1185,7 +1208,7 @@ function PostCard({
                 title="Repost"
                 aria-label="Repost"
               >
-                <i className="fas fa-retweet text-lg"></i>
+                <FaIcon icon={faRetweet} className="text-lg" />
                 {localRepostsCount > 0 && <span>{localRepostsCount}</span>}
               </button>
             )}
@@ -1198,7 +1221,7 @@ function PostCard({
               title="Share post"
               aria-label="Share post"
             >
-              <i className="far fa-share-square text-lg"></i>
+              <FaIcon icon={faShareFromSquareRegular} className="text-lg" />
             </button>
 
             {/* Play (244): the owner dares a friend to beat this result. */}
@@ -1210,7 +1233,7 @@ function PostCard({
                 aria-label="Challenge a friend"
                 data-post-challenge
               >
-                <i className="fas fa-bolt text-lg"></i>
+                <FaIcon icon={faBolt} className="text-lg" />
               </button>
             )}
 
@@ -1223,7 +1246,7 @@ function PostCard({
                 className="basis-full sm:basis-auto sm:ml-auto flex items-center gap-1.5 text-sm text-tertiary tabular-nums"
                 title="People who saw this post, counted once per person per day"
               >
-                <i className="far fa-eye" aria-hidden="true"></i>
+                <FaIcon icon={faEyeRegular} />
                 <span>{countLabel(post.views_count ?? 0, 'view')}</span>
                 {(post.plays_count ?? 0) > 0 && <span>· {countLabel(post.plays_count ?? 0, 'play')}</span>}
               </span>
@@ -1237,7 +1260,7 @@ function PostCard({
               title={actingAs ? 'Switch back to your own account to do this' : isSaved ? 'Unsave post' : 'Save post'}
               aria-label={isSaved ? 'Unsave post' : 'Save post'}
             >
-              <i className={`${isSaved ? 'fas' : 'far'} fa-bookmark text-lg`}></i>
+              <FaIcon icon={faBookmark} className={`text-lg ${isSaved ? 'fas' : 'far'}`} />
             </button>
           </div>
         </div>

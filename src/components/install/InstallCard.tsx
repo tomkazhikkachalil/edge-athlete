@@ -6,6 +6,10 @@ import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
 import { GET_STARTED_DISMISSED_EVENT } from '@/lib/get-started';
 import { useInstallApp } from './InstallAppProvider';
+import FaIcon from '@/components/FaIcon';
+import { faDownload } from '@/lib/icons/fa/download';
+import { faMobileScreenButton } from '@/lib/icons/fa/mobile-screen-button';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 /**
  * The feed's invitation to put Edge Athlete on the home screen — phones and
@@ -54,7 +58,7 @@ export default function InstallCard() {
           aria-hidden="true"
           className="shrink-0 w-10 h-10 rounded-lg bg-brand-soft text-brand-fg flex items-center justify-center"
         >
-          <i className="fas fa-mobile-screen-button"></i>
+          <FaIcon icon={faMobileScreenButton} />
         </span>
         <div className="min-w-0 flex-1">
           <SectionInfo heading={COPY.INSTALL.CARD_TITLE} label="the app" headingClassName="font-bold text-primary" dense>
@@ -66,7 +70,7 @@ export default function InstallCard() {
             data-install-cta=""
             className="ea-cta mt-3 inline-flex items-center gap-2 min-h-[44px] px-4 rounded-lg text-sm font-semibold text-white"
           >
-            <i className="fas fa-download" aria-hidden="true"></i>
+            <FaIcon icon={faDownload} />
             {COPY.INSTALL.CTA}
           </button>
         </div>
@@ -83,7 +87,7 @@ export default function InstallCard() {
           aria-label={COPY.INSTALL.CARD_DISMISS}
           className="ea-icon-btn inline-flex items-center justify-center shrink-0 text-muted hover:text-secondary"
         >
-          <i className="fas fa-times" aria-hidden="true"></i>
+          <FaIcon icon={faXmark} />
         </button>
       </div>
     </section>

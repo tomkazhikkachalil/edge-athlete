@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import { getInitials } from '@/lib/formatters';
 import LazyImage from './LazyImage';
 import FollowButton from './FollowButton';
+import FaIcon from '@/components/FaIcon';
+import { faLightbulb } from '@/lib/icons/fa/lightbulb';
+import { faUserGroup } from '@/lib/icons/fa/user-group';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Suggestion {
   suggested_id: string;
@@ -155,7 +159,7 @@ export default function ConnectionSuggestions({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className={`font-bold text-primary ${compact ? 'text-base' : 'text-lg'}`}>
-          <i className="fas fa-user-friends text-brand-fg mr-2"></i>
+          <FaIcon icon={faUserGroup} className="text-brand-fg mr-2" />
           Suggested Connections
         </h3>
       </div>
@@ -236,7 +240,7 @@ export default function ConnectionSuggestions({
               )}
 
               <p className="text-xs text-brand-fg mt-1 truncate">
-                <i className="fas fa-lightbulb mr-1"></i>
+                <FaIcon icon={faLightbulb} className="mr-1" />
                 {suggestion.reason}
               </p>
             </div>
@@ -272,7 +276,7 @@ export default function ConnectionSuggestions({
                 className="text-xs text-muted hover:text-secondary min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="Dismiss suggestion"
               >
-                <i className="fas fa-times"></i>
+                <FaIcon icon={faXmark} />
               </button>
             </div>
           </div>

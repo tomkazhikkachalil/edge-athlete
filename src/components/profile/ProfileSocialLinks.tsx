@@ -1,6 +1,12 @@
 'use client';
 
 import { formatDisplayName, formatSocialHandle, formatSocialHandleDisplay } from '@/lib/formatters';
+import FaIcon from '@/components/FaIcon';
+import { faTiktokBrands } from '@/lib/icons/fa/tiktok-brands';
+import { faXTwitterBrands } from '@/lib/icons/fa/x-twitter-brands';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
+import { faFacebookBrands } from '@/lib/icons/fa/facebook-brands';
+import { faInstagramBrands } from '@/lib/icons/fa/instagram-brands';
 
 /**
  * The profile's social links as OUTBOUND links — the one rendering, shared by
@@ -21,11 +27,11 @@ export interface SocialLinksProfile {
 
 type NetworkKey = 'social_twitter' | 'social_instagram' | 'social_tiktok' | 'social_facebook';
 
-const NETWORKS: ReadonlyArray<{ key: NetworkKey; label: string; href: (handle: string) => string; icon: string }> = [
-  { key: 'social_twitter', label: 'X', href: h => `https://x.com/${h}`, icon: 'fa-brands fa-x-twitter' },
-  { key: 'social_instagram', label: 'Instagram', href: h => `https://instagram.com/${h}`, icon: 'fa-brands fa-instagram text-pink-600' },
-  { key: 'social_tiktok', label: 'TikTok', href: h => `https://www.tiktok.com/@${h}`, icon: 'fa-brands fa-tiktok' },
-  { key: 'social_facebook', label: 'Facebook', href: h => `https://facebook.com/${h}`, icon: 'fa-brands fa-facebook text-brand-fg' },
+const NETWORKS: ReadonlyArray<{ key: NetworkKey; label: string; href: (handle: string) => string; icon: FaIconDef; tone?: string }> = [
+  { key: 'social_twitter', label: 'X', href: h => `https://x.com/${h}`, icon: faXTwitterBrands },
+  { key: 'social_instagram', label: 'Instagram', href: h => `https://instagram.com/${h}`, icon: faInstagramBrands, tone: 'text-pink-600' },
+  { key: 'social_tiktok', label: 'TikTok', href: h => `https://www.tiktok.com/@${h}`, icon: faTiktokBrands },
+  { key: 'social_facebook', label: 'Facebook', href: h => `https://facebook.com/${h}`, icon: faFacebookBrands, tone: 'text-brand-fg' },
 ];
 
 export function hasSocialLinks(profile: SocialLinksProfile | null | undefined): boolean {
@@ -54,7 +60,7 @@ export default function ProfileSocialLinks({ profile, rowClassName }: ProfileSoc
         className="flex items-center gap-2 text-primary font-bold hover:text-brand-fg transition-colors"
         {...(rowClassName ? { role: 'listitem' } : {})}
       >
-        <i className={`${n.icon} text-2xl`} aria-hidden="true"></i>
+        <FaIcon icon={n.icon} className={`text-2xl${n.tone ? ` ${n.tone}` : ''}`} />
         <span>{formatSocialHandleDisplay(value)}</span>
       </a>
     );

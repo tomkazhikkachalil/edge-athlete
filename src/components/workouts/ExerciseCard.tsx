@@ -21,6 +21,9 @@ import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import { faObjectUngroup } from '@/lib/icons/fa/object-ungroup';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faTrash } from '@/lib/icons/fa/trash';
 
 /** The set clips' editor — the share step opens the same one (PR 2). */
 export const SET_MEDIA_EDITOR_CONFIG: EditorConfig = {
@@ -585,9 +588,9 @@ export default function ExerciseCard({ exercise, onChange, onDelete, uploads, gr
           triggerTestAttr="exercise-menu"
           triggerClassName="text-gray-300 dark:text-stone-600"
           items={[
-            { key: 'rename', label: 'Rename', icon: 'fa-pen', onSelect: () => setRenaming(exercise.name), testId: 'exercise-menu-rename' },
-            ...(grouped ? [{ key: 'ungroup-one', label: 'Remove from group', icon: 'fa-object-ungroup', onSelect: grouped.onRemoveFromGroup, testId: 'exercise-menu-remove-from-group' }] : []),
-            { key: 'delete', label: 'Delete exercise', icon: 'fa-trash', tone: 'danger', onSelect: onDelete, testId: 'exercise-menu-delete' },
+            { key: 'rename', label: 'Rename', icon: faPen, onSelect: () => setRenaming(exercise.name), testId: 'exercise-menu-rename' },
+            ...(grouped ? [{ key: 'ungroup-one', label: 'Remove from group', icon: faObjectUngroup, onSelect: grouped.onRemoveFromGroup, testId: 'exercise-menu-remove-from-group' }] : []),
+            { key: 'delete', label: 'Delete exercise', icon: faTrash, tone: 'danger', onSelect: onDelete, testId: 'exercise-menu-delete' },
           ]}
         />
       </div>

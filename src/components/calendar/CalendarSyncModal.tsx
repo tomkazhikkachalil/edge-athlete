@@ -5,6 +5,10 @@ import { X, CalendarSync } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
+import FaIcon from '@/components/FaIcon';
+import { faCopy } from '@/lib/icons/fa/copy';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
 
 // "See your Edge Athlete events in Google/Outlook": creates a personal
 // subscribe link (capability URL — shown ONCE, hash-stored server-side).
@@ -117,7 +121,7 @@ export default function CalendarSyncModal({
                 Calendar sync links aren&apos;t available on a supervised account.
               </p>
               <p className="mt-2 flex items-center gap-2 text-sm text-muted">
-                <i className="fas fa-user-shield" aria-hidden="true"></i>
+                <FaIcon icon={faUserShield} />
                 <span>Managed by your guardian</span>
               </p>
             </div>
@@ -133,7 +137,7 @@ export default function CalendarSyncModal({
                   onClick={copy}
                   className="bg-brand text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-brand-hover"
                 >
-                  <i className="fas fa-copy mr-1.5"></i>
+                  <FaIcon icon={faCopy} className="mr-1.5" />
                   Copy link
                 </button>
               </div>
@@ -151,7 +155,7 @@ export default function CalendarSyncModal({
               className="w-full bg-brand text-white py-3 px-4 rounded-lg hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
             >
               {creating ? (
-                <><i className="fas fa-spinner fa-spin mr-2"></i> Creating…</>
+                <><FaIcon icon={faSpinner} spin className="mr-2" /> Creating…</>
               ) : exists ? 'Regenerate my calendar link' : 'Create my calendar link'}
             </button>
           )}

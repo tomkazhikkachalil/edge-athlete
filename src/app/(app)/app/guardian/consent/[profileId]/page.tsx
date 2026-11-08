@@ -14,6 +14,17 @@ import {
   type SignatureStroke,
 } from '@/lib/consent-signature';
 import SignatureCanvas from '@/components/guardian/SignatureCanvas';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faHourglassHalf } from '@/lib/icons/fa/hourglass-half';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faFileArrowUp } from '@/lib/icons/fa/file-arrow-up';
+import { faKeyboard } from '@/lib/icons/fa/keyboard';
+import { faSignature } from '@/lib/icons/fa/signature';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 // Guardian consent capture (Phase 3b + Wave 3): read the statement, then
 // sign it — on screen (drawn), by typing your legal name, or the original
@@ -23,10 +34,10 @@ import SignatureCanvas from '@/components/guardian/SignatureCanvas';
 // at submission (admin dashboard is the after-the-fact audit surface); the
 // profile stays locked (private, unpublishable) until consent is recorded.
 
-const METHOD_CARDS: Array<{ key: ConsentMethod; label: string; hint: string; icon: string }> = [
-  { key: 'drawn_signature', label: 'Sign on screen', hint: 'Sign with your finger or mouse', icon: 'fa-signature' },
-  { key: 'typed_signature', label: 'Type your name', hint: 'Your typed legal name is your signature', icon: 'fa-keyboard' },
-  { key: 'signed_form', label: 'Upload a signed form', hint: 'Print, sign, photograph, upload', icon: 'fa-file-arrow-up' },
+const METHOD_CARDS: Array<{ key: ConsentMethod; label: string; hint: string; icon: FaIconDef }> = [
+  { key: 'drawn_signature', label: 'Sign on screen', hint: 'Sign with your finger or mouse', icon: faSignature },
+  { key: 'typed_signature', label: 'Type your name', hint: 'Your typed legal name is your signature', icon: faKeyboard },
+  { key: 'signed_form', label: 'Upload a signed form', hint: 'Print, sign, photograph, upload', icon: faFileArrowUp },
 ];
 
 /** Local yyyy-mm-dd — never toISOString for a local date (house TZ rule). */
@@ -144,7 +155,7 @@ export default function ConsentPage() {
           href="/app/guardian"
           className="self-start inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           Family console
         </Link>
         </div>
@@ -166,7 +177,7 @@ export default function ConsentPage() {
                 onClick={() => { setState('loading'); setRetryKey(k => k + 1); }}
                 className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition"
               >
-                <i className="fas fa-rotate-right text-xs"></i>
+                <FaIcon icon={faRotateRight} className="text-xs" />
                 Try again
               </button>
             </div>
@@ -174,7 +185,7 @@ export default function ConsentPage() {
 
           {(state === 'pending_review' || state === 'approved') && (
             <div className="text-center py-6">
-              <i className={`fas ${state === 'approved' ? 'fa-circle-check' : 'fa-hourglass-half'} text-brand-fg text-4xl mb-4`}></i>
+              <FaIcon icon={state === 'approved' ? faCircleCheck : faHourglassHalf} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 {state === 'approved' ? 'Consent approved' : 'Consent under review'}
               </h2>
@@ -223,13 +234,13 @@ export default function ConsentPage() {
                         : 'border-border-strong hover:bg-surface-muted'
                     }`}
                   >
-                    <i className={`fas ${card.icon} text-sm ${method === card.key ? 'text-brand-fg-strong' : 'text-muted'}`}></i>
+                    <FaIcon icon={card.icon} className={`text-sm ${method === card.key ? 'text-brand-fg-strong' : 'text-muted'}`} />
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-primary">{card.label}</span>
                       <span className="block text-xs text-muted">{card.hint}</span>
                     </span>
                     {method === card.key && (
-                      <i className="fas fa-circle-check text-brand-fg-strong ml-auto shrink-0"></i>
+                      <FaIcon icon={faCircleCheck} className="text-brand-fg-strong ml-auto shrink-0" />
                     )}
                   </button>
                 ))}
@@ -289,7 +300,7 @@ export default function ConsentPage() {
                       `required`, the filename display and submit all keep
                       working unchanged. */}
                   <label className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-fg cursor-pointer min-h-[32px] hover:underline">
-                    <i className="fas fa-camera text-[11px]" aria-hidden="true"></i>
+                    <FaIcon icon={faCamera} className="text-[11px]" />
                     Take a photo of the signed form
                     <input
                       type="file"
@@ -315,7 +326,7 @@ export default function ConsentPage() {
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> {method === 'signed_form' ? 'Uploading...' : 'Signing...'}</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> {method === 'signed_form' ? 'Uploading...' : 'Signing...'}</>
                   ) : (
                     'Submit signed consent'
                   )}

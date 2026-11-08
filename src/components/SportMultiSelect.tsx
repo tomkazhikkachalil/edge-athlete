@@ -2,6 +2,9 @@
 
 import { getAllSports, type SportKey } from '@/lib/sports/SportRegistry';
 import { toggleSportSelection, MAX_SELECTED_SPORTS } from '@/lib/sports/sport-selection';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface SportMultiSelectProps {
   selected: SportKey[];
@@ -54,7 +57,7 @@ export default function SportMultiSelect({
               )}
               {isSelected && !isPrimary && (
                 <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-brand text-white rounded-full flex items-center justify-center">
-                  <i className="fas fa-check text-[10px]"></i>
+                  <FaIcon icon={faCheck} className="text-[10px]" />
                 </span>
               )}
               {!def.enabled && !isSelected && (
@@ -62,7 +65,7 @@ export default function SportMultiSelect({
                   Coming soon
                 </span>
               )}
-              <i className={`${def.icon_id} text-2xl ${isSelected ? 'text-brand-fg' : 'text-muted'}`}></i>
+              <FaIcon icon={sportIcon(def.sport_key)} className={`text-2xl ${isSelected ? 'text-brand-fg' : 'text-muted'}`} />
               <span className={`text-sm font-semibold ${isSelected ? 'text-violet-900 dark:text-violet-200' : 'text-primary'}`}>
                 {def.display_name}
               </span>

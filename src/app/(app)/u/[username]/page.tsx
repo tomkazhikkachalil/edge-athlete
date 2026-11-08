@@ -35,6 +35,16 @@ import {
 import { MapPin, School, Users, Calendar, Trophy, Lock } from 'lucide-react';
 import { formatPlace } from '@/lib/geo/regions';
 import ProfileCoverHeader from '@/components/profile/ProfileCoverHeader';
+import FaIcon from '@/components/FaIcon';
+import { faFacebookBrands } from '@/lib/icons/fa/facebook-brands';
+import { faInstagramBrands } from '@/lib/icons/fa/instagram-brands';
+import { faRetweet } from '@/lib/icons/fa/retweet';
+import { faTiktokBrands } from '@/lib/icons/fa/tiktok-brands';
+import { faXTwitterBrands } from '@/lib/icons/fa/x-twitter-brands';
+import { activityGlyph } from '@/lib/activities/activity-icons';
+import { faChartLine } from '@/lib/icons/fa/chart-line';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 interface PublicProfile {
   id: string;
@@ -131,6 +141,13 @@ interface ProfileData {
 }
 
 type ProfileSection = 'overview' | 'videos' | 'stats' | 'training' | 'equipment' | 'tagged';
+
+/** The public profile API names a tile's icon (an activity type's, or the round / stats glyphs); the glyph is drawn here. */
+function tileGlyph(name: string): FaIconDef {
+  if (name === 'golf-ball-tee') return faGolfBallTee;
+  if (name === 'chart-line') return faChartLine;
+  return activityGlyph(name);
+}
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -443,7 +460,7 @@ export default function PublicProfilePage() {
                       className="text-muted hover:text-pink-500 transition-colors"
                       aria-label={`${displayName} on Instagram`}
                     >
-                      <i className="fab fa-instagram text-xl" aria-hidden="true"></i>
+                      <FaIcon icon={faInstagramBrands} className="text-xl" />
                     </a>
                   )}
                   {profile.social_twitter && (
@@ -454,7 +471,7 @@ export default function PublicProfilePage() {
                       className="text-muted hover:text-primary transition-colors"
                       aria-label={`${displayName} on X`}
                     >
-                      <i className="fa-brands fa-x-twitter text-xl" aria-hidden="true"></i>
+                      <FaIcon icon={faXTwitterBrands} className="text-xl" />
                     </a>
                   )}
                   {profile.social_tiktok && (
@@ -465,7 +482,7 @@ export default function PublicProfilePage() {
                       className="text-muted hover:text-primary transition-colors"
                       aria-label={`${displayName} on TikTok`}
                     >
-                      <i className="fa-brands fa-tiktok text-xl" aria-hidden="true"></i>
+                      <FaIcon icon={faTiktokBrands} className="text-xl" />
                     </a>
                   )}
                   {profile.social_facebook && (
@@ -476,7 +493,7 @@ export default function PublicProfilePage() {
                       className="text-muted hover:text-brand-fg transition-colors"
                       aria-label={`${displayName} on Facebook`}
                     >
-                      <i className="fab fa-facebook text-xl" aria-hidden="true"></i>
+                      <FaIcon icon={faFacebookBrands} className="text-xl" />
                     </a>
                   )}
                 </div>
@@ -673,7 +690,7 @@ export default function PublicProfilePage() {
                   </p>
                   {statement.shared_post_id && (
                     <p className="text-xs text-faint line-clamp-2 mt-1">
-                      <i className="fas fa-retweet mr-1"></i>
+                      <FaIcon icon={faRetweet} className="mr-1" />
                       {statement.shared_post
                         ? `${statement.shared_post.author_name || 'Post'}: ${statement.shared_post.caption || ''}`
                         : 'Post unavailable'}
@@ -720,7 +737,7 @@ export default function PublicProfilePage() {
                     >
                       {post.tile?.icon && (
                         <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${post.tile.kind === 'round' ? 'bg-green-600' : 'bg-brand'}`}>
-                          <i className={`fas fa-${post.tile.icon} text-white text-sm`} aria-hidden="true"></i>
+                          <FaIcon icon={tileGlyph(post.tile.icon)} className="text-white text-sm" />
                         </span>
                       )}
                       {post.tile?.label && (

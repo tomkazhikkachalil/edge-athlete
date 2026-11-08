@@ -5,6 +5,11 @@
  */
 
 import { parseDateLocal } from './formatters';
+import { faBolt } from '@/lib/icons/fa/bolt';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { faHeartPulse } from '@/lib/icons/fa/heart-pulse';
+import { faRulerVertical } from '@/lib/icons/fa/ruler-vertical';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 export interface BodyMetricConfig {
   key: string;
@@ -20,7 +25,7 @@ export interface BodyMetricConfig {
 export interface BodyMetricCategoryConfig {
   key: string;
   label: string;
-  icon: string; // FontAwesome class
+  icon: FaIconDef; // FontAwesome class
   color: string; // Tailwind color prefix (e.g. 'violet')
   metrics: BodyMetricConfig[];
 }
@@ -29,7 +34,7 @@ export const BODY_METRIC_CATEGORIES: BodyMetricCategoryConfig[] = [
   {
     key: 'speed',
     label: 'Speed & Agility',
-    icon: 'fas fa-bolt',
+    icon: faBolt,
     color: 'yellow',
     metrics: [
       { key: '40_yard_dash',   label: '40-Yard Dash',     unit: 'sec', lower_is_better: true,  time_format: 'decimal_seconds', placeholder: 'e.g. 4.95' },
@@ -42,7 +47,7 @@ export const BODY_METRIC_CATEGORIES: BodyMetricCategoryConfig[] = [
   {
     key: 'strength',
     label: 'Strength',
-    icon: 'fas fa-dumbbell',
+    icon: faDumbbell,
     color: 'violet',
     metrics: [
       { key: 'bench_press',    label: 'Bench Press',      unit: 'lbs', lower_is_better: false, time_format: null, placeholder: 'e.g. 185' },
@@ -55,7 +60,7 @@ export const BODY_METRIC_CATEGORIES: BodyMetricCategoryConfig[] = [
   {
     key: 'conditioning',
     label: 'Conditioning',
-    icon: 'fas fa-heart-pulse',
+    icon: faHeartPulse,
     color: 'red',
     metrics: [
       { key: 'mile_run',        label: '1-Mile Run',        unit: 'min', lower_is_better: true,  time_format: 'mm:ss', placeholder: 'e.g. 6:45' },
@@ -67,7 +72,7 @@ export const BODY_METRIC_CATEGORIES: BodyMetricCategoryConfig[] = [
   {
     key: 'body',
     label: 'Body Metrics',
-    icon: 'fas fa-ruler-vertical',
+    icon: faRulerVertical,
     color: 'blue',
     metrics: [
       { key: 'height',    label: 'Height',       unit: 'in',  lower_is_better: null, time_format: null, placeholder: 'e.g. 72 (inches)' },

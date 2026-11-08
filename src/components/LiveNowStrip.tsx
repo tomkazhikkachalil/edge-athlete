@@ -12,6 +12,11 @@ import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { shouldPoll } from '@/lib/net/online';
 import { getPulse, subscribePulse } from '@/lib/pulse/pulse-store';
 import { fetchJson, readCached } from '@/lib/net/query-cache';
+import FaIcon from '@/components/FaIcon';
+import { faFilm } from '@/lib/icons/fa/film';
+import { faSatelliteDish } from '@/lib/icons/fa/satellite-dish';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface LivePlayer {
   profile_id: string;
@@ -129,7 +134,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
     return (
       <div className="bg-surface rounded-lg border-2 border-border p-8 text-center">
         <div className="text-faint mb-3">
-          <i className="fas fa-satellite-dish text-3xl"></i>
+          <FaIcon icon={faSatelliteDish} className="text-3xl" />
         </div>
         <h3 className="text-lg font-semibold text-primary mb-1">No live events right now</h3>
         <p className="text-sm text-tertiary">
@@ -164,7 +169,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
           <span className="text-sm font-bold text-primary truncate">{e.name}</span>
         </div>
         <div className="text-xs text-tertiary min-w-0 truncate">
-          <i className={`${sport?.icon_id ?? 'fas fa-flag-checkered'} mr-1`} aria-hidden="true"></i>
+          <FaIcon icon={sport ? sportIcon(e.sport_key as SportKey) : faFlagCheckered} className="mr-1" />
           {sport?.display_name ?? e.sport_key} · {e.round.round_count > 1 ? `${e.round.name ?? `Round ${e.round.sequence}`} · ` : ''}{e.round.course_name} · {e.playing} playing
         </div>
       </button>
@@ -187,7 +192,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
         <span className="text-sm font-bold text-primary truncate">{v.title}</span>
       </div>
       <div className="text-xs text-tertiary min-w-0 truncate">
-        <i className="fas fa-film mr-1" aria-hidden="true"></i>
+        <FaIcon icon={faFilm} className="mr-1" />
         {v.owner.name}{v.place ? ` · ${v.place.name}` : ''} · streaming on YouTube
       </div>
     </button>

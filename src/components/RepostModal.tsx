@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import QuotedPostEmbed, { type QuotedPost } from './QuotedPostEmbed';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from './Toast';
+import FaIcon from '@/components/FaIcon';
+import { faRetweet } from '@/lib/icons/fa/retweet';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface RepostModalProps {
   isOpen: boolean;
@@ -83,7 +86,7 @@ export default function RepostModal({ isOpen, onClose, quotedPost, onReposted }:
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
           <h2 className="text-lg font-bold text-primary">
-            <i className="fas fa-retweet mr-2 text-brand-fg"></i>
+            <FaIcon icon={faRetweet} className="mr-2 text-brand-fg" />
             Repost
           </h2>
           <button
@@ -92,7 +95,7 @@ export default function RepostModal({ isOpen, onClose, quotedPost, onReposted }:
             title="Close"
             aria-label="Close"
           >
-            <i className="fas fa-times text-lg"></i>
+            <FaIcon icon={faXmark} className="text-lg" />
           </button>
         </div>
 

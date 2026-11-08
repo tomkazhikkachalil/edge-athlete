@@ -9,6 +9,8 @@ import { useToast } from '@/components/Toast';
 import { profileToPlace } from '@/lib/geo/profile-place';
 import { COPY } from '@/lib/copy';
 import type { ClubInfo } from '@/components/orgs/page/types';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface ClubEditModalProps {
   club: ClubInfo;
@@ -87,7 +89,7 @@ export default function ClubEditModal({ club, onClose, onSaved }: ClubEditModalP
             aria-label="Close"
             className="ea-icon-btn text-muted hover:text-primary"
           >
-            <i className="fas fa-times" aria-hidden="true"></i>
+            <FaIcon icon={faXmark} />
           </button>
         </div>
 

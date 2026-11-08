@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
+import FaIcon from '@/components/FaIcon';
+import { faLinkSlash } from '@/lib/icons/fa/link-slash';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
 
 // Guardian-invite landing page. Validates (peeks — does not consume) the
 // token and explains what's being asked. The invite is consumed later inside
@@ -68,7 +71,7 @@ export default function InvitePage() {
 
           {state === 'invalid' && (
             <div className="text-center py-4">
-              <i className="fas fa-link-slash text-decor text-3xl mb-4"></i>
+              <FaIcon icon={faLinkSlash} className="text-decor text-3xl mb-4" />
               <h2 className="text-xl font-bold text-primary mb-2">This link isn&apos;t valid anymore</h2>
               <p className="text-sm text-tertiary mb-6">
                 Guardian invite links are single-use and expire after 7 days.
@@ -105,7 +108,7 @@ export default function InvitePage() {
               </p>
               <div className="bg-brand-soft border border-violet-100 dark:border-violet-900 rounded-md p-4 mb-6">
                 <p className="text-sm text-secondary">
-                  <i className="fas fa-shield-halved text-brand-fg mr-2"></i>
+                  <FaIcon icon={faShieldHalved} className="text-brand-fg mr-2" />
                   {isViewer
                     ? 'Accepting adds the athlete to your account in view-only mode — you can look, cheer, and stay in the loop; the guardians stay in charge.'
                     : isCoGuardian

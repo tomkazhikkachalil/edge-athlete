@@ -6,6 +6,8 @@
 import { getStatSchema, formatResult, formatRaceTime, type StatLineData } from '@/lib/sports/stat-schemas';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { boutHeadline, isCombatSport } from '@/lib/sports/bout';
+import FaIcon from '@/components/FaIcon';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 /** Race times read as times ("11.85s", "4:05.30"), not bare numbers. Every
  *  other sport's chips stay raw values. */
@@ -35,7 +37,7 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
       {/* Header: sport + opponent + result */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <i className={`${sportDef.icon_id} text-brand-fg-strong`} aria-hidden="true"></i>
+          <FaIcon icon={sportIcon(sportDef.sport_key)} className="text-brand-fg-strong" />
           <div className="min-w-0">
             <div className="font-bold text-slate-900 dark:text-primary text-sm truncate">
               {line.opponent ? `vs ${line.opponent}` : `${sportDef.display_name} ${schema.activityNoun}`}

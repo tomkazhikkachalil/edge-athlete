@@ -15,6 +15,8 @@ import type { DistanceUnit } from '@/lib/activities/format';
 import type { RecordingAnswers } from '@/lib/activities/record/recording';
 import { unitSystemOf } from '@/lib/activities/units';
 import FinishDetailsForm from '@/components/activities/FinishDetailsForm';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 const DEBOUNCE_MS = 300;
 
@@ -53,7 +55,7 @@ export default function DetailsSheet({ type, value, unit, onChange, onClose }: {
         <div className="flex items-center gap-3">
           <h2 className="flex-1 text-lg font-bold text-primary">Details</h2>
           <button type="button" onClick={close} className="ea-icon-btn" aria-label="Done" data-record-details-close="">
-            <i className="fas fa-times" aria-hidden="true" />
+            <FaIcon icon={faXmark} />
           </button>
         </div>
         <p className="mt-1 text-sm text-secondary">Everything here is optional and saved with the activity.</p>

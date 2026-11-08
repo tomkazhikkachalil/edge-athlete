@@ -26,6 +26,34 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import { pillGeometry, activeNavIndex, type ItemBox } from '@/lib/nav-pill';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faBars } from '@/lib/icons/fa/bars';
+import { faBinoculars } from '@/lib/icons/fa/binoculars';
+import { faBookmark } from '@/lib/icons/fa/bookmark';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faChevronDown } from '@/lib/icons/fa/chevron-down';
+import { faGear } from '@/lib/icons/fa/gear';
+import { faLifeRing } from '@/lib/icons/fa/life-ring';
+import { faMobileScreenButton } from '@/lib/icons/fa/mobile-screen-button';
+import { faMoon } from '@/lib/icons/fa/moon';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faPeopleRoof } from '@/lib/icons/fa/people-roof';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faRightFromBracket } from '@/lib/icons/fa/right-from-bracket';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
+import { faSun } from '@/lib/icons/fa/sun';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faUserGroup } from '@/lib/icons/fa/user-group';
+import { faXmark } from '@/lib/icons/fa/xmark';
+import { faCalendarDays } from '@/lib/icons/fa/calendar-days';
+import { faCircle } from '@/lib/icons/fa/circle';
+import { faHouse } from '@/lib/icons/fa/house';
+import { faMedal } from '@/lib/icons/fa/medal';
+import { faMessage } from '@/lib/icons/fa/message';
+import { faUser } from '@/lib/icons/fa/user';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
+import { faChildReaching } from '@/lib/icons/fa/child-reaching';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
 
 /**
  * Last known pill geometry, kept at MODULE level on purpose.
@@ -66,7 +94,7 @@ const headerShell = (scrolled: boolean) =>
 interface NavLink {
   path: string;
   label: string;
-  icon: string;
+  icon: FaIconDef;
   /** Live gets its own treatment (the status dot). */
   accent?: 'live';
   /** Reachable from the icon cluster on desktop; drawer-only in the nav list. */
@@ -224,11 +252,11 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
 
   // The destinations, without Live — it gets inserted at the midpoint below.
   const placeLinks: NavLink[] = [
-    { path: '/feed', label: 'Feed', icon: 'fa-home' },
+    { path: '/feed', label: 'Feed', icon: faHouse },
     // Events program: Sports replaces Explore (Explore is the section's first place).
-    { path: '/sports', label: 'Sports', icon: 'fa-medal' },
-    { path: '/calendar', label: 'Calendar', icon: 'fa-calendar-alt' },
-    { path: '/athlete', label: 'Profile', icon: 'fa-user' },
+    { path: '/sports', label: 'Sports', icon: faMedal },
+    { path: '/calendar', label: 'Calendar', icon: faCalendarDays },
+    { path: '/athlete', label: 'Profile', icon: faUser },
   ];
 
   // Live sits in the MIDDLE of the nav (Feed · Sports · Live · Calendar ·
@@ -240,7 +268,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
   placeLinksWithLive.splice(Math.ceil(placeLinks.length / 2), 0, {
     path: '/live',
     label: 'Live',
-    icon: 'fa-circle',
+    icon: faCircle,
     accent: 'live' as const,
   });
   const navLinks: NavLink[] = [
@@ -250,8 +278,8 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
     // renders from it and, below `lg`, the drawer is the only route to them —
     // dropping them here would make Connections unreachable on a phone.
     // (This replaces a `hideOnMobile` flag that nothing ever read.)
-    { path: '/messages', label: 'Messages', icon: 'fa-comment-alt', iconOnly: true },
-    { path: '/app/followers', label: 'Connections', icon: 'fa-user-friends', iconOnly: true },
+    { path: '/messages', label: 'Messages', icon: faMessage, iconOnly: true },
+    { path: '/app/followers', label: 'Connections', icon: faUserGroup, iconOnly: true },
   ];
 
   /** What the desktop nav shows: the places, not the tools. */
@@ -514,7 +542,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                 title="Fans & Connections"
                 aria-label="View connections"
               >
-                <i className="fas fa-user-friends text-lg"></i>
+                <FaIcon icon={faUserGroup} className="text-lg" />
               </button>
 
               {/* Painted pill stays small (width budget above) — the invisible
@@ -528,7 +556,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                 aria-haspopup="dialog"
                 aria-expanded={isCreateOpen}
               >
-                <i className="fas fa-plus"></i>
+                <FaIcon icon={faPlus} />
                 <span className="hidden sm:inline">Create</span>
               </button>
 
@@ -556,7 +584,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                       formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)
                     )}
                   />
-                  <i className={`fas fa-chevron-down text-xs text-muted transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`}></i>
+                  <FaIcon icon={faChevronDown} className={`text-xs text-muted transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* Dropdown Menu */}
@@ -605,7 +633,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                             >
-                              <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-brand-fg' : 'fa-child-reaching'} w-4`}></i>
+                              <FaIcon icon={activeProfile?.id === mp.id ? faCircleCheck : faChildReaching} className={`w-4${activeProfile?.id === mp.id ? ' text-brand-fg' : ''}`} />
                               <span>
                                 {formatDisplayName(mp.first_name, null, mp.last_name, mp.full_name)}
                                 {activeProfile?.id === mp.id && (
@@ -627,7 +655,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
                             >
-                              <i className="fas fa-people-roof w-4"></i>
+                              <FaIcon icon={faPeopleRoof} className="w-4" />
                               <span>Family console</span>
                             </button>
                           )}
@@ -641,7 +669,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                               className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
                               data-scout-menu=""
                             >
-                              <i className="fas fa-binoculars w-4"></i>
+                              <FaIcon icon={faBinoculars} className="w-4" />
                               <span>Scouting</span>
                             </button>
                           )}
@@ -654,7 +682,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
                             >
-                              <i className="fas fa-building w-4"></i>
+                              <FaIcon icon={faBuilding} className="w-4" />
                               <span>Your organizations</span>
                             </button>
                           )}
@@ -665,7 +693,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
                           >
-                            <i className="fas fa-plus w-4"></i>
+                            <FaIcon icon={faPlus} className="w-4" />
                             <span>Add an athlete</span>
                           </button>
                         </div>
@@ -687,7 +715,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                             >
-                              <i className={`fas ${org.kind === 'league' ? 'fa-trophy' : 'fa-building'} w-4`}></i>
+                              <FaIcon icon={org.kind === 'league' ? faTrophy : faBuilding} className="w-4" />
                               <span className="truncate">Manage {org.name}</span>
                             </button>
                           ))}
@@ -705,7 +733,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                               className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                               data-admin-dashboard-link=""
                             >
-                              <i className="fas fa-shield-halved w-4"></i>
+                              <FaIcon icon={faShieldHalved} className="w-4" />
                               <span>Admin dashboard</span>
                             </button>
                           )}
@@ -718,7 +746,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                               className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                               data-support-queue-link=""
                             >
-                              <i className="fas fa-life-ring w-4"></i>
+                              <FaIcon icon={faLifeRing} className="w-4" />
                               <span>Support queue</span>
                             </button>
                           )}
@@ -737,7 +765,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           }}
                           className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
-                          <i className="fas fa-edit w-4"></i>
+                          <FaIcon icon={faPenToSquare} className="w-4" />
                           <span>Edit Profile</span>
                         </button>
                         <button
@@ -747,7 +775,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           }}
                           className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
-                          <i className="fas fa-bookmark w-4"></i>
+                          <FaIcon icon={faBookmark} className="w-4" />
                           <span>Saved Posts</span>
                         </button>
                         {/* Drafts (Oct 2026): what you started or finished but have not posted. */}
@@ -759,7 +787,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                           data-header-drafts=""
                         >
-                          <i className="fas fa-pen-to-square w-4"></i>
+                          <FaIcon icon={faPenToSquare} className="w-4" />
                           <span>Drafts</span>
                           {drafts.count > 0 && <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-soft text-brand-fg" data-header-drafts-count="">{drafts.count}</span>}
                         </button>
@@ -770,7 +798,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           }}
                           className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
-                          <i className="fas fa-cog w-4"></i>
+                          <FaIcon icon={faGear} className="w-4" />
                           <span>Settings</span>
                         </button>
                         {/* Support & Reporting, Spec 3: the Help Center is a profile-menu door (the doc). */}
@@ -782,7 +810,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                           data-help-center-link=""
                         >
-                          <i className="fas fa-life-ring w-4"></i>
+                          <FaIcon icon={faLifeRing} className="w-4" />
                           <span>Help Center</span>
                         </button>
                         {/* Download the app: the browser's install where it
@@ -797,7 +825,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                             className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                             data-get-app=""
                           >
-                            <i className="fas fa-mobile-screen-button w-4"></i>
+                            <FaIcon icon={faMobileScreenButton} className="w-4" />
                             <span>{COPY.INSTALL.MENU}</span>
                           </button>
                         )}
@@ -811,7 +839,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           }}
                           className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
                         >
-                          <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} w-4`}></i>
+                          <FaIcon icon={theme === 'dark' ? faSun : faMoon} className="w-4" />
                           <span>{theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}</span>
                         </button>
                       </div>
@@ -824,7 +852,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                           }}
                           className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
                         >
-                          <i className="fas fa-sign-out-alt w-4"></i>
+                          <FaIcon icon={faRightFromBracket} className="w-4" />
                           <span>Sign Out</span>
                         </button>
                       </div>
@@ -840,7 +868,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                 aria-label="Toggle mobile menu"
                 aria-expanded={isMobileMenuOpen}
               >
-                <i className={`fas ${isMobileMenuOpen ? 'fa-times' : 'fa-bars'} text-xl`}></i>
+                <FaIcon icon={isMobileMenuOpen ? faXmark : faBars} className="text-xl" />
               </button>
             </div>
           </div>
@@ -888,7 +916,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                 className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-secondary"
                 aria-label="Close menu"
               >
-                <i className="fas fa-times text-xl"></i>
+                <FaIcon icon={faXmark} className="text-xl" />
               </button>
             </div>
           </div>
@@ -946,7 +974,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                     : 'text-secondary hover:bg-surface-muted hover:text-brand-fg'
                 }`}
               >
-                <i className={`fas ${link.icon} w-5 text-center ${link.accent === 'live' ? 'text-red-600 animate-pulse text-[10px]' : ''}`}></i>
+                <FaIcon icon={link.icon} className={`w-5 text-center ${link.accent === 'live' ? 'text-red-600 animate-pulse text-[10px]' : ''}`} />
                 <span className="font-medium">{link.label}</span>
               </button>
             ))}
@@ -971,7 +999,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                     }}
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
                   >
-                    <i className={`fas ${activeProfile?.id === mp.id ? 'fa-circle-check text-brand-fg' : 'fa-child-reaching'} w-5 text-center shrink-0`}></i>
+                    <FaIcon icon={activeProfile?.id === mp.id ? faCircleCheck : faChildReaching} className={`w-5 text-center shrink-0${activeProfile?.id === mp.id ? ' text-brand-fg' : ''}`} />
                     <span className="font-medium flex-1 min-w-0 truncate">
                       {formatDisplayName(mp.first_name, null, mp.last_name, mp.full_name)}
                       {activeProfile?.id === mp.id && (
@@ -991,7 +1019,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                     }}
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
                   >
-                    <i className="fas fa-people-roof w-5 text-center"></i>
+                    <FaIcon icon={faPeopleRoof} className="w-5 text-center" />
                     <span className="font-medium">Family console</span>
                   </button>
                 )}
@@ -1004,7 +1032,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
                     data-scout-menu=""
                   >
-                    <i className="fas fa-binoculars w-5 text-center"></i>
+                    <FaIcon icon={faBinoculars} className="w-5 text-center" />
                     <span className="font-medium">Scouting</span>
                   </button>
                 )}
@@ -1016,7 +1044,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                     }}
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
                   >
-                    <i className="fas fa-building w-5 text-center"></i>
+                    <FaIcon icon={faBuilding} className="w-5 text-center" />
                     <span className="font-medium">Your organizations</span>
                   </button>
                 )}
@@ -1027,7 +1055,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                   }}
                   className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
                 >
-                  <i className="fas fa-plus w-5 text-center"></i>
+                  <FaIcon icon={faPlus} className="w-5 text-center" />
                   <span className="font-medium">Add an athlete</span>
                 </button>
               </div>
@@ -1049,7 +1077,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                     }}
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
                   >
-                    <i className={`fas ${org.kind === 'league' ? 'fa-trophy' : 'fa-building'} w-5 text-center shrink-0`}></i>
+                    <FaIcon icon={org.kind === 'league' ? faTrophy : faBuilding} className="w-5 text-center shrink-0" />
                     <span className="font-medium flex-1 min-w-0 truncate">Manage {org.name}</span>
                   </button>
                 ))}
@@ -1067,7 +1095,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
                     data-admin-dashboard-link=""
                   >
-                    <i className="fas fa-shield-halved w-5 text-center shrink-0"></i>
+                    <FaIcon icon={faShieldHalved} className="w-5 text-center shrink-0" />
                     <span className="font-medium flex-1 min-w-0 truncate">Admin dashboard</span>
                   </button>
                 )}
@@ -1080,7 +1108,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                     className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
                     data-support-queue-link=""
                   >
-                    <i className="fas fa-life-ring w-5 text-center shrink-0"></i>
+                    <FaIcon icon={faLifeRing} className="w-5 text-center shrink-0" />
                     <span className="font-medium flex-1 min-w-0 truncate">Support queue</span>
                   </button>
                 )}
@@ -1098,7 +1126,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
               data-drawer-create=""
             >
-              <i className="fas fa-plus w-5 text-center"></i>
+              <FaIcon icon={faPlus} className="w-5 text-center" />
               <span className="font-medium">Create</span>
             </button>
 
@@ -1110,7 +1138,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
             >
-              <i className="fas fa-edit w-5 text-center"></i>
+              <FaIcon icon={faPenToSquare} className="w-5 text-center" />
               <span className="font-medium">Edit Profile</span>
             </button>
 
@@ -1121,7 +1149,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
             >
-              <i className="fas fa-bookmark w-5 text-center"></i>
+              <FaIcon icon={faBookmark} className="w-5 text-center" />
               <span className="font-medium">Saved Posts</span>
             </button>
 
@@ -1133,7 +1161,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
               data-drawer-drafts=""
             >
-              <i className="fas fa-pen-to-square w-5 text-center"></i>
+              <FaIcon icon={faPenToSquare} className="w-5 text-center" />
               <span className="font-medium">Drafts</span>
               {drafts.count > 0 && <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-soft text-brand-fg" data-drawer-drafts-count="">{drafts.count}</span>}
             </button>
@@ -1145,7 +1173,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
             >
-              <i className="fas fa-cog w-5 text-center"></i>
+              <FaIcon icon={faGear} className="w-5 text-center" />
               <span className="font-medium">Settings</span>
             </button>
             <button
@@ -1156,7 +1184,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
               data-help-center-link=""
             >
-              <i className="fas fa-life-ring w-5 text-center"></i>
+              <FaIcon icon={faLifeRing} className="w-5 text-center" />
               <span className="font-medium">Help Center</span>
             </button>
 
@@ -1169,7 +1197,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
                 className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
                 data-get-app=""
               >
-                <i className="fas fa-mobile-screen-button w-5 text-center"></i>
+                <FaIcon icon={faMobileScreenButton} className="w-5 text-center" />
                 <span className="font-medium">{COPY.INSTALL.MENU}</span>
               </button>
             )}
@@ -1189,7 +1217,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
             >
-              <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} w-5 text-center`}></i>
+              <FaIcon icon={theme === 'dark' ? faSun : faMoon} className="w-5 text-center" />
               <span className="font-medium">
                 {theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               </span>
@@ -1204,7 +1232,7 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
               }}
               className="flex items-center gap-3 w-full px-4 py-3 text-left text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             >
-              <i className="fas fa-sign-out-alt w-5 text-center"></i>
+              <FaIcon icon={faRightFromBracket} className="w-5 text-center" />
               <span className="font-medium">Sign Out</span>
             </button>
           </nav>

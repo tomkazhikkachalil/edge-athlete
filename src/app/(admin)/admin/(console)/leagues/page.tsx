@@ -11,6 +11,10 @@ import { formatDisplayName } from '@/lib/formatters';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
+import FaIcon from '@/components/FaIcon';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // Admin league console: creation is admin-provisioned (Tom, Aug 24) — this
 // page is the only creator in v1. Access = ADMIN_EMAILS, enforced
@@ -235,7 +239,7 @@ export default function AdminLeaguesPage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-lock text-2xl text-decor" aria-hidden="true"></i>
+              <FaIcon icon={faLock} className="text-2xl text-decor" />
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Admin access required</h1>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
@@ -255,7 +259,7 @@ export default function AdminLeaguesPage() {
             ← Admin
           </Link>
           <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-primary">
-            <i className="fas fa-trophy mr-2 text-brand-fg"></i>
+            <FaIcon icon={faTrophy} className="mr-2 text-brand-fg" />
             Leagues
           </h1>
         </div>
@@ -464,7 +468,7 @@ export default function AdminLeaguesPage() {
                     aria-label="Clear owner"
                     className="ml-2 text-muted hover:text-primary"
                   >
-                    <i className="fas fa-times" aria-hidden="true"></i>
+                    <FaIcon icon={faXmark} />
                   </button>
                 </div>
               ) : (

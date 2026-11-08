@@ -20,6 +20,16 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import SupportQueueTile from '@/components/admin/SupportQueueTile';
 import ContactsTile from '@/components/admin/ContactsTile';
 import OverviewPanel from '@/components/admin/overview/OverviewPanel';
+import FaIcon from '@/components/FaIcon';
+import { faBookOpen } from '@/lib/icons/fa/book-open';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faFileSignature } from '@/lib/icons/fa/file-signature';
+import { faLocationDot } from '@/lib/icons/fa/location-dot';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
+import { faSitemap } from '@/lib/icons/fa/sitemap';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
 // had no onClick handlers). Access = ADMIN_EMAILS allowlist, enforced
@@ -174,7 +184,7 @@ export default function AdminDashboardPage() {
         <AdminHeader />
         <div className="flex items-center justify-center py-20">
           <div className="text-center px-4">
-            <i className="fas fa-lock text-4xl text-gray-300 dark:text-decor mb-4"></i>
+            <FaIcon icon={faLock} className="text-4xl text-gray-300 dark:text-decor mb-4" />
             <h1 className="text-xl font-bold text-primary mb-2">Admin access required</h1>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
           </div>
@@ -189,7 +199,7 @@ export default function AdminDashboardPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-          <i className="fas fa-shield-alt mr-2 text-brand-fg"></i>
+          <FaIcon icon={faShieldHalved} className="mr-2 text-brand-fg" />
           Admin
         </h1>
 
@@ -207,7 +217,7 @@ export default function AdminDashboardPage() {
             data-help-articles-tile=""
           >
             <p className="text-sm font-semibold text-primary">
-              <i className="fas fa-book-open text-brand-fg mr-2"></i>
+              <FaIcon icon={faBookOpen} className="text-brand-fg mr-2" />
               Help articles
             </p>
             <p className="text-xs text-muted mt-1">What the Help Center shows — articles and how-to videos.</p>
@@ -218,7 +228,7 @@ export default function AdminDashboardPage() {
             className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
             <p className="text-sm font-semibold text-primary">
-              <i className="fas fa-file-signature text-brand-fg mr-2"></i>
+              <FaIcon icon={faFileSignature} className="text-brand-fg mr-2" />
               Consent reviews
             </p>
             <p className="text-xs text-muted mt-1">Signed parental-consent submissions awaiting review.</p>
@@ -229,7 +239,7 @@ export default function AdminDashboardPage() {
             className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
             <p className="text-sm font-semibold text-primary">
-              <i className="fas fa-user-shield text-brand-fg mr-2"></i>
+              <FaIcon icon={faUserShield} className="text-brand-fg mr-2" />
               Guardian support
             </p>
             <p className="text-xs text-muted mt-1">Orphaned supervised profiles — invite a guardian or delete.</p>
@@ -240,7 +250,7 @@ export default function AdminDashboardPage() {
             className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
             <p className="text-sm font-semibold text-primary">
-              <i className="fas fa-trophy text-brand-fg mr-2"></i>
+              <FaIcon icon={faTrophy} className="text-brand-fg mr-2" />
               Leagues
             </p>
             <p className="text-xs text-muted mt-1">Create leagues and assign their owners.</p>
@@ -251,7 +261,7 @@ export default function AdminDashboardPage() {
             className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
             <p className="text-sm font-semibold text-primary">
-              <i className="fas fa-building text-brand-fg mr-2"></i>
+              <FaIcon icon={faBuilding} className="text-brand-fg mr-2" />
               Clubs
             </p>
             <p className="text-xs text-muted mt-1">Create clubs, assign owners, review requests.</p>
@@ -262,7 +272,7 @@ export default function AdminDashboardPage() {
             className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
             <p className="text-sm font-semibold text-primary">
-              <i className="fas fa-map-marker-alt text-brand-fg mr-2"></i>
+              <FaIcon icon={faLocationDot} className="text-brand-fg mr-2" />
               Venues
             </p>
             <p className="text-xs text-muted mt-1">Create venues and their facilities.</p>
@@ -273,7 +283,7 @@ export default function AdminDashboardPage() {
             className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
             <p className="text-sm font-semibold text-primary">
-              <i className="fas fa-sitemap text-brand-fg mr-2"></i>
+              <FaIcon icon={faSitemap} className="text-brand-fg mr-2" />
               Structure
             </p>
             <p className="text-xs text-muted mt-1">Seasons, divisions, and teams.</p>

@@ -7,6 +7,9 @@ import AdminHeader from '@/components/admin/AdminHeader';
 import ContactsPanel from '@/components/admin/ContactsPanel';
 import NotifyInboxCard from '@/components/admin/NotifyInboxCard';
 import { backOr } from '@/lib/nav-back';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faLock } from '@/lib/icons/fa/lock';
 
 // The contact list page (266, flow changes item 1): the inbox setting on
 // top, the list under it. Authorization lives in the API (requireAdmin —
@@ -40,7 +43,7 @@ export default function ContactsAdminPage() {
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => backOr(router, '/admin')} className="ea-icon-btn" aria-label="Back">
-            <i className="fas fa-arrow-left" aria-hidden="true"></i>
+            <FaIcon icon={faArrowLeft} />
           </button>
           <h1 className="text-2xl font-bold text-primary">Contacts</h1>
         </div>
@@ -51,7 +54,7 @@ export default function ContactsAdminPage() {
         )}
         {state === 'forbidden' && (
           <div className="text-center px-4 py-20">
-            <i className="fas fa-lock text-4xl text-decor mb-4" aria-hidden="true"></i>
+            <FaIcon icon={faLock} className="text-4xl text-decor mb-4" />
             <h2 className="text-xl font-bold text-primary mb-2">Admin access required</h2>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
           </div>

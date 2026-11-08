@@ -3,6 +3,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTypeahead } from '@/hooks/useTypeahead';
 import type { PlaceSuggestion } from '@/app/api/places/route';
+import FaIcon from '@/components/FaIcon';
+import { faLocationDot } from '@/lib/icons/fa/location-dot';
 
 /**
  * The one location input (docs/SEARCH.md): free text with place
@@ -150,11 +152,7 @@ export default function PlacePicker({
         }
       />
       {value && (
-        <i
-          className="fas fa-map-marker-alt absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-fg"
-          aria-hidden="true"
-          title="Linked to a place"
-        ></i>
+        <FaIcon icon={faLocationDot} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-fg" title="Linked to a place" />
       )}
       {loading && !showList && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">

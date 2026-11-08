@@ -20,6 +20,10 @@ import { useAuth } from '@/lib/auth';
 import { FEATURE_FLAGS } from '@/lib/features';
 import type { EditScope, EventDetail } from './types';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faArrowsRotate } from '@/lib/icons/fa/arrows-rotate';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // Quick-create by default (title + when), everything else behind
 // "More options" — the Google Calendar pattern from the product brief.
@@ -676,7 +680,7 @@ export default function EventFormModal({
             editing.series && (
               <div className="text-sm text-muted" data-series-rule="">
                 <p>
-                  <i className="fas fa-arrows-rotate text-decor mr-1.5"></i>
+                  <FaIcon icon={faArrowsRotate} className="text-decor mr-1.5" />
                   {describeRecurrence(editing.series, editing.timezone)}
                 </p>
                 <button
@@ -860,7 +864,7 @@ export default function EventFormModal({
                           : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
                       }`}
                     >
-                      {active && <i className="fas fa-check text-xs"></i>}
+                      {active && <FaIcon icon={faCheck} className="text-xs" />}
                       {child.name}
                     </button>
                   );
@@ -1123,7 +1127,7 @@ export default function EventFormModal({
               className="w-full bg-brand text-white py-3 px-4 rounded-lg hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50 min-h-[44px]"
             >
               {saving ? (
-                <><i className="fas fa-spinner fa-spin mr-2"></i> Saving…</>
+                <><FaIcon icon={faSpinner} spin className="mr-2" /> Saving…</>
               ) : editing ? 'Save changes' : 'Create event'}
             </button>
           </div>

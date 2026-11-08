@@ -303,7 +303,7 @@ export function getPrivacyDisplayText(visibility: ProfileVisibility): {
     return {
       label: 'Public Profile',
       description: 'Anyone can view your profile and posts',
-      icon: 'fa-globe',
+      icon: 'globe',
       color: 'green'
     };
   }
@@ -311,7 +311,7 @@ export function getPrivacyDisplayText(visibility: ProfileVisibility): {
   return {
     label: 'Private Profile',
     description: 'Only approved followers can view your profile and posts',
-    icon: 'fa-lock',
+    icon: 'lock',
     color: 'orange'
   };
 }

@@ -5,6 +5,8 @@ import SectionInfo from '@/components/SectionInfo';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { supabase } from '@/lib/supabase';
+import FaIcon from '@/components/FaIcon';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // Password change: verifies the CURRENT password first, then updates via
 // POST /api/auth/change-password (Round I — server-side so the rotation
@@ -146,7 +148,7 @@ export default function SecuritySettings() {
           className="bg-brand text-white py-2.5 px-6 rounded-md hover:bg-brand-hover transition font-medium min-h-[44px] disabled:opacity-50"
         >
           {submitting ? (
-            <><i className="fas fa-spinner fa-spin mr-2"></i>Updating…</>
+            <><FaIcon icon={faSpinner} spin className="mr-2" />Updating…</>
           ) : (
             'Update password'
           )}

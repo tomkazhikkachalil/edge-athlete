@@ -16,7 +16,7 @@ import { useToast } from '@/components/Toast';
 import LazyImage from '@/components/LazyImage';
 import { getInitials, formatDisplayName } from '@/lib/formatters';
 import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
-import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+import { type SportKey } from '@/lib/sports/SportRegistry';
 import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy';
 import LiveNowStrip from '@/components/LiveNowStrip';
 import SportQuickLinks from '@/components/SportQuickLinks';
@@ -32,6 +32,17 @@ const NEW_POSTS_POLL_MS = 60_000;
 const NEW_POSTS_MIN_GAP_MS = 20_000;
 import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
 import { shouldPoll } from '@/lib/net/online';
+import FaIcon from '@/components/FaIcon';
+import { faBinoculars } from '@/lib/icons/fa/binoculars';
+import { faCalendarDays } from '@/lib/icons/fa/calendar-days';
+import { faChartLine } from '@/lib/icons/fa/chart-line';
+import { faImage } from '@/lib/icons/fa/image';
+import { faPeopleGroup } from '@/lib/icons/fa/people-group';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faUserGroup } from '@/lib/icons/fa/user-group';
+import { faUsers } from '@/lib/icons/fa/users';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 /** A stable no-op for PostCard's unused onComment (the card is memo'd). */
 const noop = () => {};
@@ -555,15 +566,15 @@ export default function FeedPage() {
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-border-subtle">
                 <div className="flex items-center gap-2 sm:gap-4">
                   <button onClick={() => openComposer()} className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
-                    <i className="fas fa-image text-decor transition-colors duration-[150ms] group-hover:text-green-600 dark:group-hover:text-green-400"></i>
+                    <FaIcon icon={faImage} className="text-decor transition-colors duration-[150ms] group-hover:text-green-600 dark:group-hover:text-green-400" />
                     <span className="text-xs sm:text-sm">Photo/Video</span>
                   </button>
                   <button onClick={() => openComposer()} aria-label="Add stats to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
-                    <i className="fas fa-chart-line text-decor transition-colors duration-[150ms] group-hover:text-brand-fg"></i>
+                    <FaIcon icon={faChartLine} className="text-decor transition-colors duration-[150ms] group-hover:text-brand-fg" />
                     <span className="text-xs sm:text-sm hidden sm:inline">Stats</span>
                   </button>
                   <button onClick={() => openComposer()} aria-label="Add an achievement to a post" className="ea-interactive group flex items-center gap-1.5 sm:gap-2 rounded-lg px-2.5 py-3.5 -my-1 text-tertiary hover:text-primary">
-                    <i className="fas fa-trophy text-decor transition-colors duration-[150ms] group-hover:text-amber-500"></i>
+                    <FaIcon icon={faTrophy} className="text-decor transition-colors duration-[150ms] group-hover:text-amber-500" />
                     <span className="text-xs sm:text-sm hidden sm:inline">Achievement</span>
                   </button>
                 </div>
@@ -641,7 +652,7 @@ export default function FeedPage() {
               ) : posts.length === 0 && feedScope === 'following' ? (
                 <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong p-8 text-center">
                   <div className="mb-4 text-violet-500">
-                    <i className="fas fa-user-group text-4xl"></i>
+                    <FaIcon icon={faUserGroup} className="text-4xl" />
                   </div>
                   <h3 className="text-lg font-medium text-primary mb-2">
                     {noFollowing ? 'Follow some athletes' : 'Your feed is quiet'}
@@ -656,7 +667,7 @@ export default function FeedPage() {
                       href="/sports/explore"
                       className="inline-block bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
                     >
-                      <i className="fas fa-binoculars mr-2"></i>
+                      <FaIcon icon={faBinoculars} className="mr-2" />
                       Find athletes
                     </Link>
                   )}
@@ -664,7 +675,7 @@ export default function FeedPage() {
               ) : posts.length === 0 && feedScope === 'orgs' ? (
                 <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong p-8 text-center">
                   <div className="mb-4 text-violet-500">
-                    <i className="fas fa-people-group text-4xl"></i>
+                    <FaIcon icon={faPeopleGroup} className="text-4xl" />
                   </div>
                   <h3 className="text-lg font-medium text-primary mb-2">
                     {noOrgs ? 'Join a league or club' : 'Your orgs are quiet'}
@@ -679,7 +690,7 @@ export default function FeedPage() {
                       href="/sports/explore"
                       className="inline-block bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
                     >
-                      <i className="fas fa-binoculars mr-2"></i>
+                      <FaIcon icon={faBinoculars} className="mr-2" />
                       Find leagues &amp; clubs
                     </Link>
                   )}
@@ -689,7 +700,7 @@ export default function FeedPage() {
                   {/* Empty state follows the athlete's declared sport; fully
                       neutral when none is set */}
                   <div className={`mb-4 ${profileDefaultSport ? 'text-green-500' : 'text-violet-500'}`}>
-                    <i className={`${profileDefaultSport ? getSportDefinition(profileDefaultSport).icon_id : 'fas fa-users'} text-4xl`}></i>
+                    <FaIcon icon={profileDefaultSport ? sportIcon(profileDefaultSport) : faUsers} className="text-4xl" />
                   </div>
                   <h3 className="text-lg font-medium text-primary mb-2">
                     {profileDefaultSport
@@ -709,12 +720,12 @@ export default function FeedPage() {
                     >
                       {profileDefaultSport ? (
                         <>
-                          <i className={`${getSportDefinition(profileDefaultSport).icon_id} mr-2`}></i>
+                          <FaIcon icon={sportIcon(profileDefaultSport)} className="mr-2" />
                           {COPY.SPORT_ACTIONS.PRIMARY_ACTION(profileDefaultSport)}
                         </>
                       ) : (
                         <>
-                          <i className="fas fa-plus mr-2"></i>
+                          <FaIcon icon={faPlus} className="mr-2" />
                           Create your first post
                         </>
                       )}
@@ -726,7 +737,7 @@ export default function FeedPage() {
                       href="/sports/explore"
                       className="w-full sm:w-auto bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
                     >
-                      <i className="fas fa-binoculars mr-2"></i>
+                      <FaIcon icon={faBinoculars} className="mr-2" />
                       Find athletes
                     </Link>
                   </div>
@@ -787,7 +798,7 @@ export default function FeedPage() {
                 </div>
                 <div className="flex flex-col items-center justify-center py-6 text-center">
                   <div className="w-10 h-10 bg-brand-soft rounded-full flex items-center justify-center mb-3">
-                    <i className="fas fa-calendar-days text-violet-400 text-lg"></i>
+                    <FaIcon icon={faCalendarDays} className="text-violet-400 text-lg" />
                   </div>
                   <p className="text-sm font-medium text-secondary mb-1">No upcoming events</p>
                   <p className="text-xs text-faint">Tournament and event scheduling is coming soon.</p>

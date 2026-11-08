@@ -18,6 +18,17 @@ import { useHouseholdRoster } from './useHouseholdRoster';
 import TimeGridView from './TimeGridView';
 import AgendaView from './AgendaView';
 import type { CalendarViewKind, EventDetail, EventListItem } from './types';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faRotate } from '@/lib/icons/fa/rotate';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faCalendar } from '@/lib/icons/fa/calendar';
+import { faCalendarDay } from '@/lib/icons/fa/calendar-day';
+import { faCalendarWeek } from '@/lib/icons/fa/calendar-week';
+import { faList } from '@/lib/icons/fa/list';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 const EventFormModal = dynamic(() => import('./EventFormModal'), { ssr: false });
 const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: false });
@@ -25,11 +36,11 @@ const CalendarSyncModal = dynamic(() => import('./CalendarSyncModal'), { ssr: fa
 const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
 const ActivityPreviewModal = dynamic(() => import('./ActivityPreviewModal'), { ssr: false });
 
-const VIEWS: { key: CalendarViewKind; label: string; icon: string }[] = [
-  { key: 'month', label: 'Month', icon: 'fa-calendar' },
-  { key: 'week', label: 'Week', icon: 'fa-calendar-week' },
-  { key: 'day', label: 'Day', icon: 'fa-calendar-day' },
-  { key: 'agenda', label: 'Agenda', icon: 'fa-list' },
+const VIEWS: { key: CalendarViewKind; label: string; icon: FaIconDef }[] = [
+  { key: 'month', label: 'Month', icon: faCalendar },
+  { key: 'week', label: 'Week', icon: faCalendarWeek },
+  { key: 'day', label: 'Day', icon: faCalendarDay },
+  { key: 'agenda', label: 'Agenda', icon: faList },
 ];
 
 export default function CalendarPage({
@@ -277,7 +288,7 @@ export default function CalendarPage({
             aria-label="Previous"
             className="w-10 h-10 rounded-lg border border-border-strong text-tertiary hover:border-violet-400 hover:text-brand-fg flex items-center justify-center"
           >
-            <i className="fas fa-chevron-left text-sm"></i>
+            <FaIcon icon={faChevronLeft} className="text-sm" />
           </button>
           <button
             type="button"
@@ -285,7 +296,7 @@ export default function CalendarPage({
             aria-label="Next"
             className="w-10 h-10 rounded-lg border border-border-strong text-tertiary hover:border-violet-400 hover:text-brand-fg flex items-center justify-center"
           >
-            <i className="fas fa-chevron-right text-sm"></i>
+            <FaIcon icon={faChevronRight} className="text-sm" />
           </button>
           <button
             type="button"
@@ -298,7 +309,7 @@ export default function CalendarPage({
 
         <h1 className="text-base sm:text-xl font-bold text-primary flex-grow min-w-32">
           {rangeLabel}
-          {loading && <i className="fas fa-spinner fa-spin text-gray-300 dark:text-stone-600 text-sm ml-2"></i>}
+          {loading && <FaIcon icon={faSpinner} spin className="text-gray-300 dark:text-stone-600 text-sm ml-2" />}
         </h1>
 
         <input
@@ -319,7 +330,7 @@ export default function CalendarPage({
                 view === v.key ? 'bg-brand text-white' : 'bg-surface text-tertiary hover:text-brand-fg'
               }`}
             >
-              <i className={`fas ${v.icon} sm:hidden`}></i>
+              <FaIcon icon={v.icon} className="sm:hidden" />
               <span className="hidden sm:inline">{v.label}</span>
             </button>
           ))}
@@ -332,7 +343,7 @@ export default function CalendarPage({
           title="Sync to another calendar"
           className="h-10 px-2.5 rounded-lg border border-border-strong text-tertiary hover:border-violet-400 hover:text-brand-fg text-sm"
         >
-          <i className="fas fa-rotate"></i>
+          <FaIcon icon={faRotate} />
         </button>
 
         <button
@@ -340,7 +351,7 @@ export default function CalendarPage({
           onClick={() => { setEditingEvent(null); setFormOpen(true); }}
           className="h-10 px-3 sm:px-4 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-hover transition flex items-center gap-1.5"
         >
-          <i className="fas fa-plus text-xs"></i>
+          <FaIcon icon={faPlus} className="text-xs" />
           <span className="hidden sm:inline">New event</span>
           <span className="sm:hidden">New</span>
         </button>

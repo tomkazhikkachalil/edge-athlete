@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { formatLiveWhen } from '@/lib/videos/live-rules';
 import { defaultBroadcastStart, UPLOAD_PRIVACIES, UPLOAD_TITLE_MAX, type UploadPrivacy } from '@/lib/videos/youtube-connection';
+import FaIcon from '@/components/FaIcon';
+import { faSliders } from '@/lib/icons/fa/sliders';
+import { faTowerBroadcast } from '@/lib/icons/fa/tower-broadcast';
+import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
@@ -61,7 +65,7 @@ export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onSche
     const ingest = v.rtmpsUrl ?? v.rtmpUrl;
     return (
       <div className="rounded-lg border border-border p-3 space-y-3" data-youtube-broadcast="scheduled" data-youtube-broadcast-id={v.videoId}>
-        <p className="text-sm font-semibold text-primary"><i className="fas fa-tower-broadcast mr-1.5 text-brand-fg" aria-hidden="true"></i>Scheduled on YouTube {formatLiveWhen(v.scheduledStartAt)}</p>
+        <p className="text-sm font-semibold text-primary"><FaIcon icon={faTowerBroadcast} className="mr-1.5 text-brand-fg" />Scheduled on YouTube {formatLiveWhen(v.scheduledStartAt)}</p>
         <p className="text-xs text-muted">This is your stream key. It is shown here once — Edge Athlete does not keep it; YouTube Studio does. Anyone with the key can stream to this broadcast, so treat it like a password.</p>
         <label className="block text-sm text-secondary">
           Stream key
@@ -72,14 +76,14 @@ export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onSche
         </label>
         <div className="grid gap-2 sm:grid-cols-2">
           <a href={v.studioUrl} target="_blank" rel="noopener noreferrer" className="ea-interactive flex items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-youtube-broadcast-studio="">
-            <i className="fab fa-youtube text-brand-fg" aria-hidden="true"></i>
+            <FaIcon icon={faYoutubeBrands} className="text-brand-fg" />
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-primary">Open YouTube Studio</span>
               <span className="block text-xs text-muted">Go live from a computer, or from the YouTube app signed in to the same account.</span>
             </span>
           </a>
           <button type="button" onClick={() => setEncoder(e => !e)} className="ea-interactive flex items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" aria-expanded={encoder} data-youtube-broadcast-encoder="">
-            <i className="fas fa-sliders text-brand-fg" aria-hidden="true"></i>
+            <FaIcon icon={faSliders} className="text-brand-fg" />
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-primary">I&apos;ll use OBS or another encoder</span>
               <span className="block text-xs text-muted">The server address and the key go into the encoder&apos;s settings.</span>
@@ -106,7 +110,7 @@ export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onSche
   const busy = phase.kind === 'scheduling';
   return (
     <div className="rounded-lg border border-border p-3 space-y-3" data-youtube-broadcast={phase.kind}>
-      <p className="text-sm font-semibold text-primary"><i className="fas fa-tower-broadcast mr-1.5 text-brand-fg" aria-hidden="true"></i>Schedule a live broadcast on your channel</p>
+      <p className="text-sm font-semibold text-primary"><FaIcon icon={faTowerBroadcast} className="mr-1.5 text-brand-fg" />Schedule a live broadcast on your channel</p>
       <p className="text-xs text-muted">Edge Athlete creates the broadcast on YouTube and hands you the stream key. You go live with YouTube Studio or an encoder; the game shows here as upcoming, then live, then the recording.</p>
       <label className="block text-sm text-secondary">
         Title on YouTube

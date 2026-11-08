@@ -19,6 +19,11 @@ import { useDrafts } from '@/hooks/useDrafts';
 import { useHydrated } from '@/hooks/useHydrated';
 import { useStartWorkout } from '@/hooks/useStartWorkout';
 import { readTimedDefault, writeTimedDefault } from '@/lib/workouts/timer-prefs';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faListCheck } from '@/lib/icons/fa/list-check';
+import { faPlay } from '@/lib/icons/fa/play';
+import { faStopwatch } from '@/lib/icons/fa/stopwatch';
 
 export default function WorkoutStartScreen() {
   const router = useRouter();
@@ -43,7 +48,7 @@ export default function WorkoutStartScreen() {
     <div className="min-h-screen bg-canvas pb-28" data-workout-start-screen="">
       <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-surface/95 px-2 py-2 backdrop-blur pt-[calc(0.5rem+env(safe-area-inset-top))]">
         <button type="button" onClick={() => backOr(router, '/athlete?tab=training')} className="ea-icon-btn inline-flex items-center justify-center text-primary" aria-label="Back" data-workout-start-back="">
-          <i className="fas fa-arrow-left text-lg" aria-hidden="true"></i>
+          <FaIcon icon={faArrowLeft} className="text-lg" />
         </button>
         <h1 className="flex-1 truncate text-base font-bold text-primary">Start a workout</h1>
       </header>
@@ -96,7 +101,7 @@ export default function WorkoutStartScreen() {
               className={`ea-interactive flex min-h-[56px] w-full items-center gap-3 rounded-lg border px-3 py-2 text-left ${routineId === null ? 'border-brand bg-brand-soft' : 'border-border bg-surface'}`}
               data-workout-start-routine="empty"
             >
-              <i className="fas fa-play w-5 text-center text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faPlay} className="w-5 text-center text-brand-fg" />
               <span className="min-w-0">
                 <span className="block font-semibold text-primary">Empty workout</span>
                 <span className="block text-xs text-muted">Add exercises as you go</span>
@@ -112,7 +117,7 @@ export default function WorkoutStartScreen() {
                 className={`ea-interactive flex min-h-[56px] w-full items-center gap-3 rounded-lg border px-3 py-2 text-left ${routineId === r.id ? 'border-brand bg-brand-soft' : 'border-border bg-surface'}`}
                 data-workout-start-routine={r.id}
               >
-                <i className="fas fa-list-check w-5 text-center text-brand-fg" aria-hidden="true"></i>
+                <FaIcon icon={faListCheck} className="w-5 text-center text-brand-fg" />
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-primary">{r.name}</span>
                   <span className="block text-xs text-muted">
@@ -132,7 +137,7 @@ export default function WorkoutStartScreen() {
           className="flex min-h-[56px] w-full items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left"
           data-workout-start-timed={timed ? 'on' : 'off'}
         >
-          <i className={`fas fa-stopwatch w-5 text-center ${timed ? 'text-brand-fg' : 'text-tertiary'}`} aria-hidden="true"></i>
+          <FaIcon icon={faStopwatch} className={`w-5 text-center ${timed ? 'text-brand-fg' : 'text-tertiary'}`} />
           <span className="flex-1 min-w-0">
             <span className="block font-semibold text-primary">Time this workout</span>
             <span className="block text-sm text-secondary">{timed ? 'The clock runs from Start; pauses are excluded.' : 'No clock — the sets and reps are recorded, not the time.'}</span>
@@ -150,7 +155,7 @@ export default function WorkoutStartScreen() {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-xl">
           <button type="button" onClick={go} disabled={starting || !hydrated} className="ea-cta inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-xl text-base font-semibold text-white disabled:opacity-50" data-workout-start="" data-workout-start-ready={hydrated ? 'yes' : 'no'}>
-            <i className="fas fa-play" aria-hidden="true"></i> {starting ? 'Starting…' : inProgress ? 'Start another' : 'Start'}
+            <FaIcon icon={faPlay} /> {starting ? 'Starting…' : inProgress ? 'Start another' : 'Start'}
           </button>
         </div>
       </div>

@@ -1,6 +1,11 @@
 'use client';
 
 import { GOLF_LABEL } from '@/components/golf/golf-form-styles';
+import FaIcon from '@/components/FaIcon';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faTree } from '@/lib/icons/fa/tree';
+import { faWarehouse } from '@/lib/icons/fa/warehouse';
 
 /**
  * Step 1 of the golf round (Oct 28 2026): the sport named, then WHEN
@@ -27,7 +32,7 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
     <div className="space-y-6" data-round-step="type">
       <div>
         <h3 className="text-lg font-semibold text-primary flex items-center">
-          <i className="fas fa-golf-ball mr-2 text-green-600 dark:text-green-400" aria-hidden="true"></i>
+          <FaIcon icon={faGolfBallTee} className="mr-2 text-green-600 dark:text-green-400" />
           Golf
           {forName && <span className="ml-2 text-sm font-medium text-tertiary">· for {forName}</span>}
         </h3>
@@ -64,7 +69,7 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
                 : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
             }`}
           >
-            <i className="fas fa-flag-checkered mr-2" aria-hidden="true"></i>
+            <FaIcon icon={faFlagCheckered} className="mr-2" />
             Already played
           </button>
         </div>
@@ -88,7 +93,7 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
                 : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
             }`}
           >
-            <i className="fas fa-tree mr-2" aria-hidden="true"></i>
+            <FaIcon icon={faTree} className="mr-2" />
             Outdoor
           </button>
           <button
@@ -101,7 +106,7 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
                 : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
             }`}
           >
-            <i className="fas fa-warehouse mr-2" aria-hidden="true"></i>
+            <FaIcon icon={faWarehouse} className="mr-2" />
             Indoor
           </button>
         </div>

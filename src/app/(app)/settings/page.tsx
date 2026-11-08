@@ -18,6 +18,19 @@ import WorkoutRoutinesSettings from '@/components/settings/WorkoutRoutinesSettin
 import ConnectedApps from '@/components/settings/ConnectedApps';
 import RecruitingSettings from '@/components/settings/RecruitingSettings';
 import { FEATURE_FLAGS } from '@/lib/features';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faBell } from '@/lib/icons/fa/bell';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { faGraduationCap } from '@/lib/icons/fa/graduation-cap';
+import { faLifeRing } from '@/lib/icons/fa/life-ring';
+import { faLink } from '@/lib/icons/fa/link';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faMessage } from '@/lib/icons/fa/message';
+import { faMoon } from '@/lib/icons/fa/moon';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
+import { faUserGear } from '@/lib/icons/fa/user-gear';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 
 type SettingsTab = 'account' | 'privacy' | 'recruiting' | 'appearance' | 'routines' | 'connections' | 'messaging' | 'notifications' | 'security' | 'support';
@@ -113,22 +126,22 @@ export default function SettingsPage() {
     return <RouteLoading message="Loading..." />;
   }
 
-  const tabs: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: 'account', label: 'Account', icon: 'fa-user-cog' },
-    { id: 'privacy', label: 'Privacy', icon: 'fa-shield-alt' },
+  const tabs: { id: SettingsTab; label: string; icon: FaIconDef }[] = [
+    { id: 'account', label: 'Account', icon: faUserGear },
+    { id: 'privacy', label: 'Privacy', icon: faShieldHalved },
     // Recruiting lives here since Oct 4 2026 (Tom): the profile shows
     // nothing recruiting-related until the scout program. Organizer and
     // scout accounts are not recruited.
-    ...(athleteAccount ? [{ id: 'recruiting' as const, label: 'Recruiting', icon: 'fa-graduation-cap' }] : []),
-    { id: 'appearance', label: 'Appearance', icon: 'fa-moon' },
-    { id: 'routines', label: 'Routines', icon: 'fa-dumbbell' },
+    ...(athleteAccount ? [{ id: 'recruiting' as const, label: 'Recruiting', icon: faGraduationCap }] : []),
+    { id: 'appearance', label: 'Appearance', icon: faMoon },
+    { id: 'routines', label: 'Routines', icon: faDumbbell },
     // Beside Routines on purpose: both feed Training.
-    ...(CONNECTED_APPS ? [{ id: 'connections' as const, label: 'Connected apps', icon: 'fa-link' }] : []),
-    { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
-    { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
-    { id: 'security', label: 'Security', icon: 'fa-lock' },
+    ...(CONNECTED_APPS ? [{ id: 'connections' as const, label: 'Connected apps', icon: faLink }] : []),
+    { id: 'messaging', label: 'Messaging', icon: faMessage },
+    { id: 'notifications', label: 'Notifications', icon: faBell },
+    { id: 'security', label: 'Security', icon: faLock },
     // Support & Reporting, Spec 1: the minimal front door (Spec 3 = /help).
-    { id: 'support', label: 'Support', icon: 'fa-life-ring' },
+    { id: 'support', label: 'Support', icon: faLifeRing },
   ];
 
   return (
@@ -145,7 +158,7 @@ export default function SettingsPage() {
             onClick={() => backOr(router, '/feed')}
             className="text-tertiary hover:text-primary mb-4 inline-flex items-center gap-2 transition-colors min-h-[44px] -my-2"
           >
-            <i className="fas fa-arrow-left"></i>
+            <FaIcon icon={faArrowLeft} />
             <span>Back</span>
           </button>
           <h1 className="text-3xl font-bold text-primary">Settings</h1>
@@ -170,7 +183,7 @@ export default function SettingsPage() {
                       : 'border-transparent text-tertiary hover:text-primary hover:border-border-strong'
                   }`}
                 >
-                  <i className={`fas ${tab.icon}`}></i>
+                  <FaIcon icon={tab.icon} />
                   <span>{tab.label}</span>
                 </button>
               ))}

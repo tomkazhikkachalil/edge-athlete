@@ -8,6 +8,9 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import type { OrgKind } from '@/lib/orgs/org-ref';
 import { REPORT_REASONS, REPORT_REASON_LABELS, TICKET_LIMITS, type ReportReason, type TicketTargetType } from '@/lib/tickets/types';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 /**
  * The ONE report sheet (Support & Reporting, Spec 2) — opened from a post,
@@ -125,7 +128,7 @@ export default function ReportSheet({ target, onClose, onSubmitted, initialReaso
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-primary">{done ? COPY.SUPPORT.REPORT_DONE_TITLE : `${COPY.SUPPORT.REPORT_TITLE} this ${target.noun}`}</h2>
             <button type="button" onClick={() => !submitting && (done ? onClose() : requestClose())} className="ea-icon-btn inline-flex items-center justify-center -my-2 -mr-2" aria-label="Close">
-              <i className="fas fa-times text-base"></i>
+              <FaIcon icon={faXmark} className="text-base" />
             </button>
           </div>
           {!done && <p className="text-xs text-muted mt-1">{COPY.SUPPORT.REPORT_INTRO}</p>}
@@ -135,7 +138,7 @@ export default function ReportSheet({ target, onClose, onSubmitted, initialReaso
           <div className="px-5 py-5 space-y-4" data-report-done={done.number}>
             <div className="text-center">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 mb-2">
-                <i className="fas fa-check text-xl"></i>
+                <FaIcon icon={faCheck} className="text-xl" />
               </div>
               <p className="text-sm font-semibold text-primary">Ticket {done.number}</p>
               <p className="text-xs text-muted mt-1">{COPY.SUPPORT.REPORT_DONE_BODY}</p>

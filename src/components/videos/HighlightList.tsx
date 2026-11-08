@@ -6,6 +6,10 @@ import SectionInfo from '@/components/SectionInfo';
 import { markNowOffsetMs } from '@/lib/videos/live-rules';
 import { formatTimestamp, HIGHLIGHT_HOLE_MAX, HIGHLIGHT_LABEL_MAX, parseTypedTimestamp, type HighlightInput } from '@/lib/videos/rules';
 import type { HighlightRow } from '@/lib/videos/types';
+import FaIcon from '@/components/FaIcon';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faPlay } from '@/lib/icons/fa/play';
+import { faTrash } from '@/lib/icons/fa/trash';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
@@ -257,15 +261,15 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
                         </span>
                       )}
                     </span>
-                    <i className="fas fa-play text-xs text-muted shrink-0" aria-hidden="true"></i>
+                    <FaIcon icon={faPlay} className="text-xs text-muted shrink-0" />
                   </button>
                   {canManage && (
                     <>
                       <button type="button" onClick={() => { setEditing(h.id); setAdding(false); }} className="ea-icon-btn text-secondary" aria-label={`Edit ${h.label}`} data-highlight-edit={h.id}>
-                        <i className="fas fa-pen text-sm" aria-hidden="true"></i>
+                        <FaIcon icon={faPen} className="text-sm" />
                       </button>
                       <button type="button" onClick={() => setRemoving(h)} className="ea-icon-btn text-secondary" aria-label={`Remove ${h.label}`} data-highlight-remove={h.id}>
-                        <i className="fas fa-trash text-sm" aria-hidden="true"></i>
+                        <FaIcon icon={faTrash} className="text-sm" />
                       </button>
                     </>
                   )}

@@ -37,6 +37,11 @@ import { trimLineToYards, composeHoleGeometry, type HoleGeometry } from '@/lib/g
 import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 import LiveCheers from '@/components/play/LiveCheers';
+import FaIcon from '@/components/FaIcon';
+import { faBackwardStep } from '@/lib/icons/fa/backward-step';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faPen } from '@/lib/icons/fa/pen';
 
 /**
  * /live/[groupPostId] — a live round as a PLACE.
@@ -313,7 +318,7 @@ export default function LiveRoundPage() {
           href="/live"
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           Live Now
         </Link>
         {body}
@@ -455,7 +460,7 @@ export default function LiveRoundPage() {
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
           data-live-back=""
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           {scorecard.sport_event ? scorecard.sport_event.name : 'Live Now'}
         </Link>
         {mapAvailable && (
@@ -634,7 +639,7 @@ export default function LiveRoundPage() {
                 onClick={() => stepHole(-1)}
                 className="min-h-[44px] min-w-[36px] flex items-center justify-center text-secondary ea-interactive rounded-l-lg"
               >
-                <i className="fas fa-chevron-left text-xs" aria-hidden="true"></i>
+                <FaIcon icon={faChevronLeft} className="text-xs" />
               </button>
               {/* Yards were `hidden sm:inline` — invisible on the one device
                   that matters, the phone on the tee. Below sm they wrap onto
@@ -703,7 +708,7 @@ export default function LiveRoundPage() {
                 onClick={() => stepHole(1)}
                 className="min-h-[44px] min-w-[36px] flex items-center justify-center text-secondary ea-interactive rounded-r-lg"
               >
-                <i className="fas fa-chevron-right text-xs" aria-hidden="true"></i>
+                <FaIcon icon={faChevronRight} className="text-xs" />
               </button>
             </div>
           ) : null}
@@ -753,7 +758,7 @@ export default function LiveRoundPage() {
               className="absolute left-3 z-[500] inline-flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive"
               style={{ bottom: 24 + (entry.mode === 'score' ? 56 : 0) + 52 }}
             >
-              <i className="fas fa-backward-step" aria-hidden="true"></i>
+              <FaIcon icon={faBackwardStep} />
               {COPY.GOLF_HOLE.FIRST_HOLE}
             </button>
           )}
@@ -767,7 +772,7 @@ export default function LiveRoundPage() {
               // label wrapped to "Score hole / 1" on phones.
               className="absolute bottom-6 left-1/2 z-[500] -translate-x-1/2 inline-flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-full bg-brand px-6 py-3 font-bold text-white shadow-lg hover:bg-brand-hover transition-colors"
             >
-              <i className="fas fa-pen" aria-hidden="true"></i>
+              <FaIcon icon={faPen} />
               Score hole {displayHole}
             </button>
           )}

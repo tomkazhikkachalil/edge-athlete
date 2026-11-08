@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { SharedProfilePreviewData } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faCircleUser } from '@/lib/icons/fa/circle-user';
 
 interface Props {
   profile: SharedProfilePreviewData;
@@ -36,7 +38,7 @@ export default function SharedProfilePreview({ profile, onClick }: Props) {
       className="w-full text-left rounded-lg border border-border bg-surface-muted hover:bg-surface-sunken transition-colors p-3"
     >
       <div className="flex items-center gap-1.5 text-xs text-faint mb-2">
-        <i className="fas fa-user-circle"></i>
+        <FaIcon icon={faCircleUser} />
         <span>Shared profile</span>
       </div>
       <div className="flex items-center gap-3">

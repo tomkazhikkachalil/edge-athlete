@@ -27,6 +27,13 @@ import ConfirmModal from '@/components/ConfirmModal';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import type { SportKey } from '@/lib/sports';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faStar } from '@/lib/icons/fa/star';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faVideo } from '@/lib/icons/fa/video';
 
 interface RoundMediaManagerProps {
   groupPostId: string;
@@ -182,7 +189,7 @@ export default function RoundMediaManager({
               disabled={disabled || busy}
               className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand px-4 py-2 font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
             >
-              <i className="fas fa-camera" aria-hidden="true"></i>
+              <FaIcon icon={faCamera} />
               Take photo
             </button>
             <button
@@ -191,7 +198,7 @@ export default function RoundMediaManager({
               disabled={disabled || busy}
               className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand px-4 py-2 font-bold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
             >
-              <i className="fas fa-video" aria-hidden="true"></i>
+              <FaIcon icon={faVideo} />
               Record video
             </button>
             <button
@@ -200,7 +207,7 @@ export default function RoundMediaManager({
               disabled={disabled || busy}
               className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border-2 border-border-strong px-4 py-2 font-bold text-secondary transition-colors hover:border-violet-500 hover:bg-brand-soft disabled:opacity-60"
             >
-              <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'}`} aria-hidden="true"></i>
+              <FaIcon icon={busy ? faSpinner : faCloudArrowUp} spin={busy ? true : false} />
               {busy ? 'Adding…' : 'Upload'}
             </button>
           </div>
@@ -310,7 +317,7 @@ export function RoundMediaItemControls({
             isHighlight ? 'text-brand-fg' : 'text-faint hover:text-secondary'
           }`}
         >
-          <i className={`${isHighlight ? 'fas' : 'far'} fa-star text-xs`} aria-hidden="true"></i>
+          <FaIcon icon={faStar} className={`text-xs ${isHighlight ? 'fas' : 'far'}`} />
         </button>
 
         <button
@@ -320,7 +327,7 @@ export function RoundMediaItemControls({
           title="Remove"
           className="flex h-10 w-10 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded text-faint hover:text-red-600 dark:hover:text-red-400"
         >
-          <i className="fas fa-trash text-xs" aria-hidden="true"></i>
+          <FaIcon icon={faTrash} className="text-xs" />
         </button>
       </div>
 

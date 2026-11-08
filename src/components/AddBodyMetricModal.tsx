@@ -22,6 +22,13 @@ import {
   parseTimeToSeconds,
   formatSecondsToDisplay,
 } from '@/lib/body-metrics-config';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faChartLine } from '@/lib/icons/fa/chart-line';
+import { faCirclePlay } from '@/lib/icons/fa/circle-play';
+import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 const MAX_MEDIA_FILES = 4;
 // The one upload cap (upload-rules.ts): uploads go straight to storage since
@@ -353,7 +360,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
             aria-label="Close"
             className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-surface-sunken text-muted transition-colors"
           >
-            <i className="fas fa-times text-sm"></i>
+            <FaIcon icon={faXmark} className="text-sm" />
           </button>
         </div>
 
@@ -374,7 +381,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                       : 'border-border text-tertiary hover:border-border-strong hover:bg-surface-muted'
                   }`}
                 >
-                  <i className={`${cat.icon} text-xs`}></i>
+                  <FaIcon icon={cat.icon} className="text-xs" />
                   {cat.label}
                 </button>
               ))}
@@ -467,7 +474,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                       : 'border-border text-tertiary hover:border-border-strong hover:bg-surface-muted'
                   }`}
                 >
-                  <i className="fas fa-chart-line text-xs"></i>
+                  <FaIcon icon={faChartLine} className="text-xs" />
                   Metric only
                 </button>
                 <button
@@ -479,7 +486,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                       : 'border-border text-tertiary hover:border-border-strong hover:bg-surface-muted'
                   }`}
                 >
-                  <i className="fas fa-camera text-xs"></i>
+                  <FaIcon icon={faCamera} className="text-xs" />
                   Add media
                 </button>
               </div>
@@ -523,7 +530,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                           <img src={f.preview} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <i className="fas fa-play-circle text-2xl text-decor"></i>
+                            <FaIcon icon={faCirclePlay} className="text-2xl text-decor" />
                           </div>
                         )}
                         <button
@@ -532,7 +539,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                           aria-label="Remove file"
                           className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
                         >
-                          <i className="fas fa-times text-xs" style={{ fontSize: '9px' }}></i>
+                          <FaIcon icon={faXmark} className="text-xs" style={{ fontSize: '9px' }} />
                         </button>
                       </div>
                     ))}
@@ -551,7 +558,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                           onClick={openPhoto}
                           className="flex-1 border-2 border-dashed border-border-strong rounded-lg py-4 px-3 text-sm text-muted hover:border-violet-400 hover:text-brand-fg transition-colors flex items-center justify-center gap-2"
                         >
-                          <i className="fas fa-camera" aria-hidden="true"></i>
+                          <FaIcon icon={faCamera} />
                           Take photo
                         </button>
                         <button
@@ -559,7 +566,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                           onClick={() => fileInputRef.current?.click()}
                           className="flex-1 border-2 border-dashed border-border-strong rounded-lg py-4 px-3 text-sm text-muted hover:border-violet-400 hover:text-brand-fg transition-colors flex items-center justify-center gap-2"
                         >
-                          <i className="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+                          <FaIcon icon={faCloudArrowUp} />
                           {mediaFiles.length === 0 ? 'Add photos or video' : 'Add more'}
                         </button>
                       </div>
@@ -606,7 +613,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
               className="flex-1 px-4 py-2.5 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
-                <><i className="fas fa-spinner fa-spin mr-1.5"></i>
+                <><FaIcon icon={faSpinner} spin className="mr-1.5" />
                   {mode === 'with_post' && mediaFiles.length > 0 ? 'Uploading…' : 'Saving…'}
                 </>
               ) : mode === 'with_post' ? 'Save & Post' : 'Save Entry'}

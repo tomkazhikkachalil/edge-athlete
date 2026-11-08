@@ -3,6 +3,14 @@
 import { useState } from 'react';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import StartSessionRows from '@/components/workouts/StartSessionRows';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faFilm } from '@/lib/icons/fa/film';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faMedal } from '@/lib/icons/fa/medal';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faStopwatch } from '@/lib/icons/fa/stopwatch';
 
 /**
  * The header's Create sheet (Create menu redesign, Oct 13 2026): the house
@@ -28,7 +36,7 @@ export default function CreateSheet({ onPost, onSport, onEvent, onFullGame, onWo
       <LargerWindow title="Record Activity" onClose={onClose} windowKey="create">
         <div className="space-y-1" data-create-sheet="" data-create-step="record">
           <button type="button" onClick={() => setStep('root')} className="ea-icon-btn text-secondary mb-1" aria-label="Back" data-create-back="">
-            <i className="fas fa-arrow-left" aria-hidden="true"></i>
+            <FaIcon icon={faArrowLeft} />
           </button>
           <StartSessionRows onWorkout={onWorkout} onActivity={onRecording} />
         </div>
@@ -40,21 +48,21 @@ export default function CreateSheet({ onPost, onSport, onEvent, onFullGame, onWo
     <LargerWindow title="Create" onClose={onClose} windowKey="create">
       <div className="space-y-1" data-create-sheet="" data-create-step="root">
         <button type="button" onClick={onPost} className={row} data-create-post="">
-          <span className={icon}><i className="fas fa-pen" aria-hidden="true"></i></span>
+          <span className={icon}><FaIcon icon={faPen} /></span>
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-primary">Post</span>
             <span className="block text-xs text-muted">Text, photos and video.</span>
           </span>
         </button>
         <button type="button" onClick={onSport} className={row} data-create-sport="">
-          <span className={icon}><i className="fas fa-medal" aria-hidden="true"></i></span>
+          <span className={icon}><FaIcon icon={faMedal} /></span>
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-primary">Sport</span>
             <span className="block text-xs text-muted">Pick a sport and start a session, like a golf round.</span>
           </span>
         </button>
         <button type="button" onClick={onEvent} className={row} data-create-event="">
-          <span className={icon}><i className="fas fa-flag-checkered" aria-hidden="true"></i></span>
+          <span className={icon}><FaIcon icon={faFlagCheckered} /></span>
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-primary">Event</span>
             <span className="block text-xs text-muted">Invite players, go live, keep a leaderboard.</span>
@@ -62,19 +70,19 @@ export default function CreateSheet({ onPost, onSport, onEvent, onFullGame, onWo
         </button>
         {/* Videos program (296): the fifth door — a game, a tournament, a broadcast is a YouTube link, not an upload. */}
         <button type="button" onClick={onFullGame} className={row} data-create-full-game="">
-          <span className={icon}><i className="fas fa-film" aria-hidden="true"></i></span>
+          <span className={icon}><FaIcon icon={faFilm} /></span>
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-primary">Full game</span>
             <span className="block text-xs text-muted">Link a YouTube game or tournament and mark the highlights.</span>
           </span>
         </button>
         <button type="button" onClick={() => setStep('record')} className={row} data-create-record-activity="" aria-haspopup="true">
-          <span className={icon}><i className="fas fa-stopwatch" aria-hidden="true"></i></span>
+          <span className={icon}><FaIcon icon={faStopwatch} /></span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-primary">Record Activity</span>
             <span className="block text-xs text-muted">Time a workout, or record a walk, run or ride with GPS.</span>
           </span>
-          <i className="fas fa-chevron-right text-muted shrink-0" aria-hidden="true"></i>
+          <FaIcon icon={faChevronRight} className="text-muted shrink-0" />
         </button>
       </div>
     </LargerWindow>

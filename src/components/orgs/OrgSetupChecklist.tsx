@@ -14,6 +14,9 @@ import {
   type ChecklistVariant,
   type OrgChecklistInput,
 } from '@/lib/orgs/checklist';
+import FaIcon from '@/components/FaIcon';
+import { faCircle } from '@/lib/icons/fa/circle';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
 
 export { buildOrgChecklistSteps };
 export type { OrgChecklistInput };
@@ -75,10 +78,7 @@ export default function OrgSetupChecklist({
       <ul className="space-y-2">
         {steps.map(step => (
           <li key={step.key} className="flex items-start gap-2">
-            <i
-              className={`fas ${step.done ? 'fa-circle-check text-emerald-600' : 'fa-circle text-decor'} mt-0.5 text-sm`}
-              aria-hidden="true"
-            ></i>
+            <FaIcon icon={step.done ? faCircleCheck : faCircle} className={step.done ? 'mt-0.5 text-sm text-emerald-600' : 'mt-0.5 text-sm text-decor'} />
             <div className="min-w-0">
               <p className={`text-sm font-medium ${step.done ? 'text-tertiary line-through' : 'text-primary'}`}>
                 {step.href && !step.done ? (

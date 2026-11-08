@@ -13,6 +13,22 @@ import { COPY } from '@/lib/copy';
 import LazyImage from '../LazyImage';
 import ConfirmModal from '../ConfirmModal';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faCircleXmark } from '@/lib/icons/fa/circle-xmark';
+import { faClock } from '@/lib/icons/fa/clock';
+import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
+import { faGear } from '@/lib/icons/fa/gear';
+import { faPeopleArrows } from '@/lib/icons/fa/people-arrows';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faStar } from '@/lib/icons/fa/star';
+import { faTable } from '@/lib/icons/fa/table';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faTree } from '@/lib/icons/fa/tree';
+import { faTriangleExclamation } from '@/lib/icons/fa/triangle-exclamation';
+import { faUsers } from '@/lib/icons/fa/users';
+import { faWarehouse } from '@/lib/icons/fa/warehouse';
 
 interface SharedRoundQuickViewProps {
   scorecard: CompleteGolfScorecard;
@@ -125,7 +141,7 @@ export default function SharedRoundQuickView({
           `stale` arrives already gated on liveness by useSharedRound. */}
       {stale && (
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
-          <i className="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <FaIcon icon={faTriangleExclamation} />
           <span>Updates paused — showing the last scores we could load.</span>
         </div>
       )}
@@ -134,7 +150,7 @@ export default function SharedRoundQuickView({
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <i className="fas fa-users text-decor text-base"></i>
+            <FaIcon icon={faUsers} className="text-decor text-base" />
             <span className="font-bold text-primary text-base">{golf_data.course_name}</span>
 
             {/* Round lifecycle badge: LIVE while scores are streaming in,
@@ -147,7 +163,7 @@ export default function SharedRoundQuickView({
             )}
             {group_post.status === 'completed' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
-                <i className="fas fa-flag-checkered text-[10px]"></i>
+                <FaIcon icon={faFlagCheckered} className="text-[10px]" />
                 FINAL
               </span>
             )}
@@ -155,7 +171,7 @@ export default function SharedRoundQuickView({
             {/* Game Format Badge (stroke play is the default — no badge) */}
             {gameFormat !== 'stroke' && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
-                <i className={`fas ${gameFormat === 'stableford' ? 'fa-star' : 'fa-people-arrows'} text-[10px]`}></i>
+                <FaIcon icon={gameFormat === 'stableford' ? faStar : faPeopleArrows} className="text-[10px]" />
                 {GAME_FORMAT_LABELS[gameFormat].toUpperCase()}
               </span>
             )}
@@ -163,12 +179,12 @@ export default function SharedRoundQuickView({
             {/* Round Type Badge */}
             {golf_data.round_type === 'indoor' ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
-                <i className="fas fa-warehouse text-[10px]"></i>
+                <FaIcon icon={faWarehouse} className="text-[10px]" />
                 INDOOR
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-700 text-white text-xs font-bold rounded-full">
-                <i className="fas fa-tree text-[10px]"></i>
+                <FaIcon icon={faTree} className="text-[10px]" />
                 OUTDOOR
               </span>
             )}
@@ -187,7 +203,7 @@ export default function SharedRoundQuickView({
             {mediaCount > 0 && (
               <>
                 <span>•</span>
-                <span><i className="fas fa-camera mr-1"></i>{mediaCount}</span>
+                <span><FaIcon icon={faCamera} className="mr-1" />{mediaCount}</span>
               </>
             )}
           </div>
@@ -226,7 +242,7 @@ export default function SharedRoundQuickView({
       {/* Match play status banner */}
       {matchStatus && matchStatus.thru > 0 && (
         <div className="flex items-center gap-2 bg-surface-muted border border-border rounded-lg px-3 py-2 mb-3">
-          <i className="fas fa-people-arrows text-muted"></i>
+          <FaIcon icon={faPeopleArrows} className="text-muted" />
           <span className="text-sm font-bold text-primary">
             {matchStatus.leaderIndex === null
               ? matchStatus.summary
@@ -256,21 +272,21 @@ export default function SharedRoundQuickView({
           if (participant.status === 'declined') {
             statusBadge = (
               <span className="flex items-center gap-1 text-xs font-semibold text-muted" title="Declined">
-                <i className="fas fa-times-circle"></i>
+                <FaIcon icon={faCircleXmark} />
                 <span className="hidden sm:inline">Declined</span>
               </span>
             );
           } else if (scores.total_score !== null) {
             statusBadge = (
               <span className="flex items-center gap-1 text-xs font-semibold text-muted" title="Confirmed">
-                <i className="fas fa-check-circle"></i>
+                <FaIcon icon={faCircleCheck} />
                 <span className="hidden sm:inline">Confirmed</span>
               </span>
             );
           } else {
             statusBadge = (
               <span className="flex items-center gap-1 text-xs font-semibold text-brand-fg" title="Awaiting scores">
-                <i className="fas fa-clock"></i>
+                <FaIcon icon={faClock} />
                 <span className="hidden sm:inline">Awaiting scores</span>
               </span>
             );
@@ -376,7 +392,7 @@ export default function SharedRoundQuickView({
             onClick={onExpand}
             className="flex-1 flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
           >
-            <i className="fas fa-table"></i>
+            <FaIcon icon={faTable} />
             View Full Scorecard
           </button>
         )}
@@ -393,7 +409,7 @@ export default function SharedRoundQuickView({
             aria-label="Finish round"
             data-round-finish=""
           >
-            <i className={`fas ${ending ? 'fa-spinner fa-spin' : 'fa-flag-checkered'}`}></i>
+            <FaIcon icon={ending ? faSpinner : faFlagCheckered} spin={ending ? true : false} />
             Finish round
           </button>
         )}
@@ -404,7 +420,7 @@ export default function SharedRoundQuickView({
             className="flex items-center justify-center gap-2 bg-brand hover:bg-brand-hover text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
             aria-label="Manage participants"
           >
-            <i className="fas fa-cog"></i>
+            <FaIcon icon={faGear} />
             Manage
           </button>
         )}
@@ -420,7 +436,7 @@ export default function SharedRoundQuickView({
             className="flex items-center justify-center gap-2 border border-red-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-60 font-bold py-2 px-4 rounded-lg transition-colors text-sm min-h-[44px]"
             aria-label="Delete round"
           >
-            <i className={`fas ${deleting ? 'fa-spinner fa-spin' : 'fa-trash'}`}></i>
+            <FaIcon icon={deleting ? faSpinner : faTrash} spin={deleting ? true : false} />
             Delete
           </button>
         )}

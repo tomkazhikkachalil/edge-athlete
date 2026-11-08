@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ADMIN_LOGIN_PATH } from '@/lib/admin/session';
 import { useAdminAuth } from '@/lib/admin/use-admin-auth';
+import FaIcon from '@/components/FaIcon';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
 
 /** The console's own header (flow changes item 2): who is signed in, Sign out, the way back to the app. */
 export default function AdminHeader(props: { email?: string; role?: 'owner' | 'moderator' } = {}) {
@@ -26,7 +28,7 @@ export default function AdminHeader(props: { email?: string; role?: 'owner' | 'm
     <header className="border-b border-border bg-surface" data-admin-header>
       <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
         <Link href="/admin" className="text-base font-bold text-primary">
-          <i className="fas fa-shield-alt mr-2 text-brand-fg" aria-hidden="true"></i>
+          <FaIcon icon={faShieldHalved} className="mr-2 text-brand-fg" />
           Edge Athlete admin
         </Link>
         <div className="flex items-center gap-3 text-sm">

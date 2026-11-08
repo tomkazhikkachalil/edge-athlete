@@ -47,6 +47,28 @@ import {
   getInitials,
   validateHeight
 } from '@/lib/formatters';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faCircleInfo } from '@/lib/icons/fa/circle-info';
+import { faFacebookBrands } from '@/lib/icons/fa/facebook-brands';
+import { faFloppyDisk } from '@/lib/icons/fa/floppy-disk';
+import { faImage } from '@/lib/icons/fa/image';
+import { faInstagramBrands } from '@/lib/icons/fa/instagram-brands';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faTiktokBrands } from '@/lib/icons/fa/tiktok-brands';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
+import { faXTwitterBrands } from '@/lib/icons/fa/x-twitter-brands';
+import { faXmark } from '@/lib/icons/fa/xmark';
+import { faChartLine } from '@/lib/icons/fa/chart-line';
+import { faGraduationCap } from '@/lib/icons/fa/graduation-cap';
+import { faMedal } from '@/lib/icons/fa/medal';
+import { faShareNodes } from '@/lib/icons/fa/share-nodes';
+import { faUser } from '@/lib/icons/fa/user';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface EditProfileTabsProps {
   isOpen: boolean;
@@ -79,7 +101,7 @@ type TabId = 'basic' | 'sports' | 'body_metrics' | 'socials' | 'recruiting';
 interface TabConfig {
   id: TabId;
   label: string;
-  icon: string;
+  icon: FaIconDef;
   enabled: boolean;
   comingSoon?: boolean;
 }
@@ -87,17 +109,17 @@ interface TabConfig {
 // Generate sport-aware tabs dynamically
 const generateTabs = (): TabConfig[] => {
   const baseTabs: TabConfig[] = [
-    { id: 'basic', label: 'Basic', icon: 'fas fa-user', enabled: true },
+    { id: 'basic', label: 'Basic', icon: faUser, enabled: true },
     // Your sports + each sport's setup (Program D): the picker moved here from Basic.
-    { id: 'sports', label: 'Sports', icon: 'fas fa-medal', enabled: true },
+    { id: 'sports', label: 'Sports', icon: faMedal, enabled: true },
     // Height, weight, grad year… — "Body Metrics" since Oct 14 2026 (it was
     // "Training"; Training is the workouts + activities section).
-    { id: 'body_metrics', label: 'Body Metrics', icon: 'fas fa-chart-line', enabled: true },
-    { id: 'socials', label: 'Socials', icon: 'fas fa-share-alt', enabled: true },
+    { id: 'body_metrics', label: 'Body Metrics', icon: faChartLine, enabled: true },
+    { id: 'socials', label: 'Socials', icon: faShareNodes, enabled: true },
     // Recruiting: the one gate + school / GPA / notes. Shown only to a
     // guardian acting as a supervised athlete (Oct 4 2026) — the athlete's
     // own door is Settings → Recruiting.
-    { id: 'recruiting', label: 'Recruiting', icon: 'fas fa-graduation-cap', enabled: true },
+    { id: 'recruiting', label: 'Recruiting', icon: faGraduationCap, enabled: true },
   ];
 
   // NOTE: there is deliberately no Equipment tab here. Gear is a first-class
@@ -768,7 +790,7 @@ export default function EditProfileTabs({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-secondary">Profile picture</p>
           <button type="button" onClick={() => setPhotoDoor('avatar')} className="ea-btn-secondary inline-flex items-center text-sm font-medium mt-1" aria-label="Change profile picture">
-            <i className="fas fa-camera mr-2" aria-hidden="true"></i>
+            <FaIcon icon={faCamera} className="mr-2" />
             Change profile picture
           </button>
           <p className="mt-1 text-xs text-muted">{basicForm.avatar_photo ? 'Saves with profile.' : 'JPG, PNG, GIF, WebP or HEIC. Max 5MB.'}</p>
@@ -786,7 +808,7 @@ export default function EditProfileTabs({
           ) : null}
         </div>
         <button type="button" onClick={() => setPhotoDoor('cover')} className="ea-btn-secondary inline-flex items-center text-sm font-medium mt-2" aria-label="Change cover photo">
-          <i className="fas fa-image mr-2" aria-hidden="true"></i>
+          <FaIcon icon={faImage} className="mr-2" />
           Change cover photo
         </button>
         <p className="mt-1 text-xs text-muted">{basicForm.cover_photo ? 'Saves with profile.' : 'A 3:1 banner. Max 10MB.'}</p>
@@ -914,7 +936,7 @@ export default function EditProfileTabs({
       <fieldset className="pt-4 border-t border-border">
         <legend className="text-sm font-semibold text-primary">Private details</legend>
         <p className="mt-1 mb-4 text-xs text-muted">
-          <i className="fas fa-lock mr-1" aria-hidden="true"></i>
+          <FaIcon icon={faLock} className="mr-1" />
           Only you can see these.
         </p>
         <div className="space-y-4">
@@ -1039,7 +1061,7 @@ export default function EditProfileTabs({
               ? 'bg-green-100 dark:bg-green-950/60 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
               : 'bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800'
           }`}>
-            <i className={`fas fa-${basicForm.visibility === 'public' ? 'globe' : 'lock'}`}></i>
+            <FaIcon icon={basicForm.visibility === 'public' ? faGlobe : faLock} />
             {basicForm.visibility === 'public' ? 'Public Profile' : 'Private Profile'}
           </span>
         </div>
@@ -1047,7 +1069,7 @@ export default function EditProfileTabs({
         {/* Explanation */}
         <div className="mt-3 p-3 bg-brand-soft border border-violet-100 dark:border-violet-900 rounded-lg">
           <div className="flex items-start gap-2">
-            <i className="fas fa-info-circle text-brand-fg mt-0.5"></i>
+            <FaIcon icon={faCircleInfo} className="text-brand-fg mt-0.5" />
             <div className="text-xs text-violet-900 dark:text-violet-200">
               {basicForm.visibility === 'public' ? (
                 <>
@@ -1093,7 +1115,7 @@ export default function EditProfileTabs({
               const unsaved = !initialSports.includes(sportKey);
               return (
                 <li key={sportKey} className="flex items-center gap-3 px-3 py-3" data-sport-row={sportKey} data-sport-row-state={schema ? (line ? 'set' : 'empty') : 'none'}>
-                  <i className={`${def.icon_id} w-6 text-center text-lg text-brand-fg`} aria-hidden="true" />
+                  <FaIcon icon={sportIcon(def.sport_key)} className="w-6 text-center text-lg text-brand-fg" />
                   <span className="flex-1 min-w-0">
                     <span className="block font-semibold text-primary">
                       {def.display_name}
@@ -1240,7 +1262,7 @@ export default function EditProfileTabs({
     <div className="space-y-6">
       <div>
         <label htmlFor="twitter" className="block text-sm font-medium text-secondary mb-1">
-          <i className="fa-brands fa-x-twitter text-primary mr-2" aria-hidden="true"></i>
+          <FaIcon icon={faXTwitterBrands} className="text-primary mr-2" />
           X Handle
         </label>
         <div className="relative">
@@ -1258,7 +1280,7 @@ export default function EditProfileTabs({
 
       <div>
         <label htmlFor="instagram" className="block text-sm font-medium text-secondary mb-1">
-          <i className="fab fa-instagram text-pink-500 mr-2" aria-hidden="true"></i>
+          <FaIcon icon={faInstagramBrands} className="text-pink-500 mr-2" />
           Instagram Handle
         </label>
         <div className="relative">
@@ -1276,7 +1298,7 @@ export default function EditProfileTabs({
 
       <div>
         <label htmlFor="tiktok" className="block text-sm font-medium text-secondary mb-1">
-          <i className="fa-brands fa-tiktok text-primary mr-2" aria-hidden="true"></i>
+          <FaIcon icon={faTiktokBrands} className="text-primary mr-2" />
           TikTok Handle
         </label>
         <div className="relative">
@@ -1294,7 +1316,7 @@ export default function EditProfileTabs({
 
       <div>
         <label htmlFor="facebook" className="block text-sm font-medium text-secondary mb-1">
-          <i className="fab fa-facebook text-brand-fg mr-2" aria-hidden="true"></i>
+          <FaIcon icon={faFacebookBrands} className="text-brand-fg mr-2" />
           Facebook Handle
         </label>
         <div className="relative">
@@ -1422,7 +1444,7 @@ export default function EditProfileTabs({
                 className="ea-icon-btn inline-flex items-center justify-center text-faint hover:text-muted"
                 aria-label="Close modal"
               >
-                <i className="fas fa-times text-lg" aria-hidden="true"></i>
+                <FaIcon icon={faXmark} className="text-lg" />
               </button>
             </div>
 
@@ -1449,7 +1471,7 @@ export default function EditProfileTabs({
                     disabled={!tab.enabled}
                     title={tab.comingSoon ? COPY.COMING_SOON.SPORT_GENERAL : undefined}
                   >
-                    <i className={`${tab.icon} mr-2`} aria-hidden="true"></i>
+                    <FaIcon icon={tab.icon} className="mr-2" />
                     {tab.label}
                     {tab.comingSoon && (
                       <span className="ml-1 text-xs text-faint">{COPY.TABS.COMING_SOON_INDICATOR}</span>
@@ -1466,7 +1488,7 @@ export default function EditProfileTabs({
           <div className="flex-1 min-h-0 overflow-y-auto bg-surface-muted px-4 py-6 sm:px-6">
             {!actingAs && profile?.supervision_state === 'supervised' && (
               <div className="mb-4 flex items-start gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft p-3 text-xs text-violet-900 dark:text-violet-200">
-                <i className="fas fa-user-shield mt-0.5" aria-hidden="true"></i>
+                <FaIcon icon={faUserShield} className="mt-0.5" />
                 <span>Your guardian is notified when you change your profile details.</span>
               </div>
             )}
@@ -1482,17 +1504,17 @@ export default function EditProfileTabs({
             >
               {isSubmitting ? (
                 <>
-                  <i className="fas fa-spinner fa-spin mr-2" aria-hidden="true"></i>
+                  <FaIcon icon={faSpinner} spin className="mr-2" />
                   Saving...
                 </>
               ) : justSaved ? (
                 <span data-profile-saved="">
-                  <i className="fas fa-check mr-2" aria-hidden="true"></i>
+                  <FaIcon icon={faCheck} className="mr-2" />
                   Saved
                 </span>
               ) : (
                 <>
-                  <i className="fas fa-save mr-2" aria-hidden="true"></i>
+                  <FaIcon icon={faFloppyDisk} className="mr-2" />
                   Save {TABS.find(t => t.id === activeTab)?.label}
                 </>
               )}

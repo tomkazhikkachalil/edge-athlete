@@ -9,6 +9,8 @@ import {
 } from '@/lib/orgs/structure-templates';
 import type { DivisionDraftRow } from '@/lib/orgs/wizard-validate';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── One sport's grid section (wizard step 3) ────────────────────────────────
 // Fully controlled: the wizard hoists SectionState; the division preview is
@@ -137,7 +139,7 @@ export default function StructureGridBuilder({
               aria-label={`Remove ${sportLabel} section`}
               className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
             >
-              <i className="fas fa-times" aria-hidden="true"></i>
+              <FaIcon icon={faXmark} />
             </button>
           )}
         </div>
@@ -210,7 +212,7 @@ export default function StructureGridBuilder({
                 aria-label={`Remove ${row.name}`}
                 className="text-muted hover:text-red-600 shrink-0"
               >
-                <i className="fas fa-times text-xs" aria-hidden="true"></i>
+                <FaIcon icon={faXmark} className="text-xs" />
               </button>
             </li>
           ))}

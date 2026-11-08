@@ -27,6 +27,26 @@ import { useFamilyWeek } from '@/lib/calendar/use-family-week';
 import { nextEventPerChild } from '@/lib/calendar/next-event';
 import { format } from 'date-fns';
 import type { ConsentState } from '@/lib/consent';
+import FaIcon from '@/components/FaIcon';
+import { faCalendarDay } from '@/lib/icons/fa/calendar-day';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faRightLeft } from '@/lib/icons/fa/right-left';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
+import { faSliders } from '@/lib/icons/fa/sliders';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
+import { faBinoculars } from '@/lib/icons/fa/binoculars';
+import { faCakeCandles } from '@/lib/icons/fa/cake-candles';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faClipboardList } from '@/lib/icons/fa/clipboard-list';
+import { faComment } from '@/lib/icons/fa/comment';
+import { faFileSignature } from '@/lib/icons/fa/file-signature';
+import { faHourglassHalf } from '@/lib/icons/fa/hourglass-half';
+import { faImage } from '@/lib/icons/fa/image';
+import { faKey } from '@/lib/icons/fa/key';
+import { faUserClock } from '@/lib/icons/fa/user-clock';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
 
 // ── Family console ────────────────────────────────────────────────────────────
 // The guardianship layer's home: every athlete this account is responsible
@@ -130,21 +150,21 @@ function inviteWhen(event: Extract<QueueItem, { kind: 'calendar_invite' }>['even
   });
 }
 
-const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
-  approve_post: 'fa-image',
-  release_comment: 'fa-comment',
-  follow_request: 'fa-user-plus',
-  transfer_step: 'fa-right-left',
-  consent_gap: 'fa-file-signature',
-  credentials_gap: 'fa-key',
-  waiting_on_child: 'fa-hourglass-half',
-  calendar_invite: 'fa-calendar-day',
-  roster_invite: 'fa-clipboard-list',
-  photo_consent: 'fa-camera',
-  contact_request: 'fa-user-clock',
-  age_preset_prompt: 'fa-cake-candles',
+const QUEUE_ICONS: Record<QueueItem['kind'], FaIconDef> = {
+  approve_post: faImage,
+  release_comment: faComment,
+  follow_request: faUserPlus,
+  transfer_step: faRightLeft,
+  consent_gap: faFileSignature,
+  credentials_gap: faKey,
+  waiting_on_child: faHourglassHalf,
+  calendar_invite: faCalendarDay,
+  roster_invite: faClipboardList,
+  photo_consent: faCamera,
+  contact_request: faUserClock,
+  age_preset_prompt: faCakeCandles,
   // Observational, deliberately not alarm-shaped (no triangles, no sirens).
-  risk_signal: 'fa-binoculars',
+  risk_signal: faBinoculars,
 };
 
 function ChipPill({ chip }: { chip: Chip }) {
@@ -462,7 +482,7 @@ export default function FamilyConsolePage() {
               href="/app/guardian/add-athlete"
               className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors"
             >
-              <i className="fas fa-plus text-xs"></i>
+              <FaIcon icon={faPlus} className="text-xs" />
               Add athlete
             </Link>
             <Link
@@ -505,7 +525,7 @@ export default function FamilyConsolePage() {
               onClick={() => { setError(''); setState('loading'); setRetryKey(k => k + 1); }}
               className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors"
             >
-              <i className="fas fa-rotate-right text-xs"></i>
+              <FaIcon icon={faRotateRight} className="text-xs" />
               Try again
             </button>
           </div>
@@ -590,7 +610,7 @@ export default function FamilyConsolePage() {
                               ? 'bg-surface-sunken text-tertiary'
                               : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
                           }`}>
-                            <i className={`fas ${QUEUE_ICONS[item.kind]} text-xs`}></i>
+                            <FaIcon icon={QUEUE_ICONS[item.kind]} className="text-xs" />
                           </span>
                           <span className="flex-grow min-w-0">
                             <span className={`block text-sm font-medium ${waitingOnChild ? 'text-tertiary' : 'text-primary'}`}>
@@ -719,7 +739,7 @@ export default function FamilyConsolePage() {
                           className="flex items-center gap-3 px-4 py-3 min-h-[44px] hover:bg-surface-muted transition-colors first:rounded-t-lg last:rounded-b-lg"
                         >
                           {body}
-                          <i className="fas fa-chevron-right text-xs text-muted shrink-0"></i>
+                          <FaIcon icon={faChevronRight} className="text-xs text-muted shrink-0" />
                         </Link>
                       );
                     })}
@@ -749,7 +769,7 @@ export default function FamilyConsolePage() {
                   href="/app/guardian/add-athlete"
                   className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors"
                 >
-                  <i className="fas fa-plus text-xs"></i>
+                  <FaIcon icon={faPlus} className="text-xs" />
                   Add your first athlete
                 </Link>
               </div>
@@ -827,7 +847,7 @@ export default function FamilyConsolePage() {
                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-xs text-secondary min-w-0">
                           {next && (
                             <span className="inline-flex items-center gap-1.5 min-w-0">
-                              <i className="fas fa-calendar-day text-[10px] text-brand-fg" aria-hidden="true"></i>
+                              <FaIcon icon={faCalendarDay} className="text-[10px] text-brand-fg" />
                               <span className="font-semibold">Next:</span>
                               <span className="min-w-0 truncate">
                                 {next.allDay
@@ -859,7 +879,7 @@ export default function FamilyConsolePage() {
                               : 'border border-border-strong text-secondary hover:bg-surface-muted'
                           }`}
                         >
-                          <i className={`fas ${isActive ? 'fa-circle-check' : 'fa-right-left'} text-xs`}></i>
+                          <FaIcon icon={isActive ? faCircleCheck : faRightLeft} className="text-xs" />
                           {isActive ? 'Posting as — switch back' : 'Post as'}
                         </button>
                       )}
@@ -874,7 +894,7 @@ export default function FamilyConsolePage() {
                           href={`/app/guardian/athlete/${a.id}`}
                           className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 border border-violet-300 dark:border-violet-800 rounded-lg text-sm font-semibold text-brand-fg-strong hover:bg-brand-soft transition-colors"
                         >
-                          <i className="fas fa-sliders text-xs"></i>
+                          <FaIcon icon={faSliders} className="text-xs" />
                           Manage
                         </Link>
                       )}

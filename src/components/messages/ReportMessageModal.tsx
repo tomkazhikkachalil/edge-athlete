@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 const REASONS: { value: string; label: string; hint: string }[] = [
   { value: 'spam', label: 'Spam', hint: 'Unwanted promotional content or repeated messages' },
@@ -100,7 +103,7 @@ export default function ReportMessageModal({
               className="ea-icon-btn inline-flex items-center justify-center -my-2 -mr-2"
               aria-label="Close"
             >
-              <i className="fas fa-times text-base"></i>
+              <FaIcon icon={faXmark} className="text-base" />
             </button>
           </div>
           <p className="text-xs text-muted mt-1">
@@ -111,7 +114,7 @@ export default function ReportMessageModal({
         {done ? (
           <div className="px-5 py-6 text-center">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 mb-3">
-              <i className="fas fa-check text-xl"></i>
+              <FaIcon icon={faCheck} className="text-xl" />
             </div>
             <p className="text-sm font-semibold text-primary">Report submitted</p>
             <p className="text-xs text-muted mt-1">Thanks — we&apos;ll review this shortly.</p>

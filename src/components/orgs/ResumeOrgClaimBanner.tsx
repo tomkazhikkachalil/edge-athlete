@@ -8,6 +8,8 @@ import {
   loadParkedOrgClaim,
   type ParkedOrgClaim,
 } from '@/lib/org-claim-parked';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── The way back to a parked org claim (phase 1 round 2) ────────────────────
 // Rendered by AppHeader on every authed surface, so wherever the sign-up
@@ -47,7 +49,7 @@ export default function ResumeOrgClaimBanner() {
         aria-label="Dismiss claim reminder"
         className="text-muted hover:text-secondary"
       >
-        <i className="fas fa-times text-xs" aria-hidden="true"></i>
+        <FaIcon icon={faXmark} className="text-xs" />
       </button>
     </div>
   );

@@ -15,6 +15,13 @@ import {
   type LastTransfer,
   type ViewerRole,
 } from '@/lib/transfer-ui';
+import FaIcon from '@/components/FaIcon';
+import { faArrowsRotate } from '@/lib/icons/fa/arrows-rotate';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faCircleInfo } from '@/lib/icons/fa/circle-info';
+import { faClock } from '@/lib/icons/fa/clock';
+import { faHourglassHalf } from '@/lib/icons/fa/hourglass-half';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 // ── Transfer of control ──────────────────────────────────────────────────────
 // ONE page for BOTH parties: the guardian and the supervised athlete each see
@@ -198,7 +205,7 @@ export default function TransferPage() {
       disabled={acting}
       className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
     >
-      {acting ? <><i className="fas fa-spinner fa-spin mr-2"></i> {busyLabel}</> : label}
+      {acting ? <><FaIcon icon={faSpinner} spin className="mr-2" /> {busyLabel}</> : label}
     </button>
   );
 
@@ -209,7 +216,7 @@ export default function TransferPage() {
         { who: isGuardian ? 'You' : 'Your guardian', done: bothConfirmView.guardian },
       ].map(row => (
         <div key={row.who} className="flex items-center gap-2 py-1">
-          <i className={`fas ${row.done ? 'fa-circle-check text-brand-fg' : 'fa-clock text-decor'}`}></i>
+          <FaIcon icon={row.done ? faCircleCheck : faClock} className={row.done ? 'text-brand-fg' : 'text-decor'} />
           <span className="text-primary">{row.who}</span>
           <span className="text-muted">{row.done ? 'confirmed' : 'waiting'}</span>
         </div>
@@ -234,7 +241,7 @@ export default function TransferPage() {
             </p>
           ) : justCancelled ? (
             <div className="text-center py-6">
-              <i className="fas fa-circle-check text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faCircleCheck} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 {isAthlete ? 'Okay — the handover is off' : 'Transfer cancelled'}
               </h2>
@@ -250,7 +257,7 @@ export default function TransferPage() {
           ) : state === 'none' ? (
             managedEntry?.supervision_state === 'self' ? (
               <div className="text-center py-6">
-                <i className="fas fa-circle-check text-brand-fg text-4xl mb-4"></i>
+                <FaIcon icon={faCircleCheck} className="text-brand-fg text-4xl mb-4" />
                 <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Already handed over</h2>
                 <p className="text-sm text-tertiary max-w-md mx-auto">
                   {athleteName} owns this account now.
@@ -262,7 +269,7 @@ export default function TransferPage() {
                     is acknowledged instead of silently looping back here. */}
                 {lastTransfer && terminalTransferNotice(lastTransfer.state, isGuardian ? 'guardian' : 'supervised') && (
                   <div className="bg-surface-muted border border-border rounded-md px-4 py-3 text-sm text-secondary mb-4">
-                    <i className="fas fa-circle-info text-decor mr-2"></i>
+                    <FaIcon icon={faCircleInfo} className="text-decor mr-2" />
                     {terminalTransferNotice(lastTransfer.state, isGuardian ? 'guardian' : 'supervised')}
                   </div>
                 )}
@@ -308,7 +315,7 @@ export default function TransferPage() {
               </>
             ) : (
               <div className="text-center py-6">
-                <i className="fas fa-hourglass-half text-brand-fg text-4xl mb-4"></i>
+                <FaIcon icon={faHourglassHalf} className="text-brand-fg text-4xl mb-4" />
                 <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">We&apos;ve told your guardian</h2>
                 <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                   They need to say yes before anything happens. Check back soon!
@@ -318,7 +325,7 @@ export default function TransferPage() {
             )
           ) : (state === 'initiated' || state === 'credentials_pending') && isGuardian ? (
             <div className="text-center py-6">
-              <i className="fas fa-hourglass-half text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faHourglassHalf} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">Waiting on {athleteName}</h2>
               <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 They&apos;re adding an email address that belongs just to them. Nothing changes
@@ -347,7 +354,7 @@ export default function TransferPage() {
                   disabled={acting || !email.trim()}
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
-                  {acting ? <><i className="fas fa-spinner fa-spin mr-2"></i> Sending...</> : (editingEmail ? 'Use this email instead' : 'Send my code')}
+                  {acting ? <><FaIcon icon={faSpinner} spin className="mr-2" /> Sending...</> : (editingEmail ? 'Use this email instead' : 'Send my code')}
                 </button>
               </form>
               <div className="text-center mt-4">
@@ -401,7 +408,7 @@ export default function TransferPage() {
                   disabled={acting || code.length !== 6}
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
-                  {acting ? <><i className="fas fa-spinner fa-spin mr-2"></i> Checking...</> : 'Verify'}
+                  {acting ? <><FaIcon icon={faSpinner} spin className="mr-2" /> Checking...</> : 'Verify'}
                 </button>
               </form>
               <div className="flex flex-col items-center gap-2 mt-4">
@@ -485,7 +492,7 @@ export default function TransferPage() {
             </>
           ) : state === 'executing' ? (
             <div className="text-center py-6">
-              <i className="fas fa-arrows-rotate text-brand-fg text-4xl mb-4"></i>
+              <FaIcon icon={faArrowsRotate} className="text-brand-fg text-4xl mb-4" />
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
                 {isAthlete ? "It's happening!" : 'The handover is completing now'}
               </h2>

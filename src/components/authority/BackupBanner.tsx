@@ -7,6 +7,8 @@
 // you can hide is a warning nobody sees twice). One CTA, a 44px target.
 
 import type { BackupState } from '@/lib/authority/backup';
+import FaIcon from '@/components/FaIcon';
+import { faUserShield } from '@/lib/icons/fa/user-shield';
 
 interface Props {
   state: BackupState | null | undefined;
@@ -40,7 +42,7 @@ export default function BackupBanner({ state, subject, onAct, actHref }: Props) 
     >
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-          <i className="fas fa-user-shield mr-2" aria-hidden="true"></i>
+          <FaIcon icon={faUserShield} className="mr-2" />
           {copy.title}
         </p>
         <p className="text-sm text-amber-900/90 dark:text-amber-100/90 mt-1">{copy.body}</p>

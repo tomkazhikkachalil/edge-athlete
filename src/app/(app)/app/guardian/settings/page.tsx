@@ -26,6 +26,11 @@ import {
   type HouseholdPresets,
   type SafetyField,
 } from '@/lib/household-policy';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
+import { faWandMagicSparkles } from '@/lib/icons/fa/wand-magic-sparkles';
 
 // ── Household settings (Wave 4, mig 132) ─────────────────────────────────────
 // The guardian's safety DEFAULTS for every athlete they manage: what a new
@@ -233,7 +238,7 @@ export default function HouseholdSettingsPage() {
           href="/app/guardian"
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 mb-4 min-h-[44px]"
         >
-          <i className="fas fa-chevron-left text-xs"></i>
+          <FaIcon icon={faChevronLeft} className="text-xs" />
           Family console
         </Link>
         <h1 className="text-2xl font-bold text-primary mb-6">Household</h1>
@@ -253,7 +258,7 @@ export default function HouseholdSettingsPage() {
               onClick={() => { setState('loading'); setRetryKey(k => k + 1); }}
               className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand-hover transition"
             >
-              <i className="fas fa-rotate-right text-xs"></i>
+              <FaIcon icon={faRotateRight} className="text-xs" />
               Try again
             </button>
           </div>
@@ -309,7 +314,7 @@ export default function HouseholdSettingsPage() {
                   }
                   className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 border border-violet-300 dark:border-violet-800 rounded-lg text-sm font-semibold text-brand-fg-strong hover:bg-brand-soft transition-colors disabled:opacity-50"
                 >
-                  <i className="fas fa-plus text-xs"></i>
+                  <FaIcon icon={faPlus} className="text-xs" />
                   Set younger-kid defaults
                 </button>
               ) : (
@@ -371,7 +376,7 @@ export default function HouseholdSettingsPage() {
                   }
                   className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 border border-violet-300 dark:border-violet-800 rounded-lg text-sm font-semibold text-brand-fg-strong hover:bg-brand-soft transition-colors disabled:opacity-50"
                 >
-                  <i className="fas fa-plus text-xs"></i>
+                  <FaIcon icon={faPlus} className="text-xs" />
                   Set older-athlete defaults
                 </button>
               ) : (
@@ -437,7 +442,7 @@ export default function HouseholdSettingsPage() {
                   onClick={() => setConfirmingApply(true)}
                   className="px-4 py-2 min-h-[44px] inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
                 >
-                  <i className="fas fa-wand-magic-sparkles text-xs"></i>
+                  <FaIcon icon={faWandMagicSparkles} className="text-xs" />
                   Apply to all athletes
                 </button>
                 {policy === null && (

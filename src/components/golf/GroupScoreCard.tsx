@@ -10,6 +10,8 @@ import { cellState, overlayOutbox } from '@/lib/golf/score-outbox';
 import { eventApi } from '@/lib/sport-events/client';
 import { matchColumns } from '@/lib/sport-events/match-view';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
 
 /**
  * The group card (Events program, PR 14): live ENTRY for a playing group
@@ -163,7 +165,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
       {event && (
         <div className="px-4 pt-3 pb-1 flex items-center justify-between gap-2">
           <Link href={`/events/${event.id}?tab=${match ? 'matches' : 'leaderboard'}`} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-gsc-back="">
-            <i className="fas fa-chevron-left text-xs" aria-hidden="true"></i>{event.name}
+            <FaIcon icon={faChevronLeft} className="text-xs" />{event.name}
           </Link>
           <span className="text-xs text-muted">{group?.name ?? (group ? `Group ${group.sequence}` : '')}</span>
         </div>

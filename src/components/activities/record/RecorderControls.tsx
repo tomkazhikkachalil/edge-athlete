@@ -1,6 +1,11 @@
 'use client';
 
 import type { RecordingStatus } from '@/lib/activities/record/recording';
+import FaIcon from '@/components/FaIcon';
+import { faFlag } from '@/lib/icons/fa/flag';
+import { faPause } from '@/lib/icons/fa/pause';
+import { faPlay } from '@/lib/icons/fa/play';
+import { faStop } from '@/lib/icons/fa/stop';
 
 /** The fixed bottom bar — the screen owns its bottom edge (no tab bar here). */
 export default function RecorderControls({
@@ -32,13 +37,13 @@ export default function RecorderControls({
       <div className="mx-auto flex max-w-xl gap-2">
         {status === 'idle' && (
           <button type="button" onClick={onStart} disabled={busy} className={`${btn} ea-cta text-white`} data-record-start="">
-            <i className="fas fa-play" aria-hidden="true"></i> Start
+            <FaIcon icon={faPlay} /> Start
           </button>
         )}
         {status === 'recording' && (
           <>
             <button type="button" onClick={onPause} disabled={busy} className={`${btn} ea-interactive border border-border-strong text-primary`} data-record-pause="">
-              <i className="fas fa-pause" aria-hidden="true"></i> Pause
+              <FaIcon icon={faPause} /> Pause
             </button>
             {mark && (
             <button
@@ -49,22 +54,22 @@ export default function RecorderControls({
               className={`${btn} ${openSegment !== null ? 'bg-red-600 text-white' : 'ea-interactive border border-border-strong text-primary'}`}
               data-record-mark={openSegment !== null ? 'open' : 'closed'}
             >
-              <i className="fas fa-flag" aria-hidden="true"></i>
+              <FaIcon icon={faFlag} />
               {openSegment !== null ? `End · ${Math.floor(openSegment / 60)}:${String(openSegment % 60).padStart(2, '0')}` : 'Mark'}
             </button>
             )}
             <button type="button" onClick={onFinish} disabled={busy} className={`${btn} ea-cta text-white`} data-record-finish="">
-              <i className="fas fa-stop" aria-hidden="true"></i> Finish
+              <FaIcon icon={faStop} /> Finish
             </button>
           </>
         )}
         {status === 'paused' && (
           <>
             <button type="button" onClick={onResume} disabled={busy} className={`${btn} ea-cta text-white`} data-record-resume="">
-              <i className="fas fa-play" aria-hidden="true"></i> Resume
+              <FaIcon icon={faPlay} /> Resume
             </button>
             <button type="button" onClick={onFinish} disabled={busy} className={`${btn} ea-interactive border border-border-strong text-primary`} data-record-finish="">
-              <i className="fas fa-stop" aria-hidden="true"></i> Finish
+              <FaIcon icon={faStop} /> Finish
             </button>
           </>
         )}

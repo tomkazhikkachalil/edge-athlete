@@ -6,6 +6,9 @@ import { useAuth } from '@/lib/auth';
 import { formatPlace } from '@/lib/geo/regions';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 // The "Clubs & Leagues" strip (org connections round) — mounted in the
 // affiliation zone of the athlete pages and fed from the /u/ aggregate on
@@ -77,10 +80,7 @@ export default function OrgMembershipsStrip({ profileId, initialData }: OrgMembe
                 title={title || undefined}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-surface-sunken text-sm text-secondary hover:border-violet-300 hover:text-primary transition-colors"
               >
-                <i
-                  className={`fas ${org.kind === 'league' ? 'fa-trophy' : 'fa-building'} text-brand-fg text-xs`}
-                  aria-hidden="true"
-                ></i>
+                <FaIcon icon={org.kind === 'league' ? faTrophy : faBuilding} className="text-brand-fg text-xs" />
                 <span className="max-w-[10rem] truncate">{org.name}</span>
                 {org.pending && (
                   <span className="text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300">Listing pending</span>

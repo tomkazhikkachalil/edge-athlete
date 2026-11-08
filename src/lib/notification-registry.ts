@@ -35,38 +35,38 @@ interface NotificationTypeMeta {
 
 export const NOTIFICATION_TYPE_META = {
   // Follow tab
-  follow_request: { tab: 'follow', icon: 'fa-user-plus' },
-  follow_accepted: { tab: 'follow', icon: 'fa-user-plus' },
-  new_follower: { tab: 'follow', icon: 'fa-user-plus' },
+  follow_request: { tab: 'follow', icon: 'user-plus' },
+  follow_accepted: { tab: 'follow', icon: 'user-plus' },
+  new_follower: { tab: 'follow', icon: 'user-plus' },
   // Engagement tab
-  like: { tab: 'engagement', icon: 'fa-heart' },
-  comment: { tab: 'engagement', icon: 'fa-comment' },
-  comment_reply: { tab: 'engagement', icon: 'fa-comment' },
-  mention: { tab: 'engagement', icon: 'fa-at' },
-  tag: { tab: 'engagement', icon: 'fa-at' },
+  like: { tab: 'engagement', icon: 'heart' },
+  comment: { tab: 'engagement', icon: 'comment' },
+  comment_reply: { tab: 'engagement', icon: 'comment' },
+  mention: { tab: 'engagement', icon: 'at' },
+  tag: { tab: 'engagement', icon: 'at' },
   // System tab
-  achievement: { tab: 'system', icon: 'fa-trophy' },
-  system_announcement: { tab: 'system', icon: 'fa-bullhorn' },
-  club_update: { tab: 'system', icon: 'fa-users' },
-  team_update: { tab: 'system', icon: 'fa-users' },
+  achievement: { tab: 'system', icon: 'trophy' },
+  system_announcement: { tab: 'system', icon: 'bullhorn' },
+  club_update: { tab: 'system', icon: 'users' },
+  team_update: { tab: 'system', icon: 'users' },
   event_invite: { tab: 'system' },
   event_update: { tab: 'system' },
   event_cancelled: { tab: 'system' },
   event_response: { tab: 'system' },
-  post_pending_approval: { tab: 'system', icon: 'fa-hourglass-half' },
-  post_approval_result: { tab: 'system', icon: 'fa-user-shield' },
-  comment_pending_approval: { tab: 'system', icon: 'fa-hourglass-half' },
-  comment_approval_result: { tab: 'system', icon: 'fa-user-shield' },
-  transfer_update: { tab: 'system', icon: 'fa-right-left' },
-  consent_result: { tab: 'system', icon: 'fa-user-shield' },
-  athlete_added: { tab: 'system', icon: 'fa-child-reaching' },
-  safety_alert: { tab: 'system', icon: 'fa-shield-halved' },
-  calendar_alert: { tab: 'system', icon: 'fa-calendar-day' },
+  post_pending_approval: { tab: 'system', icon: 'hourglass-half' },
+  post_approval_result: { tab: 'system', icon: 'user-shield' },
+  comment_pending_approval: { tab: 'system', icon: 'hourglass-half' },
+  comment_approval_result: { tab: 'system', icon: 'user-shield' },
+  transfer_update: { tab: 'system', icon: 'right-left' },
+  consent_result: { tab: 'system', icon: 'user-shield' },
+  athlete_added: { tab: 'system', icon: 'child-reaching' },
+  safety_alert: { tab: 'system', icon: 'shield-halved' },
+  calendar_alert: { tab: 'system', icon: 'calendar-day' },
   // All/Unread only (tab: null) — preserved from the pre-registry behavior,
   // where these types appeared in no named tab's array.
   new_message: { tab: null },
-  group_invite: { tab: null, icon: 'fa-users' },
-  group_update: { tab: null, icon: 'fa-trophy' },
+  group_invite: { tab: null, icon: 'users' },
+  group_update: { tab: null, icon: 'trophy' },
   guardian_invite: { tab: null },
   event_reminder: { tab: null },
   follow_request_guardian: { tab: null },
@@ -84,70 +84,70 @@ export const NOTIFICATION_TYPE_META = {
   carpool_update: { tab: null },
   // 0.10 (mig 147): guardian-facing roster bell — sits with its guardian
   // siblings in the All/Unread-only bucket.
-  roster_invite: { tab: null, icon: 'fa-clipboard-list' },
+  roster_invite: { tab: null, icon: 'clipboard-list' },
   // Phase 2 R4 (mig 154): cross-org rep entry flow — manager-facing,
   // All/Unread-only like their org siblings.
-  competition_entry_pending: { tab: null, icon: 'fa-clipboard-check' },
-  competition_entry_decided: { tab: null, icon: 'fa-clipboard-check' },
+  competition_entry_pending: { tab: null, icon: 'clipboard-check' },
+  competition_entry_decided: { tab: null, icon: 'clipboard-check' },
   // Phase 5 (mig 163): the registration lifecycle.
-  org_registration_received: { tab: null, icon: 'fa-user-plus' },
-  org_registration_placed: { tab: null, icon: 'fa-people-group' },
-  org_registration_released: { tab: null, icon: 'fa-user-minus' },
+  org_registration_received: { tab: null, icon: 'user-plus' },
+  org_registration_placed: { tab: null, icon: 'people-group' },
+  org_registration_released: { tab: null, icon: 'user-minus' },
   // Phase 6 R4 (mig 168): result disputes — manager-facing.
-  contest_dispute_raised: { tab: null, icon: 'fa-flag' },
-  contest_dispute_resolved: { tab: null, icon: 'fa-flag-checkered' },
+  contest_dispute_raised: { tab: null, icon: 'flag' },
+  contest_dispute_resolved: { tab: null, icon: 'flag-checkered' },
   // Phase 6d W2 (mig 173): golf league bells — member-facing (guardians
   // copied when supervised). All/Unread-only like their org siblings.
-  golf_league_round_counted: { tab: null, icon: 'fa-golf-ball-tee' },
-  golf_league_round_confirmed: { tab: null, icon: 'fa-golf-ball-tee' },
-  golf_league_window_closing: { tab: null, icon: 'fa-golf-ball-tee' },
+  golf_league_round_counted: { tab: null, icon: 'golf-ball-tee' },
+  golf_league_round_confirmed: { tab: null, icon: 'golf-ball-tee' },
+  golf_league_window_closing: { tab: null, icon: 'golf-ball-tee' },
   // Org staff program (178): staff invite / accept / revoke bells. Senders
   // arrive in round 4; the types are registered with the migration so the
   // DB-parity test holds at every step.
-  org_staff_invite: { tab: null, icon: 'fa-building' },
-  org_staff_accepted: { tab: null, icon: 'fa-building' },
-  org_staff_revoked: { tab: null, icon: 'fa-building' },
+  org_staff_invite: { tab: null, icon: 'building' },
+  org_staff_accepted: { tab: null, icon: 'building' },
+  org_staff_revoked: { tab: null, icon: 'building' },
   // Onboarding v2 (179): an org asked to be LISTED — bells the admins (R1).
-  org_listing_request: { tab: null, icon: 'fa-list-check' },
+  org_listing_request: { tab: null, icon: 'list-check' },
   // Program 2, D (187): a visitor sent a form on the org's site — the owner and managers hear.
-  site_form_submission: { tab: null, icon: 'fa-envelope' },
+  site_form_submission: { tab: null, icon: 'envelope' },
   // Events program (mig 205): the sport_event_* family — `event_*` is the
   // calendar's. invite + request are actionable (accept / decline from the
   // bell); sport_event_live is registered but unsent in phase 1 (Live Now
   // is the surface). tab null = All / Unread only (the tab buckets are
   // frozen from the pre-registry arrays; newer families live there).
-  sport_event_invite: { tab: null, icon: 'fa-flag-checkered' },
-  sport_event_request: { tab: null, icon: 'fa-flag-checkered' },
-  sport_event_request_decision: { tab: null, icon: 'fa-flag-checkered' },
-  sport_event_live: { tab: null, icon: 'fa-trophy' },
-  sport_event_results: { tab: null, icon: 'fa-trophy' },
+  sport_event_invite: { tab: null, icon: 'flag-checkered' },
+  sport_event_request: { tab: null, icon: 'flag-checkered' },
+  sport_event_request_decision: { tab: null, icon: 'flag-checkered' },
+  sport_event_live: { tab: null, icon: 'trophy' },
+  sport_event_results: { tab: null, icon: 'trophy' },
   // Phase 2b (mig 210): the day-before reminder — the daily cron bells every
   // accepted participant of a round scheduled tomorrow, once per round.
-  sport_event_reminder: { tab: null, icon: 'fa-bell' },
+  sport_event_reminder: { tab: null, icon: 'bell' },
   // Resume pill program (mig 259): the day-before bell for an unfinished
   // session — a round or a workout untouched for 6 days, which the 7-day
   // sweep finishes as played (or discards when empty) tomorrow. Once per
   // session, to its creator / owner, from the daily cron.
-  session_reminder: { tab: null, icon: 'fa-hourglass-half' },
+  session_reminder: { tab: null, icon: 'hourglass-half' },
   // Phase 3 (mig 213): one type, three copies by metadata.kind (set · won · lost).
-  sport_event_match: { tab: null, icon: 'fa-flag-checkered' },
+  sport_event_match: { tab: null, icon: 'flag-checkered' },
   // Support & Reporting, Spec 1 (mig 222): the submitter's bell on a visible
   // ticket change, and every owner / moderator's bell on a Critical ticket
   // (the urgent-email sweep mails the latter within ten minutes).
-  ticket_update: { tab: null, icon: 'fa-life-ring' },
-  ticket_critical: { tab: null, icon: 'fa-triangle-exclamation' },
+  ticket_update: { tab: null, icon: 'life-ring' },
+  ticket_critical: { tab: null, icon: 'triangle-exclamation' },
   // Spec 2 (mig 223): the reported user's notice — a warning, a suspension,
   // a ban, an appeal's outcome — in plain words, never who reported.
-  moderation_notice: { tab: 'system', icon: 'fa-gavel' },
+  moderation_notice: { tab: 'system', icon: 'gavel' },
   // Authority (240): Edge Athlete support changed who can run a club, league or event.
-  authority_notice: { tab: 'system', icon: 'fa-user-shield' },
+  authority_notice: { tab: 'system', icon: 'user-shield' },
   // Teams & divisions (242): you were added to, moved between, removed from or
   // carried forward on a team roster (a supervised athlete's guardians get a copy).
-  team_roster: { tab: null, icon: 'fa-people-group' },
+  team_roster: { tab: null, icon: 'people-group' },
   // Play (244): a friend challenged you (Accept / Decline from the bell), and
   // how a challenge ended (won / lost / expired / declined).
-  challenge: { tab: null, icon: 'fa-bolt' },
-  challenge_result: { tab: null, icon: 'fa-flag-checkered' },
+  challenge: { tab: null, icon: 'bolt' },
+  challenge_result: { tab: null, icon: 'flag-checkered' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 /** Types a viewer answers from the bell (accept / decline through POST /api/notifications/[id]/action). */
@@ -160,7 +160,7 @@ function metaFor(type: string): NotificationTypeMeta | undefined {
 }
 
 export function getNotificationIcon(type: string): string {
-  return metaFor(type)?.icon ?? 'fa-bell';
+  return metaFor(type)?.icon ?? 'bell';
 }
 
 export function notificationTab(type: string): NotificationTab {

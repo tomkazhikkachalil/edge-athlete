@@ -4,6 +4,10 @@ import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
 import { feedOffLine, isPrivateAccount, whoSeesPost } from '@/lib/posts/audience';
 import { rememberFeedChoice, type FeedKind } from '@/lib/posts/feed-memory';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { faUserGroup } from '@/lib/icons/fa/user-group';
+import { faEyeSlash } from '@/lib/icons/fa/eye-slash';
+import FaIcon from '@/components/FaIcon';
 
 interface FeedToggleProps {
   on: boolean;
@@ -30,7 +34,7 @@ export default function FeedToggle({ on, onChange, kind, place, accountVisibilit
   const visibility = accountVisibility !== undefined ? accountVisibility : profile?.visibility;
   const privateAccount = isPrivateAccount(visibility);
   const line = on ? whoSeesPost(visibility) : feedOffLine(place);
-  const icon = on ? (privateAccount ? 'fa-user-group' : 'fa-globe') : 'fa-eye-slash';
+  const icon = on ? (privateAccount ? faUserGroup : faGlobe) : faEyeSlash;
   const flip = () => {
     const next = !on;
     if (kind) rememberFeedChoice(kind, next);
@@ -46,7 +50,7 @@ export default function FeedToggle({ on, onChange, kind, place, accountVisibilit
       data-feed-toggle={on ? 'on' : 'off'}
       className={`w-full min-h-[56px] flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-surface-muted disabled:opacity-60 ${className}`}
     >
-      <i className={`fas ${icon} w-5 text-center ${on ? 'text-brand-fg' : 'text-tertiary'}`} aria-hidden="true" />
+      <FaIcon icon={icon} className={`w-5 text-center ${on ? 'text-brand-fg' : 'text-tertiary'}`} />
       <span className="flex-1 min-w-0">
         <span className="block font-semibold text-primary">{COPY.AUDIENCE.FEED_TOGGLE}</span>
         <span className="block text-sm text-secondary" data-feed-toggle-line="">{line}</span>

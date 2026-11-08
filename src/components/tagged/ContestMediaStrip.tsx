@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import VideoFrame from '@/components/media/VideoFrame';
 import ConfirmModal from '../ConfirmModal';
 import { useToast } from '../Toast';
+import FaIcon from '@/components/FaIcon';
+import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
+import { faUserXmark } from '@/lib/icons/fa/user-xmark';
 
 // ── Team media on the Tagged tab (phase 4 R3) ───────────────────────────────
 // Org-uploaded contest media this athlete is actively tagged in — a
@@ -66,7 +69,7 @@ export default function ContestMediaStrip({ profileId }: { profileId: string }) 
   return (
     <section aria-label="Team media">
       <h3 className="text-sm font-semibold text-secondary mb-3">
-        <i className="fas fa-shield-halved mr-1.5 text-brand-fg" aria-hidden="true"></i>
+        <FaIcon icon={faShieldHalved} className="mr-1.5 text-brand-fg" />
         Team media
       </h3>
       <ul className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
@@ -101,7 +104,7 @@ export default function ContestMediaStrip({ profileId }: { profileId: string }) 
                 aria-label="Remove yourself from this media"
                 className="absolute top-1 right-1 ea-icon-btn inline-flex items-center justify-center bg-surface/90 text-secondary hover:text-red-600"
               >
-                <i className="fas fa-user-xmark text-xs" aria-hidden="true"></i>
+                <FaIcon icon={faUserXmark} className="text-xs" />
               </button>
             )}
           </li>

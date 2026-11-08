@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { parkPurgeDate } from '@/lib/account-park';
+import FaIcon from '@/components/FaIcon';
+import { faTriangleExclamation } from '@/lib/icons/fa/triangle-exclamation';
 
 // Soft-delete restore banner (Family Console Wave 1e, migration 128):
 // deleting an account PARKS it for 30 days; an owner who signs back in
@@ -40,7 +42,7 @@ export default function DeletionScheduledBanner() {
   return (
     <div className="bg-red-600 text-white px-4 py-2 text-sm flex flex-wrap items-center justify-center gap-x-3 gap-y-1" role="alert">
       <span>
-        <i className="fas fa-triangle-exclamation mr-2" aria-hidden="true"></i>
+        <FaIcon icon={faTriangleExclamation} className="mr-2" />
         This account is scheduled for deletion on {purgeDate}.
       </span>
       <button

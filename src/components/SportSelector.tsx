@@ -5,6 +5,13 @@ import { getAllSports, type SportKey } from '@/lib/sports/SportRegistry';
 import { partitionSports } from '@/lib/sports/favourite-sports';
 import { useFavouriteSports } from '@/hooks/useFavouriteSports';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import FaIcon from '@/components/FaIcon';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
+import { faStar } from '@/lib/icons/fa/star';
+import { faStarRegular } from '@/lib/icons/fa/star-regular';
+import { faXmark } from '@/lib/icons/fa/xmark';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 /**
  * The composer's Sport step — search first, favourites per account (Tom's
@@ -73,14 +80,14 @@ export default function SportSelector({ onSelectSport, onClose }: SportSelectorP
             className="ea-icon-btn inline-flex items-center justify-center"
             aria-label="Close"
           >
-            <i className="fas fa-times text-muted"></i>
+            <FaIcon icon={faXmark} className="text-muted" />
           </button>
         </div>
 
         {/* Search Bar */}
         <div className="p-4 border-b border-border">
           <div className="relative">
-            <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-decor"></i>
+            <FaIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-decor" />
             <input
               ref={searchRef}
               type="text"
@@ -98,7 +105,7 @@ export default function SportSelector({ onSelectSport, onClose }: SportSelectorP
         <div className="flex-1 overflow-y-auto p-4">
           {nothingFound ? (
             <div className="text-center py-8 text-muted">
-              <i className="fas fa-search text-3xl mb-2"></i>
+              <FaIcon icon={faMagnifyingGlass} className="text-3xl mb-2" />
               <p>No sports found</p>
             </div>
           ) : (
@@ -106,7 +113,7 @@ export default function SportSelector({ onSelectSport, onClose }: SportSelectorP
               {sections.favourites.length > 0 && (
                 <div className="mb-6" data-sport-favourites="">
                   <h4 className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">
-                    <i className="fas fa-star text-star mr-1" aria-hidden="true"></i>
+                    <FaIcon icon={faStar} className="text-star mr-1" />
                     Favourites
                   </h4>
                   <ul className="space-y-2">
@@ -190,7 +197,7 @@ function SportRow({ section, sport, isFavourite, canFavourite, onSelect, onToggl
             isDisabled ? 'bg-gray-200 dark:bg-stone-800 text-faint' : 'bg-surface-sunken text-tertiary'
           }`}
         >
-          <i className={sport.icon_id}></i>
+          <FaIcon icon={sportIcon(sport.sport_key)} />
         </span>
         <span id={nameId} className={`font-semibold truncate ${isDisabled ? 'text-faint' : 'text-primary'}`}>
           {sport.display_name}
@@ -198,7 +205,7 @@ function SportRow({ section, sport, isFavourite, canFavourite, onSelect, onToggl
         {isDisabled && (
           <>
             <span className="text-xs text-faint ml-1">Coming soon</span>
-            <i className="fas fa-lock text-faint text-sm ml-auto" aria-hidden="true"></i>
+            <FaIcon icon={faLock} className="text-faint text-sm ml-auto" />
           </>
         )}
       </button>
@@ -212,7 +219,7 @@ function SportRow({ section, sport, isFavourite, canFavourite, onSelect, onToggl
           aria-describedby={nameId}
           data-sport-favourite={sport.sport_key}
         >
-          <i className={isFavourite ? 'fas fa-star text-star' : 'far fa-star text-muted'} aria-hidden="true"></i>
+          <FaIcon icon={isFavourite ? faStar : faStarRegular} className={isFavourite ? 'text-star' : 'text-muted'} />
         </button>
       ) : (
         <span className="w-10 h-10 shrink-0" aria-hidden="true" />

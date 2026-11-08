@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import BrandBar from '@/components/BrandBar';
 import { supabase } from '@/lib/supabase';
+import FaIcon from '@/components/FaIcon';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -86,7 +88,7 @@ export default function ForgotPasswordPage() {
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Sending…</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" /> Sending…</>
                   ) : (
                     'Send reset link'
                   )}

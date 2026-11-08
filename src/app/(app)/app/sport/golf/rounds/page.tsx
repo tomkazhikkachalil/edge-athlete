@@ -7,6 +7,12 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import { toParLabel, toParColorClass } from '@/lib/golf/scoring';
+import FaIcon from '@/components/FaIcon';
+import { faArrowDown } from '@/lib/icons/fa/arrow-down';
+import { faArrowUp } from '@/lib/icons/fa/arrow-up';
+import { faFlag } from '@/lib/icons/fa/flag';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 interface RoundSummary {
   id: string;
@@ -153,7 +159,7 @@ export default function GolfRoundsListPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-              <i className="fas fa-golf-ball mr-2 text-green-600 dark:text-green-400"></i>
+              <FaIcon icon={faGolfBallTee} className="mr-2 text-green-600 dark:text-green-400" />
               My Rounds
             </h1>
             {!loading && (
@@ -205,7 +211,7 @@ export default function GolfRoundsListPage() {
                 title={`Sorted ${sort} first`}
                 aria-label={`Change sort order, currently ${sort} first`}
               >
-                <i className={`fas ${sort === 'newest' ? 'fa-arrow-down' : 'fa-arrow-up'} mr-1`}></i>
+                <FaIcon icon={sort === 'newest' ? faArrowDown : faArrowUp} className="mr-1" />
                 {sort === 'newest' ? 'Newest' : 'Oldest'}
               </button>
             </div>
@@ -224,7 +230,7 @@ export default function GolfRoundsListPage() {
           </div>
         ) : rounds.length === 0 ? (
           <div className="bg-surface rounded-lg shadow-sm border border-border p-10 text-center">
-            <i className="fas fa-golf-ball text-4xl text-gray-300 dark:text-decor mb-4"></i>
+            <FaIcon icon={faGolfBallTee} className="text-4xl text-gray-300 dark:text-decor mb-4" />
             <h2 className="text-lg font-semibold text-primary mb-2">
               {courseSearch || holesFilter !== 'all' ? 'No rounds match those filters' : 'No rounds logged yet'}
             </h2>
@@ -238,7 +244,7 @@ export default function GolfRoundsListPage() {
                 href="/feed?create=1&sport=golf"
                 className="inline-flex items-center bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
-                <i className="fas fa-golf-ball mr-2"></i>
+                <FaIcon icon={faGolfBallTee} className="mr-2" />
                 Log a round
               </Link>
             )}
@@ -273,7 +279,7 @@ export default function GolfRoundsListPage() {
                       </p>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-tertiary">
                         {round.total_putts !== null && round.total_putts > 0 && (
-                          <span><i className="fas fa-flag mr-1 text-decor"></i>{round.total_putts} putts</span>
+                          <span><FaIcon icon={faFlag} className="mr-1 text-decor" />{round.total_putts} putts</span>
                         )}
                         {round.fir_percentage !== null && round.fir_percentage > 0 && (
                           <span>FIR {Math.round(round.fir_percentage)}%</span>
@@ -305,7 +311,7 @@ export default function GolfRoundsListPage() {
                 className="w-full py-3 min-h-[44px] bg-surface border border-border-strong rounded-lg text-sm font-medium text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
               >
                 {loadingMore ? (
-                  <><i className="fas fa-spinner fa-spin mr-2"></i>Loading…</>
+                  <><FaIcon icon={faSpinner} spin className="mr-2" />Loading…</>
                 ) : (
                   'Load more rounds'
                 )}

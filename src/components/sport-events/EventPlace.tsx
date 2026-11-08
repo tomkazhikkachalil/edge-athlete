@@ -32,6 +32,9 @@ import EventStatsTab from './EventStatsTab';
 import EventGalleryTab from './EventGalleryTab';
 import EventVideosTab from './EventVideosTab';
 import type { SportEventSport } from '@/lib/sport-events/types';
+import FaIcon from '@/components/FaIcon';
+import { faFlag } from '@/lib/icons/fa/flag';
+import { faUserSlash } from '@/lib/icons/fa/user-slash';
 
 /**
  * The event page shell (Events program). Holds the view, the active tab
@@ -218,7 +221,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
       {user && !viewer.can_manage && viewer.profile_id !== event.host_profile_id && (
         <div className="flex justify-end">
           <button type="button" onClick={() => setReportOpen(true)} className="text-sm text-tertiary hover:text-primary inline-flex items-center gap-1 min-h-[44px] px-2" data-event-report="">
-            <i className="fas fa-flag text-xs" aria-hidden="true"></i> Report this event
+            <FaIcon icon={faFlag} className="text-xs" /> Report this event
           </button>
         </div>
       )}
@@ -229,7 +232,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
       {user && viewer.participant_id && !viewer.can_manage && viewer.profile_id !== event.host_profile_id && (event.status === 'live' || event.status === 'completed') && (
         <div className="flex justify-end -mt-2">
           <button type="button" onClick={() => { setReportWrongPerson(true); setReportOpen(true); }} className="text-sm text-tertiary hover:text-primary inline-flex items-center gap-1 min-h-[44px] px-2" data-event-wrong-person="">
-            <i className="fas fa-user-slash text-xs" aria-hidden="true"></i> This result isn’t me
+            <FaIcon icon={faUserSlash} className="text-xs" /> This result isn’t me
           </button>
         </div>
       )}

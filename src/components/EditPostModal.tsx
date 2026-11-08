@@ -15,6 +15,11 @@ import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { COPY } from '@/lib/copy';
 import AccountAudienceLine from '@/components/posts/AccountAudienceLine';
 import FeedToggle from '@/components/posts/FeedToggle';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Post {
   id: string;
@@ -269,7 +274,7 @@ export default function EditPostModal({
             aria-label="Close"
             className="text-faint hover:text-tertiary transition-colors"
           >
-            <i className="fas fa-times text-xl"></i>
+            <FaIcon icon={faXmark} className="text-xl" />
           </button>
         </div>
 
@@ -303,9 +308,7 @@ export default function EditPostModal({
                       className="absolute bottom-0 right-0 p-2 group disabled:opacity-60"
                     >
                       <span className="bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-black/80 transition-colors">
-                        <i
-                          className={`fas ${mediaBusy === row.id ? 'fa-spinner fa-spin' : 'fa-pen'} text-xs`}
-                        ></i>
+                        <FaIcon icon={mediaBusy === row.id ? faSpinner : faPen} spin={mediaBusy === row.id ? true : false} className="text-xs" />
                       </span>
                     </button>
                   </div>
@@ -351,7 +354,7 @@ export default function EditPostModal({
                       aria-label={`Remove ${tag}`}
                       className="hover:text-violet-900 dark:hover:text-violet-200"
                     >
-                      <i className="fas fa-times text-xs"></i>
+                      <FaIcon icon={faXmark} className="text-xs" />
                     </button>
                   </span>
                 ))}
@@ -423,12 +426,12 @@ export default function EditPostModal({
           >
             {isSubmitting ? (
               <>
-                <i className="fas fa-spinner fa-spin"></i>
+                <FaIcon icon={faSpinner} spin />
                 Updating...
               </>
             ) : (
               <>
-                <i className="fas fa-check"></i>
+                <FaIcon icon={faCheck} />
                 Update Post
               </>
             )}

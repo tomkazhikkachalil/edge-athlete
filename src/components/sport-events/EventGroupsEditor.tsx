@@ -10,6 +10,10 @@ import { bracketMatchesFrom } from '@/lib/sport-events/match-view';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import RoundSwitcher from './RoundSwitcher';
+import FaIcon from '@/components/FaIcon';
+import { faListOl } from '@/lib/icons/fa/list-ol';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faTrophy } from '@/lib/icons/fa/trophy';
 
 /**
  * The organizer's groups editor (Events program, PR 12): the unassigned
@@ -128,7 +132,7 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
       {!editable && <p className="text-sm text-muted" data-groups-locked="">{match ? 'The draw is set before the round starts.' : 'Groups are set before the round starts.'}</p>}
       {canFillWinners && (
         <div className="flex flex-wrap items-center gap-2" data-groups-winners="">
-          <button type="button" onClick={askFillWinners} disabled={busy} className={BTN} data-groups-fill-winners=""><i className="fas fa-trophy mr-2" aria-hidden="true"></i>Fill from winners</button>
+          <button type="button" onClick={askFillWinners} disabled={busy} className={BTN} data-groups-fill-winners=""><FaIcon icon={faTrophy} className="mr-2" />Fill from winners</button>
           <span className="text-xs text-muted">Round {prevRound!.sequence}&apos;s winners in bracket order — match 1 from matches 1 and 2, and so on. Edit it as you like.</span>
         </div>
       )}
@@ -161,7 +165,7 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
                 {[8, 9, 10, 11, 12, 15].map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
-            <button type="button" onClick={askRegroup} disabled={busy} className={BTN} data-groups-by-standing=""><i className="fas fa-list-ol mr-2" aria-hidden="true"></i>Group by standing</button>
+            <button type="button" onClick={askRegroup} disabled={busy} className={BTN} data-groups-by-standing=""><FaIcon icon={faListOl} className="mr-2" />Group by standing</button>
           </div>
         </section>
       )}
@@ -250,7 +254,7 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
 
       {editable && (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setGroups(gs => addGroup(gs))} className={BTN} data-groups-add=""><i className="fas fa-plus mr-2" aria-hidden="true"></i>{match ? 'Add match' : 'Add group'}</button>
+          <button type="button" onClick={() => setGroups(gs => addGroup(gs))} className={BTN} data-groups-add=""><FaIcon icon={faPlus} className="mr-2" />{match ? 'Add match' : 'Add group'}</button>
           <button type="button" onClick={save} disabled={!dirty || busy} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-groups-save="">{busy ? 'Saving…' : dirty ? 'Save groups' : 'Saved'}</button>
         </div>
       )}

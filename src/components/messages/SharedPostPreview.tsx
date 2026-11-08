@@ -4,6 +4,8 @@ import VideoFrame from '../media/VideoFrame';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import type { SharedPostPreviewData } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faShareNodes } from '@/lib/icons/fa/share-nodes';
 
 interface Props {
   post: SharedPostPreviewData;
@@ -56,7 +58,7 @@ export default function SharedPostPreview({ post, onClick }: Props) {
       )}
       <div className="p-3">
         <div className="flex items-center gap-1.5 text-xs text-faint mb-1.5">
-          <i className="fas fa-share-alt"></i>
+          <FaIcon icon={faShareNodes} />
           <span>Shared post</span>
         </div>
         {post.caption && (

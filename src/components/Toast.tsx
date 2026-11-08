@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
+import FaIcon from '@/components/FaIcon';
+import { faCircleExclamation } from '@/lib/icons/fa/circle-exclamation';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 /**
  * Feedback (Tom, Oct 14 2026 — fix 1 of his seven): a visible result is its
@@ -97,7 +100,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
       <div className="p-4">
         <div className="flex items-start">
           <div className="flex-shrink-0 text-xl">
-            <i className="fas fa-exclamation-circle text-red-500" aria-hidden="true" />
+            <FaIcon icon={faCircleExclamation} className="text-red-500" />
           </div>
           <div className="ml-3 w-0 flex-1 pt-0.5">
             <p className="text-base font-semibold text-primary">
@@ -114,7 +117,7 @@ function Toast({ toast, onDismiss }: ToastProps) {
             onClick={handleDismiss}
             aria-label="Dismiss notification"
           >
-            <i className="fas fa-times text-lg" aria-hidden="true" />
+            <FaIcon icon={faXmark} className="text-lg" />
           </button>
         </div>
       </div>

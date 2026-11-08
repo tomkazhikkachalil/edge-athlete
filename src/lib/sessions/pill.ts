@@ -11,6 +11,10 @@ import type { DraftItem } from '@/lib/drafts/list';
 import { showsTabBar } from '@/lib/tab-bar';
 import { isSessionScreen } from './paths';
 import type { SessionProgress } from './progress-store';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faPersonWalking } from '@/lib/icons/fa/person-walking';
+import type { FaIconDef } from '@/lib/icons/fa-icon';
 
 /** The ONE thing the pill shows: the most recently touched in-progress item (the list is already newest-first) — else, from `drafts`, an unposted workout waiting for its Post (Training fixes PR 4, Oct 21 2026). */
 export function pickPillSession(inProgress: ReadonlyArray<DraftItem>, drafts: ReadonlyArray<DraftItem> = []): DraftItem | null {
@@ -60,10 +64,10 @@ export function pillMetric(item: Pick<DraftItem, 'kind'> & Partial<Pick<DraftIte
   return formatDistance(m);
 }
 
-export const PILL_KIND_ICON: Readonly<Record<DraftItem['kind'], string>> = {
-  round: 'fa-golf-ball-tee',
-  workout: 'fa-dumbbell',
-  recording: 'fa-person-walking',
+export const PILL_KIND_ICON: Readonly<Record<DraftItem['kind'], FaIconDef>> = {
+  round: faGolfBallTee,
+  workout: faDumbbell,
+  recording: faPersonWalking,
 };
 
 /** The accessible name: what it is, how long, how far. */

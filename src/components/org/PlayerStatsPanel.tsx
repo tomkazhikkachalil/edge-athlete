@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
+import FaIcon from '@/components/FaIcon';
+import { faTrash } from '@/lib/icons/fa/trash';
 
 // ── Player stats entry for ONE contest (phase 4 R1) ─────────────────────────
 // Mounted inside a contest row's expander on the competition console —
@@ -235,7 +237,7 @@ export default function PlayerStatsPanel({
                           aria-label={`Remove stat line for ${displayName}`}
                           className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-red-600"
                         >
-                          <i className="fas fa-trash" aria-hidden="true"></i>
+                          <FaIcon icon={faTrash} />
                         </button>
                       )}
                     </li>

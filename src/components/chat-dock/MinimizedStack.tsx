@@ -3,6 +3,8 @@
 import LazyImage from '@/components/LazyImage';
 import { conversationIdentity, isConversationPartnerOnline } from './conversation-identity';
 import type { Conversation } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // Minimized chats as labeled pills in a horizontal row BESIDE the dock pill
 // (Tom's layout — they follow along the bottom edge, not stacked above).
@@ -94,7 +96,7 @@ export default function MinimizedStack({
               onClick={() => onClose(id)}
               className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 bg-gray-700 text-white rounded-full items-center justify-center hidden group-hover:flex group-focus-within:flex text-[9px] hover:bg-gray-900"
             >
-              <i className="fas fa-xmark"></i>
+              <FaIcon icon={faXmark} />
             </button>
           </div>
         );

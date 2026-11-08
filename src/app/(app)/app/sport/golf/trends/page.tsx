@@ -10,6 +10,8 @@ import AppHeader from '@/components/AppHeader';
 import TrendLineChart from '@/components/charts/TrendLineChart';
 import { toParLabel, toParColorClass } from '@/lib/golf/scoring';
 import { formatHandicapIndex } from '@/lib/golf/handicap';
+import FaIcon from '@/components/FaIcon';
+import { faChartLine } from '@/lib/icons/fa/chart-line';
 
 interface TrendPoint {
   round_id: string;
@@ -144,7 +146,7 @@ export default function GolfTrendsPage() {
           <div>
             <SectionInfo
               as="h1"
-              heading={<><i className="fas fa-chart-line mr-2 text-green-600 dark:text-green-400"></i>Golf Trends</>}
+              heading={<><FaIcon icon={faChartLine} className="mr-2 text-green-600 dark:text-green-400" />Golf Trends</>}
               label="how the trends are computed"
               headingClassName="text-2xl sm:text-3xl font-bold text-primary"
             >
@@ -205,7 +207,7 @@ export default function GolfTrendsPage() {
           <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm">{error}</div>
         ) : series.length < 2 ? (
           <div className="bg-surface rounded-lg shadow-sm border border-border p-10 text-center">
-            <i className="fas fa-chart-line text-4xl text-gray-300 dark:text-decor mb-4"></i>
+            <FaIcon icon={faChartLine} className="text-4xl text-gray-300 dark:text-decor mb-4" />
             <h2 className="text-lg font-semibold text-primary mb-2">Not enough rounds yet</h2>
             <p className="text-sm text-muted">
               Log at least two rounds{holesFilter !== 'all' ? ` (${holesFilter}-hole)` : ''} and your

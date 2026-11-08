@@ -4,6 +4,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { embedSrcAt, thumbUrl, watchUrl } from '@/lib/videos/youtube';
 import { PLAYER_HOST, PLAYER_TICK_MS, type PlayerMode } from '@/lib/videos/player-rules';
 import { loadYouTubeApi, type YTPlayer } from '@/lib/videos/youtube-player-api';
+import FaIcon from '@/components/FaIcon';
+import { faPlay } from '@/lib/icons/fa/play';
 
 /**
  * The one YouTube player (Videos program, 296; polish B, Nov 6 2026):
@@ -168,7 +170,7 @@ const YouTubePlayer = forwardRef<YouTubePlayerHandle, Props>(function YouTubePla
             <img src={thumbUrl(videoId)} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
             <span className="absolute inset-0 flex items-center justify-center">
               <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-black/70 text-white">
-                <i className="fas fa-play text-lg ml-1" aria-hidden="true"></i>
+                <FaIcon icon={faPlay} className="text-lg ml-1" />
               </span>
             </span>
           </button>

@@ -4,6 +4,8 @@ import { ACTIVITY_TYPE_DEFS, STEP_TYPES, type ActivityType } from '@/lib/activit
 import { formatDistance, formatDuration, formatElevation, formatPace, type DistanceUnit } from '@/lib/activities/format';
 import type { LiveTotals } from '@/lib/activities/record/recording';
 import type { LiveStat } from '@/lib/activities/record/layout';
+import FaIcon from '@/components/FaIcon';
+import { faLocationDot } from '@/lib/icons/fa/location-dot';
 
 function hms(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -33,7 +35,7 @@ export default function LiveStats({ type, totals, unit, gps, line = null, stats 
       {gps && (
         <p className="mt-1 text-center text-xs" data-record-gps={gps.status}>
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${gps.stale || gps.status === 'denied' ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'bg-surface-muted text-secondary'}`}>
-            <i className="fas fa-location-dot" aria-hidden="true"></i>
+            <FaIcon icon={faLocationDot} />
             {gps.status === 'denied' ? 'GPS off' : gps.accuracy !== null ? `GPS ±${Math.round(gps.accuracy)} m` : 'Finding GPS…'}
             {gps.stale && gps.status !== 'denied' ? ' · no fix' : ''}
           </span>

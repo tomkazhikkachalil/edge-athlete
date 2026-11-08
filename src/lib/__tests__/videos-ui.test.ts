@@ -14,7 +14,7 @@ describe('the Videos program\'s doors', () => {
   it('the Create sheet has the Full game door and the header opens /videos/new', () => {
     const sheet = read('src/components/CreateSheet.tsx');
     expect(sheet).toContain('data-create-full-game=""');
-    expect(sheet).toContain('fa-film');
+    expect(sheet).toMatch(/faFilm|fa-film/);
     expect(sheet).toContain('onFullGame');
     // The four doors before it are untouched.
     for (const hook of ['data-create-post', 'data-create-sport', 'data-create-event', 'data-create-record-activity']) expect(sheet).toContain(hook);

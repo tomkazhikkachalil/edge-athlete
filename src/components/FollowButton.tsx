@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from './Toast';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import FaIcon from '@/components/FaIcon';
+import { faClock } from '@/lib/icons/fa/clock';
+import { faHeart } from '@/lib/icons/fa/heart';
+import { faSpinner } from '@/lib/icons/fa/spinner';
 
 interface FollowButtonProps {
   profileId: string;
@@ -220,13 +224,13 @@ export default function FollowButton({
   // Button text based on status
   const getButtonContent = () => {
     if (loading) {
-      return <i className="fas fa-spinner fa-spin"></i>;
+      return <FaIcon icon={faSpinner} spin />;
     }
 
     if (followStatus === 'pending') {
       return (
         <>
-          <i className="fas fa-clock mr-1"></i>
+          <FaIcon icon={faClock} className="mr-1" />
           Requested
         </>
       );
@@ -235,7 +239,7 @@ export default function FollowButton({
     if (isFollowing) {
       return (
         <>
-          <i className="fas fa-heart mr-1"></i>
+          <FaIcon icon={faHeart} className="mr-1" />
           Fan
         </>
       );
@@ -243,7 +247,7 @@ export default function FollowButton({
 
     return (
       <>
-        <i className="fas fa-heart mr-1"></i>
+        <FaIcon icon={faHeart} className="mr-1" />
         {compactLabel ? (
           <>
             <span className="sr-only">Become a </span>Fan

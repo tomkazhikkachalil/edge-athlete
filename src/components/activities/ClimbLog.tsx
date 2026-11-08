@@ -20,6 +20,11 @@ import {
   type Climb,
   type ClimbScale,
 } from '@/lib/activities/climbing';
+import FaIcon from '@/components/FaIcon';
+import { faMinus } from '@/lib/icons/fa/minus';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 export type ClimbDraft = { grade: string; sent: boolean; attempts?: number };
 
@@ -54,13 +59,13 @@ function ClimbSheet({ scale, initial, onSave, onClose }: { scale: ClimbScale; in
           <span className="text-sm font-medium text-secondary">Tries</span>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setTries(t => Math.max(1, t - 1))} className="ea-icon-btn inline-flex items-center justify-center border border-border" aria-label="One fewer try">
-              <i className="fas fa-minus" aria-hidden="true"></i>
+              <FaIcon icon={faMinus} />
             </button>
             <span className="w-8 text-center text-lg font-bold tabular-nums text-primary" data-climb-tries={tries}>
               {tries}
             </span>
             <button type="button" onClick={() => setTries(t => Math.min(ATTEMPTS_MAX, t + 1))} className="ea-icon-btn inline-flex items-center justify-center border border-border" aria-label="One more try">
-              <i className="fas fa-plus" aria-hidden="true"></i>
+              <FaIcon icon={faPlus} />
             </button>
           </div>
         </div>
@@ -129,10 +134,10 @@ export default function ClimbLog({
               <span className="w-6 text-sm text-muted tabular-nums">{i + 1}</span>
               <span className={`flex-1 text-sm font-semibold ${c.sent ? 'text-primary' : 'text-secondary'}`}>{climbLine(scale!, c)}</span>
               <button type="button" disabled={disabled} onClick={() => setSheet({ index: i })} className="ea-icon-btn inline-flex items-center justify-center text-secondary" aria-label={`Edit climb ${i + 1}`} data-climb-edit={i}>
-                <i className="fas fa-pen" aria-hidden="true"></i>
+                <FaIcon icon={faPen} />
               </button>
               <button type="button" disabled={disabled} onClick={() => onRemove(i)} className="ea-icon-btn inline-flex items-center justify-center text-secondary" aria-label={`Remove climb ${i + 1}`} data-climb-remove={i}>
-                <i className="fas fa-times" aria-hidden="true"></i>
+                <FaIcon icon={faXmark} />
               </button>
             </li>
           ))}
@@ -145,7 +150,7 @@ export default function ClimbLog({
         className="ea-interactive ea-surface flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-primary disabled:opacity-50"
         data-climb-add=""
       >
-        <i className="fas fa-plus text-brand-fg" aria-hidden="true"></i>
+        <FaIcon icon={faPlus} className="text-brand-fg" />
         {full ? `${CLIMBS_MAX} climbs logged — the limit` : !scale ? 'Choose the grades first' : 'Log climb'}
       </button>
       {sheet && scale && (

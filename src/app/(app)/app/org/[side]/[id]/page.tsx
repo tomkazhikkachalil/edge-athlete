@@ -38,6 +38,13 @@ import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
 import { POOL_LETTERS } from '@/lib/competitions/pools';
 import BackupBanner from '@/components/authority/BackupBanner';
+import FaIcon from '@/components/FaIcon';
+import { faBan } from '@/lib/icons/fa/ban';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faCircleInfo } from '@/lib/icons/fa/circle-info';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faSitemap } from '@/lib/icons/fa/sitemap';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -966,7 +973,7 @@ export default function OrgConsolePage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-lock text-2xl text-decor" aria-hidden="true"></i>
+              <FaIcon icon={faLock} className="text-2xl text-decor" />
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Managers only</h1>
             <p className="text-sm text-tertiary mb-4">
@@ -1656,7 +1663,7 @@ export default function OrgConsolePage() {
                                 aria-label={`Approve ${entry.entrant_name}`}
                                 className="text-emerald-600 hover:text-emerald-700"
                               >
-                                <i className="fas fa-check" aria-hidden="true"></i>
+                                <FaIcon icon={faCheck} />
                               </button>
                               <button
                                 type="button"
@@ -1675,7 +1682,7 @@ export default function OrgConsolePage() {
                                 aria-label={`Decline ${entry.entrant_name}`}
                                 className="text-muted hover:text-red-600"
                               >
-                                <i className="fas fa-ban" aria-hidden="true"></i>
+                                <FaIcon icon={faBan} />
                               </button>
                             </>
                           )}
@@ -1693,7 +1700,7 @@ export default function OrgConsolePage() {
                             aria-label={`Remove ${entry.entrant_name}`}
                             className="text-muted hover:text-red-600"
                           >
-                            <i className="fas fa-times" aria-hidden="true"></i>
+                            <FaIcon icon={faXmark} />
                           </button>
                         </span>
                       ))}
@@ -2022,7 +2029,7 @@ export default function OrgConsolePage() {
                         </p>
                         {(reg.eligibility?.warnings ?? []).map((w, i) => (
                           <p key={i} className="text-xs text-amber-700 dark:text-amber-300">
-                            <i className="fas fa-circle-info mr-1" aria-hidden="true"></i>
+                            <FaIcon icon={faCircleInfo} className="mr-1" />
                             {w.message}
                           </p>
                         ))}
@@ -3081,7 +3088,7 @@ export default function OrgConsolePage() {
               aria-label="Dismiss"
               className="ea-icon-btn inline-flex items-center justify-center shrink-0"
             >
-              <i className="fas fa-times" aria-hidden="true"></i>
+              <FaIcon icon={faXmark} />
             </button>
           </div>
         )}
@@ -3092,7 +3099,7 @@ export default function OrgConsolePage() {
         )}
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-            <i className="fas fa-sitemap mr-2 text-brand-fg" aria-hidden="true"></i>
+            <FaIcon icon={faSitemap} className="mr-2 text-brand-fg" />
             {orgName ?? 'Organization'}
             {listing !== 'listed' && (
               <span className="ml-3 align-middle inline-block px-2 py-0.5 text-xs font-semibold uppercase rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">

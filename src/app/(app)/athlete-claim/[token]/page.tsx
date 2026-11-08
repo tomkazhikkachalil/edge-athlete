@@ -5,6 +5,10 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import BrandBar from '@/components/BrandBar';
 import { useAuth } from '@/lib/auth';
+import FaIcon from '@/components/FaIcon';
+import { faCircleCheck } from '@/lib/icons/fa/circle-check';
+import { faPeopleRoof } from '@/lib/icons/fa/people-roof';
+import { faUserCheck } from '@/lib/icons/fa/user-check';
 
 // ── /athlete-claim/[token] — take ownership of a stub athlete (R3) ──────────
 // The org-claim page shape (BrandBar, string-union machine, non-dead-end
@@ -141,7 +145,7 @@ export default function AthleteClaimPage() {
           {(state === 'ready' || state === 'claiming') && (
             <div className="text-center">
               <div className="w-14 h-14 bg-brand-soft rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-user-check text-xl text-brand-fg" aria-hidden="true"></i>
+                <FaIcon icon={faUserCheck} className="text-xl text-brand-fg" />
               </div>
               <h1 className="text-xl font-bold text-primary mb-1">{athleteName}</h1>
               <p className="text-sm text-muted mb-2">was rostered on {orgLine}</p>
@@ -244,7 +248,7 @@ export default function AthleteClaimPage() {
           {state === 'claimed-self' && (
             <div className="text-center">
               <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-circle-check text-xl text-emerald-600" aria-hidden="true"></i>
+                <FaIcon icon={faCircleCheck} className="text-xl text-emerald-600" />
               </div>
               <h1 className="text-xl font-bold text-primary mb-2">The profile is yours</h1>
               <p className="text-sm text-tertiary mb-4">
@@ -262,7 +266,7 @@ export default function AthleteClaimPage() {
           {state === 'claimed-guardian' && (
             <div className="text-center">
               <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fas fa-people-roof text-xl text-emerald-600" aria-hidden="true"></i>
+                <FaIcon icon={faPeopleRoof} className="text-xl text-emerald-600" />
               </div>
               <h1 className="text-xl font-bold text-primary mb-2">
                 {athleteName} is in your family console

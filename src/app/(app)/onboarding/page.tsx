@@ -10,6 +10,12 @@ import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import SportMultiSelect from '@/components/SportMultiSelect';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getInitials, formatDisplayName } from '@/lib/formatters';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 // First-run onboarding: four SKIPPABLE steps (sports → photo → follow →
 // first post). Completing OR skipping stamps profiles.onboarded_at so the
@@ -206,7 +212,7 @@ export default function OnboardingPage() {
                 className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition font-medium disabled:opacity-50 mb-3"
               >
                 {savingSports ? (
-                  <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
+                  <><FaIcon icon={faSpinner} spin className="mr-2" />Saving…</>
                 ) : (
                   'Continue'
                 )}
@@ -273,7 +279,7 @@ export default function OnboardingPage() {
                       className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition font-medium disabled:opacity-50"
                     >
                       {uploading ? (
-                        <><i className="fas fa-spinner fa-spin mr-2"></i>Uploading…</>
+                        <><FaIcon icon={faSpinner} spin className="mr-2" />Uploading…</>
                       ) : profile?.avatar_url ? (
                         'Change photo'
                       ) : (
@@ -288,7 +294,7 @@ export default function OnboardingPage() {
                       disabled={uploading}
                       className="w-full border border-border-strong text-secondary py-3 px-4 rounded-md hover:bg-surface-muted transition font-medium disabled:opacity-50"
                     >
-                      <i className="fas fa-camera mr-2" aria-hidden="true"></i>Take a photo
+                      <FaIcon icon={faCamera} className="mr-2" />Take a photo
                     </button>
                   </div>
                 )}
@@ -351,7 +357,7 @@ export default function OnboardingPage() {
           {step === 4 && (
             <div className="text-center">
               <div className="text-5xl mb-4 text-brand-fg">
-                <i className={primaryDef?.icon_id ?? 'fas fa-trophy'} aria-hidden="true"></i>
+                <FaIcon icon={primaryDef ? sportIcon(primaryDef.sport_key) : faTrophy} />
               </div>
               <h2 className="text-2xl font-bold text-primary mb-2">You&apos;re all set!</h2>
               <p className="text-sm text-tertiary mb-6">
@@ -366,10 +372,10 @@ export default function OnboardingPage() {
                 className="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 transition font-semibold disabled:opacity-50 mb-3"
               >
                 {finishing ? (
-                  <><i className="fas fa-spinner fa-spin mr-2"></i>One sec…</>
+                  <><FaIcon icon={faSpinner} spin className="mr-2" />One sec…</>
                 ) : (
                   <>
-                    <i className={`${primaryDef?.icon_id ?? 'fas fa-plus'} mr-2`}></i>
+                    <FaIcon icon={primaryDef ? sportIcon(primaryDef.sport_key) : faPlus} className="mr-2" />
                     {primaryDef?.primary_action ?? 'Create your first post'}
                   </>
                 )}

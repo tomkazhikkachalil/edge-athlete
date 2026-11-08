@@ -11,6 +11,8 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { COPY } from '@/lib/copy';
 import { MARKETING_CONSENT_TEXT } from '@/lib/contacts/rules';
 import { contactDoneCopy } from '@/components/ComingSoon';
+import FaIcon from '@/components/FaIcon';
+import { faCheck } from '@/lib/icons/fa/check';
 
 interface WaitlistPopupProps {
   isOpen: boolean;
@@ -153,7 +155,7 @@ export default function WaitlistPopup({ isOpen, onClose, userType }: WaitlistPop
         ) : (
           <div className="p-6 text-center" role="status" data-waitlist-done="">
             <div className="w-16 h-16 bg-success-soft rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-check text-success-fg text-2xl" aria-hidden="true"></i>
+              <FaIcon icon={faCheck} className="text-success-fg text-2xl" />
             </div>
             <h3 className="text-lg font-bold text-primary mb-2">{done.title}</h3>
             <p className="text-tertiary mb-6">{done.body}</p>

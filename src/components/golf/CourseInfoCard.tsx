@@ -11,6 +11,15 @@ import CourseSummaryCard from '@/components/golf/CourseSummaryCard';
 import BrandLogo from '@/components/BrandLogo';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { websiteDomain, logoUrl } from '@/lib/logo-dev';
+import FaIcon from '@/components/FaIcon';
+import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
+import { faChevronUp } from '@/lib/icons/fa/chevron-up';
+import { faGlobe } from '@/lib/icons/fa/globe';
+import { faHouseFlag } from '@/lib/icons/fa/house-flag';
+import { faMap } from '@/lib/icons/fa/map';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faTableList } from '@/lib/icons/fa/table-list';
 
 /**
  * About-this-course card under the composer's selected-course badge:
@@ -336,7 +345,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
                 showMap ? 'border-brand bg-brand-soft text-brand-fg-strong' : 'border-border-strong bg-surface text-primary'
               }`}
             >
-              <i className={`fas ${showMap ? 'fa-chevron-up' : 'fa-map'}`} aria-hidden="true"></i>
+              <FaIcon icon={showMap ? faChevronUp : faMap} />
               {showMap ? 'Hide' : 'Show Map'}
             </button>
           )}
@@ -349,7 +358,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
               data-course-find-sheet=""
               className="ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface px-2 text-xs sm:text-sm font-semibold whitespace-nowrap text-primary disabled:opacity-60"
             >
-              <i className={`fas ${sheetAsk === 'asking' ? 'fa-spinner fa-spin' : 'fa-table-list'}`} aria-hidden="true"></i>
+              <FaIcon icon={sheetAsk === 'asking' ? faSpinner : faTableList} spin={sheetAsk === 'asking' ? true : false} />
               {sheetAsk === 'asking' ? 'Looking…' : 'Find the official scorecard'}
             </button>
           )}
@@ -363,7 +372,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
                 showScorecard ? 'border-brand bg-brand-soft text-brand-fg-strong' : 'border-border-strong bg-surface text-primary'
               }`}
             >
-              <i className={`fas ${showScorecard ? 'fa-chevron-up' : 'fa-table-list'}`} aria-hidden="true"></i>
+              <FaIcon icon={showScorecard ? faChevronUp : faTableList} />
               {showScorecard ? 'Hide' : 'Official Scorecard'}
             </button>
           )}
@@ -399,7 +408,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             href={homeOf.path}
             className="inline-flex min-h-[40px] items-center gap-1.5 font-medium text-brand-fg hover:underline"
           >
-            <i className="fas fa-house-flag" aria-hidden="true"></i>
+            <FaIcon icon={faHouseFlag} />
             Home of {homeOf.orgName}
           </Link>
         )}
@@ -410,7 +419,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             rel="noopener noreferrer"
             className="inline-flex min-h-[40px] items-center gap-1.5 font-medium text-brand-fg hover:underline"
           >
-            <i className="fas fa-globe" aria-hidden="true"></i>
+            <FaIcon icon={faGlobe} />
             Website
           </a>
         )}
@@ -426,7 +435,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
                 aria-label="Previous hole"
                 className="ea-icon-btn text-brand-fg disabled:opacity-40"
               >
-                <i className="fas fa-chevron-left" aria-hidden="true"></i>
+                <FaIcon icon={faChevronLeft} />
               </button>
               <span className="font-medium text-primary">
                 {focusHole != null
@@ -440,7 +449,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
                 aria-label="Next hole"
                 className="ea-icon-btn text-brand-fg disabled:opacity-40"
               >
-                <i className="fas fa-chevron-right" aria-hidden="true"></i>
+                <FaIcon icon={faChevronRight} />
               </button>
             </div>
           )}

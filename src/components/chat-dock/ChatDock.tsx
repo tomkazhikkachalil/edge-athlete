@@ -25,6 +25,13 @@ import { subscribeDockConversationRequests } from '@/lib/chat-dock-open';
 import DockPanel, { type DockComposeMode } from './DockPanel';
 import MiniChatWindow from './MiniChatWindow';
 import MinimizedStack from './MinimizedStack';
+import FaIcon from '@/components/FaIcon';
+import { faChevronDown } from '@/lib/icons/fa/chevron-down';
+import { faChevronUp } from '@/lib/icons/fa/chevron-up';
+import { faGear } from '@/lib/icons/fa/gear';
+import { faMessage } from '@/lib/icons/fa/message';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── The persistent chat dock ─────────────────────────────────────────────────
 // Rendered ONCE in the root layout (inside MessagesProvider), so App Router
@@ -311,7 +318,7 @@ export default function ChatDock() {
                   mode === 'direct' ? 'bg-surface text-brand-fg-strong' : 'hover:bg-violet-500'
                 }`}
               >
-                <i className="fas fa-pen text-[10px]"></i>
+                <FaIcon icon={faPen} className="text-[10px]" />
               </button>
               <button
                 type="button"
@@ -320,7 +327,7 @@ export default function ChatDock() {
                 title="Messaging settings"
                 className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-violet-500"
               >
-                <i className="fas fa-cog text-[10px]"></i>
+                <FaIcon icon={faGear} className="text-[10px]" />
               </button>
               <button
                 type="button"
@@ -329,7 +336,7 @@ export default function ChatDock() {
                 title="Minimize"
                 className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-violet-500"
               >
-                <i className="fas fa-chevron-down text-[10px]"></i>
+                <FaIcon icon={faChevronDown} className="text-[10px]" />
               </button>
               <button
                 type="button"
@@ -338,7 +345,7 @@ export default function ChatDock() {
                 title="Close"
                 className="w-6 h-6 rounded flex items-center justify-center transition-colors hover:bg-violet-500"
               >
-                <i className="fas fa-xmark text-xs"></i>
+                <FaIcon icon={faXmark} className="text-xs" />
               </button>
             </div>
           ) : (
@@ -349,14 +356,14 @@ export default function ChatDock() {
               aria-expanded={false}
               aria-label="Messages dock"
             >
-              <i className="fas fa-comment-alt"></i>
+              <FaIcon icon={faMessage} />
               Messages
               {totalUnreadCount > 0 && (
                 <span className="bg-surface text-brand-fg-strong text-xs font-bold rounded-full min-w-5 h-5 px-1 flex items-center justify-center">
                   {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
                 </span>
               )}
-              <i className="fas fa-chevron-up text-xs opacity-70 ml-auto"></i>
+              <FaIcon icon={faChevronUp} className="text-xs opacity-70 ml-auto" />
             </button>
           )}
 

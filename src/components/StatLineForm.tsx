@@ -11,6 +11,8 @@ import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { localDayKey } from '@/lib/calendar/grid';
 import { envelopeResult, isCombatSport } from '@/lib/sports/bout';
 import BoutFields from '@/components/sports/BoutFields';
+import FaIcon from '@/components/FaIcon';
+import { sportIcon } from '@/lib/sports/sport-icons';
 
 interface StatLineFormProps {
   sportKey: SportKey;
@@ -60,7 +62,7 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
   return (
     <div className="bg-surface-muted rounded-lg p-4 border border-border space-y-4">
       <div className="flex items-center gap-2">
-        <i className={`${sportDef.icon_id} text-brand-fg`} aria-hidden="true"></i>
+        <FaIcon icon={sportIcon(sportDef.sport_key)} className="text-brand-fg" />
         <h3 className="text-sm font-bold text-primary">
           {schema.activityNoun} Stats
         </h3>

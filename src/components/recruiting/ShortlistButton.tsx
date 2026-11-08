@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/Toast';
+import FaIcon from '@/components/FaIcon';
+import { faBookmark } from '@/lib/icons/fa/bookmark';
 
 // ── The scout's Shortlist toggle (Recruiting skeleton R3) ─────────────────
 // Rendered by ScoutSearch (the profile has no recruiting surface since Oct 4 2026);
@@ -68,7 +70,7 @@ export default function ShortlistButton({ athleteId }: Props) {
         state === 'on' ? 'bg-brand-soft text-brand-fg-strong border border-violet-200 dark:border-violet-800' : 'bg-brand text-white hover:bg-brand-hover'
       }`}
     >
-      <i className="fas fa-bookmark text-xs" aria-hidden="true"></i>
+      <FaIcon icon={faBookmark} className="text-xs" />
       {state === 'on' ? 'Shortlisted' : 'Shortlist'}
     </button>
   );

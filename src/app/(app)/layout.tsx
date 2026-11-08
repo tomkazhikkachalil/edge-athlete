@@ -29,7 +29,6 @@ import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
 import { THEME_COLOR } from "@/lib/theme-colors";
 import "../globals.css";
-import "@fortawesome/fontawesome-free/css/all.min.css";
 
 const inter = Inter({
   subsets: ['latin'],

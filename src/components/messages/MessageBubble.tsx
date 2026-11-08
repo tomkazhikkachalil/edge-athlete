@@ -20,6 +20,13 @@ import MessageBubbleContent from './MessageBubbleContent';
 import MessageActionSheet, { type SheetAnchor } from './MessageActionSheet';
 import { haptic } from '@/lib/haptics';
 import type { Message, ParticipantProfile } from '@/types/messages';
+import FaIcon from '@/components/FaIcon';
+import { faCopy } from '@/lib/icons/fa/copy';
+import { faEllipsis } from '@/lib/icons/fa/ellipsis';
+import { faFlag } from '@/lib/icons/fa/flag';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faReply } from '@/lib/icons/fa/reply';
+import { faTrash } from '@/lib/icons/fa/trash';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000; // mirror server-side window for UI gating
 
@@ -314,7 +321,7 @@ export default function MessageBubble({
                 className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors"
                 title="Reply"
               >
-                <i className="fas fa-reply text-xs text-faint"></i>
+                <FaIcon icon={faReply} className="text-xs text-faint" />
               </button>
               {/* Context actions — always available so Report is reachable on every incoming message */}
               <div className="w-px h-4 bg-gray-200 dark:bg-stone-800 mx-0.5" />
@@ -323,7 +330,7 @@ export default function MessageBubble({
                 className="relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-sunken transition-colors"
                 aria-label="More options"
               >
-                <i className="fas fa-ellipsis-h text-xs text-faint"></i>
+                <FaIcon icon={faEllipsis} className="text-xs text-faint" />
               </button>
             </div>
           </div>
@@ -362,7 +369,7 @@ export default function MessageBubble({
                   onClick={handleReply}
                   className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-2"
                 >
-                  <i className="fas fa-reply text-xs w-4"></i>
+                  <FaIcon icon={faReply} className="text-xs w-4" />
                   Reply
                 </button>
                 {message.type === 'text' && (
@@ -370,7 +377,7 @@ export default function MessageBubble({
                     onClick={handleCopy}
                     className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-2"
                   >
-                    <i className="fas fa-copy text-xs w-4"></i>
+                    <FaIcon icon={faCopy} className="text-xs w-4" />
                     Copy
                   </button>
                 )}
@@ -379,7 +386,7 @@ export default function MessageBubble({
                     onClick={handleStartEdit}
                     className="w-full text-left px-3 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-2"
                   >
-                    <i className="fas fa-pen text-xs w-4"></i>
+                    <FaIcon icon={faPen} className="text-xs w-4" />
                     Edit
                   </button>
                 )}
@@ -388,7 +395,7 @@ export default function MessageBubble({
                     onClick={handleReport}
                     className="w-full text-left px-3 py-2 text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 flex items-center gap-2"
                   >
-                    <i className="fas fa-flag text-xs w-4"></i>
+                    <FaIcon icon={faFlag} className="text-xs w-4" />
                     Report
                   </button>
                 )}
@@ -397,7 +404,7 @@ export default function MessageBubble({
                     onClick={handleDelete}
                     className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2"
                   >
-                    <i className="fas fa-trash text-xs w-4"></i>
+                    <FaIcon icon={faTrash} className="text-xs w-4" />
                     Delete
                   </button>
                 )}

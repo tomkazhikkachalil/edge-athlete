@@ -6,6 +6,9 @@ import { useOptimizedSrc } from './useOptimizedSrc';
 import BlurBox from './BlurBox';
 import { formatDuration } from '@/lib/media/duration';
 import { canPlayCodec } from '@/lib/media/playback';
+import FaIcon from '@/components/FaIcon';
+import { faPlay } from '@/lib/icons/fa/play';
+import { faRotateRight } from '@/lib/icons/fa/rotate-right';
 
 // ── THE one video renderer (video posters program, Oct 13 2026) ─────────────
 // Tom: videos showed as "a black rectangle with a play button". Every surface
@@ -117,7 +120,7 @@ export default function VideoFrame({
   const badge = (
     <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
       <span className={`flex items-center justify-center rounded-full bg-black/55 ${compact ? 'h-6 w-6' : 'h-11 w-11'}`}>
-        <i className={`fas fa-play text-white ${compact ? 'text-[9px]' : 'text-sm'} pl-0.5`}></i>
+        <FaIcon icon={faPlay} className={`text-white pl-0.5 ${compact ? 'text-[9px]' : 'text-sm'}`} />
       </span>
     </span>
   );
@@ -213,7 +216,7 @@ export default function VideoFrame({
           aria-label="Retry upload"
           data-video-retry=""
         >
-          <i className="fas fa-rotate-right" aria-hidden="true"></i>
+          <FaIcon icon={faRotateRight} />
           {!compact && <span>Upload failed — tap to retry</span>}
         </button>
       )}

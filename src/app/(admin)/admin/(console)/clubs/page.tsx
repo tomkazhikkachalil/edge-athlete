@@ -9,6 +9,10 @@ import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName } from '@/lib/formatters';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
+import FaIcon from '@/components/FaIcon';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faLock } from '@/lib/icons/fa/lock';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // Admin club console (117) — mirror of /admin/leagues, minus sport.
 // The 001 demo rows list with a null owner (reassignment UI out of scope).
@@ -224,7 +228,7 @@ export default function AdminClubsPage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center max-w-md mx-auto px-4">
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
-              <i className="fas fa-lock text-2xl text-decor" aria-hidden="true"></i>
+              <FaIcon icon={faLock} className="text-2xl text-decor" />
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Admin access required</h1>
             <p className="text-sm text-tertiary">This area is for Edge Athlete administrators.</p>
@@ -244,7 +248,7 @@ export default function AdminClubsPage() {
             ← Admin
           </Link>
           <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-primary">
-            <i className="fas fa-building mr-2 text-brand-fg"></i>
+            <FaIcon icon={faBuilding} className="mr-2 text-brand-fg" />
             Clubs
           </h1>
         </div>
@@ -437,7 +441,7 @@ export default function AdminClubsPage() {
                     aria-label="Clear owner"
                     className="ml-2 text-muted hover:text-primary"
                   >
-                    <i className="fas fa-times" aria-hidden="true"></i>
+                    <FaIcon icon={faXmark} />
                   </button>
                 </div>
               ) : (

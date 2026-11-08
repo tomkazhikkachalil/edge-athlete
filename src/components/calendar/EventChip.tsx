@@ -4,6 +4,9 @@ import { format } from 'date-fns';
 import { categoryColor } from '@/lib/calendar/categories';
 import { venueTimeLabel } from '@/lib/calendar/venue-time';
 import type { EventListItem } from './types';
+import FaIcon from '@/components/FaIcon';
+import { faArrowsRotate } from '@/lib/icons/fa/arrows-rotate';
+import { faPeopleGroup } from '@/lib/icons/fa/people-group';
 
 // Visual-state rules (Google/Outlook convention, per the product brief):
 //   pending invite  → outlined + dashed + faded (holds the slot, needs a reply)
@@ -53,8 +56,8 @@ export function EventChip({
         </span>
       )}
       <span className="font-medium">{event.title}</span>
-      {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
-      {event.is_org_event && <i className="fas fa-people-group ml-1 text-[9px] opacity-70" title={event.org_name ?? undefined}></i>}
+      {event.series_id && <FaIcon icon={faArrowsRotate} className="ml-1 text-[9px] opacity-70" />}
+      {event.is_org_event && <FaIcon icon={faPeopleGroup} className="ml-1 text-[9px] opacity-70" title={event.org_name ?? undefined} />}
       {event.personDots?.map((dot, i) => (
         <span
           key={i}
@@ -105,8 +108,8 @@ export function EventBlock({
       <span className="font-medium block truncate">
         {maybe && <span className="font-bold mr-0.5">?</span>}
         {event.title}
-        {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
-        {event.is_org_event && <i className="fas fa-people-group ml-1 text-[9px] opacity-70"></i>}
+        {event.series_id && <FaIcon icon={faArrowsRotate} className="ml-1 text-[9px] opacity-70" />}
+        {event.is_org_event && <FaIcon icon={faPeopleGroup} className="ml-1 text-[9px] opacity-70" />}
         {event.personDots?.map((dot, i) => (
           <span
             key={i}

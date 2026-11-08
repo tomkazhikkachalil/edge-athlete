@@ -6,6 +6,8 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatPlace } from '@/lib/geo/regions';
 import type { ConnectionsDraftInput } from '@/lib/orgs/wizard-validate';
+import FaIcon from '@/components/FaIcon';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── Wizard step 4: connections (AffiliationSection's typeahead recipe) ──────
 // A league connects to CLUBS and vice versa (an `affiliations` edge with the club as child is the only
@@ -157,7 +159,7 @@ export default function ConnectionsPicker({
                 aria-label={`Remove ${org.name}`}
                 className="text-muted hover:text-red-600"
               >
-                <i className="fas fa-times text-xs" aria-hidden="true"></i>
+                <FaIcon icon={faXmark} className="text-xs" />
               </button>
             </li>
           ))}
@@ -235,7 +237,7 @@ export default function ConnectionsPicker({
                   aria-label={`Remove ${stub.name}`}
                   className="text-muted hover:text-red-600 shrink-0"
                 >
-                  <i className="fas fa-times text-xs" aria-hidden="true"></i>
+                  <FaIcon icon={faXmark} className="text-xs" />
                 </button>
               </li>
             ))}

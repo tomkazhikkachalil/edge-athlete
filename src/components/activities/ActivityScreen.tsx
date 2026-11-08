@@ -57,6 +57,19 @@ import ActivityStreamChart from './ActivityStreamChart';
 import RouteMap from './RouteMap';
 import RouteThumb from './RouteThumb';
 import { prefersReducedData } from '@/lib/net/reduced-data';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faEyeSlash } from '@/lib/icons/fa/eye-slash';
+import { faImages } from '@/lib/icons/fa/images';
+import { faPen } from '@/lib/icons/fa/pen';
+import { faPlus } from '@/lib/icons/fa/plus';
+import { faShareFromSquare } from '@/lib/icons/fa/share-from-square';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faXmark } from '@/lib/icons/fa/xmark';
+import { faEye } from '@/lib/icons/fa/eye';
+import { activityGlyph } from '@/lib/activities/activity-icons';
 
 // The shared media editor (the pencil on a photo) — loaded only when opened.
 const MediaEditor = dynamic(() => import('@/components/media-editor').then(m => m.MediaEditor), { ssr: false });
@@ -227,12 +240,12 @@ function ActivityBody({
     <article className="space-y-6" data-activity={a.id}>
       <header className="space-y-2">
         <Link href={profileHref} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg min-h-[44px]">
-          <i className="fas fa-arrow-left" aria-hidden="true" />
+          <FaIcon icon={faArrowLeft} />
           {athlete ? athlete.name : 'Back'}
         </Link>
         <div className="flex items-start gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand-fg text-xl" aria-hidden="true">
-            <i className={`fas fa-${def.icon}`} />
+            <FaIcon icon={activityGlyph(def.icon)} />
           </span>
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-[32px] font-bold text-primary break-words" data-activity-name>
@@ -241,7 +254,7 @@ function ActivityBody({
             <p className="text-sm text-secondary">
               {def.label} · {formatStart(a.startedAt, a.timezone)}
               {a.credit && <span data-activity-credit> · {a.credit}</span>}
-              {a.owner?.onlyMe && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-semibold text-secondary"><i className="fas fa-eye-slash" aria-hidden="true" /> Hidden from your profile</span>}
+              {a.owner?.onlyMe && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-semibold text-secondary"><FaIcon icon={faEyeSlash} /> Hidden from your profile</span>}
             </p>
           </div>
         </div>
@@ -794,7 +807,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
                   <input value={d.to} onChange={e => setDrafts(ds => ds.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))} inputMode="numeric" placeholder="m:ss" className="mt-0.5 w-full rounded-lg border border-border bg-surface px-2 py-2 text-sm text-primary min-h-[44px] tabular-nums" aria-label="Segment end" />
                 </label>
                 <button type="button" onClick={() => setDrafts(ds => ds.filter((_, j) => j !== i))} className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-danger-fg" aria-label="Remove segment">
-                  <i className="fas fa-times" aria-hidden="true" />
+                  <FaIcon icon={faXmark} />
                 </button>
                 <label className="block col-span-4">
                   <span className="sr-only">Segment name</span>
@@ -804,7 +817,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
             ))}
             {drafts.length < SEGMENT_MAX && (
               <button type="button" onClick={() => setDrafts(ds => [...ds, { id: draftId(), kind: 'interval', from: '', to: '', label: '' }])} className="ea-interactive rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary min-h-[44px]" data-activity-segment-add>
-                <i className="fas fa-plus mr-2" aria-hidden="true" />
+                <FaIcon icon={faPlus} className="mr-2" />
                 Add a segment
               </button>
             )}
@@ -822,25 +835,25 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
       ) : (
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={() => setEditing(true)} className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px]">
-            <i className="fas fa-pen mr-2" aria-hidden="true" />
+            <FaIcon icon={faPen} className="mr-2" />
             Edit
           </button>
           {/* The feed is a switch (269): no post → Post to feed; a post → On the feed + Remove from feed, or Show on feed. */}
           {a.postId ? (
             a.owner?.postOnFeed === false ? (
               <button type="button" disabled={busy} onClick={() => void setPostOnFeed(true)} className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px] disabled:opacity-50" data-activity-feed="off">
-                <i className="fas fa-share-from-square mr-2" aria-hidden="true" />
+                <FaIcon icon={faShareFromSquare} className="mr-2" />
                 Show on feed
               </button>
             ) : (
               <>
                 <span className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold text-success-fg min-h-[44px]" data-activity-feed="on">
-                  <i className="fas fa-check mr-2" aria-hidden="true" />
+                  <FaIcon icon={faCheck} className="mr-2" />
                   On the feed
                 </span>
                 {a.owner?.postOnFeed !== null && a.owner?.postOnFeed !== undefined && (
                   <button type="button" disabled={busy} onClick={() => void setPostOnFeed(false)} className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px] disabled:opacity-50" data-activity-feed-remove>
-                    <i className="fas fa-eye-slash mr-2" aria-hidden="true" />
+                    <FaIcon icon={faEyeSlash} className="mr-2" />
                     Remove from feed
                   </button>
                 )}
@@ -849,7 +862,7 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
           ) : (
             !a.owner?.onlyMe && (
               <button type="button" onClick={() => setSharing(true)} className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px]" data-activity-share>
-                <i className="fas fa-share-from-square mr-2" aria-hidden="true" />
+                <FaIcon icon={faShareFromSquare} className="mr-2" />
                 Post to feed
               </button>
             )
@@ -863,11 +876,11 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
             className="ea-interactive rounded-lg border border-border px-4 py-2 font-semibold text-primary min-h-[44px] disabled:opacity-50"
             data-activity-only-me
           >
-            <i className={`fas ${a.owner?.onlyMe ? 'fa-eye' : 'fa-eye-slash'} mr-2`} aria-hidden="true" />
+            <FaIcon icon={a.owner?.onlyMe ? faEye : faEyeSlash} className="mr-2" />
             {a.owner?.onlyMe ? 'Show on my profile' : 'Hide from my profile'}
           </button>
           <button type="button" disabled={busy} onClick={() => setConfirmDelete(true)} className="ea-interactive rounded-lg border border-danger-border px-4 py-2 font-semibold text-danger-fg min-h-[44px]">
-            <i className="fas fa-trash mr-2" aria-hidden="true" />
+            <FaIcon icon={faTrash} className="mr-2" />
             Delete
           </button>
         </div>
@@ -879,13 +892,13 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
           <CaptureInputs onFiles={files => void attachFiles(Array.from(files))} allowVideo>
             {({ openPhoto }) => (
               <button type="button" disabled={busy || a.media.length >= ACTIVITY_MEDIA_MAX} onClick={openPhoto} className="ea-interactive rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary min-h-[44px] disabled:opacity-50">
-                <i className="fas fa-camera mr-2" aria-hidden="true" />
+                <FaIcon icon={faCamera} className="mr-2" />
                 Take a photo
               </button>
             )}
           </CaptureInputs>
           <label className={`ea-interactive inline-flex items-center rounded-lg border border-border px-3 py-2 text-sm font-semibold text-primary min-h-[44px] cursor-pointer ${busy || a.media.length >= ACTIVITY_MEDIA_MAX ? 'opacity-50 pointer-events-none' : ''}`}>
-            <i className="fas fa-images mr-2" aria-hidden="true" />
+            <FaIcon icon={faImages} className="mr-2" />
             Add from library
             <input type="file" accept="image/*,video/*" multiple className="sr-only" onChange={e => { const f = e.target.files ? Array.from(e.target.files) : []; e.target.value = ''; void attachFiles(f); }} data-activity-photo-input />
           </label>
@@ -898,10 +911,10 @@ function OwnerControls({ activity: a, athlete, onChanged, onReload }: { activity
               <li key={m.id} className="flex items-center gap-1 rounded-lg bg-surface-muted px-2 py-1 text-xs text-secondary" data-activity-photo-row={m.id}>
                 <span className="max-w-[9rem] truncate">{m.caption ?? (m.atS !== null ? `at ${mmss(m.atS)}` : m.mediaType)}</span>
                 <button type="button" disabled={busy} onClick={() => void reEditPhoto(m)} className="ea-icon-btn inline-flex items-center justify-center text-brand-fg" aria-label="Edit photo">
-                  <i className="fas fa-pen text-xs" aria-hidden="true" />
+                  <FaIcon icon={faPen} className="text-xs" />
                 </button>
                 <button type="button" disabled={busy} onClick={() => setConfirmPhoto(m)} className="ea-icon-btn inline-flex items-center justify-center text-muted hover:text-danger-fg" aria-label="Remove photo">
-                  <i className="fas fa-times text-xs" aria-hidden="true" />
+                  <FaIcon icon={faXmark} className="text-xs" />
                 </button>
               </li>
             ))}

@@ -14,6 +14,9 @@ import { fromInput, QUANTITY_UNITS, toDisplay, type UnitSystem } from '@/lib/act
 import { isClimbScale, SCALES_FOR_STYLE, type Climb, type ClimbStyle } from '@/lib/activities/climbing';
 import ClimbLog from './ClimbLog';
 import EffortChips from './EffortChips';
+import FaIcon from '@/components/FaIcon';
+import { faChevronDown } from '@/lib/icons/fa/chevron-down';
+import { faChevronUp } from '@/lib/icons/fa/chevron-up';
 
 export interface FinishFormValue {
   effort: number | null;
@@ -166,7 +169,7 @@ export default function FinishDetailsForm({
       {more.length > 0 && (
         <div>
           <button type="button" onClick={() => setMoreOpen(o => !o)} aria-expanded={moreOpen} className="ea-interactive inline-flex min-h-[44px] items-center gap-2 text-sm font-semibold text-brand-fg" data-finish-more="">
-            <i className={`fas fa-chevron-${moreOpen ? 'up' : 'down'}`} aria-hidden="true"></i>
+            <FaIcon icon={moreOpen ? faChevronUp : faChevronDown} />
             More details
           </button>
           {moreOpen && <div className="mt-2 space-y-4">{more.map(render)}</div>}

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { UPLOAD_DESCRIPTION_MAX, UPLOAD_PRIVACIES, UPLOAD_TITLE_MAX, type UploadPrivacy } from '@/lib/videos/youtube-connection';
+import FaIcon from '@/components/FaIcon';
+import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 
@@ -53,7 +55,7 @@ export default function YouTubeUploadPanel({ owner, onUploaded, onNeedsScope }: 
   const busy = phase.kind === 'opening' || phase.kind === 'uploading';
   return (
     <div className="rounded-lg border border-border p-3 space-y-3" data-youtube-upload={phase.kind}>
-      <p className="text-sm font-semibold text-primary"><i className="fas fa-cloud-arrow-up mr-1.5 text-brand-fg" aria-hidden="true"></i>Upload a file to your channel</p>
+      <p className="text-sm font-semibold text-primary"><FaIcon icon={faCloudArrowUp} className="mr-1.5 text-brand-fg" />Upload a file to your channel</p>
       <p className="text-xs text-muted">The video goes from this device straight to YouTube, resumable — never through Edge Athlete. Keep this page open until it finishes.</p>
       <input type="file" accept="video/*" disabled={busy} onChange={e => setFile(e.target.files?.[0] ?? null)} className="text-sm text-secondary" aria-label="Video file" data-youtube-upload-file="" />
       <label className="block text-sm text-secondary">

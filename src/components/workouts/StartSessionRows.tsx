@@ -1,4 +1,7 @@
 'use client';
+import FaIcon from '@/components/FaIcon';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { faPersonWalking } from '@/lib/icons/fa/person-walking';
 
 /**
  * The two ways to start a session (Training: three changes, Oct 22 2026) —
@@ -25,14 +28,14 @@ export default function StartSessionRows({ onWorkout, onActivity, trainingDoor =
   return (
     <>
       <button type="button" onClick={onWorkout} className={ROW} data-create-workout="">
-        <span className={ICON}><i className="fas fa-dumbbell" aria-hidden="true"></i></span>
+        <span className={ICON}><FaIcon icon={faDumbbell} /></span>
         <span className="min-w-0">
           <span className="block text-sm font-semibold text-primary">Workout</span>
           <span className="block text-xs text-muted">Sets, reps and weight — the timer, supersets and circuits.</span>
         </span>
       </button>
       <button type="button" onClick={onActivity} className={ROW} data-create-recording="" {...(trainingDoor ? { 'data-training-record-activity': '' } : {})}>
-        <span className={ICON}><i className="fas fa-person-walking" aria-hidden="true"></i></span>
+        <span className={ICON}><FaIcon icon={faPersonWalking} /></span>
         <span className="min-w-0">
           <span className="block text-sm font-semibold text-primary">Activity</span>
           <span className="block text-xs text-muted">A run, a ride, yoga, a climb — live, with a timer or a map.</span>

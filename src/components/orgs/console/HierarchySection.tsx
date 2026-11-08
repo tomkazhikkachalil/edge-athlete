@@ -7,6 +7,14 @@ import StaffInviteModal, { type InviteScopeOption } from './StaffInviteModal';
 import { buildHierarchy, defaultOpenSeasonId, type HierarchyPerson, type HierarchySeasonInput, type HierarchyTeamInput } from '@/lib/orgs/hierarchy';
 import { SECTION_LABELS } from '@/lib/orgs/staff-validate';
 import { ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
+import FaIcon from '@/components/FaIcon';
+import { faBuilding } from '@/lib/icons/fa/building';
+import { faCalendar } from '@/lib/icons/fa/calendar';
+import { faLayerGroup } from '@/lib/icons/fa/layer-group';
+import { faPeopleGroup } from '@/lib/icons/fa/people-group';
+import { faTrophy } from '@/lib/icons/fa/trophy';
+import { faUserPlus } from '@/lib/icons/fa/user-plus';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // ── Hierarchy & people (org staff program, round 5) ─────────────────────────
 // The org as a tree — org → seasons → divisions → entered teams (+ teams
@@ -73,7 +81,7 @@ function PeopleChips({ list, node, isOwner, busy, onRevoke }: {
               aria-label={`Revoke ${p.name}`}
               className="ea-interactive -my-1 -mr-2 min-h-[32px] min-w-[32px] rounded-full text-muted hover:text-red-600"
             >
-              <i className="fas fa-times" aria-hidden="true"></i>
+              <FaIcon icon={faXmark} />
             </button>
           )}
         </li>
@@ -90,7 +98,7 @@ function InviteButton({ scope, isOwner, onOpen }: { scope: InviteScopeOption | n
       onClick={() => onOpen(scope)}
       className="ea-interactive inline-flex items-center gap-2 min-h-[44px] sm:min-h-[36px] px-3 rounded-lg border border-border-strong text-sm font-medium text-brand-fg w-full sm:w-auto justify-center"
     >
-      <i className="fas fa-user-plus" aria-hidden="true"></i>
+      <FaIcon icon={faUserPlus} />
       Invite
     </button>
   );
@@ -210,7 +218,7 @@ export default function HierarchySection({ side, orgId, seasons, teams, isOwner,
       <div className="mt-4 space-y-3">
         <div className="rounded-lg border border-border p-3" data-node="org">
           <div className="flex items-center gap-2">
-            <i className={`fas ${side === 'league' ? 'fa-trophy' : 'fa-building'} text-brand-fg`} aria-hidden="true"></i>
+            <FaIcon icon={side === 'league' ? faTrophy : faBuilding} className="text-brand-fg" />
             <span className="font-semibold text-primary">Whole {side}</span>
           </div>
           {loaded && tree.orgPeople.length === 0 ? (
@@ -223,7 +231,7 @@ export default function HierarchySection({ side, orgId, seasons, teams, isOwner,
         {tree.seasons.map(season => (
           <details key={season.id} open={season.id === openSeason} className="rounded-lg border border-border p-3" data-node={`season:${season.id}`}>
             <summary className="cursor-pointer min-h-[44px] flex items-center gap-2 font-semibold text-primary">
-              <i className="fas fa-calendar text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faCalendar} className="text-brand-fg" />
               {season.label}
               {season.archived && <span className="text-xs font-normal text-muted">archived</span>}
               <span className="text-xs font-normal text-tertiary ml-auto">{season.divisions.length} division{season.divisions.length === 1 ? '' : 's'}</span>
@@ -233,7 +241,7 @@ export default function HierarchySection({ side, orgId, seasons, teams, isOwner,
               {season.divisions.map(d => (
                 <details key={d.id} open className="rounded-lg bg-surface-sunken/40 p-3" data-node={`division:${d.id}`}>
                   <summary className="cursor-pointer min-h-[44px] flex flex-wrap items-center gap-2 font-medium text-primary">
-                    <i className="fas fa-layer-group text-brand-fg" aria-hidden="true"></i>
+                    <FaIcon icon={faLayerGroup} className="text-brand-fg" />
                     {d.name}
                     <span className="text-xs font-normal text-tertiary">{d.teams.length} team{d.teams.length === 1 ? '' : 's'}</span>
                   </summary>
@@ -245,7 +253,7 @@ export default function HierarchySection({ side, orgId, seasons, teams, isOwner,
                     {d.teams.map(t => (
                       <li key={t.id} className="rounded-lg border border-border-subtle p-2" data-node={`team:${t.id}`}>
                         <div className="flex flex-wrap items-center gap-2">
-                          <i className="fas fa-people-group text-brand-fg" aria-hidden="true"></i>
+                          <FaIcon icon={faPeopleGroup} className="text-brand-fg" />
                           <span className="text-sm font-medium text-primary">{t.name}</span>
                         </div>
                         <PeopleChips list={t.people} node={t.name} isOwner={isOwner} busy={busy} onRevoke={p => void revoke(p)} />
@@ -264,7 +272,7 @@ export default function HierarchySection({ side, orgId, seasons, teams, isOwner,
         {tree.unassignedTeams.length > 0 && (
           <details className="rounded-lg border border-border p-3" data-node="unassigned">
             <summary className="cursor-pointer min-h-[44px] flex items-center gap-2 font-semibold text-primary">
-              <i className="fas fa-people-group text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faPeopleGroup} className="text-brand-fg" />
               Teams not in a division
               <span className="text-xs font-normal text-tertiary ml-auto">{tree.unassignedTeams.length}</span>
             </summary>
@@ -285,7 +293,7 @@ export default function HierarchySection({ side, orgId, seasons, teams, isOwner,
         {side === 'league' && clubs.length > 0 && (
           <details className="rounded-lg border border-border p-3" data-node="clubs">
             <summary className="cursor-pointer min-h-[44px] flex items-center gap-2 font-semibold text-primary">
-              <i className="fas fa-building text-brand-fg" aria-hidden="true"></i>
+              <FaIcon icon={faBuilding} className="text-brand-fg" />
               Affiliated clubs
               <span className="text-xs font-normal text-tertiary ml-auto">{clubs.length}</span>
             </summary>

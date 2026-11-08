@@ -47,6 +47,10 @@ import { useTheme } from '@/lib/use-theme';
 import type { BodyMetricEntry } from './training/metric-stats';
 import type { TrainingPrivacy } from '@/lib/training-privacy';
 import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
+import FaIcon from '@/components/FaIcon';
+import { faDumbbell } from '@/lib/icons/fa/dumbbell';
+import { sportIcon } from '@/lib/sports/sport-icons';
+import { activityGlyph } from '@/lib/activities/activity-icons';
 
 /** A9: a sport session's kind, as the row reads it. */
 const SESSION_KIND_LABELS: Record<string, string> = { practice: 'Practice', game: 'Game', other: 'Other' };
@@ -451,7 +455,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
                 return (
                   <div key={`${session.kind}:${session.id}`} className="flex items-center justify-between gap-2 text-sm" data-session-kind={session.kind}>
                     <span className="flex min-w-0 items-center gap-2 font-semibold text-primary">
-                      <i className={`${sport ? sport.icon_id : `fas fa-${def ? def.icon : 'dumbbell'}`} w-4 shrink-0 text-center text-xs text-muted`} aria-hidden="true" />
+                      <FaIcon icon={sport ? sportIcon(sport.sport_key) : def ? activityGlyph(def.icon) : faDumbbell} className="w-4 shrink-0 text-center text-xs text-muted" />
                       {/* A sport session's sport sits under its name: side by side, both truncate at 375 px. */}
                       <span className="flex min-w-0 flex-col">
                         <span className="truncate">{session.title}</span>

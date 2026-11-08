@@ -11,6 +11,10 @@ import { conversationIdentity, isConversationPartnerOnline } from './conversatio
 import { loadDraft, saveDraft } from './drafts';
 import type { Conversation } from '@/types/messages';
 import { DOCK_SURFACE_HEIGHT } from './dock-state';
+import FaIcon from '@/components/FaIcon';
+import { faMinus } from '@/lib/icons/fa/minus';
+import { faUpRightAndDownLeftFromCenter } from '@/lib/icons/fa/up-right-and-down-left-from-center';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 // A fully working conversation in miniature: the same MessageBubble /
 // MessageInput / TypingIndicator the full page uses, the same endpoints,
@@ -93,7 +97,7 @@ export default function MiniChatWindow({
           title="Open full view"
           className="w-6 h-6 rounded hover:bg-violet-500 flex items-center justify-center"
         >
-          <i className="fas fa-up-right-and-down-left-from-center text-[10px]"></i>
+          <FaIcon icon={faUpRightAndDownLeftFromCenter} className="text-[10px]" />
         </button>
         <button
           type="button"
@@ -102,7 +106,7 @@ export default function MiniChatWindow({
           title="Minimize"
           className="w-6 h-6 rounded hover:bg-violet-500 flex items-center justify-center"
         >
-          <i className="fas fa-minus text-[10px]"></i>
+          <FaIcon icon={faMinus} className="text-[10px]" />
         </button>
         <button
           type="button"
@@ -111,7 +115,7 @@ export default function MiniChatWindow({
           title="Close"
           className="w-6 h-6 rounded hover:bg-violet-500 flex items-center justify-center"
         >
-          <i className="fas fa-xmark text-xs"></i>
+          <FaIcon icon={faXmark} className="text-xs" />
         </button>
       </div>
 

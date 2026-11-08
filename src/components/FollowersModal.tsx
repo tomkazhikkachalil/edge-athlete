@@ -8,6 +8,11 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { getHandle } from '@/lib/profile-display';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import ConfirmModal from '@/components/ConfirmModal';
+import FaIcon from '@/components/FaIcon';
+import { faCircleExclamation } from '@/lib/icons/fa/circle-exclamation';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faUsers } from '@/lib/icons/fa/users';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface Profile {
   id: string;
@@ -293,7 +298,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
             className="ea-icon-btn inline-flex items-center justify-center text-primary hover:text-black dark:hover:text-primary"
             aria-label="Close"
           >
-            <i className="fas fa-times text-xl"></i>
+            <FaIcon icon={faXmark} className="text-xl" />
           </button>
         </div>
 
@@ -333,7 +338,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
           {error && (
             <div className="text-center py-12">
               <div className="text-red-500 mb-4">
-                <i className="fas fa-exclamation-circle text-4xl"></i>
+                <FaIcon icon={faCircleExclamation} className="text-4xl" />
               </div>
               <p className="text-primary font-medium">{error}</p>
               <button
@@ -348,7 +353,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
           {!loading && !error && currentList.length === 0 && (
             <div className="text-center py-12">
               <div className="text-tertiary mb-4">
-                <i className="fas fa-users text-4xl"></i>
+                <FaIcon icon={faUsers} className="text-4xl" />
               </div>
               <p className="text-primary font-medium">
                 {activeTab === 'followers'
@@ -438,7 +443,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 className="px-3 py-2 min-h-[44px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 {isLoadingThis ? (
-                                  <i className="fas fa-spinner fa-spin"></i>
+                                  <FaIcon icon={faSpinner} spin />
                                 ) : (
                                   'Unfollow'
                                 )}
@@ -454,7 +459,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 }`}
                               >
                                 {isLoadingThis ? (
-                                  <i className="fas fa-spinner fa-spin"></i>
+                                  <FaIcon icon={faSpinner} spin />
                                 ) : requestedThem ? (
                                   'Requested'
                                 ) : (
@@ -490,7 +495,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 className="px-3 py-2 min-h-[44px] text-xs font-medium text-secondary bg-gray-200 dark:bg-stone-800 rounded-full hover:bg-gray-300 dark:hover:bg-stone-700 transition-colors disabled:opacity-50 whitespace-nowrap"
                               >
                                 {isLoadingThis ? (
-                                  <i className="fas fa-spinner fa-spin"></i>
+                                  <FaIcon icon={faSpinner} spin />
                                 ) : (
                                   'Unfollow'
                                 )}
@@ -506,7 +511,7 @@ export default function FollowersModal({ isOpen, onClose, profileId, initialTab 
                                 }`}
                               >
                                 {isLoadingThis ? (
-                                  <i className="fas fa-spinner fa-spin"></i>
+                                  <FaIcon icon={faSpinner} spin />
                                 ) : requestedThem ? (
                                   'Requested'
                                 ) : (

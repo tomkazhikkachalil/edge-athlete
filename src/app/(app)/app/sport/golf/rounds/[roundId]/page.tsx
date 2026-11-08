@@ -15,6 +15,20 @@ import { useToast } from '@/components/Toast';
 import { trackedStatLabel, holeCountLabel } from '@/lib/golf/round-display';
 import { embeddedCourseToInfo } from '@/lib/golf/course-info';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
+import FaIcon from '@/components/FaIcon';
+import { faArrowLeft } from '@/lib/icons/fa/arrow-left';
+import { faCalendar } from '@/lib/icons/fa/calendar';
+import { faCheck } from '@/lib/icons/fa/check';
+import { faCloudSun } from '@/lib/icons/fa/cloud-sun';
+import { faEye } from '@/lib/icons/fa/eye';
+import { faEyeSlash } from '@/lib/icons/fa/eye-slash';
+import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
+import { faMapLocationDot } from '@/lib/icons/fa/map-location-dot';
+import { faNoteSticky } from '@/lib/icons/fa/note-sticky';
+import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
+import { faSpinner } from '@/lib/icons/fa/spinner';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 interface GolfHole {
   hole_number: number;
@@ -288,7 +302,7 @@ export default function GolfRoundDetailPage() {
               onClick={() => backOr(router, '/athlete')}
               className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-brand hover:bg-brand-hover transition-colors"
             >
-              <i className="fas fa-arrow-left mr-2"></i>
+              <FaIcon icon={faArrowLeft} className="mr-2" />
               Go Back
             </button>
           </div>
@@ -329,7 +343,7 @@ export default function GolfRoundDetailPage() {
               onClick={() => backOr(router, '/athlete')}
               className="inline-flex items-center min-h-[44px] text-sm text-tertiary hover:text-primary transition-colors"
             >
-              <i className="fas fa-arrow-left mr-2"></i>
+              <FaIcon icon={faArrowLeft} className="mr-2" />
               Back
             </button>
             {isOwner && !editing && (
@@ -338,7 +352,7 @@ export default function GolfRoundDetailPage() {
                   onClick={startEditing}
                   className="inline-flex items-center min-h-[44px] px-3 py-2 border border-border-strong rounded-md text-sm font-medium text-secondary bg-surface hover:bg-surface-muted transition-colors"
                 >
-                  <i className="fas fa-edit mr-1"></i>
+                  <FaIcon icon={faPenToSquare} className="mr-1" />
                   Edit
                 </button>
                 <button
@@ -347,7 +361,7 @@ export default function GolfRoundDetailPage() {
                   className="inline-flex items-center min-h-[44px] px-3 py-2 border border-border-strong rounded-md text-sm font-medium text-secondary bg-surface hover:bg-surface-muted transition-colors disabled:opacity-60"
                   data-round-visibility={round.profile_hidden_at ? 'hidden' : 'shown'}
                 >
-                  <i className={`fas ${round.profile_hidden_at ? 'fa-eye' : 'fa-eye-slash'} mr-1`}></i>
+                  <FaIcon icon={round.profile_hidden_at ? faEye : faEyeSlash} className="mr-1" />
                   {round.profile_hidden_at ? 'Show on profile' : 'Hide'}
                 </button>
                 {/* A for-fun round can be deleted for good (Oct 2026); an
@@ -359,7 +373,7 @@ export default function GolfRoundDetailPage() {
                   data-round-delete=""
                   aria-label={COPY.FORMS.DELETE_RESULT_LABEL}
                 >
-                  <i className="fas fa-trash sm:mr-1" aria-hidden="true"></i>
+                  <FaIcon icon={faTrash} className="sm:mr-1" />
                   <span className="hidden sm:inline">Delete</span>
                 </button>
               </div>
@@ -379,9 +393,9 @@ export default function GolfRoundDetailPage() {
                   className="inline-flex items-center min-h-[44px] px-4 py-2 rounded-md text-sm font-medium text-white bg-brand hover:bg-brand-hover transition-colors disabled:opacity-50"
                 >
                   {saving ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i>Saving…</>
+                    <><FaIcon icon={faSpinner} spin className="mr-2" />Saving…</>
                   ) : (
-                    <><i className="fas fa-check mr-1"></i>Save</>
+                    <><FaIcon icon={faCheck} className="mr-1" />Save</>
                   )}
                 </button>
               </div>
@@ -398,14 +412,14 @@ export default function GolfRoundDetailPage() {
               <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-1 break-words">{round.course}</h1>
               {isOwner && round.profile_hidden_at && (
                 <p className="inline-flex items-center gap-1 rounded-full bg-surface-sunken px-2.5 py-1 text-xs font-medium text-secondary mb-1" data-round-hidden="">
-                  <i className="fas fa-eye-slash" aria-hidden="true"></i> Hidden from your profile — still counts toward your stats
+                  <FaIcon icon={faEyeSlash} /> Hidden from your profile — still counts toward your stats
                 </p>
               )}
               {round.course_location && (
                 <p className="text-sm text-muted mb-1">{round.course_location}</p>
               )}
               <p className="text-tertiary text-sm">
-                <i className="fas fa-calendar mr-2"></i>
+                <FaIcon icon={faCalendar} className="mr-2" />
                 {new Date(round.date + 'T00:00:00').toLocaleDateString('en-US', {
                   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
                 })}
@@ -495,7 +509,7 @@ export default function GolfRoundDetailPage() {
 
           {conditions && (
             <p className="mt-4 pt-4 border-t border-border text-sm text-tertiary">
-              <i className="fas fa-cloud-sun mr-2"></i>
+              <FaIcon icon={faCloudSun} className="mr-2" />
               {conditions}
             </p>
           )}
@@ -508,7 +522,7 @@ export default function GolfRoundDetailPage() {
           return (
             <div className="bg-surface rounded-lg shadow-sm p-4 sm:p-6">
               <h2 className="text-xl font-bold text-primary mb-2">
-                <i className="fas fa-map-location-dot mr-2"></i>
+                <FaIcon icon={faMapLocationDot} className="mr-2" />
                 {info.name}
               </h2>
               <CourseInfoCard course={info} defaultOpen />
@@ -519,7 +533,7 @@ export default function GolfRoundDetailPage() {
         {/* Scorecard */}
         <div className="bg-surface rounded-lg shadow-sm p-4 sm:p-6">
           <h2 className="text-xl font-bold text-primary mb-4">
-            <i className="fas fa-golf-ball mr-2"></i>
+            <FaIcon icon={faGolfBallTee} className="mr-2" />
             Scorecard
           </h2>
           {holes.length === 0 ? (
@@ -570,8 +584,8 @@ export default function GolfRoundDetailPage() {
                                 title="Cycle: hit → missed → n/a"
                                 aria-label={`Hole ${eh.hole_number} fairway`}
                               >
-                                {eh.fairway_hit === true && <i className="fas fa-check text-green-600 dark:text-green-400"></i>}
-                                {eh.fairway_hit === false && <i className="fas fa-times text-red-600 dark:text-red-400"></i>}
+                                {eh.fairway_hit === true && <FaIcon icon={faCheck} className="text-green-600 dark:text-green-400" />}
+                                {eh.fairway_hit === false && <FaIcon icon={faXmark} className="text-red-600 dark:text-red-400" />}
                                 {eh.fairway_hit === null && <span className="text-faint text-xs">n/a</span>}
                               </button>
                             ) : (
@@ -591,8 +605,8 @@ export default function GolfRoundDetailPage() {
                               title="Cycle: hit → missed → n/a"
                               aria-label={`Hole ${eh.hole_number} green in regulation`}
                             >
-                              {eh.green_in_regulation === true && <i className="fas fa-check text-green-600 dark:text-green-400"></i>}
-                              {eh.green_in_regulation === false && <i className="fas fa-times text-red-600 dark:text-red-400"></i>}
+                              {eh.green_in_regulation === true && <FaIcon icon={faCheck} className="text-green-600 dark:text-green-400" />}
+                              {eh.green_in_regulation === false && <FaIcon icon={faXmark} className="text-red-600 dark:text-red-400" />}
                               {eh.green_in_regulation === null && <span className="text-faint text-xs">n/a</span>}
                             </button>
                           </td>
@@ -631,7 +645,7 @@ export default function GolfRoundDetailPage() {
                             h.fairway_hit === null ? (
                               <span className="text-faint text-xs">n/a</span>
                             ) : (
-                              <i className={`fas ${h.fairway_hit ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
+                              <FaIcon icon={h.fairway_hit ? faCheck : faXmark} className={h.fairway_hit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} />
                             )
                           ) : (
                             <span className="text-gray-300 dark:text-decor">—</span>
@@ -641,7 +655,7 @@ export default function GolfRoundDetailPage() {
                           {h.green_in_regulation === null ? (
                             <span className="text-faint text-xs">n/a</span>
                           ) : (
-                            <i className={`fas ${h.green_in_regulation ? 'fa-check text-green-600 dark:text-green-400' : 'fa-times text-red-600 dark:text-red-400'}`}></i>
+                            <FaIcon icon={h.green_in_regulation ? faCheck : faXmark} className={h.green_in_regulation ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} />
                           )}
                         </td>
                         <td className="px-3 py-2 text-sm text-primary text-center">{h.putts ?? '—'}</td>
@@ -658,7 +672,7 @@ export default function GolfRoundDetailPage() {
         {round.notes && (
           <div className="bg-surface rounded-lg shadow-sm p-4 sm:p-6">
             <h2 className="text-xl font-bold text-primary mb-4">
-              <i className="fas fa-sticky-note mr-2"></i>
+              <FaIcon icon={faNoteSticky} className="mr-2" />
               Round Notes
             </h2>
             <p className="text-secondary leading-relaxed break-words">{round.notes}</p>

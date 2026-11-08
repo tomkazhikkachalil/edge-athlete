@@ -27,6 +27,9 @@ import {
   type TimerFormat,
   type TimerSpec,
 } from '@/lib/activities/record/round-timer';
+import FaIcon from '@/components/FaIcon';
+import { faBell } from '@/lib/icons/fa/bell';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 const PREFS_KEY = 'ea:record:timer:v1';
 
@@ -83,7 +86,7 @@ export function TimerSetup({ type, onStart, onClose, initial, arm = false }: { t
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-bold text-primary">Round timer</h2>
         <button type="button" onClick={onClose} className="ea-icon-btn inline-flex items-center justify-center text-secondary" aria-label="Close the timer">
-          <i className="fas fa-times" aria-hidden="true"></i>
+          <FaIcon icon={faXmark} />
         </button>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Format">
@@ -189,7 +192,7 @@ export default function RoundTimerPanel({
     return (
       <div className="mx-4 mt-4">
         <button type="button" onClick={() => setSetupOpen(true)} className="ea-interactive ea-surface flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-primary" data-record-timer-open="">
-          <i className="fas fa-bell text-brand-fg" aria-hidden="true"></i>
+          <FaIcon icon={faBell} className="text-brand-fg" />
           Round timer · Tabata · EMOM · AMRAP
         </button>
       </div>

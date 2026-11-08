@@ -20,6 +20,12 @@ import ConfirmModal from '@/components/ConfirmModal';
 import ProfilePhotoUploader, { PHOTO_SLOTS, type CurrentProfilePhoto } from './ProfilePhotoUploader';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
 import type { ProfilePhotoPayload } from '@/lib/profiles/photo-recipe';
+import FaIcon from '@/components/FaIcon';
+import { faCamera } from '@/lib/icons/fa/camera';
+import { faCropSimple } from '@/lib/icons/fa/crop-simple';
+import { faImages } from '@/lib/icons/fa/images';
+import { faTrash } from '@/lib/icons/fa/trash';
+import { faXmark } from '@/lib/icons/fa/xmark';
 
 export interface ProfilePhotoDoorProps {
   slot: ProfilePhotoSlot;
@@ -80,7 +86,7 @@ export default function ProfilePhotoDoor({ slot, hasPhoto, mode, targetProfileId
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <h2 className="text-lg font-bold text-primary">{def.noun}</h2>
           <button type="button" onClick={onClose} className="ea-icon-btn text-secondary" aria-label="Close">
-            <i className="fas fa-times" aria-hidden="true"></i>
+            <FaIcon icon={faXmark} />
           </button>
         </div>
         <ProfilePhotoUploader
@@ -94,14 +100,14 @@ export default function ProfilePhotoDoor({ slot, hasPhoto, mode, targetProfileId
           render={({ open, openCamera, adjust, canAdjust, uploading, busy }) => (
             <div className="px-2 pb-3 space-y-1">
               <button type="button" onClick={openCamera} disabled={uploading || busy} className={row} data-photo-take="">
-                <span className={icon}><i className="fas fa-camera" aria-hidden="true"></i></span>
+                <span className={icon}><FaIcon icon={faCamera} /></span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-primary">Take a new photo</span>
                   <span className="block text-xs text-muted">With the camera, cropped {slot === 'avatar' ? 'round' : 'to the banner'}.</span>
                 </span>
               </button>
               <button type="button" onClick={open} disabled={uploading || busy} className={row} data-photo-upload="">
-                <span className={icon}><i className="fas fa-images" aria-hidden="true"></i></span>
+                <span className={icon}><FaIcon icon={faImages} /></span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-primary">Upload a new photo</span>
                   <span className="block text-xs text-muted">From your device. JPG, PNG, GIF, WebP or HEIC.</span>
@@ -109,7 +115,7 @@ export default function ProfilePhotoDoor({ slot, hasPhoto, mode, targetProfileId
               </button>
               {hasPhoto && canAdjust && (
                 <button type="button" onClick={adjust} disabled={uploading || busy} className={row} data-photo-adjust="">
-                  <span className={icon}><i className="fas fa-crop-alt" aria-hidden="true"></i></span>
+                  <span className={icon}><FaIcon icon={faCropSimple} /></span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-primary">Adjust the current photo</span>
                     <span className="block text-xs text-muted">Re-crop or reposition — no need to upload again.</span>
@@ -118,7 +124,7 @@ export default function ProfilePhotoDoor({ slot, hasPhoto, mode, targetProfileId
               )}
               {hasPhoto && mode === 'immediate' && (
                 <button type="button" onClick={() => setConfirmRemove(true)} disabled={uploading || removing || busy} className={row} data-photo-remove="">
-                  <span className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0"><i className="fas fa-trash" aria-hidden="true"></i></span>
+                  <span className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0"><FaIcon icon={faTrash} /></span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-red-600 dark:text-red-400">Remove the photo</span>
                     <span className="block text-xs text-muted">The upload button comes back.</span>
