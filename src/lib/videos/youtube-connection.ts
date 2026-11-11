@@ -45,6 +45,56 @@ export function mergeGrantedScopes(stored: readonly string[] | null | undefined,
   return SCOPE_KEYS.map(k => YOUTUBE_SCOPES[k]).filter(url => seen.has(url));
 }
 
+// ── Correct state (Nov 10 2026) ──────────────────────────────────────────────
+/**
+ * What a connect STORES: exactly what Google's token answer lists — with
+ * `include_granted_scopes` that is the whole grant of this Google account, so
+ * a reconnect through another account never inherits the old one's
+ * permissions. An answer that lists nothing of ours (it should not happen)
+ * falls back to what was asked.
+ */
+export function storedScopesFor(granted: string | readonly string[] | null | undefined, asked: ScopeKey): string[] {
+  const listed = mergeGrantedScopes(null, granted);
+  return listed.length > 0 ? listed : mergeGrantedScopes(null, scopesFor(asked));
+}
+
+/** Does the stored grant allow this? `youtube.force-ssl` (live) covers uploading too — never a second question for it. */
+export function scopeAllows(scopes: readonly string[] | null | undefined, need: 'upload' | 'live'): boolean {
+  return need === 'live' ? hasScope(scopes, 'live') : hasScope(scopes, 'upload') || hasScope(scopes, 'live');
+}
+
+/** YouTube said the token lacks a permission the row claims: the row stops claiming it (and whatever implied it). */
+export function scopesWithout(scopes: readonly string[] | null | undefined, need: 'upload' | 'live'): string[] {
+  const drop = new Set<string>(need === 'upload' ? [YOUTUBE_SCOPES.upload, YOUTUBE_SCOPES.live] : [YOUTUBE_SCOPES.live]);
+  return mergeGrantedScopes(null, (scopes ?? []).filter(s => !drop.has(s)));
+}
+
+/** Google's word for "this token may not do that". */
+export function isScopeRefusal(status: number, reason: string | null | undefined): boolean {
+  return status === 403 && (reason === 'insufficientPermissions' || reason === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT');
+}
+
+/** A reconnect that landed on ANOTHER channel: the old one's name for the banner; null when it is the same channel or the first connect. */
+export function replacedChannel(before: Pick<YouTubeConnectionRow, 'channel_id' | 'channel_title'> | null, nextChannelId: string): string | null {
+  if (!before || before.channel_id === nextChannelId) return null;
+  return (before.channel_title || 'another channel').slice(0, 80);
+}
+
+/** "Now connected to X (was Y)." — `was` is the address word the callback adds. */
+export function connectedLine(channelTitle: string | null | undefined, was: string | null | undefined): string {
+  const now = channelTitle || 'your channel';
+  return was ? `Now connected to ${now} (was ${was.slice(0, 80)}).` : 'YouTube channel connected.';
+}
+
+/**
+ * Disconnect revokes at Google only when this is the person's LAST connection:
+ * Google ends a grant per account, not per channel, so revoking while they
+ * hold another one here would silently kill it too.
+ */
+export function shouldRevokeAtGoogle(otherConnectionsBySamePerson: number): boolean {
+  return otherConnectionsBySamePerson === 0;
+}
+
 // ── The owner ───────────────────────────────────────────────────────────────
 export type ConnectionOwner = { kind: 'profile'; profileId: string } | { kind: 'org'; side: OrgKind; orgId: string };
 

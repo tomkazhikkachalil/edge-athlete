@@ -133,7 +133,7 @@ describe('the YouTube connection (Phase 3)', () => {
   });
   it('the new-video flow offers the channel list and the upload only once the default owner is connected; the upload is a link to the second consent when the scope is missing', () => {
     const flow = read('src/components/videos/NewVideoFlow.tsx');
-    expect(flow).toContain('<ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} returnTo={returnTo} onLeave={saveDraft} />');
+    expect(flow).toContain('<ChannelPicker owner={activeOwnerRef} onPick={pickFromChannel} returnTo={returnTo} onLeave={saveDraft} />');
     expect(flow).toContain('connection.canUpload && uploadOpen && (');
     expect(flow).toContain('data-new-video-needs-scope={needsScope}');
     expect(flow).not.toContain('window.location.assign');

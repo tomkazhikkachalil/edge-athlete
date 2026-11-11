@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
 import { watchUrl } from '@/lib/videos/youtube';
-import { BROADCAST_ERRORS, broadcastErrorWord, hasScope, parseBroadcastBody, parseOwnerRef, studioUrlFor } from '@/lib/videos/youtube-connection';
-import { broadcastRight, callWithToken } from '@/lib/videos/youtube-connections-server';
+import { BROADCAST_ERRORS, broadcastErrorWord, isScopeRefusal, parseBroadcastBody, parseOwnerRef, scopeAllows, studioUrlFor } from '@/lib/videos/youtube-connection';
+import { broadcastRight, callWithToken, dropScope } from '@/lib/videos/youtube-connections-server';
 import { youtubeBindBroadcast, youtubeConfig, youtubeCreateBroadcast, youtubeCreateStream, youtubeDeleteBroadcast } from '@/lib/videos/google-youtube-server';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' } as const;
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const right = await broadcastRight(admin, owner, user.id);
     if (!right.ok) return NextResponse.json({ error: right.error, ...(right.reconnect ? { reconnect: true } : {}) }, { status: right.status });
-    if (!hasScope(right.value.scopes, 'live')) {
+    if (!scopeAllows(right.value.scopes, 'live')) {
       return NextResponse.json({ error: 'Allow live broadcasts on this channel first', needs_scope: 'live' }, { status: 409 });
     }
     const refused = (status: number, reason: string | null) => {
@@ -48,7 +48,14 @@ export async function POST(request: NextRequest) {
     if (!called.ok) return NextResponse.json({ error: called.error, reconnect: called.reconnect }, { status: called.status });
     const broadcast = called.value;
     const accessToken = called.accessToken;
-    if (!broadcast.ok) return refused(broadcast.status, broadcast.reason);
+    if (!broadcast.ok) {
+      // The row claimed the live permission the token does not have: stop claiming it and ask once more.
+      if (isScopeRefusal(broadcast.status, broadcast.reason)) {
+        await dropScope(admin, called.row, 'live');
+        return NextResponse.json({ error: 'Allow live broadcasts on this channel first', needs_scope: 'live' }, { status: 409 });
+      }
+      return refused(broadcast.status, broadcast.reason);
+    }
     const stream = await youtubeCreateStream(cfg, accessToken, parsed.value.title);
     if (!stream.ok) {
       await youtubeDeleteBroadcast(cfg, accessToken, broadcast.value.videoId);

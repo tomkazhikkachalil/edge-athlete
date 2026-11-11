@@ -1,5 +1,21 @@
 # Development Log
 
+## November 10, 2026 — YouTube connection round, PR 3 of 4: correct state — the row says what Google granted (zero DDL)
+
+**What was wrong.** A connect MERGED the new permissions into whatever the row held: reconnect through a different Google account and the row still claimed the old account's upload permission, so the upload door opened and YouTube refused it. The channel changed without a word. Disconnecting one owner revoked the grant at Google — which ends EVERY connection that Google account made here, so a person who had connected the same account to their profile and their club lost both. "Allow live broadcasts" (which covers uploading at Google) was still followed by a question for uploads. And the Full game flow read only the default owner's connection, whatever owner was then picked.
+
+**What it does now.**
+- **Scopes are replaced** by what Google's answer lists; an unticked box is not stored.
+- **A stale claim corrects itself**: YouTube's 403 for a missing permission removes it from the row and the screen asks once more.
+- **force-ssl covers uploads**: no second question after "Allow live broadcasts".
+- **A swapped channel is named**: "Now connected to X (was Y)."
+- **Disconnect spares a sibling**: Google is told to revoke only when it is the person's last connection here.
+- **The flow follows the picked owner**: the channel on a door is the channel of the owner the video will belong to.
+
+**PR 2 on production:** #1458 merged as `1383baa3` by the script (verify, smoke and guardrails passed by name; Vercel's deployment awaited); `/api/health` on `1383baa3`; the prod probe from main's specs, one project at a time — `videos.spec` + `org-app-videos.spec` on `desktop` 2/2, `videos-mobile.spec` on `mobile` 1/1 — green.
+
+**Proof:** `npm run verify` exit 0 (655 files, **6,016 tests**, the build, `check:weight` ✓, the syntax floor); audit 0; guardrails ✓; `check:blocklists` ✓; `check:schema` ✓ (zero DDL). Playwright on the built server against staging with the stand-in Google: `youtube-connect.spec`'s new fifth test — connected with uploads; a reconnect as a second channel that grants readonly only lands with `was=` and the banner "Now connected to QA Second Channel (was QA Golf Channel).", the row on the new channel with `['readonly']`; a seeded claim of `upload` meets the stand-in's 403 `insufficientPermissions` → 409 `needs_scope` and the claim gone; after "Allow live" (`['readonly', 'live']`) the upload session opens with no second question; the same person's club connected, the profile's disconnect makes NO revoke call and the club still reads; in the flow the profile shows the Connect door, the club picked at Where shows the club's channel on the Link step; the last disconnect revokes once — with the four earlier tests and `youtube-broadcast.spec`, `videos.spec`, `videos-live.spec`, `videos-lookup.spec` on `desktop` — 9 passed; `videos-mobile.spec` on `mobile` 1/1. The spec is `docs/specs/videos.md` ("Correct state"). Production line: in PR 4's entry.
+
 ## November 10, 2026 — YouTube connection round, PR 2 of 4: the flow — connect from where you are, come back with what you typed, and an honest word about what Google granted (zero DDL)
 
 **What was wrong.** The Full game flow showed YouTube's doors only when a channel was ALREADY connected — nothing there said a channel could be connected. "Allow uploads" sent the person to Google and landed them on the profile's Videos tab with the form gone ("then come back to this door"). Google's consent page has a box per permission; leaving one unticked still landed as "connected", and the door then asked for "one more yes" again, without a reason. The card disappeared entirely when its read failed, and `?youtube=connected` stayed in the address for every reload.

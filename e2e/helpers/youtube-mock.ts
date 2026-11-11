@@ -224,6 +224,9 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
       if (req.method === 'GET' && url.pathname === '/youtube/v3/videos') return videosList(ch);
       if (req.method === 'POST' && url.pathname === '/upload/youtube/v3/videos') {
         if (!ch) return send(res, 403, { error: { code: 403, message: 'no channel' } });
+        // Correct state (Nov 10): the upload needs the upload scope ON THIS TOKEN — force-ssl covers it, as at Google.
+        const uploadScope = tokenScope.get((req.headers.authorization ?? '').replace(/^Bearer /, '')) ?? '';
+        if (!/youtube\.upload|youtube\.force-ssl|\/auth\/youtube(\s|$)/.test(uploadScope)) return send(res, 403, { error: { code: 403, errors: [{ reason: 'insufficientPermissions', domain: 'global' }] } });
         const body = JSON.parse((await readBody(req)).toString('utf8') || '{}') as { snippet?: { title?: string }; status?: { privacyStatus?: string } };
         const size = Number(req.headers['x-upload-content-length']);
         if (!Number.isFinite(size) || size <= 0) return send(res, 400, { error: 'bad length' });

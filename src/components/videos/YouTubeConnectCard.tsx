@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
-import { CONNECT_ERRORS, CONNECT_RESULT_PARAMS, healthCheckDue, reconnectScope, UNVERIFIED_NOTE, type ScopeKey, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import { CONNECT_ERRORS, CONNECT_RESULT_PARAMS, connectedLine, healthCheckDue, reconnectScope, UNVERIFIED_NOTE, type ScopeKey, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
 import FaIcon from '@/components/FaIcon';
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 
@@ -54,7 +54,7 @@ export default function YouTubeConnectCard({ owner, compact = false }: { owner: 
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   // The connect's result: read ONCE from the address, then the words leave it (a reload or a shared link never repeats the banner).
-  const [landed] = useState(() => ({ result: params.get('youtube'), errorWord: params.get('youtube_error') }));
+  const [landed] = useState(() => ({ result: params.get('youtube'), errorWord: params.get('youtube_error'), was: params.get('was') }));
   const { result, errorWord } = landed;
   useEffect(() => {
     if (!landed.result && !landed.errorWord) return;
@@ -129,7 +129,7 @@ export default function YouTubeConnectCard({ owner, compact = false }: { owner: 
   }
   if (!view.available || !view.canManage) return null;
   const start = (scope: ScopeKey) => `/api/videos/youtube/start?owner=${encodeURIComponent(owner)}&scope=${scope}`;
-  const banner = errorWord ? (CONNECT_ERRORS[errorWord] ?? CONNECT_ERRORS.failed) : result === 'connected' ? 'YouTube channel connected.' : null;
+  const banner = errorWord ? (CONNECT_ERRORS[errorWord] ?? CONNECT_ERRORS.failed) : result === 'connected' ? connectedLine(view.channelTitle, landed.was) : null;
 
   return (
     <div className={`${shell} space-y-2`} data-youtube-card={view.connected ? 'connected' : 'none'}>
