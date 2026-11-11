@@ -133,7 +133,7 @@ describe('the YouTube connection (Phase 3)', () => {
   });
   it('the new-video flow offers the channel list and the upload only once the default owner is connected; the upload is a link to the second consent when the scope is missing', () => {
     const flow = read('src/components/videos/NewVideoFlow.tsx');
-    expect(flow).toContain('<ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />');
+    expect(flow).toContain('<ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} returnTo={returnTo} onLeave={saveDraft} />');
     expect(flow).toContain('connection.canUpload && uploadOpen && (');
     expect(flow).toContain('data-new-video-needs-scope={needsScope}');
     expect(flow).not.toContain('window.location.assign');
@@ -247,7 +247,7 @@ describe('live, 4b — the broadcast created from Edge Athlete', () => {
     expect(flow).toContain('connection.canBroadcast && !uploadOpen && !broadcastOpen && (');
     expect(flow).toContain('data-new-video-broadcast-door=""');
     expect(flow).toContain("onNeedsScope={() => setNeedsScope('live')}");
-    expect(flow).toContain('&scope=${needsScope}');
+    expect(flow).toContain('startHref(needsScope)');
     const panel = read('src/components/videos/YouTubeBroadcastPanel.tsx');
     expect(panel).toContain('/api/videos/youtube/broadcast');
     expect(panel).toContain('data-youtube-broadcast-key=""');
@@ -359,10 +359,10 @@ describe('self-healing (Nov 10 2026)', () => {
     const link = read('src/components/videos/YouTubeReconnectLink.tsx');
     expect(link).toContain('/api/videos/youtube/start?owner=');
     expect(link).toContain('data-youtube-reconnect-link={scope}');
-    expect(read('src/components/videos/ChannelPicker.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="readonly" />');
+    expect(read('src/components/videos/ChannelPicker.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="readonly" returnTo={returnTo} onNavigate={onLeave} />');
     expect(read('src/components/videos/ChannelPicker.tsx')).toContain('data-channel-picker-retry=""');
-    expect(read('src/components/videos/YouTubeUploadPanel.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="upload" />');
-    expect(read('src/components/videos/YouTubeBroadcastPanel.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="live" />');
+    expect(read('src/components/videos/YouTubeUploadPanel.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="upload" returnTo={returnTo} onNavigate={onLeave} />');
+    expect(read('src/components/videos/YouTubeBroadcastPanel.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="live" returnTo={returnTo} onNavigate={onLeave} />');
     const flow = read('src/components/videos/NewVideoFlow.tsx');
     expect(flow).toContain('data-new-video-youtube-problem={connection.status ?? \'\'}');
     expect(flow).toContain("connection.status !== 'revoked' && <ChannelPicker");
@@ -371,6 +371,35 @@ describe('self-healing (Nov 10 2026)', () => {
     expect(card).toContain('healthCheckDue(');
     expect(card).toContain("next.status === 'revoked' || !checkDue(owner)");
     expect(card).toContain('reconnectScope(view.scopes)');
+  });
+});
+
+describe('the flow round (Nov 10 2026)', () => {
+  it('the Full game flow carries the Connect door, every door to Google returns here with the form kept, and the result is read once', () => {
+    const flow = read('src/components/videos/NewVideoFlow.tsx');
+    expect(flow).toContain('data-new-video-connect=""');
+    expect(flow).toContain('connection && !connection.connected && connection.available && connection.canManage && (');
+    expect(flow).toContain('&return=${encodeURIComponent(returnTo)}');
+    expect(flow).toContain('<a href={startHref(needsScope)} onClick={saveDraft}');
+    expect(flow).toContain("<a href={startHref('readonly')} onClick={saveDraft}");
+    expect(flow).toContain('window.sessionStorage.setItem(FLOW_DRAFT_KEY');
+    expect(flow).toContain('window.sessionStorage.removeItem(FLOW_DRAFT_KEY)');
+    expect(flow).toContain('router.replace(returnTo, { scroll: false })');
+    expect(flow).toContain('data-new-video-youtube-result=');
+    expect(flow).not.toContain('then come back to this door');
+    expect(flow.match(/returnTo=\{returnTo\}/g)?.length).toBeGreaterThanOrEqual(4);
+  });
+  it('the card never just vanishes on a failed read, holds its space while loading, shows what is allowed, and removes the result words from the address', () => {
+    const card = read('src/components/videos/YouTubeConnectCard.tsx');
+    expect(card).toContain('data-youtube-card="loading"');
+    expect(card).toContain('data-youtube-card="failed"');
+    expect(card).toContain('data-youtube-retry=""');
+    expect(card).toContain("if (res.status === 401 || res.status === 404) return 'gone';");
+    expect(card).toContain('data-youtube-allowed=""');
+    expect(card).toContain('data-youtube-allow-live=""');
+    expect(card).toContain('for (const k of CONNECT_RESULT_PARAMS) rest.delete(k);');
+    expect(card).toContain('{UNVERIFIED_NOTE}');
+    expect(card).toContain('min-h-[120px]');
   });
 });
 

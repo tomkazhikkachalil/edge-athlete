@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import StepFlow from '@/components/StepFlow';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
@@ -16,7 +16,8 @@ import { formatLiveWhen } from '@/lib/videos/live-rules';
 import { chaptersToHighlights, LOOKUP_NOTES, lookupRefusal, type VideoLookup } from '@/lib/videos/youtube-connection';
 import { canAdvanceVideoStep, VIDEO_STEPS } from '@/lib/videos/video-steps';
 import { parseYouTubeLink, thumbUrl, watchUrl } from '@/lib/videos/youtube';
-import { reconnectScope, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import { CONNECT_ERRORS, connectReturnPath, FLOW_DRAFT_KEY, parseFlowDraft, reconnectScope, UNVERIFIED_NOTE, type FlowDraft, type ScopeKey, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
 import ChannelPicker from '@/components/videos/ChannelPicker';
 import YouTubeUploadPanel from '@/components/videos/YouTubeUploadPanel';
@@ -42,7 +43,24 @@ interface OrgOption {
  * manage — and it is on the video page. A door from an event tab, a
  * contest or an org bubble arrives with the place pre-filled. No
  * auto-focus (an iPhone zooms to a field focused after the tap).
+ *
+ * The flow round (Nov 10 2026): the Link step carries the Connect door when
+ * no channel is connected; every door to Google (connect, allow uploads,
+ * allow live, reconnect) asks to be returned HERE (`&return=`), and what the
+ * person had typed is kept on the device meanwhile (sessionStorage, fifteen
+ * minutes) and put back on the way in — a chosen file cannot be kept, and
+ * the line says so. The connect's result is read from the address once.
  */
+/** The draft a return from Google restores — read only when the address carries a connect result. */
+function readDraft(hasResult: boolean): FlowDraft | null {
+  if (!hasResult) return null;
+  try {
+    return parseFlowDraft(window.sessionStorage.getItem(FLOW_DRAFT_KEY), Date.now());
+  } catch {
+    return null;
+  }
+}
+
 export default function NewVideoFlow({ userId }: { userId: string }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -58,12 +76,20 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
   const placeKind = groupPostId ? 'round' : activityId ? 'activity' : workoutSessionId ? 'workout' : sportEventId ? 'event' : contestId ? 'game' : null;
   const profileOnly = !!(groupPostId || activityId || workoutSessionId);
 
-  const [index, setIndex] = useState(0);
-  const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [sportKey, setSportKey] = useState('');
-  const [owner, setOwner] = useState<'me' | { orgId: string } | null>(prefillOrg && UUID_RE.test(prefillOrg) ? { orgId: prefillOrg } : prefillProfile || groupPostId || activityId || workoutSessionId ? 'me' : null);
+  // The connect's result and the draft it comes back to: read ONCE (this component mounts on the client only, after the auth check).
+  const [landed] = useState(() => {
+    const connected = params.get('youtube') === 'connected';
+    const errorWord = params.get('youtube_error');
+    const scope = params.get('scope');
+    return { connected, errorWord, scope, draft: readDraft(connected || !!errorWord) };
+  });
+  const draft = landed.draft;
+  const [index, setIndex] = useState(draft?.index ?? 0);
+  const [url, setUrl] = useState(draft?.url ?? '');
+  const [title, setTitle] = useState(draft?.title ?? '');
+  const [description, setDescription] = useState(draft?.description ?? '');
+  const [sportKey, setSportKey] = useState(draft?.sportKey ?? '');
+  const [owner, setOwner] = useState<'me' | { orgId: string } | null>(draft?.owner ?? (prefillOrg && UUID_RE.test(prefillOrg) ? { orgId: prefillOrg } : prefillProfile || groupPostId || activityId || workoutSessionId ? 'me' : null));
   const [existingId, setExistingId] = useState<string | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -80,9 +106,41 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     ? `${sideParam}:${prefillOrg}`
     : `profile:${prefillProfile && UUID_RE.test(prefillProfile) ? prefillProfile : userId}`;
   const [connection, setConnection] = useState<YouTubeConnectionView | null>(null);
-  const [uploadOpen, setUploadOpen] = useState(false);
+  // Back from "Allow uploads" / "Allow live broadcasts": the door they were at is open again.
+  const [uploadOpen, setUploadOpen] = useState(landed.connected && landed.scope === 'upload');
   // Phase 4b: the third door — schedule a live broadcast (the connector only).
-  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastOpen, setBroadcastOpen] = useState(landed.connected && landed.scope === 'live');
+
+  // Every door to Google returns HERE, with the form kept on the device meanwhile.
+  const returnTo = useMemo(() => connectReturnPath(`/videos/new${params.toString() ? `?${params.toString()}` : ''}`) ?? '/videos/new', [params]);
+  const startHref = (scope: ScopeKey) => `/api/videos/youtube/start?owner=${encodeURIComponent(defaultOwnerRef)}&scope=${scope}&return=${encodeURIComponent(returnTo)}`;
+  const saveDraft = useCallback(() => {
+    try {
+      const d: FlowDraft = { url, title, description, sportKey, owner, index, at: Date.now() };
+      window.sessionStorage.setItem(FLOW_DRAFT_KEY, JSON.stringify(d));
+    } catch {
+      /* without storage the person comes back to an empty form — the connect still works */
+    }
+  }, [url, title, description, sportKey, owner, index]);
+  // The result has been read: its words leave the address and the draft leaves the device.
+  useEffect(() => {
+    if (!landed.connected && !landed.errorWord) return;
+    try {
+      window.sessionStorage.removeItem(FLOW_DRAFT_KEY);
+    } catch {
+      /* nothing to clear */
+    }
+    router.replace(returnTo, { scroll: false });
+  }, [landed, returnTo, router]);
+  const landedLine = landed.errorWord
+    ? (CONNECT_ERRORS[landed.errorWord] ?? CONNECT_ERRORS.failed)
+    : !landed.connected
+      ? null
+      : landed.scope === 'upload'
+        ? 'Uploads are allowed now. Choose the file to upload — a file cannot be kept while you are at Google.'
+        : landed.scope === 'live'
+          ? 'Live broadcasts are allowed now.'
+          : 'YouTube channel connected.';
   const [uploadedNote, setUploadedNote] = useState<string | null>(null);
   const [needsScope, setNeedsScope] = useState<'upload' | 'live' | null>(null);
   useEffect(() => {
@@ -92,7 +150,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
         const res = await fetch(`/api/videos/youtube/connection?owner=${encodeURIComponent(defaultOwnerRef)}`, { cache: 'no-store' });
         if (!res.ok) return null;
         const body = (await res.json()) as { connection?: YouTubeConnectionView };
-        return body.connection?.connected ? body.connection : null;
+        return body.connection ?? null;
       } catch {
         return null;
       }
@@ -266,16 +324,30 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
             <p className="text-xs text-muted">
               A full game, a tournament, a broadcast — anything long lives on YouTube. Upload it there first (your own channel), then paste the link. Edge Athlete keeps the link and your highlights; it never downloads or re-hosts the video. Short clips still go in a post.
             </p>
-            {connection && (
+            {landedLine && (
+              <p className={`text-sm ${landed.errorWord ? 'text-red-600' : 'text-secondary'}`} role="status" data-new-video-youtube-result={landed.errorWord ? 'error' : 'connected'}>{landedLine}</p>
+            )}
+            {/* No channel yet: the Connect door is here, where the full game is being added — and it comes back here. */}
+            {connection && !connection.connected && connection.available && connection.canManage && (
+              <div className="rounded-lg border border-border p-3 space-y-2" data-new-video-youtube="connect">
+                <p className="text-sm font-semibold text-primary"><FaIcon icon={faYoutubeBrands} className="text-red-600 mr-1.5" />Connect your YouTube channel</p>
+                <p className="text-xs text-muted">Pick from your channel&apos;s uploads in one tap, or upload a full game from here straight to YouTube. You&apos;ll sign in with Google and come back to this step.</p>
+                <a href={startHref('readonly')} onClick={saveDraft} className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover" data-new-video-connect="">
+                  Connect YouTube
+                </a>
+                {connection.unverified && <p className="text-xs text-muted">{UNVERIFIED_NOTE}</p>}
+              </div>
+            )}
+            {connection?.connected && (
               <div className="space-y-2" data-new-video-youtube={connection.canUpload ? 'upload' : 'pick'}>
                 {/* Self-healing (Nov 10 2026): a connection that needs attention says so here, with its door — never doors that silently vanish. */}
                 {connection.problem && (
                   <p className="text-sm text-red-600" role="status" data-new-video-youtube-problem={connection.status ?? ''}>
                     {connection.problem}{' '}
-                    {connection.canManage && <YouTubeReconnectLink owner={defaultOwnerRef} scope={connection.connectedByMe ? reconnectScope(connection.scopes) : 'readonly'} />}
+                    {connection.canManage && <YouTubeReconnectLink owner={defaultOwnerRef} scope={connection.connectedByMe ? reconnectScope(connection.scopes) : 'readonly'} returnTo={returnTo} onNavigate={saveDraft} />}
                   </p>
                 )}
-                {connection.status !== 'revoked' && <ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />}
+                {connection.status !== 'revoked' && <ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} returnTo={returnTo} onLeave={saveDraft} />}
                 {connection.canUpload && !uploadOpen && !broadcastOpen && (
                   <button type="button" onClick={() => setUploadOpen(true)} className="ea-interactive flex w-full items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-new-video-upload-door="">
                     <FaIcon icon={faCloudArrowUp} className="text-brand-fg" />
@@ -293,7 +365,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 {needsScope && (
                   <p className="text-sm text-secondary" role="status" data-new-video-needs-scope={needsScope}>
                     {needsScope === 'live' ? 'Live broadcasts need one more yes at Google.' : 'Uploads need one more yes at Google.'}{' '}
-                    <a href={`/api/videos/youtube/start?owner=${encodeURIComponent(defaultOwnerRef)}&scope=${needsScope}`} className="underline font-semibold">{needsScope === 'live' ? 'Allow live broadcasts' : 'Allow uploads'}</a>, then come back to this door.
+                    <a href={startHref(needsScope)} onClick={saveDraft} className="underline font-semibold" data-new-video-allow={needsScope}>{needsScope === 'live' ? 'Allow live broadcasts' : 'Allow uploads'}</a> — you come back to this step with what you typed.{connection.unverified ? ` ${UNVERIFIED_NOTE}` : ''}
                   </p>
                 )}
                 {connection.canUpload && uploadOpen && (
@@ -301,6 +373,8 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                     owner={defaultOwnerRef}
                     onUploaded={uploaded}
                     onNeedsScope={() => setNeedsScope('upload')}
+                    returnTo={returnTo}
+                    onLeave={saveDraft}
                   />
                 )}
                 {connection.canBroadcast && broadcastOpen && (
@@ -309,6 +383,8 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                     initialTitle={title}
                     onScheduled={scheduled}
                     onNeedsScope={() => setNeedsScope('live')}
+                    returnTo={returnTo}
+                    onLeave={saveDraft}
                   />
                 )}
               </div>

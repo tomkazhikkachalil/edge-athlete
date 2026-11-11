@@ -35,6 +35,11 @@ export function youtubeConnectionsAvailable(): boolean {
   return !!youtubeConfig() && secretBoxReady();
 }
 
+/** Google's review of the OAuth app has passed (Tom sets YOUTUBE_APP_VERIFIED=1 then): the connect doors drop the "hasn't verified this app" sentence. */
+export function youtubeAppVerified(env: Record<string, string | undefined> = process.env): boolean {
+  return env.YOUTUBE_APP_VERIFIED?.trim() === '1';
+}
+
 function ownerQuery(admin: Admin, owner: ConnectionOwner) {
   const q = admin.from('youtube_connections').select(CONNECTION_COLUMNS);
   return owner.kind === 'profile' ? q.eq('profile_id', owner.profileId) : q.eq('org_id', owner.orgId);
@@ -61,7 +66,7 @@ export async function ownerManaged(admin: Admin, owner: ConnectionOwner, userId:
 /** The screen's view for this viewer. */
 export async function connectionViewFor(admin: Admin, owner: ConnectionOwner, userId: string | null): Promise<YouTubeConnectionView> {
   const [read, canManage] = await Promise.all([readConnection(admin, owner), ownerManaged(admin, owner, userId)]);
-  return projectConnection(read.row, { userId, canManage, available: youtubeConnectionsAvailable() });
+  return projectConnection(read.row, { userId, canManage, available: youtubeConnectionsAvailable(), verified: youtubeAppVerified() });
 }
 
 export interface ConnectArgs {

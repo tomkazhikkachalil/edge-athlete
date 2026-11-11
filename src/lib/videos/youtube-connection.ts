@@ -156,6 +156,8 @@ export interface YouTubeConnectionView {
   canBroadcast: boolean;
   /** Why the connection needs attention, in our words. */
   problem: string | null;
+  /** Google's review of the app is still pending: its consent page shows the "hasn't verified this app" step (the connect door says so). */
+  unverified: boolean;
 }
 
 export const PROBLEMS = {
@@ -172,7 +174,7 @@ export function problemFor(row: Pick<YouTubeConnectionRow, 'status' | 'last_erro
 
 export function projectConnection(
   row: YouTubeConnectionRow | null,
-  viewer: { userId: string | null; canManage: boolean; available: boolean }
+  viewer: { userId: string | null; canManage: boolean; available: boolean; verified?: boolean }
 ): YouTubeConnectionView {
   const connectedByMe = !!row && !!viewer.userId && row.connected_by_user_id === viewer.userId;
   return {
@@ -189,6 +191,7 @@ export function projectConnection(
     canUpload: !!row && row.status !== 'revoked' && viewer.canManage && connectedByMe,
     canBroadcast: !!row && row.status !== 'revoked' && viewer.canManage && connectedByMe,
     problem: problemFor(row),
+    unverified: viewer.verified !== true,
   };
 }
 
@@ -202,7 +205,107 @@ export const CONNECT_ERRORS: Record<string, string> = {
   limited: 'Your account cannot connect a channel right now.',
   nochannel: 'That Google account has no YouTube channel — create one on YouTube first.',
   failed: 'Google did not complete the connection — try again.',
+  // The flow round (Nov 10 2026): Google's page has a box per permission, and a box can be left unticked.
+  notgranted: 'Google connected nothing: the box for viewing your channel was left unticked — try again and tick it.',
+  notgranted_upload: 'The channel is connected, but the box for uploading was left unticked at Google — try again and tick it.',
+  notgranted_live: 'The channel is connected, but the box for managing live broadcasts was left unticked at Google — try again and tick it.',
 };
+
+// ── The flow round (Nov 10 2026): back where you started, with what you had ──
+
+/** What the connect door says while Google's review of the app is pending. */
+export const UNVERIFIED_NOTE = 'Until Google finishes reviewing Edge Athlete, its page says “Google hasn’t verified this app” — choose Advanced, then continue to Edge Athlete.';
+
+/** The query words a connect leaves on the page it lands on — read once, then removed from the address. */
+export const CONNECT_RESULT_PARAMS = ['youtube', 'youtube_error', 'scope', 'was'] as const;
+
+export const CONNECT_RETURN_MAX = 512;
+const RETURN_BASE = 'https://return.invalid';
+
+/**
+ * Where a connect may land the person back when the screen that started it
+ * asked (`&return=`): a path of THIS app, on the short list of screens that
+ * carry a connect door — never another origin, never an API route. Any
+ * earlier result words are dropped. Null = use the owner's Videos surface.
+ */
+export function connectReturnPath(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.length === 0 || raw.length > CONNECT_RETURN_MAX) return null;
+  if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    if (c < 0x20 || c === 0x5c || c === 0x7f) return null; // a control character or a backslash never belongs in a path of ours
+  }
+  let u: URL;
+  try {
+    u = new URL(raw, RETURN_BASE);
+  } catch {
+    return null;
+  }
+  if (u.origin !== RETURN_BASE) return null;
+  const p = u.pathname;
+  const allowed = p === '/videos/new' || p === '/athlete' || p.startsWith('/athlete/') || p.startsWith('/u/') || p.startsWith('/app/org/');
+  if (!allowed) return null;
+  for (const k of CONNECT_RESULT_PARAMS) u.searchParams.delete(k);
+  return `${u.pathname}${u.search}`;
+}
+
+export function appendQuery(path: string, query: string): string {
+  if (!query) return path;
+  return `${path}${path.includes('?') ? '&' : '?'}${query}`;
+}
+
+/** Where a connect lands: the screen that asked, else the owner's Videos surface. */
+export function landingFor(owner: ConnectionOwner, returnPath: string | null, query: string): string {
+  return returnPath ? appendQuery(returnPath, query) : returnPathFor(owner, query);
+}
+
+/** What was asked but not ticked at Google — the word the callback lands with; null = everything asked was granted. */
+export function grantShortfall(asked: ScopeKey, granted: string | readonly string[] | null | undefined): 'notgranted_upload' | 'notgranted_live' | null {
+  if (asked === 'readonly') return null;
+  if (hasScope(mergeGrantedScopes(null, granted), asked)) return null;
+  return asked === 'upload' ? 'notgranted_upload' : 'notgranted_live';
+}
+
+/** What the Full game flow keeps on the device while the person is at Google (sessionStorage; a chosen FILE cannot be kept). */
+export interface FlowDraft {
+  url: string;
+  title: string;
+  description: string;
+  sportKey: string;
+  owner: 'me' | { orgId: string } | null;
+  index: number;
+  at: number;
+}
+
+export const FLOW_DRAFT_KEY = 'ea-new-video-draft';
+export const FLOW_DRAFT_TTL_MS = 15 * 60_000;
+
+export function parseFlowDraft(raw: string | null | undefined, now: number): FlowDraft | null {
+  if (!raw) return null;
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!v || typeof v !== 'object') return null;
+  const d = v as Record<string, unknown>;
+  const text = (x: unknown, max: number): string | null => (typeof x === 'string' && x.length <= max ? x : null);
+  const url = text(d.url, 2048);
+  const title = text(d.title, 300);
+  const description = text(d.description, 6000);
+  const sportKey = text(d.sportKey, 64);
+  if (url === null || title === null || description === null || sportKey === null) return null;
+  if (typeof d.at !== 'number' || !Number.isFinite(d.at) || d.at > now || now - d.at > FLOW_DRAFT_TTL_MS) return null;
+  const index = typeof d.index === 'number' && Number.isInteger(d.index) && d.index >= 0 && d.index <= 2 ? d.index : 0;
+  let owner: FlowDraft['owner'] = null;
+  if (d.owner === 'me') owner = 'me';
+  else if (d.owner && typeof d.owner === 'object') {
+    const id = (d.owner as { orgId?: unknown }).orgId;
+    if (typeof id === 'string' && UUID_RE.test(id)) owner = { orgId: id };
+  }
+  return { url, title, description, sportKey, owner, index, at: d.at };
+}
 
 // ── Self-healing (Nov 10 2026) ───────────────────────────────────────────────
 // A 401 from YouTube is first a stale token, not a dead connection: the call

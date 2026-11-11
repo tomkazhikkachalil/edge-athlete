@@ -1,5 +1,19 @@
 # Development Log
 
+## November 10, 2026 — YouTube connection round, PR 2 of 4: the flow — connect from where you are, come back with what you typed, and an honest word about what Google granted (zero DDL)
+
+**What was wrong.** The Full game flow showed YouTube's doors only when a channel was ALREADY connected — nothing there said a channel could be connected. "Allow uploads" sent the person to Google and landed them on the profile's Videos tab with the form gone ("then come back to this door"). Google's consent page has a box per permission; leaving one unticked still landed as "connected", and the door then asked for "one more yes" again, without a reason. The card disappeared entirely when its read failed, and `?youtube=connected` stayed in the address for every reload.
+
+**What it does now.**
+- **The Connect door is in the flow**, on the Link step, with the sentence about Google's "hasn't verified this app" page while the review is pending (`YOUTUBE_APP_VERIFIED` unset — Tom sets it to 1 when verification passes).
+- **Every trip to Google returns to the flow** (`&return=`, an allowlisted path of this app in an httpOnly cookie beside the PKCE verifier, checked again in the callback) **with what was typed** (sessionStorage, fifteen minutes). A file cannot be kept; the line says so, and the upload door is open again.
+- **An unticked box is said in words**: the channel stays connected with what was granted, and the landing reads "the box for uploading was left unticked at Google — try again and tick it."
+- **The card**: holds its space while loading, says "Could not read the YouTube connection · Retry" on a failed read, shows link · upload · live as chips with the doors for what is missing, and reads its result from the address once.
+
+**PR 1 on production:** #1457 merged as `a43186c6` by the script (verify, smoke and guardrails passed by name; Vercel's deployment awaited); `/api/health` on `a43186c6`; the prod probe, one project at a time — `videos.spec` + `org-app-videos.spec` on `desktop` 2/2, `videos-mobile.spec` on `mobile` 1/1 — green, the QA accounts deleted.
+
+**Proof:** `npm run verify` exit 0 (655 files, **6,010 tests**, the build, `check:weight` ✓, the syntax floor); audit 0; guardrails ✓; `check:blocklists` ✓; `check:schema` ✓ (zero DDL). Playwright on the built server against staging with the stand-in Google: `youtube-connect.spec`'s new fourth test, at 375 px — the Connect door in the flow with the unverified sentence and no overflow; a typed link survives the trip to "Google" and back, the result line shows once and the address is clean; "Allow uploads" with the box unticked lands on the sentence with the link still there and the scopes unchanged; ticked, it lands with the upload door open; the card's chips (link on, upload on, live not yet) and its "Allow live broadcasts" door; an aborted read shows the failed card and Retry restores it; the card's own result leaves the address with `tab=videos` kept; a non-manager's start with `return=/videos/new?profileId=abc` lands there, and four hostile or off-list returns land on `/athlete` on our own origin — with the three earlier tests and `youtube-broadcast.spec` (their landings read through `landingOf`), `videos.spec`, `videos-live.spec`, `videos-lookup.spec`, `videos-places.spec` on `desktop` — 9 passed; `videos-mobile.spec` on `mobile` 1/1. The spec is `docs/specs/videos.md` ("The flow round"). Production line: in PR 3's entry.
+
 ## November 10, 2026 — YouTube connection round, PR 1 of 4: self-healing — a 401 is a stale token, not a dead connection (zero DDL)
 
 Tom: "We did the youtube integration, but need the connection to work a lot better" → the review's twelve findings → "Start with 1, then do all four in order." The plan is four zero-DDL PRs: self-healing, the flow, correct state, uploads. This is the first.

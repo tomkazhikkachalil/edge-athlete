@@ -1,7 +1,7 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket, type QaUser } from './helpers/qa-user';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
-import { startYouTubeMock, YOUTUBE_MOCK_BASE, type MockChannel, type YouTubeMock } from './helpers/youtube-mock';
+import { landingOf, startYouTubeMock, YOUTUBE_MOCK_BASE, type MockChannel, type YouTubeMock } from './helpers/youtube-mock';
 
 // Videos program Phase 3 (Nov 5 2026): the YouTube connection. The owner
 // connects a channel once (Google's consent, PKCE, the signed state), links
@@ -45,8 +45,7 @@ test('a profile connects its channel, links an upload in one tap, allows uploads
 
     // 1. Connect (readonly): the start route → the stand-in consent → the callback → back on the Videos tab.
     mock.signInAs(CHANNEL);
-    await page.goto(`/api/videos/youtube/start?owner=${owner}&scope=readonly`);
-    await expect.poll(() => page.url(), { timeout: 20_000 }).toContain('youtube=connected');
+    expect(await landingOf(page, `/api/videos/youtube/start?owner=${owner}&scope=readonly`)).toContain('youtube=connected');
     expect(page.url()).toContain('tab=videos');
     expect(mock.calls).toContain('GET /o/oauth2/v2/auth');
     expect(mock.calls).toContain('POST /token');
@@ -81,8 +80,7 @@ test('a profile connects its channel, links an upload in one tap, allows uploads
     res = await api.post('/api/videos/youtube/upload-session', { data: sessionBody });
     expect(res.status()).toBe(409);
     expect((await res.json()).needs_scope).toBe('upload');
-    await page.goto(`/api/videos/youtube/start?owner=${owner}&scope=upload`);
-    await expect.poll(() => page.url(), { timeout: 20_000 }).toContain('youtube=connected&scope=upload');
+    expect(await landingOf(page, `/api/videos/youtube/start?owner=${owner}&scope=upload`)).toContain('youtube=connected&scope=upload');
     view = (await (await api.get(`/api/videos/youtube/connection?owner=${owner}`)).json()).connection;
     expect(view.scopes).toEqual(['readonly', 'upload']);
 
@@ -147,17 +145,14 @@ test('an org: the owner connects; a manager without the grant may link but not u
     // A denied consent comes back with the word.
     mock.signInAs(CHANNEL);
     mock.deny(true);
-    await pageA.goto(`/api/videos/youtube/start?owner=${owner}&scope=upload`);
-    await expect.poll(() => pageA.url(), { timeout: 20_000 }).toContain('youtube_error=denied');
+    expect(await landingOf(pageA, `/api/videos/youtube/start?owner=${owner}&scope=upload`)).toContain('youtube_error=denied');
     mock.deny(false);
     // A Google account with no channel.
     mock.signInAs(null);
-    await pageA.goto(`/api/videos/youtube/start?owner=${owner}&scope=upload`);
-    await expect.poll(() => pageA.url(), { timeout: 20_000 }).toContain('youtube_error=nochannel');
+    expect(await landingOf(pageA, `/api/videos/youtube/start?owner=${owner}&scope=upload`)).toContain('youtube_error=nochannel');
     // The owner connects with upload allowed at once.
     mock.signInAs(CHANNEL);
-    await pageA.goto(`/api/videos/youtube/start?owner=${owner}&scope=upload`);
-    await expect.poll(() => pageA.url(), { timeout: 20_000 }).toContain('youtube=connected');
+    expect(await landingOf(pageA, `/api/videos/youtube/start?owner=${owner}&scope=upload`)).toContain('youtube=connected');
     expect(pageA.url()).toContain(`/app/org/club/${club.id}`);
 
     // The manager sees the connection, may read the channel and link, but cannot upload: it is A's grant.
@@ -201,8 +196,7 @@ test('self-healing: a stale token is refreshed and retried, an old error row hea
   try {
     await admin.from('youtube_connections').delete().eq('profile_id', a.id);
     mock.signInAs(CHANNEL);
-    await page.goto(`/api/videos/youtube/start?owner=${owner}&scope=readonly`);
-    await expect.poll(() => page.url(), { timeout: 20_000 }).toContain('youtube=connected');
+    expect(await landingOf(page, `/api/videos/youtube/start?owner=${owner}&scope=readonly`)).toContain('youtube=connected');
 
     // 1. Every token so far dies at YouTube (a 401): the read still answers — one refresh, one retry — and the row stays active.
     let before = mock.tokensMinted();
@@ -257,7 +251,8 @@ test('self-healing: a stale token is refreshed and retried, an old error row hea
     await expect(problem).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await problem.locator('[data-youtube-reconnect-link]').click();
-    await expect.poll(() => page.url(), { timeout: 20_000 }).toContain('youtube=connected');
+    // The flow round: the reconnect lands back in the flow, which says so.
+    await expect(page.locator('[data-new-video-youtube-result="connected"]')).toBeVisible({ timeout: 20_000 });
     expect(await viewOf()).toMatchObject({ status: 'active', problem: null, canUpload: true });
 
     // 7. Google's own word (invalid_grant on the refresh) ends it too — and the answer is "reconnect", not "no channel".
@@ -274,6 +269,120 @@ test('self-healing: a stale token is refreshed and retried, an old error row hea
     await admin.from('youtube_connections').delete().eq('profile_id', a.id);
     await api.dispose();
     await page.context().close();
+  }
+});
+
+// The flow round (Nov 10 2026): the Connect door is in the Full game flow,
+// every trip to Google comes back to it with what was typed, an unticked box
+// at Google is said in words, and the card shows what is allowed, survives a
+// failed read, and cleans the address.
+test('the flow round: connect from inside Full game and come back with the form kept; an unticked box says so; the card shows what is allowed and never vanishes; a return path is ours only', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const a = loadQaUser('user.json');
+  const admin = adminClient();
+  for (const bucket of ['connection-write', 'video-write', 'video-lookup'] as const) await resetRateBucket(admin, bucket, a.id);
+  const owner = `profile:${a.id}`;
+  const ctx = await browser.newContext({ storageState: await mintStorageState(a), extraHTTPHeaders: bypassHeaders(), viewport: { width: 375, height: 812 } });
+  const page = await ctx.newPage();
+  const api = await ctxFor(a);
+  const viewOf = async () => (await (await api.get(`/api/videos/youtube/connection?owner=${owner}`)).json()).connection;
+  const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  const LINK = 'https://www.youtube.com/watch?v=e2eUpload02';
+  const urlField = page.locator('[data-new-video] input[type="url"]');
+  const askUploadScope = async () => {
+    await page.locator('[data-new-video-upload-door]').click();
+    await page.locator('[data-youtube-upload-file]').setInputFiles({ name: 'game.mp4', mimeType: 'video/mp4', buffer: Buffer.alloc(2048, 1) });
+    await page.locator('[data-youtube-upload-title]').fill('QA flow upload');
+    await page.locator('[data-youtube-upload-start]').click();
+    await expect(page.locator('[data-new-video-needs-scope="upload"]')).toBeVisible({ timeout: 20_000 });
+  };
+  try {
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
+    mock.signInAs(CHANNEL);
+    mock.grantedScopes = null;
+
+    // 1. No channel: the flow's Link step carries the Connect door (and the sentence about Google's unverified page), inside 375 px.
+    await page.goto('/videos/new');
+    const connect = page.locator('[data-new-video-connect]');
+    await expect(connect).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-new-video-youtube="connect"]')).toContainText('Advanced');
+    expect(await fits()).toBe(true);
+    await urlField.fill(LINK);
+
+    // 2. Connect → Google → back in the flow: the link typed is still there, the result is said once, the address is clean, the channel's doors are open.
+    await connect.click();
+    await expect(page.locator('[data-new-video-youtube-result="connected"]')).toBeVisible({ timeout: 20_000 });
+    await expect(urlField).toHaveValue(LINK);
+    await expect.poll(() => page.url(), { timeout: 10_000 }).not.toContain('youtube=');
+    expect(new URL(page.url()).pathname).toBe('/videos/new');
+    await expect(page.locator('[data-channel-picker]')).toBeVisible();
+    expect(await viewOf()).toMatchObject({ connected: true, scopes: ['readonly'], unverified: true });
+
+    // 3. "Allow uploads" with the box left unticked at Google: the channel stays connected, the flow says what happened, the link is still there.
+    await askUploadScope();
+    mock.grantedScopes = ['https://www.googleapis.com/auth/youtube.readonly'];
+    await page.locator('[data-new-video-allow="upload"]').click();
+    const refused = page.locator('[data-new-video-youtube-result="error"]');
+    await expect(refused).toBeVisible({ timeout: 20_000 });
+    await expect(refused).toContainText('unticked');
+    await expect(urlField).toHaveValue(LINK);
+    expect(await fits()).toBe(true);
+    expect((await viewOf()).scopes).toEqual(['readonly']);
+
+    // 4. Ticked this time: back in the flow with the upload door already open.
+    mock.grantedScopes = null;
+    await askUploadScope();
+    await page.locator('[data-new-video-allow="upload"]').click();
+    await expect(page.locator('[data-new-video-youtube-result="connected"]')).toContainText('Uploads are allowed now', { timeout: 20_000 });
+    await expect(page.locator('[data-youtube-upload]')).toBeVisible();
+    await expect(urlField).toHaveValue(LINK);
+    expect((await viewOf()).scopes).toEqual(['readonly', 'upload']);
+
+    // 5. The card: what is allowed, the door for what is missing; a failed read says so and Retry brings it back.
+    await page.goto('/athlete?tab=videos');
+    const card = page.locator('[data-youtube-card="connected"]');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(card.locator('[data-youtube-chip="link"]')).toHaveAttribute('data-on', 'true');
+    await expect(card.locator('[data-youtube-chip="upload"]')).toHaveAttribute('data-on', 'true');
+    await expect(card.locator('[data-youtube-chip="live"]')).toHaveAttribute('data-on', 'false');
+    await expect(card.locator('[data-youtube-allow-live]')).toBeVisible();
+    await expect(card.locator('[data-youtube-allow-upload]')).toHaveCount(0);
+    expect(await fits()).toBe(true);
+    await page.route('**/api/videos/youtube/connection**', route => route.abort());
+    await page.reload();
+    const failed = page.locator('[data-youtube-card="failed"]');
+    await expect(failed).toBeVisible({ timeout: 20_000 });
+    await page.unroute('**/api/videos/youtube/connection**');
+    await failed.locator('[data-youtube-retry]').click();
+    await expect(card).toBeVisible({ timeout: 20_000 });
+
+    // 6. The card's own connect result is read once and leaves the address (the tab stays).
+    await page.goto(`/api/videos/youtube/start?owner=${owner}&scope=upload`);
+    await expect(page.locator('[data-youtube-result="connected"]')).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => page.url(), { timeout: 10_000 }).not.toContain('youtube=');
+    expect(page.url()).toContain('tab=videos');
+
+    // 7. A return path is a path of ours on the short list — anything else falls back to the Videos surface.
+    const c = await ctxFor(loadQaUser('user-c.json'));
+    const where = async (ret: string) => {
+      const res = await c.get(`/api/videos/youtube/start?owner=${owner}&scope=readonly&return=${encodeURIComponent(ret)}`, { maxRedirects: 0 });
+      expect(res.status()).toBe(302);
+      return new URL(res.headers()['location'], E2E_BASE_URL);
+    };
+    let to = await where('/videos/new?profileId=abc');
+    expect(`${to.pathname}${to.search}`).toBe('/videos/new?profileId=abc&youtube_error=forbidden');
+    for (const bad of ['https://evil.example/videos/new', '//evil.example/videos/new', '/api/account', '/feed']) {
+      to = await where(bad);
+      expect(to.origin, bad).toBe(new URL(E2E_BASE_URL).origin);
+      expect(to.pathname, bad).toBe('/athlete');
+      expect(to.search, bad).toContain('youtube_error=forbidden');
+    }
+    await c.dispose();
+  } finally {
+    mock.grantedScopes = null;
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
+    await api.dispose();
+    await ctx.close();
   }
 });
 

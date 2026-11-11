@@ -19,7 +19,7 @@ const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] t
  * away loses it (YouTube keeps nothing of a half upload), and the panel
  * says so.
  */
-export default function YouTubeUploadPanel({ owner, onUploaded, onNeedsScope }: { owner: string; onUploaded: (videoId: string, title: string) => void; onNeedsScope: () => void }) {
+export default function YouTubeUploadPanel({ owner, onUploaded, onNeedsScope, returnTo, onLeave }: { owner: string; onUploaded: (videoId: string, title: string) => void; onNeedsScope: () => void; returnTo?: string; onLeave?: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -83,7 +83,7 @@ export default function YouTubeUploadPanel({ owner, onUploaded, onNeedsScope }: 
           <p className="text-xs text-secondary" data-youtube-upload-progress={Math.round(phase.fraction * 100)}>Uploading to YouTube · {Math.round(phase.fraction * 100)}%</p>
         </div>
       )}
-      {phase.kind === 'error' && <p className="text-sm text-red-600" role="alert" data-youtube-upload-error="">{phase.message}{phase.reconnect && <> <YouTubeReconnectLink owner={owner} scope="upload" /></>}</p>}
+      {phase.kind === 'error' && <p className="text-sm text-red-600" role="alert" data-youtube-upload-error="">{phase.message}{phase.reconnect && <> <YouTubeReconnectLink owner={owner} scope="upload" returnTo={returnTo} onNavigate={onLeave} /></>}</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => void start()} disabled={busy || !file || !title.trim()} className="min-h-[44px] px-4 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover disabled:opacity-50" data-youtube-upload-start="">
           {phase.kind === 'opening' ? 'Opening…' : phase.kind === 'uploading' ? 'Uploading…' : 'Upload to YouTube'}
