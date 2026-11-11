@@ -251,7 +251,9 @@ export default function PublicProfilePage() {
   // Redirect logged-in users viewing their own profile
   useEffect(() => {
     if (user && profileData?.profile?.id === user.id) {
-      router.push('/athlete');
+      // Carry the query string, as /athlete/[id] does (Training redesign PR 3, Nov 11 2026):
+      // a link to one's own handle with ?tab=training&view=history lands on that view.
+      router.push(`/athlete${window.location.search}`);
     }
   }, [user, profileData, router]);
 
