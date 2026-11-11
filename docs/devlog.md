@@ -1,5 +1,13 @@
 # Development Log
 
+## November 11, 2026 — The ignore-build proof, and the launch probe with every Vercel row read (docs only)
+
+**#1356 is PROVEN.** #1463 (docs only) merged as `ee8ffd91`: Vercel's status on the commit read "Canceled by Ignored Build Step" and `/api/health` kept `cd561f36`. A docs-only merge no longer builds or deploys; such a PR merges with `bash scripts/merge-pr.sh <N> --no-wait` (there is no new commit for the health wait to find).
+
+**The launch probe, re-run after Tom's `vercel login`** (`npm run launch:probe`, judged as gated, production on `cd561f36`): the eight Vercel rows that were unread on the entry below are all ✓ — `SMTP_*` + `EMAIL_FROM`, `CONTACT_EMAIL`, the two build-injected flags (`NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES`, `NEXT_PUBLIC_OAUTH_GOOGLE`), `ADMIN_SESSION_SECRET`, `NEXT_PUBLIC_SENTRY_DSN`, `SUPABASE_JWT_SECRET`, `CRON_SECRET`, `NEXT_PUBLIC_LAUNCH_GATE`. With the rows already green (auth e-mail on custom SMTP at 60/h, Site URL, the redirect allowlist, confirmations ON, the Google provider, push, health, the gate, the visitor doors) that is **20 of 21 rows green and nothing red**. The one row still unread is "Resend domain verified" — it needs `RESEND_API_KEY` in `.env.staging`, and e-mail stays parked until Tom says "going public". Sign-ups in the Supabase dashboard are open by the Nov 3 decision (the app's gate answers 403); that switch belongs to the switch day. **No code-side fix came out of the probe.**
+
+**Still Tom's:** Google's reply (then `YOUTUBE_APP_VERIFIED=1`, a redeploy, and the reviewer account removed); one real upload from the app and a connect from the installed iPhone app; the phone walks; the backups drill and the Sentry read; Observability Plus back ON at go-public; the public switch.
+
 ## November 11, 2026 — Getting ready: Google's review submitted, a reviewer's account, the launch probe's state (docs only)
 
 Tom: "lets go ahead and move everything to be ready" → all three of: a reviewer account for Google, the feed's layout shift (the entry below), and the launch-readiness probe.
