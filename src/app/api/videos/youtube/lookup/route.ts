@@ -4,7 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { reportRouteError } from '@/lib/observability/report';
 import { liveStateFromApi } from '@/lib/videos/live-rules';
 import { parseChapters, parseOwnerRef, type VideoLookup } from '@/lib/videos/youtube-connection';
-import { ownerManaged, withAccessToken } from '@/lib/videos/youtube-connections-server';
+import { callWithToken, ownerManaged } from '@/lib/videos/youtube-connections-server';
 import { youtubeConfig, youtubeReadConfig, youtubeVideoLookup } from '@/lib/videos/google-youtube-server';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' } as const;
@@ -36,11 +36,8 @@ export async function GET(request: NextRequest) {
     const owner = parseOwnerRef(request.nextUrl.searchParams.get('owner'));
     let read = null;
     if (cfg && owner && (await ownerManaged(admin, owner, user.id))) {
-      const token = await withAccessToken(admin, cfg, owner);
-      if (token.ok) {
-        const viaToken = await youtubeVideoLookup({ apiBase: cfg.apiBase, accessToken: token.accessToken }, id);
-        if (viaToken.ok) read = viaToken;
-      }
+      const called = await callWithToken(admin, cfg, owner, token => youtubeVideoLookup({ apiBase: cfg.apiBase, accessToken: token }, id));
+      if (called.ok && called.value.ok) read = called.value;
     }
     if (!read) {
       const key = youtubeReadConfig();

@@ -2,7 +2,10 @@
 // SERVER ONLY. Every read and write of `youtube_connections` (298) is here:
 // connect (an upsert by owner), the access token with its refresh (sealed
 // again when it changes), the revoked mark, disconnect (revoke at Google best
-// effort, then DELETE). The rights: who may connect / disconnect / link is
+// effort, then DELETE). Self-healing (Nov 10 2026): every call to YouTube goes
+// through `callWithToken` — a 401 is answered with ONE forced refresh and one
+// more try; only Google's `invalid_grant` or a 401 on a fresh token writes
+// `revoked`. Nothing writes `error` any more; a row left in it heals itself. The rights: who may connect / disconnect / link is
 // the owner's manager (videos-server.ts's two gates — the person or a
 // guardian; the org's manage_video); who may UPLOAD is that manager AND the
 // person whose Google account made the connection (an org's connection is
@@ -15,16 +18,17 @@ import { openSecret, sealSecret, secretBoxReady } from '@/lib/crypto/secret-box-
 import { orgVideoAccess, profileManages } from './videos-server';
 import {
   accessTokenFresh, isYouTubeSecret, mergeGrantedScopes, ownerColumns, projectConnection, secretContextFor,
-  type ConnectionOwner, type YouTubeConnectionRow, type YouTubeConnectionView, type YouTubeSecret,
+  TOKEN_FAILURES, tokenFailureFor, withOneRetry,
+  type ConnectionOwner, type TokenFailure, type YouTubeConnectionRow, type YouTubeConnectionView, type YouTubeSecret,
 } from './youtube-connection';
-import { youtubeConfig, youtubeRefresh, youtubeRevoke, type YouTubeConfig } from './google-youtube-server';
+import { youtubeConfig, youtubeMyChannel, youtubeRefresh, youtubeRevoke, type YouTubeConfig } from './google-youtube-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
 export const CONNECTION_COLUMNS = 'id, profile_id, org_id, connected_by_user_id, channel_id, channel_title, scopes, status, last_error, connected_at';
 
-export type Outcome<T> = { ok: true; value: T } | { ok: false; status: 400 | 401 | 403 | 404 | 409 | 500 | 503; error: string };
+export type Outcome<T> = { ok: true; value: T } | { ok: false; status: 400 | 401 | 403 | 404 | 409 | 500 | 503; error: string; /** the screen offers Reconnect */ reconnect?: boolean };
 
 /** The feature is offered: Google credentials AND the sealing key on this deployment. */
 export function youtubeConnectionsAvailable(): boolean {
@@ -97,20 +101,26 @@ export async function connectYouTube(admin: Admin, args: ConnectArgs): Promise<O
   return { ok: true, value: data as YouTubeConnectionRow };
 }
 
-async function openSecretFor(admin: Admin, owner: ConnectionOwner): Promise<{ row: YouTubeConnectionRow; secret: YouTubeSecret } | null> {
+type Opened = { ok: true; row: YouTubeConnectionRow; secret: YouTubeSecret } | { ok: false; failure: TokenFailure };
+
+/** The owner's row with its box opened — or WHY there is no token (no row, revoked, a box this deployment cannot read). */
+async function openSecretFor(admin: Admin, owner: ConnectionOwner): Promise<Opened> {
   const { data } = await ownerQuery(admin, owner).select(`${CONNECTION_COLUMNS}, secret_ciphertext`).maybeSingle();
-  const row = data as (YouTubeConnectionRow & { secret_ciphertext: string | null }) | null;
-  if (!row || row.status !== 'active') return null;
-  const opened = openSecret(row.secret_ciphertext, secretContextFor(owner));
-  if (!opened) return null;
-  try {
-    const parsed: unknown = JSON.parse(opened);
-    if (!isYouTubeSecret(parsed)) return null;
-    const { secret_ciphertext: _c, ...rest } = row; // eslint-disable-line @typescript-eslint/no-unused-vars
-    return { row: rest, secret: parsed };
-  } catch {
-    return null;
+  const full = data as (YouTubeConnectionRow & { secret_ciphertext: string | null }) | null;
+  let secret: YouTubeSecret | null = null;
+  if (full && full.status !== 'revoked') {
+    const opened = openSecret(full.secret_ciphertext, secretContextFor(owner));
+    try {
+      const parsed: unknown = opened ? JSON.parse(opened) : null;
+      if (isYouTubeSecret(parsed)) secret = parsed;
+    } catch {
+      secret = null;
+    }
   }
+  const failure = tokenFailureFor(full, !!secret);
+  if (failure || !full || !secret) return { ok: false, failure: failure ?? 'unreadable' };
+  const { secret_ciphertext: _c, ...row } = full; // eslint-disable-line @typescript-eslint/no-unused-vars
+  return { ok: true, row, secret };
 }
 
 /** Google said the grant is over: the row says revoked and the box is emptied. */
@@ -118,33 +128,82 @@ export async function markRevoked(admin: Admin, connectionId: string, reason: st
   await admin.from('youtube_connections').update({ status: 'revoked', secret_ciphertext: null, last_error: reason?.slice(0, 300) ?? null }).eq('id', connectionId);
 }
 
-export async function recordError(admin: Admin, connectionId: string, message: string): Promise<void> {
-  await admin.from('youtube_connections').update({ status: 'error', last_error: message.slice(0, 300) }).eq('id', connectionId);
-}
+export type TokenRefusal = { ok: false; status: 404 | 409 | 503; error: string; reconnect: boolean; failure: TokenFailure };
+export type TokenOutcome = { ok: true; accessToken: string; row: YouTubeConnectionRow } | TokenRefusal;
 
-export type TokenOutcome = { ok: true; accessToken: string; row: YouTubeConnectionRow } | { ok: false; status: 404 | 409 | 503; error: string };
+const refusal = (failure: TokenFailure): TokenRefusal => ({ ok: false, failure, ...TOKEN_FAILURES[failure] });
 
 /**
  * A live access token for the owner's connection: the sealed one while it is
- * fresh, else a refresh (sealed again). `invalid_grant` marks the row revoked
- * (the screen says "reconnect"); a transport failure leaves the row as it is.
+ * fresh, else a refresh (sealed again, and the row says `active`). `force`
+ * refreshes even a token that looks fresh — the retry after a 401.
+ * `invalid_grant` marks the row revoked (the screen says "reconnect"); a
+ * transport failure leaves the row as it is.
  */
-export async function withAccessToken(admin: Admin, cfg: YouTubeConfig, owner: ConnectionOwner, now = Date.now()): Promise<TokenOutcome> {
-  if (!secretBoxReady()) return { ok: false, status: 503, error: 'Connections are not available here' };
+export async function withAccessToken(admin: Admin, cfg: YouTubeConfig, owner: ConnectionOwner, opts: { force?: boolean; now?: number } = {}): Promise<TokenOutcome> {
+  const now = opts.now ?? Date.now();
+  if (!secretBoxReady()) return refusal('unavailable');
   const opened = await openSecretFor(admin, owner);
-  if (!opened) return { ok: false, status: 404, error: 'No YouTube channel is connected' };
-  if (accessTokenFresh(opened.secret, now)) return { ok: true, accessToken: opened.secret.accessToken, row: opened.row };
+  if (!opened.ok) return refusal(opened.failure);
+  if (!opts.force && accessTokenFresh(opened.secret, now)) return { ok: true, accessToken: opened.secret.accessToken, row: opened.row };
   const refreshed = await youtubeRefresh(cfg, opened.secret.refreshToken, now);
   if (!refreshed.ok) {
     if (refreshed.invalidGrant) {
       await markRevoked(admin, opened.row.id, 'Google ended the connection');
-      return { ok: false, status: 409, error: 'Google ended this connection — reconnect to continue' };
+      return refusal('revoked');
     }
-    return { ok: false, status: 503, error: 'YouTube did not answer — try again' };
+    return refusal('busy');
   }
   const next: YouTubeSecret = { refreshToken: refreshed.refreshToken ?? opened.secret.refreshToken, accessToken: refreshed.accessToken, expiresAt: refreshed.expiresAt };
   await admin.from('youtube_connections').update({ secret_ciphertext: sealSecret(JSON.stringify(next), secretContextFor(owner)), status: 'active', last_error: null }).eq('id', opened.row.id);
-  return { ok: true, accessToken: next.accessToken, row: opened.row };
+  return { ok: true, accessToken: next.accessToken, row: { ...opened.row, status: 'active', last_error: null } };
+}
+
+/** Any answer from google-youtube-server.ts: its failing arm says whether YouTube answered 401. */
+type Answer = { ok: true } | { ok: false; unauthorized: boolean };
+
+export type Called<R> = { ok: true; value: R; accessToken: string; row: YouTubeConnectionRow } | TokenRefusal;
+
+/**
+ * THE way to call YouTube with an owner's connection. `value` is the call's
+ * own answer (it may still be a refusal — a quota, a 403 — but never a 401:
+ * a 401 is retried once on a forced fresh token, and a second one ends the
+ * connection here). `accessToken` is the token that worked.
+ */
+export async function callWithToken<R extends Answer>(admin: Admin, cfg: YouTubeConfig, owner: ConnectionOwner, fn: (accessToken: string) => Promise<R>): Promise<Called<R>> {
+  const out = await withOneRetry<Extract<TokenOutcome, { ok: true }>, TokenRefusal, R>(
+    force => withAccessToken(admin, cfg, owner, { force }),
+    token => fn(token.accessToken),
+    result => !result.ok && result.unauthorized,
+  );
+  if (!out.ok) return out.failure;
+  if (out.dead) {
+    await markRevoked(admin, out.token.row.id, 'YouTube refused a fresh sign-in');
+    return refusal('revoked');
+  }
+  let row = out.token.row;
+  if (out.result.ok && row.status === 'error') {
+    // A row an older build left in `error`: the call worked, so it stands.
+    await admin.from('youtube_connections').update({ status: 'active', last_error: null }).eq('id', row.id);
+    row = { ...row, status: 'active', last_error: null };
+  }
+  return { ok: true, value: out.result, accessToken: out.token.accessToken, row };
+}
+
+/**
+ * The health check (the card asks, at most every ten minutes): one
+ * `channels.list mine` — a unit of quota — through the retry. A dead grant
+ * becomes `revoked` here instead of at the next upload; a renamed channel
+ * gets its new title. Never throws; an unanswered call changes nothing.
+ */
+export async function checkConnection(admin: Admin, cfg: YouTubeConfig, owner: ConnectionOwner): Promise<void> {
+  const called = await callWithToken(admin, cfg, owner, token => youtubeMyChannel(cfg, token)).catch(() => null);
+  if (!called || !called.ok || !called.value.ok) return;
+  const channel = called.value.value;
+  const title = channel?.title.slice(0, 200) || null;
+  if (channel && channel.id === called.row.channel_id && title && title !== called.row.channel_title) {
+    await admin.from('youtube_connections').update({ channel_title: title }).eq('id', called.row.id);
+  }
 }
 
 /** Disconnect: revoke at Google (best effort), then the row goes; the videos it uploaded stay the owner's. */
@@ -152,7 +211,7 @@ export async function disconnectYouTube(admin: Admin, owner: ConnectionOwner): P
   const cfg = youtubeConfig();
   if (cfg) {
     const opened = await openSecretFor(admin, owner).catch(() => null);
-    if (opened) await youtubeRevoke(cfg, opened.secret.refreshToken).catch(() => false);
+    if (opened?.ok) await youtubeRevoke(cfg, opened.secret.refreshToken).catch(() => false);
   }
   const q = admin.from('youtube_connections').delete();
   const { data, error } = await (owner.kind === 'profile' ? q.eq('profile_id', owner.profileId) : q.eq('org_id', owner.orgId)).select('id');
@@ -172,6 +231,6 @@ export async function uploadRight(admin: Admin, owner: ConnectionOwner, userId: 
   if (!manages) return { ok: false, status: 404, error: 'Not found' };
   if (!read.row) return { ok: false, status: 404, error: 'No YouTube channel is connected' };
   if (read.row.connected_by_user_id !== userId) return { ok: false, status: 403, error: 'Only the person who connected this channel can upload to it' };
-  if (read.row.status !== 'active') return { ok: false, status: 409, error: 'Google ended this connection — reconnect to continue' };
+  if (read.row.status === 'revoked') return { ok: false, status: 409, error: TOKEN_FAILURES.revoked.error, reconnect: true };
   return { ok: true, value: read.row };
 }

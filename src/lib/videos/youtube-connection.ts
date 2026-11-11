@@ -159,7 +159,7 @@ export interface YouTubeConnectionView {
 }
 
 export const PROBLEMS = {
-  revoked: 'Google ended this connection — reconnect to keep uploading. (Consent withdrawn, or the app’s test period ran out.)',
+  revoked: 'Google ended this connection — reconnect to keep using the channel here.',
   error: 'The last call to YouTube failed — reconnect if it keeps happening.',
 } as const;
 
@@ -185,8 +185,9 @@ export function projectConnection(
     connectedAt: row ? row.connected_at : null,
     connectedByMe,
     canManage: viewer.canManage,
-    canUpload: !!row && row.status === 'active' && viewer.canManage && connectedByMe,
-    canBroadcast: !!row && row.status === 'active' && viewer.canManage && connectedByMe,
+    // Self-healing (Nov 10 2026): only `revoked` ends a connection — an `error` row still holds its grant and heals on the next good call.
+    canUpload: !!row && row.status !== 'revoked' && viewer.canManage && connectedByMe,
+    canBroadcast: !!row && row.status !== 'revoked' && viewer.canManage && connectedByMe,
     problem: problemFor(row),
   };
 }
@@ -202,6 +203,85 @@ export const CONNECT_ERRORS: Record<string, string> = {
   nochannel: 'That Google account has no YouTube channel — create one on YouTube first.',
   failed: 'Google did not complete the connection — try again.',
 };
+
+// ── Self-healing (Nov 10 2026) ───────────────────────────────────────────────
+// A 401 from YouTube is first a stale token, not a dead connection: the call
+// is made again ONCE with a freshly refreshed token. Only two things end a
+// connection — Google's `invalid_grant` on the refresh, or a 401 on a token
+// minted a moment ago. A transport failure, a 5xx, a quota answer end nothing.
+
+/** Why no token could be had, and what the screen may do about it. */
+export type TokenFailure = 'none' | 'revoked' | 'unreadable' | 'busy' | 'unavailable';
+
+export const TOKEN_FAILURES: Record<TokenFailure, { status: 404 | 409 | 503; error: string; reconnect: boolean }> = {
+  none: { status: 404, error: 'No YouTube channel is connected', reconnect: false },
+  revoked: { status: 409, error: 'Google ended this connection — reconnect to continue', reconnect: true },
+  unreadable: { status: 409, error: 'This connection has to be made again — reconnect to continue', reconnect: true },
+  busy: { status: 503, error: 'YouTube did not answer — try again', reconnect: false },
+  unavailable: { status: 503, error: 'Connections are not available here', reconnect: false },
+};
+
+/** What the opened row allows: a token, or the reason there is none. `error` rows still open — they heal. */
+export function tokenFailureFor(row: Pick<YouTubeConnectionRow, 'status'> | null, secretReadable: boolean): TokenFailure | null {
+  if (!row) return 'none';
+  if (row.status === 'revoked') return 'revoked';
+  return secretReadable ? null : 'unreadable';
+}
+
+export type Retried<TOk, TFail, R> =
+  | { ok: false; failure: TFail }
+  | { ok: true; token: TOk; result: R; attempts: 1 | 2; /** the SECOND answer was a 401 too — the grant is gone */ dead: boolean };
+
+/**
+ * The one retry: a token, the call; on "unauthorized" a FORCED fresh token and
+ * the call once more. Never a third call. The caller decides what `dead` writes.
+ */
+export async function withOneRetry<TOk extends { ok: true }, TFail extends { ok: false }, R>(
+  getToken: (force: boolean) => Promise<TOk | TFail>,
+  call: (token: TOk) => Promise<R>,
+  unauthorized: (result: R) => boolean,
+): Promise<Retried<TOk, TFail, R>> {
+  const first = await getToken(false);
+  if (!first.ok) return { ok: false, failure: first as TFail };
+  const r1 = await call(first as TOk);
+  if (!unauthorized(r1)) return { ok: true, token: first as TOk, result: r1, attempts: 1, dead: false };
+  const second = await getToken(true);
+  if (!second.ok) return { ok: false, failure: second as TFail };
+  const r2 = await call(second as TOk);
+  return { ok: true, token: second as TOk, result: r2, attempts: 2, dead: unauthorized(r2) };
+}
+
+/** A refusal that is NOT about the connection, in our words — Google's status and `errors[].reason`. */
+export const CALL_REFUSALS = {
+  quota: { status: 429, error: 'YouTube’s daily limit for Edge Athlete is reached — try again tomorrow.' },
+  upload_limit: { status: 403, error: 'YouTube says this channel has uploaded too many videos for now — try again later.' },
+  refused: { status: 403, error: 'YouTube refused this for the channel.' },
+  busy: { status: 503, error: 'YouTube did not answer — try again' },
+} as const;
+export type CallRefusal = keyof typeof CALL_REFUSALS;
+
+const QUOTA_REASONS = new Set(['quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded', 'userRateLimitExceeded']);
+
+export function callRefusalWord(status: number, reason: string | null | undefined): CallRefusal {
+  if (reason && QUOTA_REASONS.has(reason)) return 'quota';
+  if (status === 429) return 'quota';
+  if (reason === 'uploadLimitExceeded') return 'upload_limit';
+  return status === 403 ? 'refused' : 'busy';
+}
+
+/** The scope a Reconnect asks for: the widest the connection had (force-ssl covers uploads), so one yes restores everything. */
+export function reconnectScope(scopes: readonly ScopeKey[] | null | undefined): ScopeKey {
+  if (scopes?.includes('live')) return 'live';
+  if (scopes?.includes('upload')) return 'upload';
+  return 'readonly';
+}
+
+/** How often a card may ask YouTube whether its connection still stands. */
+export const HEALTH_CHECK_EVERY_MS = 10 * 60_000;
+
+export function healthCheckDue(lastCheckedAt: number | null | undefined, now: number): boolean {
+  return typeof lastCheckedAt !== 'number' || !Number.isFinite(lastCheckedAt) || now - lastCheckedAt >= HEALTH_CHECK_EVERY_MS || lastCheckedAt > now;
+}
 
 // ── Google's duration ───────────────────────────────────────────────────────
 /** ISO 8601 as `videos.list` writes it (`PT1H2M3S`, `P1DT2H`) → ms; null when it is not one. */

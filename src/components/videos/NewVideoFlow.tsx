@@ -16,7 +16,8 @@ import { formatLiveWhen } from '@/lib/videos/live-rules';
 import { chaptersToHighlights, LOOKUP_NOTES, lookupRefusal, type VideoLookup } from '@/lib/videos/youtube-connection';
 import { canAdvanceVideoStep, VIDEO_STEPS } from '@/lib/videos/video-steps';
 import { parseYouTubeLink, thumbUrl, watchUrl } from '@/lib/videos/youtube';
-import type { YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import { reconnectScope, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
 import ChannelPicker from '@/components/videos/ChannelPicker';
 import YouTubeUploadPanel from '@/components/videos/YouTubeUploadPanel';
 import YouTubeBroadcastPanel from '@/components/videos/YouTubeBroadcastPanel';
@@ -267,7 +268,14 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
             </p>
             {connection && (
               <div className="space-y-2" data-new-video-youtube={connection.canUpload ? 'upload' : 'pick'}>
-                <ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />
+                {/* Self-healing (Nov 10 2026): a connection that needs attention says so here, with its door — never doors that silently vanish. */}
+                {connection.problem && (
+                  <p className="text-sm text-red-600" role="status" data-new-video-youtube-problem={connection.status ?? ''}>
+                    {connection.problem}{' '}
+                    {connection.canManage && <YouTubeReconnectLink owner={defaultOwnerRef} scope={connection.connectedByMe ? reconnectScope(connection.scopes) : 'readonly'} />}
+                  </p>
+                )}
+                {connection.status !== 'revoked' && <ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} />}
                 {connection.canUpload && !uploadOpen && !broadcastOpen && (
                   <button type="button" onClick={() => setUploadOpen(true)} className="ea-interactive flex w-full items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-new-video-upload-door="">
                     <FaIcon icon={faCloudArrowUp} className="text-brand-fg" />

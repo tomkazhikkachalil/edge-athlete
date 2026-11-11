@@ -51,6 +51,10 @@ export interface YouTubeMock {
   deny(on: boolean): void;
   /** The refresh token stops working (consent withdrawn / the Testing week ran out). */
   revokeRefresh(on: boolean): void;
+  /** Self-healing (Nov 10): every access token minted SO FAR answers 401 from now on — a refresh mints one that works. */
+  expireAccess(): void;
+  /** Self-healing: every bearer call answers 401, a brand-new token included (the grant is gone though the refresh still answers). */
+  refuseAll(on: boolean): void;
   /** The scopes the consent screen granted (defaults to what was asked). */
   grantedScopes: string[] | null;
   /** Requests received, as "METHOD /path". */
@@ -83,6 +87,8 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
   let seq = 0;
   let minted = 0;
   let quotaOut = false;
+  let expiredThrough = 0;
+  let refusingAll = false;
   const live = new Map<string, MockLive>();
   // Phase 4b: which scopes each token carries (the force-ssl scope gates the live writes).
   const tokenScope = new Map<string, string>();
@@ -93,6 +99,8 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
     signInAs: c => { current = c; },
     deny: on => { denying = on; },
     revokeRefresh: on => { refreshRevoked = on; },
+    expireAccess: () => { expiredThrough = minted; },
+    refuseAll: on => { refusingAll = on; },
     grantedScopes: null,
     calls,
     uploaded,
@@ -111,7 +119,10 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
     res.end(JSON.stringify(body));
   };
   const readBody = (req: IncomingMessage) => new Promise<Buffer>(resolve => { const chunks: Buffer[] = []; req.on('data', c => chunks.push(c as Buffer)); req.on('end', () => resolve(Buffer.concat(chunks))); });
-  const bearerOk = (req: IncomingMessage) => /^Bearer yt-access-\d+$/.test(req.headers.authorization ?? '');
+  const bearerOk = (req: IncomingMessage) => {
+    const m = /^Bearer yt-access-(\d+)$/.exec(req.headers.authorization ?? '');
+    return !!m && !refusingAll && Number(m[1]) > expiredThrough;
+  };
   const channelOf = (): MockChannel | null => current;
 
   const server: Server = createServer((req, res) => {
@@ -206,6 +217,7 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
         return send(res, 200, { items: [{ id: ch.id, snippet: { title: ch.title }, contentDetails: { relatedPlaylists: { uploads: `UU${ch.id.slice(2)}` } } }] });
       }
       if (req.method === 'GET' && url.pathname === '/youtube/v3/playlistItems') {
+        if (quotaOut) return send(res, 403, { error: { code: 403, errors: [{ reason: 'quotaExceeded', domain: 'youtube.quota' }] } });
         if (!ch || url.searchParams.get('playlistId') !== `UU${ch.id.slice(2)}`) return send(res, 404, { error: { code: 404 } });
         return send(res, 200, { items: ch.uploads.map(u => ({ snippet: { title: u.title, thumbnails: { high: { url: `https://i.ytimg.com/vi/${u.videoId}/hqdefault.jpg` } } }, contentDetails: { videoId: u.videoId, videoPublishedAt: u.publishedAt } })) });
       }

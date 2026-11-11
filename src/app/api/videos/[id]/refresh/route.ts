@@ -3,8 +3,8 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
 import { isOrgKind } from '@/lib/orgs/org-ref';
 import { readVideoForViewer, recordVideoDetails } from '@/lib/videos/videos-server';
-import type { ConnectionOwner } from '@/lib/videos/youtube-connection';
-import { recordError, withAccessToken } from '@/lib/videos/youtube-connections-server';
+import { CALL_REFUSALS, type ConnectionOwner } from '@/lib/videos/youtube-connection';
+import { callWithToken } from '@/lib/videos/youtube-connections-server';
 import { youtubeConfig, youtubeVideoLookup } from '@/lib/videos/google-youtube-server';
 import { parseChapters } from '@/lib/videos/youtube-connection';
 
@@ -39,12 +39,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } else {
       owner = { kind: 'profile', profileId: read.row.profile_id ?? '' };
     }
-    const token = await withAccessToken(admin, cfg, owner);
-    if (!token.ok) return NextResponse.json({ error: token.error }, { status: token.status });
-    const details = await youtubeVideoLookup({ apiBase: cfg.apiBase, accessToken: token.accessToken }, read.row.provider_video_id);
+    const called = await callWithToken(admin, cfg, owner, token => youtubeVideoLookup({ apiBase: cfg.apiBase, accessToken: token }, read.row.provider_video_id));
+    if (!called.ok) return NextResponse.json({ error: called.error, reconnect: called.reconnect }, { status: called.status });
+    const details = called.value;
     if (!details.ok) {
-      if (details.unauthorized) await recordError(admin, token.row.id, 'YouTube refused the read — reconnect');
-      return NextResponse.json({ error: 'YouTube did not answer — try again' }, { status: 503 });
+      const refused = CALL_REFUSALS[details.quota ? 'quota' : 'busy'];
+      return NextResponse.json({ error: refused.error }, { status: refused.status });
     }
     if (!details.value) return NextResponse.json({ error: 'YouTube has no video with this id' }, { status: 404 });
     const saved = await recordVideoDetails(admin, id, { durationMs: details.value.durationMs });

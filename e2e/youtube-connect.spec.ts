@@ -184,3 +184,96 @@ test('an org: the owner connects; a manager without the grant may link but not u
     await pageA.context().close();
   }
 });
+
+// Self-healing (Nov 10 2026): a 401 is a stale token first — one forced
+// refresh, one more try. Only Google's invalid_grant, or a 401 on a token
+// minted a moment ago, ends a connection; and then every screen says
+// "Reconnect" instead of "no channel" or nothing at all.
+test('self-healing: a stale token is refreshed and retried, an old error row heals, the quota has its own words, a dead grant says Reconnect everywhere and one tap restores it', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const a = loadQaUser('user.json');
+  const admin = adminClient();
+  for (const bucket of ['connection-write', 'video-write', 'video-lookup'] as const) await resetRateBucket(admin, bucket, a.id);
+  const owner = `profile:${a.id}`;
+  const page = await (await browser.newContext({ storageState: await mintStorageState(a), extraHTTPHeaders: bypassHeaders() })).newPage();
+  const api = await ctxFor(a);
+  const viewOf = async (check = false) => (await (await api.get(`/api/videos/youtube/connection?owner=${owner}${check ? '&check=1' : ''}`)).json()).connection;
+  try {
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
+    mock.signInAs(CHANNEL);
+    await page.goto(`/api/videos/youtube/start?owner=${owner}&scope=readonly`);
+    await expect.poll(() => page.url(), { timeout: 20_000 }).toContain('youtube=connected');
+
+    // 1. Every token so far dies at YouTube (a 401): the read still answers — one refresh, one retry — and the row stays active.
+    let before = mock.tokensMinted();
+    mock.expireAccess();
+    let res = await api.get(`/api/videos/youtube/channel-uploads?owner=${owner}`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    expect(((await res.json()).uploads as unknown[]).length).toBe(2);
+    expect(mock.tokensMinted()).toBe(before + 1);
+    expect(await viewOf()).toMatchObject({ status: 'active', problem: null, canUpload: true });
+
+    // 2. A row an older build left in `error` is not dead: its doors stand, and the next good call makes it active again.
+    await admin.from('youtube_connections').update({ status: 'error', last_error: 'YouTube refused the channel read — reconnect' }).eq('profile_id', a.id);
+    expect(await viewOf()).toMatchObject({ status: 'error', canUpload: true });
+    res = await api.get(`/api/videos/youtube/channel-uploads?owner=${owner}`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    expect(await viewOf()).toMatchObject({ status: 'active', problem: null });
+
+    // 3. YouTube's daily limit is its own sentence, never "reconnect", and it ends nothing.
+    mock.quota(true);
+    res = await api.get(`/api/videos/youtube/channel-uploads?owner=${owner}`);
+    expect(res.status()).toBe(429);
+    let body = (await res.json()) as { error: string; reconnect?: boolean };
+    expect(body.error).toMatch(/daily limit/);
+    expect(body.reconnect).toBeUndefined();
+    mock.quota(false);
+    expect(await viewOf()).toMatchObject({ status: 'active' });
+
+    // 4. The health check: a plain read costs YouTube nothing; `check=1` asks once and a standing connection stays as it is.
+    before = mock.calls.filter(c => c === 'GET /youtube/v3/channels').length;
+    await viewOf();
+    expect(mock.calls.filter(c => c === 'GET /youtube/v3/channels').length).toBe(before);
+    expect(await viewOf(true)).toMatchObject({ status: 'active', channelTitle: CHANNEL.title });
+    expect(mock.calls.filter(c => c === 'GET /youtube/v3/channels').length).toBe(before + 1);
+
+    // 5. The grant is gone (a fresh token is refused too): the check finds it NOW — revoked, with the words — and every call says reconnect.
+    mock.refuseAll(true);
+    expect(await viewOf(true)).toMatchObject({ connected: true, status: 'revoked', canUpload: false, problem: expect.stringContaining('reconnect') });
+    mock.refuseAll(false);
+    res = await api.get(`/api/videos/youtube/channel-uploads?owner=${owner}`);
+    expect(res.status()).toBe(409);
+    body = (await res.json()) as { error: string; reconnect?: boolean };
+    expect(body.reconnect).toBe(true);
+    expect(body.error).not.toMatch(/No YouTube channel/);
+
+    // 6. The Full game flow names the problem with its door; one tap at Google and the connection stands again.
+    await page.goto('/videos/new');
+    const problem = page.locator('[data-new-video-youtube-problem="revoked"]');
+    await expect(problem).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-channel-picker]')).toHaveCount(0);
+    // Phone width: the sentence and its door wrap inside 375 px.
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expect(problem).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await problem.locator('[data-youtube-reconnect-link]').click();
+    await expect.poll(() => page.url(), { timeout: 20_000 }).toContain('youtube=connected');
+    expect(await viewOf()).toMatchObject({ status: 'active', problem: null, canUpload: true });
+
+    // 7. Google's own word (invalid_grant on the refresh) ends it too — and the answer is "reconnect", not "no channel".
+    mock.expireAccess();
+    mock.revokeRefresh(true);
+    res = await api.get(`/api/videos/youtube/channel-uploads?owner=${owner}`);
+    expect(res.status()).toBe(409);
+    expect((await res.json()).reconnect).toBe(true);
+    expect(await viewOf()).toMatchObject({ status: 'revoked' });
+  } finally {
+    mock.revokeRefresh(false);
+    mock.refuseAll(false);
+    mock.quota(false);
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
+    await api.dispose();
+    await page.context().close();
+  }
+});
+
