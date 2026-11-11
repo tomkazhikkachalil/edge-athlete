@@ -112,9 +112,13 @@ start screen with the editor, so Back never offers a new workout over an unposte
   `active_seconds` (duration − rest), `avg_rest_seconds`, `groups` and
   `per_exercise_volume_lbs` ONLY when present and omits `duration_seconds` when
   untimed — an older workout's post keeps its shape byte-identical (pinned).
-- **Progression** (`dashboard.ts progressionKey`) keys on `exerciseKey ?? name`: a
-  catalog exercise keeps its key through a rename; a renamed CUSTOM exercise starts a
-  new line under its new name.
+- **Identity** (`workouts/exercise-identity.ts`, bound to the catalog by
+  `workout-config.ts exerciseRefOf`, Nov 11 2026) is ONE rule for the records, the
+  progression and the summary: a key the catalog knows wins (a catalog exercise keeps
+  its key through a rename); otherwise the name is slugged and a slug the catalog
+  knows (a label, a key, an alias) is that exercise — a typed "Bench Press" is
+  `bench_press`; otherwise the slug is the identity ("DB Bench" = "db-bench"). A
+  renamed CUSTOM exercise starts a new line under its new name.
 
 ## Traps recorded
 

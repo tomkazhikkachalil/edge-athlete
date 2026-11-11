@@ -4,6 +4,8 @@
  * mapped lifts) which body metric it can feed as a PR.
  */
 
+import { buildSlugToKey, exerciseRef } from './workouts/exercise-identity';
+
 export type ExerciseInputMode = 'reps_weight' | 'reps_only' | 'duration' | 'distance_duration';
 export type ExerciseCategory = 'strength' | 'cardio' | 'mobility';
 
@@ -72,6 +74,39 @@ export const EXERCISE_CATALOG: CatalogExercise[] = [
 export const EXERCISE_MAP: Record<string, CatalogExercise> = Object.fromEntries(
   EXERCISE_CATALOG.map(e => [e.key, e])
 );
+
+/**
+ * Other spellings athletes type for a catalog exercise (slugged: lowercase,
+ * underscores). A label's own slug and the key need no entry here.
+ */
+export const EXERCISE_ALIASES: Readonly<Record<string, string>> = {
+  bench: 'bench_press',
+  back_squat: 'squat',
+  ohp: 'overhead_press',
+  rdl: 'romanian_deadlift',
+  pull_up: 'pull_ups',
+  pullup: 'pull_ups',
+  pullups: 'pull_ups',
+  chin_up: 'chin_ups',
+  chinup: 'chin_ups',
+  chinups: 'chin_ups',
+  push_up: 'push_ups',
+  pushup: 'push_ups',
+  pushups: 'push_ups',
+  sit_up: 'sit_ups',
+  situp: 'sit_ups',
+  situps: 'sit_ups',
+  dip: 'dips',
+  lunges: 'lunge',
+  planks: 'plank',
+};
+
+const SLUG_TO_KEY = buildSlugToKey(EXERCISE_CATALOG, EXERCISE_ALIASES);
+
+/** One exercise's identity across sessions (exercise-identity.ts, bound to this catalog): the ONE spelling every reader uses. */
+export function exerciseRefOf(exerciseKey: string | null | undefined, name: string): string {
+  return exerciseRef(exerciseKey, name, SLUG_TO_KEY);
+}
 
 export const EXERCISE_CATEGORY_LABELS: Record<ExerciseCategory, string> = {
   strength: 'Strength',

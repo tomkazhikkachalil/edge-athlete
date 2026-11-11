@@ -6,7 +6,7 @@
  * (GET /api/vitals returns ALL entries, GET /api/workouts up to 50 sessions).
  */
 
-import { EXERCISE_MAP } from '@/lib/workout-config';
+import { EXERCISE_MAP, exerciseRefOf } from '@/lib/workout-config';
 import { BODY_METRIC_MAP } from '@/lib/body-metrics-config';
 import { serverToEntries, type ServerWorkoutSession } from './serialize';
 import { toLbs } from './summary';
@@ -202,7 +202,7 @@ export interface ExerciseProgression {
  * (catalog) must not fork one lift's history.
  */
 export function progressionKey(exerciseKey: string | null, name: string): string {
-  return exerciseKey ?? name.trim().toLowerCase();
+  return exerciseRefOf(exerciseKey, name);
 }
 
 /**

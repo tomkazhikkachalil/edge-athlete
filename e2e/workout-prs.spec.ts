@@ -66,6 +66,14 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
     await page.getByRole('button', { name: 'Finish' }).click();
     const prs = page.locator('[data-workout-prs]');
     await expect(prs).toBeVisible({ timeout: 30_000 });
+    // Five records, three shown (Training redesign PR 1, Nov 11 2026): every exercise's strongest
+    // kind first — bench says its weight once — and the bench's other two are behind "+2 more".
+    await expect(prs).toHaveAttribute('data-workout-prs', '5');
+    await expect(prs.locator('[data-workout-pr]')).toHaveCount(3);
+    for (const key of ['bench_press:heaviest', 'pull_ups:reps', 'plank:duration']) await expect(prs.locator(`[data-workout-pr="${key}"]`)).toBeVisible();
+    await expect(prs.locator('[data-workout-prs-more]')).toHaveAttribute('data-workout-prs-more', '2');
+    await prs.locator('[data-workout-prs-more]').click();
+    await expect(prs.locator('[data-workout-prs-more]')).toHaveCount(0);
     for (const key of ['bench_press:heaviest', 'bench_press:e1rm', 'bench_press:volume', 'pull_ups:reps', 'plank:duration']) await expect(prs.locator(`[data-workout-pr="${key}"]`)).toBeVisible();
     await expect(prs.locator('[data-workout-pr^="deadlift"]')).toHaveCount(0);
     await expect(prs.locator('[data-workout-pr="bench_press:heaviest"]')).toContainText('195 lbs');

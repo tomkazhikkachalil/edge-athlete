@@ -6,6 +6,7 @@ import { formatDuration, formatVolume } from '@/lib/workouts/summary';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import type { EntryExercise } from '@/lib/workouts/entries';
 import WorkoutDetailItems from './WorkoutDetailItems';
+import { capPRs } from '@/lib/workouts/prs';
 
 interface WorkoutPostCardProps {
   /** posts.stats_data for type='workout_session' (denormalized summary). */
@@ -50,6 +51,12 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
       )
     : [];
 
+  // Three show, then "+N" (Training redesign PR 1, Nov 11 2026): a post saved before
+  // the lines were ranked keeps its stored order.
+  const [allPrs, setAllPrs] = useState(false);
+  const cappedPrs = capPRs(prs);
+  const shownPrs = allPrs ? prs : cappedPrs.shown;
+
   const expanded = detail.status !== 'collapsed';
 
   const toggle = async () => {
@@ -93,7 +100,7 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
         {/* PR ribbon — the post wears its confirmed personal bests */}
         {prs.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2.5">
-            {prs.map((pr, i) => (
+            {shownPrs.map((pr, i) => (
               <span
                 key={i}
                 className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/60 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300"
@@ -102,6 +109,20 @@ export default function WorkoutPostCard({ statsData }: WorkoutPostCardProps) {
                 PR · {pr.label} {pr.display}
               </span>
             ))}
+            {!allPrs && cappedPrs.more > 0 && (
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  setAllPrs(true);
+                }}
+                aria-label={`Show ${cappedPrs.more} more personal ${cappedPrs.more === 1 ? 'record' : 'records'}`}
+                className="ea-interactive inline-flex min-h-[28px] items-center rounded-full bg-amber-100 dark:bg-amber-900/60 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300"
+                data-post-prs-more={cappedPrs.more}
+              >
+                +{cappedPrs.more}
+              </button>
+            )}
           </div>
         )}
 
