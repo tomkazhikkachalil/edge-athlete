@@ -6,6 +6,7 @@ import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 import { healStoredMediaUrl, toProxyUrl } from '@/lib/media/proxy-url';
 import { validateEntriesPayload, type EntryExercise } from '@/lib/workouts/entries';
 import { healEntriesMedia } from '@/lib/workouts/entries-heal-server';
+import { exerciseRefOf } from '@/lib/workout-config';
 import { routineToEntries, type ServerRoutineRow } from '@/lib/workouts/routines';
 import {
   buildRoutineSnapshot,
@@ -85,6 +86,8 @@ async function insertSessionEntries(
         profile_id: profileId,
         name: exercise.name,
         exercise_key: exercise.exerciseKey,
+        // 306: the identity, computed HERE (never taken from the client) — an index filter for one exercise's history.
+        exercise_ref: exerciseRefOf(exercise.exerciseKey, exercise.name) || null,
         category: exercise.category,
         position: index,
         notes: exercise.notes,
