@@ -4,6 +4,7 @@
  */
 
 import type { EntryExercise, EntrySet, SetMedia } from './entries';
+import { exerciseRefOf } from '@/lib/workout-config';
 
 const KG_TO_LBS = 2.20462;
 
@@ -84,7 +85,7 @@ export function computeSummary(exercises: EntryExercise[]): WorkoutSummary {
     }
 
     if (maxWeightLbs !== null || maxReps !== null) {
-      const key = exercise.exerciseKey ?? exercise.name.trim().toLowerCase();
+      const key = exerciseRefOf(exercise.exerciseKey, exercise.name);
       const existing = perExerciseBest[key];
       perExerciseBest[key] = existing
         ? {

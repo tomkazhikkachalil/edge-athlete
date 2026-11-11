@@ -14,7 +14,7 @@ import {
   type CollectedMedia,
   type WorkoutSummary, formatElapsed } from '@/lib/workouts/summary';
 import type { PRCandidate } from '@/lib/workouts/pr-detection';
-import { formatPr, PR_LABELS, type PrHit } from '@/lib/workouts/prs';
+import { capPRs, formatPr, PR_LABELS, rankPRs, type PrHit } from '@/lib/workouts/prs';
 import EffortChips from '@/components/activities/EffortChips';
 import ExerciseName from './ExerciseName';
 
@@ -63,7 +63,14 @@ export function FinishSummary({
   onEditWorkout,
   routineSave,
 }: FinishSummaryProps) {
-  const anyPR = prCandidates.length > 0 || exercisePRs.length > 0;
+  // Training redesign PR 1 (Nov 11 2026): a first-ever entry for a mapped lift is a
+  // baseline to save, not a record to cheer; the records are ranked and three show.
+  const beaten = prCandidates.filter(pr => pr.previousBest !== null).length;
+  const anyPR = beaten > 0 || exercisePRs.length > 0;
+  const rankedPRs = rankPRs(exercisePRs);
+  const [allPRs, setAllPRs] = useState(false);
+  const cappedPRs = capPRs(rankedPRs);
+  const shownPRs = allPRs ? rankedPRs : cappedPRs.shown;
   // One burst per summary, fired when PR candidates arrive (they load async
   // after the phase flips). Ref-guarded so a re-render can't re-fire; no
   // state involved, so no set-state-in-effect concern.
@@ -89,7 +96,7 @@ export function FinishSummary({
         <h1 className="text-2xl font-bold text-primary">{title || 'Workout Complete'}</h1>
         <p className="text-muted mt-1">
           {anyPR
-            ? `New personal ${prCandidates.length + exercisePRs.length === 1 ? 'record' : 'records'} — huge!`
+            ? `New personal ${beaten + exercisePRs.length === 1 ? 'record' : 'records'} — huge!`
             : 'Nice work. Here’s the damage:'}
         </p>
       </div>
@@ -177,7 +184,7 @@ export function FinishSummary({
         <div className="tr-card p-4" data-workout-prs={exercisePRs.length}>
           <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">New PRs</p>
           <ul className="space-y-1.5">
-            {exercisePRs.map(pr => (
+            {shownPRs.map(pr => (
               <li key={`${pr.exerciseId}:${pr.kind}`} className="flex items-center justify-between gap-3 text-sm" data-workout-pr={`${pr.exerciseId}:${pr.kind}`}>
                 <span className="min-w-0 truncate text-primary">
                   <span className="font-semibold">{pr.name}</span> <span className="text-muted">· {PR_LABELS[pr.kind]}</span>
@@ -189,6 +196,11 @@ export function FinishSummary({
               </li>
             ))}
           </ul>
+          {!allPRs && cappedPRs.more > 0 && (
+            <button type="button" onClick={() => setAllPRs(true)} className="ea-interactive mt-2 min-h-[40px] rounded-lg px-2 text-sm font-semibold text-brand-fg" data-workout-prs-more={cappedPRs.more}>
+              +{cappedPRs.more} more
+            </button>
+          )}
         </div>
       )}
 

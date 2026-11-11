@@ -155,7 +155,8 @@ describe('latestPB', () => {
 describe('exerciseProgression', () => {
   it('merges catalog rows with normalized free-text of the same lift', () => {
     expect(progressionKey('bench_press', 'whatever')).toBe('bench_press');
-    expect(progressionKey(null, ' Bench Press ')).toBe('bench press');
+    expect(progressionKey(null, ' Bench Press ')).toBe('bench_press');
+    expect(progressionKey(null, 'DB  Bench')).toBe('db_bench');
     const sessions = [
       session('2026-07-01T10:00:00', {}, [
         { name: 'Bench Press', exercise_key: 'bench_press', sets: [{ set_number: 1, reps: 5, weight: 185, weight_unit: 'lbs' }] },
@@ -165,10 +166,9 @@ describe('exerciseProgression', () => {
       ]),
     ];
     const map = exerciseProgression(sessions);
-    // Two keys here (catalog vs normalized name) is WRONG — assert merge intent:
-    // catalog key wins when present; the free-text one normalizes separately.
-    expect(map.get('bench_press')?.points).toHaveLength(1);
-    expect(map.get('bench press')?.points).toHaveLength(1);
+    // One lift, one line (exercise-identity.ts, Nov 11 2026): the typed name is the catalog's lift.
+    expect(map.get('bench_press')?.points).toHaveLength(2);
+    expect(map.has('bench press')).toBe(false);
   });
 
   it('takes the best set per session, ascending dates, mode-appropriate value', () => {

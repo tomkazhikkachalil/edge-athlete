@@ -18,9 +18,23 @@
 //             exercise whose catalog entry is a `duration` input outside the
 //             cardio category (plank, stretching, yoga, foam rolling: the
 //             holds; never a machine, never a distance exercise)
+//
+// Training redesign PR 1 (Nov 11 2026 — Tom: "sometimes there are too many
+// personal bests"). All five kinds stay bests; what changed is how many are
+// ANNOUNCED and how easily one fires:
+//   • one identity (exercise-identity.ts): a typed "Bench Press" and the
+//     catalog's bench_press are one lift, so the other spelling is no longer a
+//     fresh baseline that turns into records;
+//   • a record must beat the old one by a margin a unit conversion cannot
+//     make (BEATS): 100 kg after 220 lbs is the same lift, not three records;
+//   • the list is RANKED (each exercise's strongest kind first) and the
+//     finish summary and the post show PR_SHOWN of them, then "+N";
+//   • a five-lift confirm (pr-detection.ts, until the systems merge) rides
+//     the post only when it beat an earlier value and the sets did not
+//     already say so — the same lift is never announced twice.
 
 import { toLbs } from './summary';
-import { EXERCISE_MAP } from '@/lib/workout-config';
+import { EXERCISE_MAP, exerciseRefOf } from '@/lib/workout-config';
 import type { EntryExercise } from './entries';
 
 export type PrKind = 'heaviest' | 'e1rm' | 'reps' | 'volume' | 'duration';
@@ -43,9 +57,9 @@ export interface ExerciseBests {
   duration: number | null;
 }
 
-/** A hold: a catalog `duration` input outside cardio — its longest time is a record. A free-text exercise never is. */
-export function isHoldExercise(e: Pick<EntryExercise, 'exerciseKey'>): boolean {
-  const def = e.exerciseKey ? EXERCISE_MAP[e.exerciseKey] : undefined;
+/** A hold: a catalog `duration` input outside cardio — its longest time is a record. A name the catalog does not know never is. */
+export function isHoldExercise(e: Pick<EntryExercise, 'exerciseKey'> & { name?: string }): boolean {
+  const def = EXERCISE_MAP[exerciseRefOf(e.exerciseKey, e.name ?? '')];
   return !!def && def.inputMode === 'duration' && def.category !== 'cardio';
 }
 
@@ -58,8 +72,8 @@ export interface PrHit {
   previous: number;
 }
 
-/** One lift's identity across sessions: the catalog key, else the name (free-text "Bench Press" and catalog bench_press are one lift — summary.ts's rule). */
-export const exerciseIdOf = (e: Pick<EntryExercise, 'exerciseKey' | 'name'>): string => e.exerciseKey ?? e.name.trim().toLowerCase();
+/** One lift's identity across sessions (exercise-identity.ts — the ONE rule): free-text "Bench Press" and catalog bench_press are one lift. */
+export const exerciseIdOf = (e: Pick<EntryExercise, 'exerciseKey' | 'name'>): string => exerciseRefOf(e.exerciseKey, e.name);
 
 /** Epley: weight × (1 + reps / 30); a single is itself; past 12 reps, none. */
 export function epley(weightLbs: number, reps: number): number | null {
@@ -112,14 +126,27 @@ export function foldBests(sessions: Iterable<Map<string, ExerciseBests>>): Map<s
   return out;
 }
 
-const KINDS: readonly PrKind[] = ['heaviest', 'e1rm', 'reps', 'volume', 'duration'];
-/** A record must beat the old one by more than rounding (0.1 lb / 1 rep). */
-const EPS = 0.05;
+/** The kinds in the order they are announced: the strongest claim first, volume (the easiest to beat) last. */
+export const PR_KIND_RANK: readonly PrKind[] = ['heaviest', 'e1rm', 'reps', 'duration', 'volume'];
+const KINDS = PR_KIND_RANK;
+
+/**
+ * Does `value` beat `previous`? By a margin no unit conversion can make: a
+ * weight or an estimate by more than half a pound (the smallest plate step is
+ * 1 lb / 0.5 kg = 1.1 lb; 100 kg is 220.46 lb, which is not a record over 220),
+ * a rep count or a hold by a whole rep or second, a session's volume by more
+ * than a quarter of a percent.
+ */
+export function beats(kind: PrKind, value: number, previous: number): boolean {
+  if (kind === 'heaviest' || kind === 'e1rm') return value > previous + 0.5;
+  if (kind === 'volume') return value > previous * 1.0025;
+  return value >= previous + 1;
+}
 
 /**
  * This session's new records: a kind whose value beats the athlete's earlier
  * best for that exercise. An exercise (or a kind) with no earlier value is a
- * baseline, never a record. Ordered by exercise, then kind.
+ * baseline, never a record. Ordered by exercise, then kind (PR_KIND_RANK).
  */
 export function newPRs(current: Map<string, ExerciseBests>, history: ReadonlyMap<string, ExerciseBests>): PrHit[] {
   const out: PrHit[] = [];
@@ -130,10 +157,59 @@ export function newPRs(current: Map<string, ExerciseBests>, history: ReadonlyMap
       const v = now[kind];
       const p = before[kind];
       if (v === null || p === null) continue;
-      if (v > p + EPS) out.push({ exerciseId: id, name: now.name, kind, value: v, previous: p });
+      if (beats(kind, v, p)) out.push({ exerciseId: id, name: now.name, kind, value: v, previous: p });
     }
   }
   return out;
+}
+
+/** How many records the finish summary and a post show before "+N". */
+export const PR_SHOWN = 3;
+
+/**
+ * The order records are announced in: every exercise's strongest kind first
+ * (in the workout's own exercise order), then the rest. With the cap, three
+ * records are three different exercises before any exercise shows a second.
+ */
+export function rankPRs(hits: readonly PrHit[]): PrHit[] {
+  const byExercise = new Map<string, PrHit[]>();
+  for (const h of hits) byExercise.set(h.exerciseId, [...(byExercise.get(h.exerciseId) ?? []), h]);
+  const first: PrHit[] = [];
+  const rest: PrHit[] = [];
+  for (const group of byExercise.values()) {
+    const sorted = [...group].sort((a, b) => PR_KIND_RANK.indexOf(a.kind) - PR_KIND_RANK.indexOf(b.kind));
+    first.push(sorted[0]);
+    rest.push(...sorted.slice(1));
+  }
+  return [...first, ...rest];
+}
+
+/** The first `shown` of a list and how many are behind "+N". */
+export function capPRs<T>(list: readonly T[], shown: number = PR_SHOWN): { shown: T[]; more: number } {
+  return { shown: list.slice(0, shown), more: Math.max(0, list.length - shown) };
+}
+
+/** A five-lift confirm (pr-detection.ts's candidate, by shape — this file does not import it). */
+export interface ConfirmedBest {
+  metricKey: string;
+  metricLabel: string;
+  valueDisplay: string;
+  /** null = the first entry ever for the metric: a baseline, saved but never announced. */
+  previousBest: number | null;
+}
+
+/**
+ * The lines a post carries (stats_data.prs — label and text only, so they are
+ * written already ranked). A confirmed five-lift best comes first, but only
+ * when it beat an earlier value AND the sets hold no record for the same lift
+ * (then the sets' line says it); the exercises' records follow, ranked.
+ */
+export function prLines(hits: readonly PrHit[], unit: 'lb' | 'kg', confirmed: readonly ConfirmedBest[] = []): Array<{ label: string; display: string }> {
+  const said = new Set(hits.map(h => EXERCISE_MAP[h.exerciseId]?.bodyMetricKey as string | undefined));
+  return [
+    ...confirmed.filter(c => c.previousBest !== null && !said.has(c.metricKey)).map(c => ({ label: c.metricLabel, display: c.valueDisplay })),
+    ...rankPRs(hits).map(h => ({ label: `${h.name} · ${PR_LABELS[h.kind]}`, display: formatPr(h.kind, h.value, unit) })),
+  ];
 }
 
 /** A hold's time: "2:10", "1:02:03" — the clock's spelling. */
@@ -156,7 +232,7 @@ export function holdRecord(history: ReadonlyMap<string, ExerciseBests> | null, s
   const id = exerciseIdOf(exercise);
   const before = max(history?.get(id)?.duration ?? null, bestsOf(session).get(id)?.duration ?? null);
   if (before === null) return 'baseline';
-  return seconds > before + EPS ? 'pr' : 'no';
+  return beats('duration', seconds, before) ? 'pr' : 'no';
 }
 
 /** The ONE spelling of a record: "225 lbs" (the app's spelling) / "102.1 kg" / "15 reps" / "2:10"; `bare` drops the unit (a table column says it). */

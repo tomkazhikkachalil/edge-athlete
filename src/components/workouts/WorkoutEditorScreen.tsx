@@ -51,7 +51,7 @@ import {
 } from '@/lib/workouts/draft';
 import { buildWorkoutStatsData, collectWorkoutMedia, computeSummary, formatElapsed, MAX_POST_MEDIA, type CollectedMedia } from '@/lib/workouts/summary';
 import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
-import { bestsOf, formatPr, newPRs, PR_LABELS, workoutUnit, type ExerciseBests, type PrHit } from '@/lib/workouts/prs';
+import { bestsOf, newPRs, prLines, workoutUnit, type ExerciseBests, type PrHit } from '@/lib/workouts/prs';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import { localDayKey } from '@/lib/calendar/grid';
 import { refreshDrafts } from '@/hooks/useDrafts';
@@ -819,12 +819,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
             title,
             durationSeconds: finishedDuration,
             summary,
-            // Only CONFIRMED PRs ride the post — same gate as recordPRs.
-            prs: [
-              ...prCandidates.filter(pr => checkedPRs.has(pr.metricKey)).map(pr => ({ label: pr.metricLabel, display: pr.valueDisplay })),
-              // A10: every exercise's new records ride the post too.
-              ...exercisePRs.map(pr => ({ label: `${pr.name} · ${PR_LABELS[pr.kind]}`, display: formatPr(pr.kind, pr.value, workoutUnit(exercises)) })),
-            ],
+            // Only CONFIRMED five-lift bests ride the post (the same gate as recordPRs), and
+            // every exercise's new records (A10) — ranked, a lift said once (prs.ts prLines).
+            prs: prLines(exercisePRs, workoutUnit(exercises), prCandidates.filter(pr => checkedPRs.has(pr.metricKey))),
           }),
         }),
       });
@@ -913,10 +910,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
             title,
             durationSeconds: finishedDuration,
             summary,
-            prs: [
-              ...prCandidates.filter(pr => checkedPRs.has(pr.metricKey)).map(pr => ({ label: pr.metricLabel, display: pr.valueDisplay })),
-              ...exercisePRs.map(pr => ({ label: `${pr.name} · ${PR_LABELS[pr.kind]}`, display: formatPr(pr.kind, pr.value, workoutUnit(exercises)) })),
-            ],
+            prs: prLines(exercisePRs, workoutUnit(exercises), prCandidates.filter(pr => checkedPRs.has(pr.metricKey))),
           })
         : null,
     };

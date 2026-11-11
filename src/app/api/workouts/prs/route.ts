@@ -11,7 +11,10 @@ import type { EntryExercise } from '@/lib/workouts/entries';
  * all-time bests per exercise (activities details A10, Oct 16 2026), derived
  * from every COMPLETED session's sets (workouts/prs.ts — no PR table; the sets
  * are the one fact). `exclude` leaves out the session being finished, so its
- * own sets are judged against everything BEFORE it. Owner-only, like every
+ * own sets are judged against everything BEFORE it — before in TIME (Training
+ * redesign PR 1, Nov 11 2026): only sessions that started earlier are folded,
+ * so a back-dated workout is never measured against the weeks after it.
+ * Owner-only, like every
  * workout read that is not a shared post. Viewer-dependent → private, no-store.
  * 200 { bests: { [exerciseId]: { name, heaviest, e1rm, reps, volume } }, unit: 'lb' | 'kg' }
  * — `unit` is the one most of the athlete's own sets were logged in (the
@@ -28,11 +31,18 @@ export async function GET(request: NextRequest) {
     const exclude = request.nextUrl.searchParams.get('exclude');
     if (exclude !== null && !isUuid(exclude)) return NextResponse.json({ error: 'Invalid workout ID' }, { status: 400, headers: NO_STORE });
     const admin = getSupabaseAdmin();
+    // The excluded session's own start is the line: nothing at or after it is "earlier".
+    let before: string | null = null;
+    if (exclude) {
+      const { data: own } = await admin.from('workout_sessions').select('started_at').eq('id', exclude).eq('profile_id', user.id).maybeSingle();
+      before = (own as { started_at?: string | null } | null)?.started_at ?? null;
+    }
     const perSession: Map<string, ExerciseBests>[] = [];
     const allExercises: EntryExercise[] = [];
     for (let from = 0; from < MAX_SESSIONS; from += PAGE) {
       let q = admin.from('workout_sessions').select(SELECT).eq('profile_id', user.id).eq('status', 'completed').order('started_at', { ascending: false }).range(from, from + PAGE - 1);
       if (exclude) q = q.neq('id', exclude);
+      if (before) q = q.lt('started_at', before);
       const { data, error } = await q;
       if (error) {
         reportRouteError('[workouts/prs] read failed:', error);

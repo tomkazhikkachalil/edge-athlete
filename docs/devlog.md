@@ -1,5 +1,27 @@
 # Development Log
 
+## November 11, 2026 — Training redesign, PR 1 of 8: fewer, truer personal bests (rules only, zero DDL)
+
+Tom: "We need to re-design how the information is displayed in training. Some of it makes sense, but the way you navigate and the groups, don't really make sense, also, sometimes there are too many personal bests, we need to group and store information, slightly differently. Review some of the best applications for training in the world."
+
+**The review.** Three reads in parallel: today's screens (one 809-line `TrainingTab`, nine stacked sections, the same workout listed in up to three places, "sessions" meaning four things, six different groupings), today's data and rules (two personal-best systems that both announce at finish; no index on the exercise; "all-time" numbers that are the last 50 workouts), and the leading apps (Strong, Hevy, Boostcamp, Strava, Garmin, TrainingPeaks, Peloton, TrainHeroic). What they converge on: history in three views (a list, a page per exercise, a summary); records live on the exercise's page; a first log is never a record; celebrate once and show a count; records can be corrected. What none has: one place for lifts, tests and activities, and a curated public showcase.
+
+**Tom's four decisions.** Four views inside Training (Overview · History · Exercises · Body & tests); all five kinds stay bests but at most three are shown, then "+N"; ONE system (a typed max becomes a dated tested max, the finish confirm goes); a pinned showcase of up to six that visitors see. Eight PRs; the plan is in `docs/specs/workouts-and-sessions.md` ("Fewer, truer personal bests") as each lands.
+
+**Why there were too many** (read from the code): one heavier set fired heaviest + est. 1RM + volume; the same bench was announced again by the five-lift system; that system counted a first-ever log; 0.05 lb of tolerance made 100 kg a record over 220 lbs; a typed "Bench Press" and the catalog's `bench_press` were two lifts; a back-dated workout was compared with the weeks after it; nothing was capped.
+
+**What changed (zero DDL):**
+- `src/lib/workouts/exercise-identity.ts` — ONE identity rule (catalog key → a slug the catalog knows → the slug), called by the records, the progression and the summary.
+- `prs.ts` — `beats` (a real margin per kind), `rankPRs` (each exercise's strongest kind first), `capPRs` (three, then "+N"), `prLines` (a post's lines: ranked, a lift said once, a first-ever five-lift entry never a record).
+- `GET /api/workouts/prs?exclude=` — only sessions that started earlier.
+- `FinishFlow` and `WorkoutPostCard` — three records and a "+N" that opens the rest; the headline and the burst count real records only.
+
+**Left out on purpose:** the plan's "only ticked sets count" rule. Nothing stamps a set at Finish or in a manual log, and an athlete who ticks one set would lose the others without being told. Uncompleted sets count as before.
+
+**Proof:** `npm run verify` exit 0 — typecheck, lint 0 warnings, **6,059 tests in 659 files**, the build, `check:syntax` ✓ (300 chunks). Staging e2e, one project at a time: `workout-prs` (mobile: five records, three shown, "+2 more" opens them, a first-ever deadlift is none), `workout-summary`, `workout-review`, `workout-drafts` (mobile), `training` (desktop) — all green. The golden test pins every catalog key as its own identity, so no keyed row moves; a typed name that matches a catalog label now joins that lift's history (merging can remove a "record", never invent one).
+
+**Next:** PR 2 — migration 306 (`workout_exercises.exercise_ref` + index, `training_pins`), staging first, production is Tom's.
+
 ## November 11, 2026 — The ignore-build proof, and the launch probe with every Vercel row read (docs only)
 
 **#1356 is PROVEN.** #1463 (docs only) merged as `ee8ffd91`: Vercel's status on the commit read "Canceled by Ignored Build Step" and `/api/health` kept `cd561f36`. A docs-only merge no longer builds or deploys; such a PR merges with `bash scripts/merge-pr.sh <N> --no-wait` (there is no new commit for the health wait to find).
