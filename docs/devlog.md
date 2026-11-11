@@ -1,5 +1,17 @@
 # Development Log
 
+## November 11, 2026 — Ready for Google's review: the policies are linked, not only named (zero DDL)
+
+Google's verification of the OAuth app has not passed (the correction is in the entry below), so before Tom submits to the Verification Center the live pages were read the way a reviewer reads them — signed out, from the home page. Three gaps, all text:
+
+- **The home page had no link to the privacy policy.** A signed-out visitor's home page is the launch gate's coming-soon page; it now carries Privacy Policy · Terms of Service · Contact under the sign-in line (all three already on the gate's open list).
+- **The privacy policy named Google's policy and "your Google account settings" without linking either.** The YouTube item now says "Edge Athlete uses YouTube API Services", links YouTube's Terms of Service, Google's Privacy Policy and the Google account permissions page where access is revoked, says what is kept (the channel's id and name and an encrypted access grant — nothing of the videos) and when it is deleted (on disconnect, or with the account), and that what comes from Google is used only for these features, never sold, never for advertising.
+- **The terms named YouTube's Terms of Service without linking them.** Section 3 links both policies and says that connecting a channel or watching an embedded video is also agreeing to YouTube's terms.
+
+**Proof:** `npm run verify` exit 0 (656 files, **6,032 tests**; `legal-pages.test.ts` gains two cases — both pages link the two policies with `rel="noopener noreferrer"` on every outbound link, the privacy policy carries "YouTube API Services", the permissions page, what is kept and the no-sale sentence; the coming-soon component links three paths that are each on the gate's open list); audit 0; guardrails ✓; `check:blocklists` ✓ (the three new outbound addresses); `check:schema` ✓ (zero DDL). Playwright on the built server against staging: `coming-soon.spec` on `mobile` 1/1 — the three links visible with no horizontal overflow, Privacy Policy opens signed out and shows the permissions and YouTube-terms links, then the sign-up and the inquiry as before. `launch-gate.spec` self-skips locally (the build is not gated). On production after the merge: the three pages read signed out with `curl`, the same check that found the gaps.
+
+**Tom's, in order:** remove `YOUTUBE_APP_VERIFIED` from Vercel Production (this merge is the redeploy that applies it); record the demo video; submit in the Verification Center with the three scope justifications; set the variable back to 1 when the status reads Verified.
+
 ## November 10, 2026 — YouTube connection round, PR 4 of 4: uploads — a full game outlives the hour, the tunnel and a reload (zero DDL, zero CSP)
 
 **What was wrong.** The device held ONE access token for the whole upload, and Google's tokens last an hour: a full game on a home connection runs past it, and the upload then died with "reconnect the channel" — wrong, the connection was fine. A dropped connection got three immediate retries with no wait, then the upload was lost. A reload lost it entirely. The phone's screen could sleep mid-upload. And nothing had ever driven the upload from a BROWSER in a test — the existing proof sent the chunks from node.

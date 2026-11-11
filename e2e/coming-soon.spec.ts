@@ -25,6 +25,19 @@ test('coming soon: a sign-up and an inquiry each end in a confirmation the perso
     const consent = page.locator('[data-coming-soon-consent]');
     await expect(consent).not.toBeChecked();
     await expect(page.locator('[data-coming-soon-submit]')).toHaveText('Notify me');
+    // The policies are linked from here (Google's reviewer starts on this page) inside the phone's width, and the privacy policy opens signed out.
+    const legal = page.locator('[data-coming-soon-legal]');
+    await expect(legal.getByRole('link', { name: 'Privacy Policy' })).toBeVisible();
+    await expect(legal.getByRole('link', { name: 'Terms of Service' })).toBeVisible();
+    await expect(legal.getByRole('link', { name: 'Contact' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await legal.getByRole('link', { name: 'Privacy Policy' }).click();
+    await expect(page).toHaveURL(/\/privacy$/);
+    await expect(page.locator('a[href="https://myaccount.google.com/permissions"]')).toBeVisible();
+    await expect(page.locator('a[href="https://www.youtube.com/t/terms"]')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.goto('/auth/coming-soon');
+    await expect(page.locator('[data-coming-soon]')).toBeVisible();
 
     // The sign-up: name + consent ticked.
     await page.locator('[data-coming-soon-name]').fill('Pat Tester');

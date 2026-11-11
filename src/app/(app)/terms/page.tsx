@@ -58,11 +58,13 @@ export default function TermsPage() {
                 visibility to approved fans.
               </p>
               <p className="mt-2">
-                A full game or broadcast you link is a YouTube video: it stays on YouTube, under
-                YouTube&apos;s Terms of Service and Google&apos;s Privacy Policy, and Edge Athlete
-                shows it through YouTube&apos;s player. If you connect a YouTube channel and upload
-                through Edge Athlete, the upload goes from your device to YouTube and the video is
-                yours there; we keep only the link.
+                A full game or broadcast you link is a YouTube video: it stays on YouTube, under{' '}
+                <a href="https://www.youtube.com/t/terms" className="text-brand-fg hover:text-brand-fg-strong underline" target="_blank" rel="noopener noreferrer">YouTube&apos;s Terms of Service</a> and{' '}
+                <a href="https://policies.google.com/privacy" className="text-brand-fg hover:text-brand-fg-strong underline" target="_blank" rel="noopener noreferrer">Google&apos;s Privacy Policy</a>, and Edge Athlete
+                shows it through YouTube&apos;s player. By connecting a YouTube channel, or watching a
+                video embedded here, you also agree to YouTube&apos;s Terms of Service. If you connect a
+                channel and upload through Edge Athlete, the upload goes from your device to YouTube and
+                the video is yours there; we keep only the link.
               </p>
             </section>
 
