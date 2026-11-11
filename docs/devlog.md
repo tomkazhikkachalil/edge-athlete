@@ -1,5 +1,16 @@
 # Development Log
 
+## November 10, 2026 — Migration 305 on production: the page-timings card is live, and its first two rows already name a finding (the feed's layout shift)
+
+Tom ran `database/migrations/305_page_timings.sql` in the production SQL editor — `305 APPLIED | 1 | false | 305`. From here: `check:schema:prod` **Ledger OK at 305, 143 tables, every one reachable by service_role**. One phone open of production from a real browser (`perf-feed.spec.ts` on edgeathlete.ca, the `mobile` project) left **two rows** in `page_timings` for build `a5a928a4`: **FCP 788 ms (good)** and **CLS 0.441 (poor)** on `/feed`, signed in, phone. The beacon's batch, the writer, the table and the read all work end to end; the console's "Page timings by build" card shows them.
+
+**What the first rows say, honestly:**
+- **The feed shifts its layout a lot while it loads — CLS 0.441 where 0.1 is "good" and 0.25 "poor".** The suspects, in order: the device-remembered page replaced by the fresh one (Phase 2b paints the remembered posts, then `loadFeed` sets the real list — same count usually, but any difference in post heights or order is a shift); the Live Now strip, the calendar widget and the suggestions filling in after the posts; images without reserved dimensions. The next perf round starts here: reserve the strip's and widgets' heights, keep the remembered page's order, give every image its box. This is exactly what the card exists to catch.
+- **LCP, INP and TTFB did not arrive from this one open.** The browser reports LCP and INP when the page is hidden or interacted with, and the probe closed the page without either; TTFB fires before the beacon's component mounts in this build and is not replayed. Real openings on phones background the app and tap, so those rows will come; a follow-up makes the beacon read TTFB from the navigation entry itself at mount.
+- `navigation` is null on these rows — the entry was not readable at flush time in that browser; to look at with the TTFB follow-up.
+
+**Tom's remaining steps:** `NEXT_PUBLIC_SW_STATIC_CACHE=1` in Vercel Production (then a real build), and merging #1356.
+
 ## November 8, 2026 — Performance program, Phase 5: the audit's small open rows — five reads bounded, the handle search behind a bucket (zero DDL)
 
 The last decision-free items on `docs/SCALE_AUDIT.md` §6, each a read that could one day cross PostgREST's silent 1,000-row cut or a query-per-keystroke route without a bucket:

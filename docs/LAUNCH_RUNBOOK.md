@@ -476,4 +476,4 @@ from it.*
 
 ## Real-user page timings (migration 305, Nov 2026)
 
-`/admin` → "Page timings by build": p75 LCP / INP / CLS / TTFB per deploy, phones and desktops, the last ten builds. Production needs migration 305 run once in the SQL editor (`database/migrations/305_page_timings.sql`; the code deploys first and drops beacons until then). After a merge, the new sha's row fills with the first opens; a build whose phone LCP p75 is red where the previous was green is the regression this card exists to catch — read it beside the prod probe in the maintenance checklist.
+`/admin` → "Page timings by build": p75 LCP / INP / CLS / TTFB per deploy, phones and desktops, the last ten builds. Migration 305 ran on production on Nov 10 2026 (the SQL editor; `check:schema:prod` OK at 305) — the card has been live since; its first rows named the feed's layout shift (CLS 0.441). After a merge, the new sha's row fills with the first opens; a build whose phone LCP p75 is red where the previous was green is the regression this card exists to catch — read it beside the prod probe in the maintenance checklist.
