@@ -231,6 +231,7 @@ every line ends in its probe. Nothing below is started until the morning's
 7. [Tom] Vercel → Team → Billing → **Observability Plus back ON** (Tom's Oct
    29 decision: OFF while gated, ON the day the doors open — the per-route
    and per-path views are what the first week's reading needs).
+   - **YouTube / Google verification (added Nov 11 2026):** the OAuth app's three YouTube scopes were submitted for Google's review on Nov 11. Before the switch, the Verification Center must read **Verified**; then set `YOUTUBE_APP_VERIFIED=1` in Vercel Production (it removes the "choose Advanced" sentence from the connect doors — set it EARLY and people meet Google's warning with no hint) and **delete the reviewer's account** `google-review@edgeathlete.ca`. Unverified, new connections are capped at 100 Google accounts.
 8. [Tom] Google Search Console: the domain property, submit `/sitemap.xml`.
 9. [Both] The first-hour watch (the "Launch-day watch" line above).
 10. [Tom] The announcement: Admin → Contacts → export the consenting rows
