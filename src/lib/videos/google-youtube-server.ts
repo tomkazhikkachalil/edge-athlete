@@ -288,7 +288,7 @@ export type UploadSession = { ok: true; sessionUri: string } | { ok: false; unau
  * bytes to the session URI, chunk by chunk, with the hour-long access token —
  * never through Edge Athlete or Vercel.
  */
-export async function youtubeCreateUploadSession(cfg: YouTubeConfig, accessToken: string, input: UploadSessionInput): Promise<UploadSession> {
+export async function youtubeCreateUploadSession(cfg: YouTubeConfig, accessToken: string, input: UploadSessionInput, origin?: string | null): Promise<UploadSession> {
   const res = await call(`${cfg.apiBase}/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status`, {
     method: 'POST',
     headers: {
@@ -296,6 +296,9 @@ export async function youtubeCreateUploadSession(cfg: YouTubeConfig, accessToken
       'Content-Type': 'application/json; charset=UTF-8',
       'X-Upload-Content-Length': String(input.sizeBytes),
       'X-Upload-Content-Type': input.contentType,
+      // The DEVICE sends the bytes: Google's upload server answers a browser's PUTs with CORS headers for the Origin the
+      // session was opened with, so the session is opened in the app's own origin's name (the uploads round, Nov 10 2026).
+      ...(origin ? { Origin: origin } : {}),
     },
     body: JSON.stringify({
       snippet: { title: input.title, description: input.description, categoryId: YOUTUBE_SPORTS_CATEGORY },
