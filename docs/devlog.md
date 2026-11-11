@@ -10,7 +10,7 @@ Tom: "lets go ahead and move everything to be ready" → all three of: a reviewe
 
 **The launch probe (`npm run launch:probe`, judged as gated):** every row it could read is green — Supabase auth e-mail on custom SMTP (60/h), Site URL and the redirect allowlist on edgeathlete.ca, confirmations ON, the Google provider, the push keys, production healthy, the gate ON (robots disallow, sitemap 404, sign-up 403), the visitor doors 200. **Nine rows could not be read**: the Vercel CLI login the probe uses has expired (403), and `RESEND_API_KEY` is not in `.env.staging`. Tom's `vercel login` (or a read token as `VERCEL_API_TOKEN`) makes them readable; nothing is known to be wrong behind them. `check:schema:prod` ✓ (143 tables, the ledger at 305).
 
-**#1356 is merged** (the Ignored Build Step). This PR is docs only, so it is the proof the cost program asked for: PROOF-IGNORE.
+**#1356 is merged** (the Ignored Build Step). This PR is docs only, so its merge is the proof the cost program asked for — Vercel cancels the build and `/api/health` keeps `cd561f36`; what the merge showed is the first line of the next entry.
 
 **Tom's list, in order:** `vercel login` → the probe's nine rows; Google's e-mail thread (reply there; the reviewer's sign-in is ready to send); `YOUTUBE_APP_VERIFIED=1` + remove the reviewer account when the status reads Verified; one real upload from the app; a connect from the installed iPhone app; the phone walks; then the runbook's switch.
 
