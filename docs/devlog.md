@@ -1,5 +1,29 @@
 # Development Log
 
+## November 11, 2026 — The feed holds still: its 0.441 layout shift was ONE element nobody could see (zero DDL)
+
+The page-timings card's first rows (Nov 10) put the feed's layout shift at **0.441** — "poor" starts at 0.25. The suspects written down that day were the device-remembered page being replaced, the Live Now strip, the widgets, and images without boxes. **All four measured zero.**
+
+**Measured first.** `perf-feed.spec.ts` now installs a `PerformanceObserver` for `layout-shift` before any page script and records each shift with the element that moved. On the `mobile` project (CPU ×4, the built app, staging) the cold open reproduced the production number to the digit: **0.441, a single shift at ~1.7 s**, its source the header row of the Suggested Connections card. Sampling the layout every animation frame showed that card **6,658 px down the page** — far below the fold — and nothing on screen moving (a filmstrip of the open shows no change at that moment).
+
+**The cause.** `ConnectionSuggestions` returned its skeleton (`<div><div className="animate-pulse">…`) and then its list (`<div><div className="flex items-center justify-between mb-4">…`) from the same position with the same tags, so React reused the nodes: the pulsing wrapper BECAME the header row. Chrome scored that animated element's change with its own box (324 × 448 px) as if it sat at the top of the viewport: 324 × 448 ÷ (390 × 844) = **0.441**. It is what real phones report to the card, so it counts.
+
+**The fix** is two `key`s — `key="loading"` on the skeleton's root, `key="ready"` on the list's — so the skeleton is removed and the list inserted (neither is a shift). `CourseSummaryCard` had the same shape (a pulsing root turned into the summary's root) and gets the same keys.
+
+| | Before | After |
+| --- | --- | --- |
+| `/feed`, cold open, phone | 0.441 | **0** |
+| `/feed`, return visit (remembered page first), phone | 0.530 | **0** |
+| `/feed`, desktop | — | 0.002 |
+
+The other main screens, measured the same way on the phone project: `/athlete`, `/live`, `/calendar`, `/sports`, notifications, `/messages`, `/app`, `/videos/new`, `/search` all **0**; the profile's Videos tab 0.032 (the YouTube card resolving — inside "good").
+
+**Held from here:** `FEED_CLS_BUDGET = 0.05` in `perf-feed.spec.ts` (a cold open and a return visit; the failure names the moved elements; it ratchets down); `skeleton-keys.test.ts`; `docs/specs/performance-budgets.md` rule 16 — a skeleton is never turned into what replaces it, and a score is diagnosed by its sources before any space is reserved.
+
+**Two things found on the way.** The spec's desktop test was already failing on main: 15 API calls against the budget of 14, the fifteenth being `/api/posts/views` — the beacon that reports which posts were on screen, which fires inside the settle window on a desktop (posts visible at once) and not on a phone. It is now counted apart, like the page-timings beacon: it reports the open, it is not part of it. **This changes what the budget counts and is Tom's to overrule.** And the route's loading view paints dark before a light-theme account's feed appears — seen in the filmstrip, not changed here.
+
+**Proof:** `npm run verify` exit 0 (658 files, **6,047 tests**, the build, `check:weight` ✓, the syntax floor); audit 0; guardrails ✓; `check:blocklists` ✓; `check:schema` ✓ (zero DDL). Playwright on the built server against staging: `perf-feed.spec` on `mobile` three runs — 14 API calls, cold 0 / return 0 each — and on `desktop` (14 calls with the view beacon apart, 0.002: the calendar widget settling 37 px); `hydration.spec` on `mobile` 1/1. Production line: after the merge, the same spec on edgeathlete.ca and the card's CLS row for the new build.
+
 ## November 11, 2026 — Ready for Google's review: the policies are linked, not only named (zero DDL)
 
 Google's verification of the OAuth app has not passed (the correction is in the entry below), so before Tom submits to the Verification Center the live pages were read the way a reviewer reads them — signed out, from the home page. Three gaps, all text:

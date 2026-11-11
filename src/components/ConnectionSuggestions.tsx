@@ -128,7 +128,10 @@ export default function ConnectionSuggestions({
 
   if (loading) {
     return (
-      <div className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`} data-feed-suggestions="loading">
+      // key: the skeleton and the list never share DOM nodes. Without it React turns the pulsing wrapper INTO the list's
+      // header row, and Chrome scores that animated element's change as a layout shift at the top of the screen — the
+      // feed's whole 0.441 (Nov 11 2026), from a card that is thousands of pixels below the fold.
+      <div key="loading" className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`} data-feed-suggestions="loading">
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 dark:bg-stone-800 rounded w-3/4 mb-4"></div>
           {/* As many rows as the list will hold, each the resolved row's height
@@ -155,7 +158,7 @@ export default function ConnectionSuggestions({
   }
 
   return (
-    <div className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`} data-feed-suggestions="ready">
+    <div key="ready" className={`bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-4' : 'p-6'}`} data-feed-suggestions="ready">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className={`font-bold text-primary ${compact ? 'text-base' : 'text-lg'}`}>

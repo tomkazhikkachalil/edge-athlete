@@ -51,11 +51,12 @@ export default function CourseSummaryCard({ course, holeLines, greensOnly = fals
   const totals = summary.tees.filter(t => t.yards != null);
 
   if (loading) {
-    return <div className="mb-3 h-[72px] animate-pulse rounded-lg bg-surface" data-course-summary="loading" />;
+    // key: the pulsing placeholder is never turned INTO the summary's root (performance-budgets.md, rule 16).
+    return <div key="loading" className="mb-3 h-[72px] animate-pulse rounded-lg bg-surface" data-course-summary="loading" />;
   }
 
   return (
-    <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3" data-course-summary="">
+    <div key="ready" className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3" data-course-summary="">
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           {summary.holeCount != null && (

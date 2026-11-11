@@ -27,6 +27,13 @@ const BASELINE = process.env.PERF_BASELINE === '1';
  * It ratchets DOWN; raising it is a decision in the devlog.
  */
 const OPEN_PATH_API_BUDGET = 14;
+/**
+ * The most the feed may shift while it loads (the browser's layout-shift score; "good" is 0.1). Measured on the `mobile`
+ * project, CPU ×4, Nov 11 2026: 0.441 before — ONE shift, the Suggested Connections card's pulsing skeleton wrapper
+ * reused by React as the list's header row — and 0 after the two were keyed apart, on a cold open and on a return that
+ * paints the device-remembered page first. It ratchets DOWN; raising it is a decision in the devlog.
+ */
+const FEED_CLS_BUDGET = 0.05;
 
 interface Sample {
   engine: string;
@@ -37,6 +44,49 @@ interface Sample {
   imageCache: string | null;
   afterRefocus: { posts: number; notifications: number; messages: number };
   afterTokenRefresh: { posts: number; notifications: number; profile: number };
+  /** The feed's layout shift (Nov 11 2026): the cold open, and a return visit that paints the device-remembered page first. */
+  cls: { cold: number; coldTop: ShiftSource[]; reopen: number; reopenTop: ShiftSource[] };
+}
+
+interface ShiftSource { el: string; value: number; atMs: number; dy: number }
+
+/**
+ * Every layout shift the browser reports, with the elements that moved — installed before any page script. The score is
+ * the browser's own (the sum of the shifts that did not follow an input; the page's session windows are one window here,
+ * a load being a few seconds). `el` names a moved element by its data attributes, test id or first classes.
+ */
+async function watchShifts(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __shifts: Array<{ value: number; atMs: number; sources: Array<{ el: string; dy: number }> }> };
+    w.__shifts = [];
+    const name = (n: Node | null): string => {
+      const e = n && n.nodeType === 1 ? (n as Element) : n?.parentElement ?? null;
+      if (!e) return '(gone)';
+      const data = Array.from(e.attributes).filter(a => a.name.startsWith('data-') && a.name !== 'data-state').slice(0, 2).map(a => `[${a.name}${a.value ? `="${a.value.slice(0, 24)}"` : ''}]`).join('');
+      const cls = typeof e.className === 'string' ? e.className.split(/\s+/).filter(Boolean).slice(0, 3).join('.') : '';
+      return `${e.tagName.toLowerCase()}${data || (cls ? `.${cls}` : '')}`;
+    };
+    try {
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries() as unknown as Array<{ value: number; hadRecentInput: boolean; startTime: number; sources?: Array<{ node: Node | null; previousRect: DOMRectReadOnly; currentRect: DOMRectReadOnly }> }>) {
+          if (entry.hadRecentInput) continue;
+          w.__shifts.push({ value: entry.value, atMs: Math.round(entry.startTime), sources: (entry.sources ?? []).map(src => ({ el: name(src.node), dy: Math.round(src.currentRect.top - src.previousRect.top) })) });
+        }
+      }).observe({ type: 'layout-shift', buffered: true });
+    } catch {
+      /* an engine without the entry type reports nothing (WebKit) */
+    }
+  });
+}
+
+async function readShifts(page: Page): Promise<{ total: number; top: ShiftSource[] }> {
+  const shifts = await page.evaluate(() => (window as unknown as { __shifts?: Array<{ value: number; atMs: number; sources: Array<{ el: string; dy: number }> }> }).__shifts ?? []);
+  const total = Math.round(shifts.reduce((sum, x) => sum + x.value, 0) * 1000) / 1000;
+  const top = [...shifts].sort((a, b) => b.value - a.value).slice(0, 8).map(x => {
+    const moved = [...x.sources].sort((a, b) => Math.abs(b.dy) - Math.abs(a.dy))[0];
+    return { el: moved?.el ?? '(no source)', value: Math.round(x.value * 1000) / 1000, atMs: x.atMs, dy: moved?.dy ?? 0 };
+  });
+  return { total, top };
 }
 
 function apiPath(url: string): string | null {
@@ -46,6 +96,10 @@ function apiPath(url: string): string | null {
   // two seconds after the metrics settle, counted apart — it measures the open,
   // it is not part of it. Every other /api call is.
   if (u.pathname === '/api/page-timings') return null;
+  // The post-view beacon is the same kind of thing (Nov 11 2026): it REPORTS which posts were on screen long enough to
+  // count, and whether it fires inside the settle window depends on the viewport — a desktop shows posts at once (15
+  // calls, found failing on main), a phone does not (14). It is not a read the open waits for; counted apart.
+  if (u.pathname === '/api/posts/views') return null;
   return u.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/g, ':id').replace(/\/api\/media\/[^/]+/, '/api/media/:token');
 }
 
@@ -60,6 +114,7 @@ async function measure(page: Page, engine: string): Promise<Sample> {
     if (!imageCache && r.url().includes('/api/media/')) imageCache = r.headers()['cache-control'] ?? '(none)';
   });
 
+  await watchShifts(page);
   // A controllable clock (the token-refresh phase fast-forwards it).
   await page.clock.install();
   const t0 = Date.now();
@@ -68,6 +123,7 @@ async function measure(page: Page, engine: string): Promise<Sample> {
   const firstPostMs = Date.now() - t0;
   // Let the load settle (the side widgets, the bell, the realtime handshake).
   await page.waitForTimeout(6_000);
+  const coldShifts = await readShifts(page);
   const apiOnLoad = api.length;
   const apiByPath: Record<string, number> = {};
   for (const p of api) apiByPath[p] = (apiByPath[p] ?? 0) + 1;
@@ -112,6 +168,13 @@ async function measure(page: Page, engine: string): Promise<Sample> {
   await page.clock.runFor('16:00');
   await page.waitForTimeout(6_000);
   const refreshed = api.slice(beforeRefresh);
+  const profileReadsOnRefresh = profileReads; // read NOW: the reload below reads the profile, as any open does
+
+  // A return visit: the device-remembered page paints first, then the fresh one replaces it (Phase 2b).
+  await page.reload();
+  await expect(page.getByTestId('post-card').first()).toBeVisible({ timeout: 45_000 });
+  await page.waitForTimeout(6_000);
+  const reopenShifts = await readShifts(page);
 
   return {
     engine,
@@ -128,8 +191,9 @@ async function measure(page: Page, engine: string): Promise<Sample> {
     afterTokenRefresh: {
       posts: refreshed.filter(x => x === '/api/posts').length,
       notifications: refreshed.filter(x => x === '/api/notifications').length,
-      profile: profileReads,
+      profile: profileReadsOnRefresh,
     },
+    cls: { cold: coldShifts.total, coldTop: coldShifts.top, reopen: reopenShifts.total, reopenTop: reopenShifts.top },
   };
 }
 
@@ -166,6 +230,9 @@ async function run(page: Page, engine: string) {
   expect(sample.apiByPath['/api/follow/stats'] ?? 0, 'the suggested people asked /api/follow/stats one by one').toBe(0);
   expect(sample.apiByPath['/api/me/pulse'] ?? 0, 'the pulse was read more than once on load').toBeLessThanOrEqual(1);
   expect(sample.apiByPath['/api/relay'] ?? 0, 'the browser sent Sentry beacons on a clean load').toBe(0);
+  // The feed holds still while it loads — a cold open, and a return that paints the remembered page first.
+  expect(sample.cls.cold, `the feed shifted on a cold open: ${JSON.stringify(sample.cls.coldTop)}`).toBeLessThanOrEqual(FEED_CLS_BUDGET);
+  expect(sample.cls.reopen, `the feed shifted on a return visit: ${JSON.stringify(sample.cls.reopenTop)}`).toBeLessThanOrEqual(FEED_CLS_BUDGET);
 }
 
 test('perf: a cold /feed and a return to the app (desktop)', async ({ page }) => {
