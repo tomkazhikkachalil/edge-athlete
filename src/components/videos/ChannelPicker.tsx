@@ -16,7 +16,7 @@ import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
  */
 type PickerState = { status: 'idle' } | { status: 'loading' } | { status: 'ready'; uploads: ChannelUpload[] } | { status: 'error'; message: string; reconnect: boolean };
 
-export default function ChannelPicker({ owner, onPick }: { owner: string; onPick: (videoId: string, title: string) => void }) {
+export default function ChannelPicker({ owner, onPick, returnTo, onLeave }: { owner: string; onPick: (videoId: string, title: string) => void; returnTo?: string; onLeave?: () => void }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<PickerState>({ status: 'idle' });
 
@@ -57,7 +57,7 @@ export default function ChannelPicker({ owner, onPick }: { owner: string; onPick
             <p className="text-xs text-red-600" role="alert" data-channel-picker-error="">
               {state.message}{' '}
               {state.reconnect
-                ? <YouTubeReconnectLink owner={owner} scope="readonly" />
+                ? <YouTubeReconnectLink owner={owner} scope="readonly" returnTo={returnTo} onNavigate={onLeave} />
                 : <button type="button" onClick={() => setState({ status: 'idle' })} className="underline font-semibold" data-channel-picker-retry="">Try again</button>}
             </p>
           )}

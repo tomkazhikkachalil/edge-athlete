@@ -5,6 +5,7 @@ import {
   accessTokenFresh, BROADCAST_ERRORS, chaptersToHighlights, lookupRefusal, parseChapters, broadcastErrorWord, CONNECT_ERRORS, defaultBroadcastStart, parseBroadcastBody, studioUrlFor, expiresAtFrom, hasScope, isScopeKey, isYouTubeSecret, mergeGrantedScopes, nextOffsetFromRange,
   ownerColumns, ownerRef, parseIsoDuration, parseOwnerRef, parseUploadPrivacy, parseUploadSessionBody, problemFor, projectConnection,
   returnPathFor, scopeKeysOf, scopesFor, secretContextFor, uploadsPlaylistFor, TOKEN_REFRESH_SKEW_MS, YOUTUBE_CHUNK_BYTES, YOUTUBE_SCOPES, youtubeContentRange,
+  appendQuery, connectReturnPath, FLOW_DRAFT_TTL_MS, grantShortfall, landingFor, parseFlowDraft, UNVERIFIED_NOTE,
   CALL_REFUSALS, callRefusalWord, HEALTH_CHECK_EVERY_MS, healthCheckDue, reconnectScope, TOKEN_FAILURES, tokenFailureFor, withOneRetry,
   type YouTubeConnectionRow,
 } from '../youtube-connection';
@@ -78,7 +79,7 @@ describe('the secret and the token', () => {
 describe('the projection', () => {
   it('never carries the secret; canUpload needs manage + the connector + active', () => {
     const mine = projectConnection(row, { userId: 'u1', canManage: true, available: true });
-    expect(Object.keys(mine)).toEqual(['available', 'connected', 'channelId', 'channelTitle', 'scopes', 'status', 'connectedAt', 'connectedByMe', 'canManage', 'canUpload', 'canBroadcast', 'problem']);
+    expect(Object.keys(mine)).toEqual(['available', 'connected', 'channelId', 'channelTitle', 'scopes', 'status', 'connectedAt', 'connectedByMe', 'canManage', 'canUpload', 'canBroadcast', 'problem', 'unverified']);
     expect(mine).toMatchObject({ connected: true, channelId: 'UCabc', scopes: ['readonly'], connectedByMe: true, canUpload: true, problem: null });
     expect(projectConnection(row, { userId: 'u2', canManage: true, available: true })).toMatchObject({ connectedByMe: false, canUpload: false, canManage: true });
     expect(projectConnection({ ...row, status: 'revoked' }, { userId: 'u1', canManage: true, available: true })).toMatchObject({ canUpload: false, problem: expect.stringContaining('reconnect') });
@@ -314,3 +315,75 @@ describe('self-healing', () => {
     expect(route).toContain("enforceRateLimit(request, 'video-lookup'");
   });
 });
+
+// The flow round (Nov 10 2026): back where you started, with what you had, and an honest word about what Google granted.
+describe('the flow round', () => {
+  const O = '22222222-2222-4222-8222-222222222222';
+  it('a return path is a path of THIS app on the short list of screens with a connect door — nothing else', () => {
+    expect(connectReturnPath('/videos/new')).toBe('/videos/new');
+    expect(connectReturnPath(`/videos/new?side=club&orgId=${O}&sportEventId=${O}`)).toBe(`/videos/new?side=club&orgId=${O}&sportEventId=${O}`);
+    expect(connectReturnPath('/athlete?tab=videos')).toBe('/athlete?tab=videos');
+    expect(connectReturnPath(`/app/org/club/${O}?section=website`)).toBe(`/app/org/club/${O}?section=website`);
+    expect(connectReturnPath('/u/someone?tab=videos')).toBe('/u/someone?tab=videos');
+    // An earlier result never rides along; a fragment is dropped.
+    expect(connectReturnPath('/videos/new?youtube=connected&scope=upload&profileId=x&youtube_error=denied#top')).toBe('/videos/new?profileId=x');
+    // Another origin, in every spelling.
+    for (const bad of ['https://evil.example/videos/new', '//evil.example/videos/new', '/\\evil.example', '/videos/new\\..', 'videos/new', '', ' /videos/new', '/videos/new\n', '/\tvideos/new']) expect(connectReturnPath(bad), bad).toBeNull();
+    // Not on the list — an API route, the feed, a look-alike, a climb out of the list.
+    for (const bad of ['/api/videos/youtube/start', '/feed', '/videos/newer', '/videos/new/../../api/account/delete', '/athletes', '/app/orgs', '/', '/videos/123']) expect(connectReturnPath(bad), bad).toBeNull();
+    expect(connectReturnPath('/' + 'a'.repeat(600))).toBeNull();
+    expect(connectReturnPath(null)).toBeNull();
+    expect(connectReturnPath(42)).toBeNull();
+  });
+  it('the landing is the screen that asked, else the owner\'s Videos surface; the result words join an existing query correctly', () => {
+    const owner = { kind: 'profile' as const, profileId: O };
+    expect(appendQuery('/videos/new', 'youtube=connected')).toBe('/videos/new?youtube=connected');
+    expect(appendQuery('/videos/new?side=club', 'youtube=connected')).toBe('/videos/new?side=club&youtube=connected');
+    expect(appendQuery('/videos/new', '')).toBe('/videos/new');
+    expect(landingFor(owner, '/videos/new?side=club', 'youtube_error=denied')).toBe('/videos/new?side=club&youtube_error=denied');
+    expect(landingFor(owner, null, 'youtube=connected')).toBe(returnPathFor(owner, 'youtube=connected'));
+  });
+  it('what was asked but left unticked at Google has its word and its sentence; readonly asks nothing extra', () => {
+    expect(grantShortfall('readonly', '')).toBeNull();
+    expect(grantShortfall('upload', `${YOUTUBE_SCOPES.readonly} ${YOUTUBE_SCOPES.upload}`)).toBeNull();
+    expect(grantShortfall('upload', YOUTUBE_SCOPES.readonly)).toBe('notgranted_upload');
+    expect(grantShortfall('upload', '')).toBe('notgranted_upload');
+    expect(grantShortfall('live', `${YOUTUBE_SCOPES.readonly} ${YOUTUBE_SCOPES.upload}`)).toBe('notgranted_live');
+    expect(grantShortfall('live', [YOUTUBE_SCOPES.live])).toBeNull();
+    for (const w of ['notgranted', 'notgranted_upload', 'notgranted_live']) expect(CONNECT_ERRORS[w]).toMatch(/unticked/);
+    expect(UNVERIFIED_NOTE).toMatch(/Advanced/);
+  });
+  it('the projection says whether Google\'s review is still pending — pending unless the deployment says verified', () => {
+    expect(projectConnection(null, { userId: 'u1', canManage: true, available: true }).unverified).toBe(true);
+    expect(projectConnection(null, { userId: 'u1', canManage: true, available: true, verified: false }).unverified).toBe(true);
+    expect(projectConnection(null, { userId: 'u1', canManage: true, available: true, verified: true }).unverified).toBe(false);
+  });
+  it('the draft the flow keeps while the person is at Google: fifteen minutes, its own shape only', () => {
+    const now = 1_800_000_000_000;
+    const good = { url: 'https://youtu.be/abcdefghijk', title: 'Final', description: '', sportKey: 'golf', owner: { orgId: O }, index: 1, at: now - 60_000 };
+    expect(parseFlowDraft(JSON.stringify(good), now)).toEqual(good);
+    expect(parseFlowDraft(JSON.stringify({ ...good, owner: 'me' }), now)?.owner).toBe('me');
+    expect(parseFlowDraft(JSON.stringify({ ...good, owner: { orgId: 'nope' } }), now)?.owner).toBeNull();
+    expect(parseFlowDraft(JSON.stringify({ ...good, index: 9 }), now)?.index).toBe(0);
+    expect(parseFlowDraft(JSON.stringify({ ...good, at: now - FLOW_DRAFT_TTL_MS - 1 }), now)).toBeNull();
+    expect(parseFlowDraft(JSON.stringify({ ...good, at: now + 5_000 }), now)).toBeNull();
+    expect(parseFlowDraft(JSON.stringify({ ...good, title: 7 }), now)).toBeNull();
+    expect(parseFlowDraft(JSON.stringify({ ...good, url: 'x'.repeat(3000) }), now)).toBeNull();
+    expect(parseFlowDraft('{not json', now)).toBeNull();
+    expect(parseFlowDraft('[]', now)).toBeNull();
+    expect(parseFlowDraft(null, now)).toBeNull();
+  });
+  it('both routes land through the one rule; the callback checks the cookie again and clears it', () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), f), 'utf8');
+    const start = read('src/app/api/videos/youtube/start/route.ts');
+    expect(start).toContain("connectReturnPath(params.get('return'))");
+    expect(start).toContain('res.cookies.set(RETURN_COOKIE');
+    const cb = read('src/app/api/videos/youtube/callback/route.ts');
+    expect(cb).toContain('connectReturnPath(request.cookies.get(RETURN_COOKIE)?.value)');
+    expect(cb).toContain("res.cookies.set(RETURN_COOKIE, '', { ...pkceCookieOptions(request), maxAge: 0 })");
+    expect(cb).toContain('grantShortfall(scope, tokens.scope)');
+    expect(cb).not.toContain('returnPathFor');
+    expect(cb).not.toMatch(/NextResponse\.redirect\(new URL\(params/);
+  });
+});
+

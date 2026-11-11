@@ -23,7 +23,7 @@ type Scheduled = { videoId: string; title: string; streamKey: string; rtmpsUrl: 
  * encoder or Studio at the key. Continue hands the parent the id; the row
  * is an ordinary link, and Phase 4a's first read makes it upcoming.
  */
-export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onScheduled, onNeedsScope }: { owner: string; initialTitle?: string; onScheduled: (videoId: string, title: string) => void; onNeedsScope: () => void }) {
+export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onScheduled, onNeedsScope, returnTo, onLeave }: { owner: string; initialTitle?: string; onScheduled: (videoId: string, title: string) => void; onNeedsScope: () => void; returnTo?: string; onLeave?: () => void }) {
   const [title, setTitle] = useState(initialTitle.slice(0, UPLOAD_TITLE_MAX));
   const [startLocal, setStartLocal] = useState(() => defaultBroadcastStart());
   const [minLocal] = useState(() => defaultBroadcastStart(new Date(Date.now() - 3_600_000)));
@@ -131,7 +131,7 @@ export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onSche
           </label>
         ))}
       </fieldset>
-      {phase.kind === 'error' && <p className="text-sm text-red-600" role="alert" data-youtube-broadcast-error="">{phase.message}{phase.reconnect && <> <YouTubeReconnectLink owner={owner} scope="live" /></>}</p>}
+      {phase.kind === 'error' && <p className="text-sm text-red-600" role="alert" data-youtube-broadcast-error="">{phase.message}{phase.reconnect && <> <YouTubeReconnectLink owner={owner} scope="live" returnTo={returnTo} onNavigate={onLeave} /></>}</p>}
       <button type="button" onClick={() => void schedule()} disabled={busy || !title.trim() || !startLocal} className="ea-cta w-full min-h-[44px] rounded-lg text-sm font-semibold text-white disabled:opacity-60" data-youtube-broadcast-schedule="">
         {busy ? 'Scheduling…' : 'Schedule on YouTube'}
       </button>

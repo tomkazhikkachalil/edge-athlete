@@ -1,7 +1,7 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket, type QaUser } from './helpers/qa-user';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
-import { startYouTubeMock, type MockChannel, type YouTubeMock } from './helpers/youtube-mock';
+import { landingOf, startYouTubeMock, type MockChannel, type YouTubeMock } from './helpers/youtube-mock';
 
 // Videos program Phase 4b (Nov 5 2026): the broadcast created from Edge
 // Athlete. The connector schedules it from the Add a full game flow: the
@@ -44,13 +44,11 @@ test('the connector schedules a broadcast from the flow: the third consent, the 
   try {
     // 1. Connect (readonly). Scheduling needs the live scope: 409 names it; the second consent adds it.
     mock.signInAs(CHANNEL);
-    await page.goto(`/api/videos/youtube/start?owner=${owner}&scope=readonly`);
-    await expect.poll(() => page.url(), { timeout: 20_000 }).toContain('youtube=connected');
+    expect(await landingOf(page, `/api/videos/youtube/start?owner=${owner}&scope=readonly`)).toContain('youtube=connected');
     let res = await apiA.post('/api/videos/youtube/broadcast', { data: schedule });
     expect(res.status(), await readErrorBody(res)).toBe(409);
     expect((await res.json()).needs_scope).toBe('live');
-    await page.goto(`/api/videos/youtube/start?owner=${owner}&scope=live`);
-    await expect.poll(() => page.url(), { timeout: 20_000 }).toContain('youtube=connected&scope=live');
+    expect(await landingOf(page, `/api/videos/youtube/start?owner=${owner}&scope=live`)).toContain('youtube=connected&scope=live');
     const view = (await (await apiA.get(`/api/videos/youtube/connection?owner=${owner}`)).json()).connection as { scopes: string[]; canBroadcast: boolean; canUpload: boolean };
     expect(view.scopes).toEqual(['readonly', 'live']);
     expect(view.canBroadcast).toBe(true);

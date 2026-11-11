@@ -9,6 +9,8 @@ import { signOAuthState, verifyOAuthState } from '@/lib/activities/oauth-state-s
 import { ownerRef, parseOwnerRef, isScopeKey, type ConnectionOwner, type ScopeKey } from './youtube-connection';
 
 export const PKCE_COOKIE = 'ea-yt-pkce';
+/** The flow round (Nov 10 2026): the screen that started the connect, when it asked to be returned to — beside the verifier, same path, same ten minutes; read back through `connectReturnPath` again. */
+export const RETURN_COOKIE = 'ea-yt-return';
 export const PKCE_COOKIE_PATH = '/api/videos/youtube';
 const PKCE_TTL_S = 600;
 

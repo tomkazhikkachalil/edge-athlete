@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { activeWriterRefusal, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
-import { returnPathFor } from '@/lib/videos/youtube-connection';
+import { connectReturnPath, grantShortfall, landingFor } from '@/lib/videos/youtube-connection';
 import { connectYouTube, ownerManaged } from '@/lib/videos/youtube-connections-server';
 import { isPkceVerifier, youtubeConfig, youtubeExchangeCode, youtubeMyChannel } from '@/lib/videos/google-youtube-server';
-import { callbackUri, PKCE_COOKIE, pkceCookieOptions, readConnectState } from '@/lib/videos/youtube-oauth-server';
+import { callbackUri, PKCE_COOKIE, pkceCookieOptions, readConnectState, RETURN_COOKIE } from '@/lib/videos/youtube-oauth-server';
 
 /**
  * GET /api/videos/youtube/callback — Google sends the person back here with
@@ -17,12 +17,21 @@ import { callbackUri, PKCE_COOKIE, pkceCookieOptions, readConnectState } from '@
  * way); the manage and moderation checks again; code → tokens (a refresh
  * token is required — prompt=consent asks for it every time); the channel of
  * the account that said yes (none → `nochannel`); the row, sealed.
+ *
+ * The flow round (Nov 10 2026): the landing is the screen that started the
+ * connect when it asked (the return cookie, checked again by
+ * `connectReturnPath`), else the owner's Videos surface. And the result is
+ * honest: Google's page has a box per permission — what was asked but left
+ * unticked lands as `notgranted_upload` / `notgranted_live` (the channel IS
+ * connected, with what was granted), and an unticked channel box as
+ * `notgranted`.
  */
 export const maxDuration = 60;
 
 const back = (request: NextRequest, path: string) => {
   const res = NextResponse.redirect(new URL(path, request.url), 302);
   res.cookies.set(PKCE_COOKIE, '', { ...pkceCookieOptions(request), maxAge: 0 });
+  res.cookies.set(RETURN_COOKIE, '', { ...pkceCookieOptions(request), maxAge: 0 });
   return res;
 };
 const FALLBACK = '/athlete?youtube_error=failed&tab=videos';
@@ -35,7 +44,8 @@ export async function GET(request: NextRequest) {
     const state = readConnectState(params.get('state'), user.id);
     if (!state) return back(request, FALLBACK.replace('failed', 'expired'));
     const { owner, scope } = state;
-    const err = (word: string) => back(request, returnPathFor(owner, `youtube_error=${word}`));
+    const returnTo = connectReturnPath(request.cookies.get(RETURN_COOKIE)?.value);
+    const err = (word: string) => back(request, landingFor(owner, returnTo, `youtube_error=${word}`));
 
     const cfg = youtubeConfig();
     if (!cfg) return err('unavailable');
@@ -52,7 +62,7 @@ export async function GET(request: NextRequest) {
     const tokens = await youtubeExchangeCode(cfg, code, callbackUri(request), verifier);
     if (!tokens.ok || !tokens.refreshToken) return err('failed');
     const channel = await youtubeMyChannel(cfg, tokens.accessToken);
-    if (!channel.ok) return err('failed');
+    if (!channel.ok) return err(channel.status === 403 ? 'notgranted' : 'failed');
     if (!channel.value) return err('nochannel');
 
     const connected = await connectYouTube(admin, {
@@ -64,7 +74,9 @@ export async function GET(request: NextRequest) {
       secret: { refreshToken: tokens.refreshToken, accessToken: tokens.accessToken, expiresAt: tokens.expiresAt },
     });
     if (!connected.ok) return err(connected.status === 503 ? 'unavailable' : 'failed');
-    return back(request, returnPathFor(owner, `youtube=connected&scope=${scope}`));
+    const shortfall = grantShortfall(scope, tokens.scope);
+    if (shortfall) return err(shortfall);
+    return back(request, landingFor(owner, returnTo, `youtube=connected&scope=${scope}`));
   } catch (error) {
     reportRouteError('[videos/youtube] callback error:', error);
     return back(request, FALLBACK);

@@ -275,3 +275,15 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
   await new Promise<void>(resolve => server.listen(YOUTUBE_MOCK_PORT, '127.0.0.1', resolve));
   return mock;
 }
+
+/**
+ * Navigate to a connect start URL and answer where the callback LANDED — the
+ * final response's URL. The screens read the result words once and then
+ * remove them from the address (the flow round, Nov 10 2026), so a spec
+ * reads the landing itself, never `page.url()` a moment later.
+ */
+export async function landingOf(page: { goto(url: string): Promise<{ url(): string } | null>; url(): string }, startUrl: string): Promise<string> {
+  const res = await page.goto(startUrl);
+  return res?.url() ?? page.url();
+}
+
