@@ -195,6 +195,12 @@ export default function ComingSoon() {
             Sign in
           </Link>
         </p>
+        {/* The home page a signed-out visitor (and Google's reviewer) sees names its policies: all three open through the gate. */}
+        <nav className="mt-4 flex flex-wrap justify-center gap-x-5 text-sm" aria-label="Policies" data-coming-soon-legal="">
+          <Link href="/privacy" className="inline-flex min-h-[44px] items-center font-medium text-brand-fg hover:text-brand-fg-strong">Privacy Policy</Link>
+          <Link href="/terms" className="inline-flex min-h-[44px] items-center font-medium text-brand-fg hover:text-brand-fg-strong">Terms of Service</Link>
+          <Link href="/contact" className="inline-flex min-h-[44px] items-center font-medium text-brand-fg hover:text-brand-fg-strong">Contact</Link>
+        </nav>
       </div>
     </main>
   );

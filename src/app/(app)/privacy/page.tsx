@@ -102,10 +102,16 @@ export default function PrivacyPage() {
                   the uploads you send to it through Edge Athlete (the video goes from your device to
                   YouTube — we never download, store or edit it); and, if you schedule a live broadcast
                   from Edge Athlete, we create that broadcast and its stream on your channel and show you
-                  the stream key once — we never store it. The connection is yours to remove
-                  at any time from the Videos tab; you can also revoke it in your Google account
-                  settings. YouTube&apos;s own terms and Google&apos;s privacy policy apply to the
-                  channel.
+                  the stream key once — we never store it. For these features Edge Athlete uses
+                  YouTube API Services: by connecting a channel you also agree to{' '}
+                  <a href="https://www.youtube.com/t/terms" className="text-brand-fg hover:text-brand-fg-strong underline" target="_blank" rel="noopener noreferrer">YouTube&apos;s Terms of Service</a>, and{' '}
+                  <a href="https://policies.google.com/privacy" className="text-brand-fg hover:text-brand-fg-strong underline" target="_blank" rel="noopener noreferrer">Google&apos;s Privacy Policy</a>{' '}
+                  applies to the channel. What we keep is the channel&apos;s id and name and an encrypted
+                  access grant — nothing of the videos themselves — and it is deleted when you disconnect
+                  the channel or delete your account. What we receive from Google is used only to provide
+                  these features to you; it is never sold and never used for advertising. The connection
+                  is yours to remove at any time from the Videos tab; you can also revoke it on{' '}
+                  <a href="https://myaccount.google.com/permissions" className="text-brand-fg hover:text-brand-fg-strong underline" target="_blank" rel="noopener noreferrer">your Google account&apos;s permissions page</a>.
                 </li>
                 <li>
                   <span className="font-medium">Sentry</span> — error reports when something
