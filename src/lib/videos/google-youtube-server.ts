@@ -131,15 +131,22 @@ export async function youtubeRevoke(cfg: YouTubeConfig, token: string): Promise<
 }
 
 // ── The Data API reads ──────────────────────────────────────────────────────
-export type YouTubeRead<T> = { ok: true; value: T } | { ok: false; unauthorized: boolean };
+/** `status` 0 = no answer at all; `reason` is Google's `errors[].reason` when it gave one (quotaExceeded, insufficientPermissions, …). */
+export type YouTubeRead<T> = { ok: true; value: T } | { ok: false; unauthorized: boolean; status: number; reason: string | null };
+
+/** Google's first `errors[].reason` on a refusal; null when the body says nothing. */
+async function reasonOf(res: Response): Promise<string | null> {
+  const body = (await res.json().catch(() => null)) as { error?: { errors?: Array<{ reason?: unknown }> } } | null;
+  const reason = body?.error?.errors?.find(e => typeof e?.reason === 'string')?.reason;
+  return typeof reason === 'string' ? reason : null;
+}
 
 async function readJson<T>(cfg: YouTubeConfig, path: string, accessToken: string, pick: (body: unknown) => T | null): Promise<YouTubeRead<T>> {
   const res = await call(`${cfg.apiBase}${path}`, { method: 'GET', headers: bearer(accessToken) });
-  if (!res) return { ok: false, unauthorized: false };
-  if (res.status === 401 || res.status === 403) return { ok: false, unauthorized: res.status === 401 };
-  if (!res.ok) return { ok: false, unauthorized: false };
+  if (!res) return { ok: false, unauthorized: false, status: 0, reason: null };
+  if (!res.ok) return { ok: false, unauthorized: res.status === 401, status: res.status, reason: await reasonOf(res) };
   const value = pick(await res.json().catch(() => null));
-  return value === null ? { ok: false, unauthorized: false } : { ok: true, value };
+  return value === null ? { ok: false, unauthorized: false, status: res.status, reason: null } : { ok: true, value };
 }
 
 // ── The live state (Phase 4a): one id, by the owner's token OR the server-only key ──
@@ -274,7 +281,7 @@ export async function youtubeVideoDetails(cfg: YouTubeConfig, accessToken: strin
 export const youtubeVideoLookup = youtubeLiveDetails;
 
 // ── The resumable upload session ────────────────────────────────────────────
-export type UploadSession = { ok: true; sessionUri: string } | { ok: false; unauthorized: boolean; status: number };
+export type UploadSession = { ok: true; sessionUri: string } | { ok: false; unauthorized: boolean; status: number; reason: string | null };
 
 /**
  * The server opens the session (it holds the token); the device then PUTs the
@@ -295,9 +302,10 @@ export async function youtubeCreateUploadSession(cfg: YouTubeConfig, accessToken
       status: { privacyStatus: input.privacy, selfDeclaredMadeForKids: false },
     }),
   });
-  if (!res) return { ok: false, unauthorized: false, status: 0 };
+  if (!res) return { ok: false, unauthorized: false, status: 0, reason: null };
   const location = res.headers.get('location');
-  if (!res.ok || !location) return { ok: false, unauthorized: res.status === 401, status: res.status };
+  if (!res.ok) return { ok: false, unauthorized: res.status === 401, status: res.status, reason: await reasonOf(res) };
+  if (!location) return { ok: false, unauthorized: false, status: res.status, reason: null };
   return { ok: true, sessionUri: location };
 }
 

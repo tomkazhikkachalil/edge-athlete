@@ -7,6 +7,7 @@ import FaIcon from '@/components/FaIcon';
 import { faSliders } from '@/lib/icons/fa/sliders';
 import { faTowerBroadcast } from '@/lib/icons/fa/tower-broadcast';
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
+import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
@@ -27,7 +28,7 @@ export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onSche
   const [startLocal, setStartLocal] = useState(() => defaultBroadcastStart());
   const [minLocal] = useState(() => defaultBroadcastStart(new Date(Date.now() - 3_600_000)));
   const [privacy, setPrivacy] = useState<UploadPrivacy>('unlisted');
-  const [phase, setPhase] = useState<{ kind: 'idle' } | { kind: 'scheduling' } | { kind: 'error'; message: string } | { kind: 'scheduled'; value: Scheduled }>({ kind: 'idle' });
+  const [phase, setPhase] = useState<{ kind: 'idle' } | { kind: 'scheduling' } | { kind: 'error'; message: string; reconnect?: boolean } | { kind: 'scheduled'; value: Scheduled }>({ kind: 'idle' });
   const [copied, setCopied] = useState<'key' | 'url' | null>(null);
   const [encoder, setEncoder] = useState(false);
 
@@ -41,9 +42,9 @@ export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onSche
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ owner, title: title.trim(), scheduledStartAt: new Date(at).toISOString(), privacy }),
       });
-      const body = (await res.json().catch(() => ({}))) as { video_id?: string; stream_key?: string; rtmps_url?: string | null; rtmp_url?: string | null; studio_url?: string; scheduled_start_at?: string; error?: string; needs_scope?: string };
+      const body = (await res.json().catch(() => ({}))) as { video_id?: string; stream_key?: string; rtmps_url?: string | null; rtmp_url?: string | null; studio_url?: string; scheduled_start_at?: string; error?: string; needs_scope?: string; reconnect?: boolean };
       if (res.status === 409 && body.needs_scope === 'live') { setPhase({ kind: 'idle' }); onNeedsScope(); return; }
-      if (!res.ok || !body.video_id || !body.stream_key || !body.studio_url) { setPhase({ kind: 'error', message: body.error ?? 'YouTube did not create the broadcast.' }); return; }
+      if (!res.ok || !body.video_id || !body.stream_key || !body.studio_url) { setPhase({ kind: 'error', message: body.error ?? 'YouTube did not create the broadcast.', reconnect: body.reconnect === true }); return; }
       setPhase({ kind: 'scheduled', value: { videoId: body.video_id, title: title.trim(), streamKey: body.stream_key, rtmpsUrl: body.rtmps_url ?? null, rtmpUrl: body.rtmp_url ?? null, studioUrl: body.studio_url, scheduledStartAt: body.scheduled_start_at ?? new Date(at).toISOString() } });
     } catch {
       setPhase({ kind: 'error', message: 'The broadcast could not be scheduled. Check your connection and try again.' });
@@ -130,7 +131,7 @@ export default function YouTubeBroadcastPanel({ owner, initialTitle = '', onSche
           </label>
         ))}
       </fieldset>
-      {phase.kind === 'error' && <p className="text-sm text-red-600" role="alert" data-youtube-broadcast-error="">{phase.message}</p>}
+      {phase.kind === 'error' && <p className="text-sm text-red-600" role="alert" data-youtube-broadcast-error="">{phase.message}{phase.reconnect && <> <YouTubeReconnectLink owner={owner} scope="live" /></>}</p>}
       <button type="button" onClick={() => void schedule()} disabled={busy || !title.trim() || !startLocal} className="ea-cta w-full min-h-[44px] rounded-lg text-sm font-semibold text-white disabled:opacity-60" data-youtube-broadcast-schedule="">
         {busy ? 'Scheduling…' : 'Schedule on YouTube'}
       </button>

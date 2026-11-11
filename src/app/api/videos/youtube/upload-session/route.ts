@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
-import { hasScope, parseOwnerRef, parseUploadSessionBody } from '@/lib/videos/youtube-connection';
-import { recordError, uploadRight, withAccessToken } from '@/lib/videos/youtube-connections-server';
+import { CALL_REFUSALS, callRefusalWord, hasScope, parseOwnerRef, parseUploadSessionBody } from '@/lib/videos/youtube-connection';
+import { callWithToken, uploadRight } from '@/lib/videos/youtube-connections-server';
 import { youtubeConfig, youtubeCreateUploadSession } from '@/lib/videos/google-youtube-server';
 
 /**
@@ -32,19 +32,21 @@ export async function POST(request: NextRequest) {
 
     const admin = getSupabaseAdmin();
     const right = await uploadRight(admin, owner, user.id);
-    if (!right.ok) return NextResponse.json({ error: right.error }, { status: right.status });
+    if (!right.ok) return NextResponse.json({ error: right.error, ...(right.reconnect ? { reconnect: true } : {}) }, { status: right.status });
     if (!hasScope(right.value.scopes, 'upload')) {
       return NextResponse.json({ error: 'Allow uploads to this channel first', needs_scope: 'upload' }, { status: 409 });
     }
-    const token = await withAccessToken(admin, cfg, owner);
-    if (!token.ok) return NextResponse.json({ error: token.error }, { status: token.status });
-    const session = await youtubeCreateUploadSession(cfg, token.accessToken, parsed.value);
+    // A 401 is one forced refresh and one more try (callWithToken); the token handed to the device is the one that worked.
+    const called = await callWithToken(admin, cfg, owner, token => youtubeCreateUploadSession(cfg, token, parsed.value));
+    if (!called.ok) return NextResponse.json({ error: called.error, reconnect: called.reconnect }, { status: called.status });
+    const session = called.value;
     if (!session.ok) {
-      if (session.unauthorized) await recordError(admin, token.row.id, 'YouTube refused the upload — reconnect');
-      return NextResponse.json({ error: session.status === 403 ? 'YouTube refused the upload for this channel' : 'YouTube did not open the upload — try again' }, { status: session.status === 403 ? 403 : 503 });
+      const word = callRefusalWord(session.status, session.reason);
+      const error = word === 'refused' ? 'YouTube refused the upload for this channel' : word === 'busy' ? 'YouTube did not open the upload — try again' : CALL_REFUSALS[word].error;
+      return NextResponse.json({ error }, { status: CALL_REFUSALS[word].status });
     }
     return NextResponse.json(
-      { session_uri: session.sessionUri, access_token: token.accessToken, chunk_bytes: 8 * 1024 * 1024 },
+      { session_uri: session.sessionUri, access_token: called.accessToken, chunk_bytes: 8 * 1024 * 1024 },
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {

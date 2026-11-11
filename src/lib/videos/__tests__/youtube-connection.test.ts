@@ -5,6 +5,7 @@ import {
   accessTokenFresh, BROADCAST_ERRORS, chaptersToHighlights, lookupRefusal, parseChapters, broadcastErrorWord, CONNECT_ERRORS, defaultBroadcastStart, parseBroadcastBody, studioUrlFor, expiresAtFrom, hasScope, isScopeKey, isYouTubeSecret, mergeGrantedScopes, nextOffsetFromRange,
   ownerColumns, ownerRef, parseIsoDuration, parseOwnerRef, parseUploadPrivacy, parseUploadSessionBody, problemFor, projectConnection,
   returnPathFor, scopeKeysOf, scopesFor, secretContextFor, uploadsPlaylistFor, TOKEN_REFRESH_SKEW_MS, YOUTUBE_CHUNK_BYTES, YOUTUBE_SCOPES, youtubeContentRange,
+  CALL_REFUSALS, callRefusalWord, HEALTH_CHECK_EVERY_MS, healthCheckDue, reconnectScope, TOKEN_FAILURES, tokenFailureFor, withOneRetry,
   type YouTubeConnectionRow,
 } from '../youtube-connection';
 
@@ -83,6 +84,8 @@ describe('the projection', () => {
     expect(projectConnection({ ...row, status: 'revoked' }, { userId: 'u1', canManage: true, available: true })).toMatchObject({ canUpload: false, problem: expect.stringContaining('reconnect') });
     expect(projectConnection(null, { userId: 'u1', canManage: false, available: false })).toMatchObject({ available: false, connected: false, channelId: null, scopes: [], canUpload: false, problem: null });
     expect(problemFor({ status: 'error', last_error: 'quota' })).toBe('quota');
+    // Self-healing (Nov 10 2026): only `revoked` ends a connection — an `error` row keeps its doors and heals on the next good call.
+    expect(projectConnection({ ...row, status: 'error' }, { userId: 'u1', canManage: true, available: true })).toMatchObject({ canUpload: true, canBroadcast: true });
     expect(JSON.stringify(mine)).not.toMatch(/secret|cipher|token/i);
   });
   it('every connect_error word has a sentence', () => {
@@ -193,5 +196,121 @@ describe('the module', () => {
     const src = readFileSync(join(process.cwd(), 'src/lib/videos/youtube-connection.ts'), 'utf8');
     const imports = src.match(/^import .*$/gm) ?? [];
     expect(imports).toEqual([`import type { OrgKind } from '@/lib/orgs/org-ref';`]);
+  });
+});
+
+// Self-healing (Nov 10 2026): a 401 is a stale token first, a dead connection only when a fresh token is refused too.
+describe('self-healing', () => {
+  type Tok = { ok: true; accessToken: string };
+  type Fail = { ok: false; why: string };
+  type Res = { ok: true; value: string } | { ok: false; unauthorized: boolean };
+  const unauthorized = (r: Res) => !r.ok && r.unauthorized;
+  const harness = (tokens: Array<Tok | Fail>, answers: Res[]) => {
+    const forced: boolean[] = [];
+    const used: string[] = [];
+    return {
+      forced, used,
+      run: () => withOneRetry<Tok, Fail, Res>(
+        async force => { forced.push(force); return tokens.shift() as Tok | Fail; },
+        async t => { used.push(t.accessToken); return answers.shift() as Res; },
+        unauthorized,
+      ),
+    };
+  };
+
+  it('a call that works is one token and one call — never a forced refresh', async () => {
+    const h = harness([{ ok: true, accessToken: 'a1' }], [{ ok: true, value: 'x' }]);
+    expect(await h.run()).toMatchObject({ ok: true, attempts: 1, dead: false, result: { ok: true, value: 'x' } });
+    expect(h.forced).toEqual([false]);
+    expect(h.used).toEqual(['a1']);
+  });
+  it('a 401 is answered with ONE forced fresh token and one more call, which stands', async () => {
+    const h = harness([{ ok: true, accessToken: 'stale' }, { ok: true, accessToken: 'fresh' }], [{ ok: false, unauthorized: true }, { ok: true, value: 'x' }]);
+    expect(await h.run()).toMatchObject({ ok: true, attempts: 2, dead: false, token: { accessToken: 'fresh' }, result: { ok: true } });
+    expect(h.forced).toEqual([false, true]);
+    expect(h.used).toEqual(['stale', 'fresh']);
+  });
+  it('a 401 on the fresh token too is `dead` — and there is never a third call', async () => {
+    const h = harness([{ ok: true, accessToken: 'a' }, { ok: true, accessToken: 'b' }, { ok: true, accessToken: 'c' }], [{ ok: false, unauthorized: true }, { ok: false, unauthorized: true }, { ok: true, value: 'never' }]);
+    expect(await h.run()).toMatchObject({ ok: true, attempts: 2, dead: true });
+    expect(h.used).toEqual(['a', 'b']);
+  });
+  it('a refusal that is not a 401 (a quota, a 5xx, no answer) is returned as it is — no retry, nothing dead', async () => {
+    const h = harness([{ ok: true, accessToken: 'a' }], [{ ok: false, unauthorized: false }]);
+    expect(await h.run()).toMatchObject({ ok: true, attempts: 1, dead: false, result: { ok: false } });
+    expect(h.forced).toEqual([false]);
+  });
+  it('no token at all, or a forced refresh that fails, is the token\'s own failure — the call is not made (again)', async () => {
+    const none = harness([{ ok: false, why: 'none' }], []);
+    expect(await none.run()).toEqual({ ok: false, failure: { ok: false, why: 'none' } });
+    expect(none.used).toEqual([]);
+    const busy = harness([{ ok: true, accessToken: 'a' }, { ok: false, why: 'busy' }], [{ ok: false, unauthorized: true }]);
+    expect(await busy.run()).toEqual({ ok: false, failure: { ok: false, why: 'busy' } });
+    expect(busy.used).toEqual(['a']);
+  });
+
+  it('why there is no token: no row, a revoked row, a box that cannot be read — an `error` row still opens', () => {
+    expect(tokenFailureFor(null, false)).toBe('none');
+    expect(tokenFailureFor({ status: 'revoked' }, false)).toBe('revoked');
+    expect(tokenFailureFor({ status: 'revoked' }, true)).toBe('revoked');
+    expect(tokenFailureFor({ status: 'active' }, false)).toBe('unreadable');
+    expect(tokenFailureFor({ status: 'active' }, true)).toBeNull();
+    expect(tokenFailureFor({ status: 'error' }, true)).toBeNull();
+  });
+  it('only the failures a reconnect fixes offer Reconnect; "no channel" is a 404, never "reconnect"', () => {
+    expect(TOKEN_FAILURES.none).toMatchObject({ status: 404, reconnect: false });
+    expect(TOKEN_FAILURES.revoked).toMatchObject({ status: 409, reconnect: true });
+    expect(TOKEN_FAILURES.unreadable).toMatchObject({ status: 409, reconnect: true });
+    expect(TOKEN_FAILURES.busy).toMatchObject({ status: 503, reconnect: false });
+    expect(TOKEN_FAILURES.unavailable).toMatchObject({ status: 503, reconnect: false });
+    for (const f of Object.values(TOKEN_FAILURES)) expect(f.error.length).toBeGreaterThan(10);
+  });
+  it('Google\'s refusals in our words: the quota is not "try again", a 403 is not "did not answer"', () => {
+    expect(callRefusalWord(403, 'quotaExceeded')).toBe('quota');
+    expect(callRefusalWord(403, 'dailyLimitExceeded')).toBe('quota');
+    expect(callRefusalWord(429, null)).toBe('quota');
+    expect(callRefusalWord(400, 'uploadLimitExceeded')).toBe('upload_limit');
+    expect(callRefusalWord(403, 'forbidden')).toBe('refused');
+    expect(callRefusalWord(403, null)).toBe('refused');
+    expect(callRefusalWord(500, null)).toBe('busy');
+    expect(callRefusalWord(0, null)).toBe('busy');
+    expect(CALL_REFUSALS.quota.status).toBe(429);
+    expect(CALL_REFUSALS.quota.error).toMatch(/tomorrow/);
+  });
+  it('a Reconnect asks the widest scope the connection had; the health check is due after ten minutes, at once when never asked or the clock went back', () => {
+    expect(reconnectScope(['readonly'])).toBe('readonly');
+    expect(reconnectScope(['readonly', 'upload'])).toBe('upload');
+    expect(reconnectScope(['readonly', 'upload', 'live'])).toBe('live');
+    expect(reconnectScope(null)).toBe('readonly');
+    const now = 1_800_000_000_000;
+    expect(healthCheckDue(null, now)).toBe(true);
+    expect(healthCheckDue(Number.NaN, now)).toBe(true);
+    expect(healthCheckDue(now - 1000, now)).toBe(false);
+    expect(healthCheckDue(now - HEALTH_CHECK_EVERY_MS, now)).toBe(true);
+    expect(healthCheckDue(now + 5000, now)).toBe(true);
+  });
+  it('the writer: every call to YouTube goes through callWithToken; nothing writes `error`; only two places write `revoked`', () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), f), 'utf8');
+    const server = read('src/lib/videos/youtube-connections-server.ts');
+    expect(server).toContain('export async function callWithToken<');
+    expect(server).not.toContain("status: 'error'");
+    expect(server).not.toContain('recordError');
+    expect(server.match(/await markRevoked\(/g)).toHaveLength(2);
+    expect(server).toContain("if (out.result.ok && row.status === 'error')");
+    for (const f of [
+      'src/app/api/videos/youtube/channel-uploads/route.ts',
+      'src/app/api/videos/youtube/upload-session/route.ts',
+      'src/app/api/videos/youtube/broadcast/route.ts',
+      'src/app/api/videos/youtube/lookup/route.ts',
+      'src/app/api/videos/[id]/refresh/route.ts',
+      'src/lib/videos/videos-live-server.ts',
+    ]) {
+      const src = read(f);
+      expect(src, f).toContain('callWithToken(');
+      expect(src, f).not.toMatch(/withAccessToken|recordError/);
+    }
+    const route = read('src/app/api/videos/youtube/connection/route.ts');
+    expect(route).toContain("searchParams.get('check') === '1'");
+    expect(route).toContain("enforceRateLimit(request, 'video-lookup'");
   });
 });

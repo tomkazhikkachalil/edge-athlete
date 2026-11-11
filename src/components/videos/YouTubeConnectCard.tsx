@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
-import { CONNECT_ERRORS, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import { CONNECT_ERRORS, healthCheckDue, reconnectScope, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
 import FaIcon from '@/components/FaIcon';
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 
@@ -16,7 +16,30 @@ import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
  * calls the one DELETE. The card says whose Google account the connection
  * is — only that person uploads; everyone who manages may link. Absent
  * when the deployment does not offer the feature (no credentials, no key).
+ * Self-healing (Nov 10 2026): a connected card asks YouTube once whether
+ * the connection still stands (`&check=1`, at most every ten minutes per
+ * owner on this device) — a grant that ended shows "Reconnect" here, now,
+ * not at the next upload.
  */
+const CHECK_KEY = (owner: string) => `ea-yt-check:${owner}`;
+
+function checkDue(owner: string): boolean {
+  try {
+    const raw = window.sessionStorage.getItem(CHECK_KEY(owner));
+    return healthCheckDue(raw === null ? null : Number(raw), Date.now());
+  } catch {
+    return true;
+  }
+}
+
+function checkedNow(owner: string): void {
+  try {
+    window.sessionStorage.setItem(CHECK_KEY(owner), String(Date.now()));
+  } catch {
+    /* the card works without the note — it just asks again next time */
+  }
+}
+
 export default function YouTubeConnectCard({ owner, compact = false }: { owner: string; compact?: boolean }) {
   const params = useSearchParams();
   const [view, setView] = useState<YouTubeConnectionView | null | 'gone'>(null);
@@ -27,9 +50,9 @@ export default function YouTubeConnectCard({ owner, compact = false }: { owner: 
   const errorWord = params.get('youtube_error');
 
   // The fetch returns the view; the effect (and the disconnect) set it — never a set inside the effect's own frame.
-  const fetchView = useCallback(async (): Promise<YouTubeConnectionView | 'gone'> => {
+  const fetchView = useCallback(async (check = false): Promise<YouTubeConnectionView | 'gone'> => {
     try {
-      const res = await fetch(`/api/videos/youtube/connection?owner=${encodeURIComponent(owner)}`, { cache: 'no-store' });
+      const res = await fetch(`/api/videos/youtube/connection?owner=${encodeURIComponent(owner)}${check ? '&check=1' : ''}`, { cache: 'no-store' });
       if (!res.ok) return 'gone';
       const body = (await res.json()) as { connection?: YouTubeConnectionView };
       return body.connection ?? 'gone';
@@ -40,9 +63,16 @@ export default function YouTubeConnectCard({ owner, compact = false }: { owner: 
 
   useEffect(() => {
     let live = true;
-    void fetchView().then(next => { if (live) setView(next); });
+    void fetchView().then(next => {
+      if (!live) return;
+      setView(next);
+      // The health check: only a connection that still claims to stand, only when the last check is old.
+      if (next === 'gone' || !next.connected || !next.canManage || next.status === 'revoked' || !checkDue(owner)) return;
+      checkedNow(owner);
+      void fetchView(true).then(checked => { if (live && checked !== 'gone') setView(checked); });
+    });
     return () => { live = false; };
-  }, [fetchView]);
+  }, [fetchView, owner]);
 
   const disconnect = async () => {
     setConfirm(false);
@@ -64,7 +94,7 @@ export default function YouTubeConnectCard({ owner, compact = false }: { owner: 
   };
 
   if (view === null || view === 'gone' || !view.available || !view.canManage) return null;
-  const start = (scope: 'readonly' | 'upload') => `/api/videos/youtube/start?owner=${encodeURIComponent(owner)}&scope=${scope}`;
+  const start = (scope: 'readonly' | 'upload' | 'live') => `/api/videos/youtube/start?owner=${encodeURIComponent(owner)}&scope=${scope}`;
   const banner = errorWord ? (CONNECT_ERRORS[errorWord] ?? CONNECT_ERRORS.failed) : result === 'connected' ? 'YouTube channel connected.' : null;
 
   return (
@@ -90,7 +120,7 @@ export default function YouTubeConnectCard({ owner, compact = false }: { owner: 
           )}
           <div className="flex flex-wrap gap-2">
             {view.problem && (
-              <a href={start(view.scopes.includes('upload') ? 'upload' : 'readonly')} className="inline-flex items-center min-h-[44px] px-4 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover" data-youtube-reconnect="">Reconnect</a>
+              <a href={start(view.connectedByMe ? reconnectScope(view.scopes) : 'readonly')} className="inline-flex items-center min-h-[44px] px-4 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover" data-youtube-reconnect="">Reconnect</a>
             )}
             <button type="button" onClick={() => setConfirm(true)} disabled={busy} className="inline-flex items-center min-h-[44px] px-4 rounded-full border border-border-strong text-sm font-semibold text-secondary disabled:opacity-50" data-youtube-disconnect="">
               Disconnect

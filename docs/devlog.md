@@ -1,5 +1,20 @@
 # Development Log
 
+## November 10, 2026 — YouTube connection round, PR 1 of 4: self-healing — a 401 is a stale token, not a dead connection (zero DDL)
+
+Tom: "We did the youtube integration, but need the connection to work a lot better" → the review's twelve findings → "Start with 1, then do all four in order." The plan is four zero-DDL PRs: self-healing, the flow, correct state, uploads. This is the first.
+
+**What was wrong.** Any 401 from YouTube called `recordError`, which wrote `status = 'error'`; the token reader then refused every row that was not `active`. So ONE refused call — a token Google ended early is enough — left the connection dead until someone reconnected by hand, and meanwhile the picker said "No YouTube channel is connected" beside a card that said connected, and the upload and broadcast doors disappeared without a word.
+
+**What it does now.**
+- **One retry, then the truth.** `callWithToken` (the writer) over the pure `withOneRetry`: on a 401, one forced refresh and the call once more. Only Google's `invalid_grant`, or a 401 on a token minted a moment ago, writes `revoked`. A transport failure, a 5xx, a quota answer write nothing. All six callers use it (channel uploads, the upload session, the broadcast, the details refresh, the paste lookup, the live-state reader); `recordError` is gone.
+- **Old `error` rows heal.** They still open, keep their doors (`canUpload` refuses only `revoked`) and the next good call writes `active`.
+- **True reasons.** No row → 404; revoked or an unreadable box → 409 + `reconnect: true`; no answer → 503; YouTube's daily limit → 429 "try again tomorrow" (it used to read "did not answer").
+- **Reconnect where the problem shows.** One link component; the picker (else "Try again"), the upload panel, the broadcast panel; the Full game flow names the problem with its door.
+- **The health check.** The card asks YouTube once per mount, at most every ten minutes (`&check=1`, one unit of quota): a grant that ended shows on the card now.
+
+**Proof:** `npm run verify` exit 0 (655 files, **6,002 tests**, the build, `check:weight` ✓, 299 client chunks within the floor); audit 0; guardrails ✓; `check:blocklists` ✓; `check:schema` ✓ (zero DDL). Playwright on the built server against staging with the stand-in Google: `youtube-connect.spec` — the new third test (every token expired → the read still answers with exactly one more token minted; a seeded `error` row → 200 and `active`; the quota → 429 with its sentence and no `reconnect`; a plain read spends no `channels` call and `check=1` exactly one; a refused fresh token → `revoked` at the check, 409 + `reconnect` on the read; `/videos/new` shows the problem with its door at 375 px with no overflow, the picker absent; one tap at "Google" → `active`; `invalid_grant` → 409 + `reconnect`) with the two existing tests, `youtube-broadcast.spec`, `videos.spec`, `videos-live.spec`, `videos-lookup.spec` on `desktop` — all passed; `videos-mobile.spec` on `mobile` 1/1. The spec is `docs/specs/videos.md` ("Self-healing"). Production line: in PR 2's entry.
+
 ## November 10, 2026 — Migration 305 on production: the page-timings card is live, and its first two rows already name a finding (the feed's layout shift)
 
 Tom ran `database/migrations/305_page_timings.sql` in the production SQL editor — `305 APPLIED | 1 | false | 305`. From here: `check:schema:prod` **Ledger OK at 305, 143 tables, every one reachable by service_role**. One phone open of production from a real browser (`perf-feed.spec.ts` on edgeathlete.ca, the `mobile` project) left **two rows** in `page_timings` for build `a5a928a4`: **FCP 788 ms (good)** and **CLS 0.441 (poor)** on `/feed`, signed in, phone. The beacon's batch, the writer, the table and the read all work end to end; the console's "Page timings by build" card shows them.

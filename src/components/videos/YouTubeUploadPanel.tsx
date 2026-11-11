@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { UPLOAD_DESCRIPTION_MAX, UPLOAD_PRIVACIES, UPLOAD_TITLE_MAX, type UploadPrivacy } from '@/lib/videos/youtube-connection';
 import FaIcon from '@/components/FaIcon';
 import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
+import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 
@@ -23,7 +24,7 @@ export default function YouTubeUploadPanel({ owner, onUploaded, onNeedsScope }: 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [privacy, setPrivacy] = useState<UploadPrivacy>('unlisted');
-  const [phase, setPhase] = useState<{ kind: 'idle' } | { kind: 'opening' } | { kind: 'uploading'; fraction: number } | { kind: 'error'; message: string }>({ kind: 'idle' });
+  const [phase, setPhase] = useState<{ kind: 'idle' } | { kind: 'opening' } | { kind: 'uploading'; fraction: number } | { kind: 'error'; message: string; reconnect?: boolean }>({ kind: 'idle' });
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -36,9 +37,9 @@ export default function YouTubeUploadPanel({ owner, onUploaded, onNeedsScope }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ owner, title: title.trim(), description: description.trim(), privacy, sizeBytes: file.size, contentType: file.type || 'video/mp4' }),
       });
-      const body = (await res.json().catch(() => ({}))) as { session_uri?: string; access_token?: string; error?: string; needs_scope?: string };
+      const body = (await res.json().catch(() => ({}))) as { session_uri?: string; access_token?: string; error?: string; needs_scope?: string; reconnect?: boolean };
       if (res.status === 409 && body.needs_scope === 'upload') { setPhase({ kind: 'idle' }); onNeedsScope(); return; }
-      if (!res.ok || !body.session_uri || !body.access_token) { setPhase({ kind: 'error', message: body.error ?? 'YouTube did not open the upload.' }); return; }
+      if (!res.ok || !body.session_uri || !body.access_token) { setPhase({ kind: 'error', message: body.error ?? 'YouTube did not open the upload.', reconnect: body.reconnect === true }); return; }
       const controller = new AbortController();
       abortRef.current = controller;
       setPhase({ kind: 'uploading', fraction: 0 });
@@ -82,7 +83,7 @@ export default function YouTubeUploadPanel({ owner, onUploaded, onNeedsScope }: 
           <p className="text-xs text-secondary" data-youtube-upload-progress={Math.round(phase.fraction * 100)}>Uploading to YouTube · {Math.round(phase.fraction * 100)}%</p>
         </div>
       )}
-      {phase.kind === 'error' && <p className="text-sm text-red-600" role="alert" data-youtube-upload-error="">{phase.message}</p>}
+      {phase.kind === 'error' && <p className="text-sm text-red-600" role="alert" data-youtube-upload-error="">{phase.message}{phase.reconnect && <> <YouTubeReconnectLink owner={owner} scope="upload" /></>}</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => void start()} disabled={busy || !file || !title.trim()} className="min-h-[44px] px-4 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover disabled:opacity-50" data-youtube-upload-start="">
           {phase.kind === 'opening' ? 'Opening…' : phase.kind === 'uploading' ? 'Uploading…' : 'Upload to YouTube'}

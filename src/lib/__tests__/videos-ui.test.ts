@@ -262,7 +262,7 @@ describe('live, 4b — the broadcast created from Edge Athlete', () => {
     expect(route).toContain('broadcastRight(admin, owner, user.id)');
     expect(route).toContain("needs_scope: 'live'");
     expect(route).toContain('broadcastErrorWord(status, reason)');
-    expect(route.split('youtubeDeleteBroadcast(cfg, token.accessToken, broadcast.value.videoId)').length - 1).toBe(2);
+    expect(route.split('youtubeDeleteBroadcast(cfg, accessToken, broadcast.value.videoId)').length - 1).toBe(2);
     expect(route).toContain('stream_key: stream.value.streamKey');
     expect(route).not.toMatch(/console\./);
     const google = read('src/lib/videos/google-youtube-server.ts');
@@ -353,3 +353,24 @@ describe('the player that knows the time (polish B, Nov 6 2026)', () => {
     expect(read('src/components/videos/YouTubePlayer.tsx')).toContain("(api ? loadYouTubeApi() : Promise.reject(new Error('plain frame')))");
   });
 });
+
+describe('self-healing (Nov 10 2026)', () => {
+  it('a screen that is told `reconnect` shows the one Reconnect door; the flow names a problem instead of dropping its doors; the card asks YouTube at most every ten minutes', () => {
+    const link = read('src/components/videos/YouTubeReconnectLink.tsx');
+    expect(link).toContain('/api/videos/youtube/start?owner=');
+    expect(link).toContain('data-youtube-reconnect-link={scope}');
+    expect(read('src/components/videos/ChannelPicker.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="readonly" />');
+    expect(read('src/components/videos/ChannelPicker.tsx')).toContain('data-channel-picker-retry=""');
+    expect(read('src/components/videos/YouTubeUploadPanel.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="upload" />');
+    expect(read('src/components/videos/YouTubeBroadcastPanel.tsx')).toContain('<YouTubeReconnectLink owner={owner} scope="live" />');
+    const flow = read('src/components/videos/NewVideoFlow.tsx');
+    expect(flow).toContain('data-new-video-youtube-problem={connection.status ?? \'\'}');
+    expect(flow).toContain("connection.status !== 'revoked' && <ChannelPicker");
+    const card = read('src/components/videos/YouTubeConnectCard.tsx');
+    expect(card).toContain("${check ? '&check=1' : ''}");
+    expect(card).toContain('healthCheckDue(');
+    expect(card).toContain("next.status === 'revoked' || !checkDue(owner)");
+    expect(card).toContain('reconnectScope(view.scopes)');
+  });
+});
+

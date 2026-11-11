@@ -6,6 +6,7 @@ import FaIcon from '@/components/FaIcon';
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 import { faChevronDown } from '@/lib/icons/fa/chevron-down';
 import { faChevronUp } from '@/lib/icons/fa/chevron-up';
+import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
 
 /**
  * "Pick from your channel" (Videos program Phase 3): the connected channel's
@@ -13,7 +14,7 @@ import { faChevronUp } from '@/lib/icons/fa/chevron-up';
  * once the person opens it (a Link step must not pay for a Data API read
  * nobody asked for). Props only; the parent owns the chosen id.
  */
-type PickerState = { status: 'idle' } | { status: 'loading' } | { status: 'ready'; uploads: ChannelUpload[] } | { status: 'error'; message: string };
+type PickerState = { status: 'idle' } | { status: 'loading' } | { status: 'ready'; uploads: ChannelUpload[] } | { status: 'error'; message: string; reconnect: boolean };
 
 export default function ChannelPicker({ owner, onPick }: { owner: string; onPick: (videoId: string, title: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -25,11 +26,11 @@ export default function ChannelPicker({ owner, onPick }: { owner: string; onPick
     const fetchUploads = async (): Promise<PickerState> => {
       try {
         const res = await fetch(`/api/videos/youtube/channel-uploads?owner=${encodeURIComponent(owner)}`, { cache: 'no-store' });
-        const body = (await res.json().catch(() => ({}))) as { uploads?: ChannelUpload[]; error?: string };
-        if (!res.ok) return { status: 'error', message: body.error ?? 'Could not read the channel.' };
+        const body = (await res.json().catch(() => ({}))) as { uploads?: ChannelUpload[]; error?: string; reconnect?: boolean };
+        if (!res.ok) return { status: 'error', message: body.error ?? 'Could not read the channel.', reconnect: body.reconnect === true };
         return { status: 'ready', uploads: body.uploads ?? [] };
       } catch {
-        return { status: 'error', message: 'Could not reach YouTube.' };
+        return { status: 'error', message: 'Could not reach YouTube.', reconnect: false };
       }
     };
     void fetchUploads().then(next => { if (live) setState(next); });
@@ -52,7 +53,14 @@ export default function ChannelPicker({ owner, onPick }: { owner: string; onPick
       {open && (
         <div className="border-t border-border-subtle px-3 py-2">
           {(state.status === 'loading' || state.status === 'idle') && <p className="text-xs text-muted" role="status">Reading your uploads…</p>}
-          {state.status === 'error' && <p className="text-xs text-red-600" role="alert">{state.message}</p>}
+          {state.status === 'error' && (
+            <p className="text-xs text-red-600" role="alert" data-channel-picker-error="">
+              {state.message}{' '}
+              {state.reconnect
+                ? <YouTubeReconnectLink owner={owner} scope="readonly" />
+                : <button type="button" onClick={() => setState({ status: 'idle' })} className="underline font-semibold" data-channel-picker-retry="">Try again</button>}
+            </p>
+          )}
           {state.status === 'ready' && state.uploads.length === 0 && <p className="text-xs text-muted">No uploads on this channel yet.</p>}
           {state.status === 'ready' && state.uploads.length > 0 && (
             <ul className="divide-y divide-border-subtle">

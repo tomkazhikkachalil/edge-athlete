@@ -19,7 +19,7 @@ import { isOrgKind } from '@/lib/orgs/org-ref';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { durationToRecord, liveRefreshDue, liveRefreshTtlMs, liveStateFromApi, QUOTA_BACKOFF_MS, type LiveStatus } from './live-rules';
 import type { ConnectionOwner } from './youtube-connection';
-import { withAccessToken } from './youtube-connections-server';
+import { callWithToken } from './youtube-connections-server';
 import { youtubeConfig, youtubeLiveDetails, youtubeReadConfig, type LiveRead } from './google-youtube-server';
 
 type Admin = SupabaseClient;
@@ -58,11 +58,9 @@ async function readFor(admin: Admin, row: LiveRow): Promise<LiveRead | null> {
   const cfg = youtubeConfig();
   if (cfg && secretBoxReady()) {
     const owner = await ownerOf(admin, row);
-    const token = owner ? await withAccessToken(admin, cfg, owner) : null;
-    if (token?.ok) {
-      const viaToken = await youtubeLiveDetails({ apiBase: cfg.apiBase, accessToken: token.accessToken }, row.provider_video_id);
-      if (viaToken.ok || !viaToken.unauthorized) return viaToken;
-    }
+    // Through the retry: a stale token is refreshed once; a connection that is over falls through to the key.
+    const called = owner ? await callWithToken(admin, cfg, owner, token => youtubeLiveDetails({ apiBase: cfg.apiBase, accessToken: token }, row.provider_video_id)) : null;
+    if (called?.ok) return called.value;
   }
   const key = youtubeReadConfig();
   if (!key) return null;
