@@ -146,8 +146,9 @@ describe('the YouTube connection (Phase 3)', () => {
   });
   it('the device upload speaks Google\'s resumable protocol from the pure rules and never a Supabase or Edge Athlete host', () => {
     const up = read('src/lib/videos/youtube-upload.ts');
-    expect(up).toContain("import { nextOffsetFromRange, youtubeContentRange } from './youtube-connection';");
-    expect(up).toContain("xhr.setRequestHeader('Content-Range', range.header);");
+    expect(up).toContain("import { chunkRetryable, nextOffsetFromRange, UPLOAD_RETRY_MAX, UPLOAD_TOKEN_REFRESH_MAX, uploadBackoffMs, youtubeContentRange } from './youtube-connection';");
+    expect(up.match(/^import /gm)).toHaveLength(1); // the pure rules and nothing else
+    expect(up).toContain("xhr.setRequestHeader('Content-Range', contentRange);");
     expect(up).toContain('res.status === 308');
     expect(up).not.toMatch(/supabase\.co|fetch\(/); // the only request is the XHR to the session URI
     const csp = read('src/lib/csp.ts');

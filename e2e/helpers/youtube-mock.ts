@@ -55,6 +55,17 @@ export interface YouTubeMock {
   expireAccess(): void;
   /** Self-healing: every bearer call answers 401, a brand-new token included (the grant is gone though the refresh still answers). */
   refuseAll(on: boolean): void;
+  /**
+   * The uploads round (Nov 10): faults for the device's resumable PUTs, each fired ONCE on the data chunk with that
+   * index (0-based, counted per session). `unauthorized` answers 401 until the PUT carries a DIFFERENT token (the
+   * hour ran out); `drop` cuts the connection (a tunnel); `stall` takes the bytes and never answers (the page is
+   * about to reload) — none of the three stores the chunk.
+   */
+  uploadFaults: { unauthorized: number | null; drop: number | null; stall: number | null };
+  /** The faults that fired, in order. */
+  faultsFired: string[];
+  /** The start offsets of the chunks each session STORED, by session id ("1", "2", …). */
+  storedStarts: Map<string, number[]>;
   /** The scopes the consent screen granted (defaults to what was asked). */
   grantedScopes: string[] | null;
   /** Requests received, as "METHOD /path". */
@@ -81,7 +92,9 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
   let denying = false;
   let refreshRevoked = false;
   const codes = new Map<string, { challenge: string; scope: string; channel: MockChannel | null }>();
-  const sessions = new Map<string, { size: number; received: number; title: string; privacy: string; contentType: string; chunks: Buffer[] }>();
+  const sessions = new Map<string, { size: number; received: number; title: string; privacy: string; contentType: string; chunks: Buffer[]; puts: number; refusedToken: string | null }>();
+  const storedStarts = new Map<string, number[]>();
+  const faultsFired: string[] = [];
   const uploaded = new Map<string, { size: number; title: string; privacy: string; contentType: string }>();
   const calls: string[] = [];
   let seq = 0;
@@ -100,6 +113,9 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
     deny: on => { denying = on; },
     revokeRefresh: on => { refreshRevoked = on; },
     expireAccess: () => { expiredThrough = minted; },
+    uploadFaults: { unauthorized: null, drop: null, stall: null },
+    faultsFired,
+    storedStarts,
     refuseAll: on => { refusingAll = on; },
     grantedScopes: null,
     calls,
@@ -173,18 +189,40 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
 
       // The resumable PUTs carry the session id in the path.
       const put = /^\/upload\/session\/(\d+)$/.exec(url.pathname);
+      // A BROWSER sends these (the uploads round): the session answers the app's origin, as Google's does for the Origin a session was opened with.
+      const cors: Record<string, string> = put && req.headers.origin
+        ? { 'Access-Control-Allow-Origin': String(req.headers.origin), 'Access-Control-Expose-Headers': 'Range', Vary: 'Origin' }
+        : {};
+      if (req.method === 'OPTIONS' && put) {
+        return send(res, 204, undefined, { ...cors, 'Access-Control-Allow-Methods': 'PUT', 'Access-Control-Allow-Headers': 'authorization, content-range, content-type', 'Access-Control-Max-Age': '600' });
+      }
       if (req.method === 'PUT' && put) {
         const s = sessions.get(put[1]);
-        if (!s) return send(res, 404, { error: 'no session' });
+        if (!s) return send(res, 404, { error: 'no session' }, cors);
         const bytes = await readBody(req);
-        const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(req.headers['content-range'] as string ?? '');
-        if (!range || Number(range[1]) !== s.received || Number(range[3]) !== s.size) return send(res, 400, { error: 'bad range' });
+        const header = req.headers['content-range'] as string ?? '';
+        const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+        const stored = () => (s.received > 0 ? { ...cors, Range: `bytes=0-${s.received - 1}` } : cors);
+        // "How much do you hold?" — `bytes */size`, no body.
+        if (/^bytes \*\/\d+$/.test(header)) {
+          if (s.refusedToken && token === s.refusedToken) return send(res, 401, { error: { code: 401 } }, cors);
+          return send(res, 308, undefined, stored());
+        }
+        const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(header);
+        if (!range || Number(range[1]) !== s.received || Number(range[3]) !== s.size) return send(res, 400, { error: 'bad range' }, cors);
+        const index = s.puts++;
+        const f = mock.uploadFaults;
+        if (s.refusedToken && token === s.refusedToken) { s.puts--; return send(res, 401, { error: { code: 401 } }, cors); }
+        if (f.unauthorized === index) { f.unauthorized = null; s.puts--; s.refusedToken = token; faultsFired.push('unauthorized'); return send(res, 401, { error: { code: 401 } }, cors); }
+        if (f.drop === index) { f.drop = null; s.puts--; faultsFired.push('drop'); req.socket.destroy(); return; }
+        if (f.stall === index) { f.stall = null; s.puts--; faultsFired.push('stall'); return; }
         s.chunks.push(bytes);
+        storedStarts.set(put[1], [...(storedStarts.get(put[1]) ?? []), s.received]);
         s.received += bytes.length;
-        if (s.received < s.size) return send(res, 308, undefined, { Range: `bytes=0-${s.received - 1}` });
+        if (s.received < s.size) return send(res, 308, undefined, stored());
         const id = `e2e${put[1].padStart(8, '0')}`.slice(0, 11);
         uploaded.set(id, { size: s.received, title: s.title, privacy: s.privacy, contentType: s.contentType });
-        return send(res, 200, { id, kind: 'youtube#video' });
+        return send(res, 200, { id, kind: 'youtube#video' }, cors);
       }
 
       const videosList = (chan: MockChannel | null) => {
@@ -231,7 +269,8 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
         const size = Number(req.headers['x-upload-content-length']);
         if (!Number.isFinite(size) || size <= 0) return send(res, 400, { error: 'bad length' });
         const id = String(++seq);
-        sessions.set(id, { size, received: 0, title: body.snippet?.title ?? '', privacy: body.status?.privacyStatus ?? 'private', contentType: String(req.headers['x-upload-content-type'] ?? ''), chunks: [] });
+        sessions.set(id, { size, received: 0, title: body.snippet?.title ?? '', privacy: body.status?.privacyStatus ?? 'private', contentType: String(req.headers['x-upload-content-type'] ?? ''), chunks: [], puts: 0, refusedToken: null });
+        if (req.headers.origin) calls.push(`ORIGIN ${String(req.headers.origin)}`);
         return send(res, 200, undefined, { Location: `${YOUTUBE_MOCK_BASE}/upload/session/${id}` });
       }
 

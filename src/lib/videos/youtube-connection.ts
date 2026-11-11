@@ -492,6 +492,68 @@ export function nextOffsetFromRange(header: string | null | undefined): number {
   return m ? Number(m[1]) + 1 : 0;
 }
 
+// ── The uploads round (Nov 10 2026): a full game survives the hour, the tunnel and a reload ──
+/** Consecutive failures (no byte accepted in between) before the upload gives up. */
+export const UPLOAD_RETRY_MAX = 8;
+/** Fresh tokens one upload may ask for — a 6-hour upload needs six; more than this is a loop. */
+export const UPLOAD_TOKEN_REFRESH_MAX = 12;
+
+/** 1 s, 2 s, 4 s … capped at 30 s — the wait before try number `failures` (1-based). */
+export function uploadBackoffMs(failures: number): number {
+  const n = Math.max(1, Math.floor(failures));
+  return Math.min(30_000, 1000 * 2 ** Math.min(n - 1, 10));
+}
+
+/** A chunk answer worth another try: no answer (0), a timeout, "slow down", any 5xx. */
+export function chunkRetryable(status: number): boolean {
+  return status === 0 || status === 408 || status === 429 || (status >= 500 && status <= 599);
+}
+
+/** What the device keeps of an upload in flight, so a reload can go on from YouTube's own offset. Never a token. */
+export interface YouTubeResumeEntry {
+  sessionUri: string;
+  owner: string;
+  title: string;
+  name: string;
+  size: number;
+  lastModified: number;
+  type: string;
+  at: number;
+}
+
+/** YouTube keeps a session about a week; an entry is offered for 23 hours (the clip path's number). */
+export const YT_RESUME_TTL_MS = 23 * 3600_000;
+
+/** Under the device store's prefix, so every sign-out removes it with the rest (`isHydrationKey`). */
+export function youtubeResumeKey(userId: string): string {
+  return `ea:hyd:v1:${userId}:yt-upload`;
+}
+
+export function parseYouTubeResume(raw: string | null | undefined, now: number): YouTubeResumeEntry | null {
+  if (!raw) return null;
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!v || typeof v !== 'object') return null;
+  const e = v as Record<string, unknown>;
+  const str = (x: unknown, max: number): x is string => typeof x === 'string' && x.length > 0 && x.length <= max;
+  const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0;
+  if (!str(e.sessionUri, 4096) || !/^https?:\/\//.test(e.sessionUri)) return null;
+  if (!str(e.owner, 80) || !parseOwnerRef(e.owner)) return null;
+  if (!str(e.name, 512) || typeof e.title !== 'string' || e.title.length > UPLOAD_TITLE_MAX || typeof e.type !== 'string' || e.type.length > 100) return null;
+  if (!num(e.size) || e.size === 0 || !num(e.lastModified) || !num(e.at)) return null;
+  if (e.at > now || now - e.at > YT_RESUME_TTL_MS) return null;
+  return { sessionUri: e.sessionUri, owner: e.owner, title: e.title, name: e.name, size: e.size, lastModified: e.lastModified, type: e.type, at: e.at };
+}
+
+/** The file picked again IS the one the session was opened for — the same name, size and last-modified time, for the same owner. */
+export function resumeMatches(entry: YouTubeResumeEntry | null, file: { name: string; size: number; lastModified: number } | null, owner: string): boolean {
+  return !!entry && !!file && entry.owner === owner && entry.name === file.name && entry.size === file.size && entry.lastModified === file.lastModified;
+}
+
 // ── Phase 4b: the broadcast created from Edge Athlete ───────────────────────
 export interface BroadcastInput {
   title: string;

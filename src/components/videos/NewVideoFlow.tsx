@@ -390,6 +390,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 {connection.canUpload && uploadOpen && (
                   <YouTubeUploadPanel
                     owner={activeOwnerRef}
+                    userId={userId}
                     onUploaded={uploaded}
                     onNeedsScope={() => setNeedsScope('upload')}
                     returnTo={returnTo}

@@ -37,7 +37,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Allow uploads to this channel first', needs_scope: 'upload' }, { status: 409 });
     }
     // A 401 is one forced refresh and one more try (callWithToken); the token handed to the device is the one that worked.
-    const called = await callWithToken(admin, cfg, owner, token => youtubeCreateUploadSession(cfg, token, parsed.value));
+    const origin = request.headers.get('origin') || new URL(request.url).origin;
+    const called = await callWithToken(admin, cfg, owner, token => youtubeCreateUploadSession(cfg, token, parsed.value, origin));
     if (!called.ok) return NextResponse.json({ error: called.error, reconnect: called.reconnect }, { status: called.status });
     const session = called.value;
     if (!session.ok) {
