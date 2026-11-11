@@ -16,7 +16,7 @@ import { formatLiveWhen } from '@/lib/videos/live-rules';
 import { chaptersToHighlights, LOOKUP_NOTES, lookupRefusal, type VideoLookup } from '@/lib/videos/youtube-connection';
 import { canAdvanceVideoStep, VIDEO_STEPS } from '@/lib/videos/video-steps';
 import { parseYouTubeLink, thumbUrl, watchUrl } from '@/lib/videos/youtube';
-import { CONNECT_ERRORS, connectReturnPath, FLOW_DRAFT_KEY, parseFlowDraft, reconnectScope, UNVERIFIED_NOTE, type FlowDraft, type ScopeKey, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
+import { CONNECT_ERRORS, connectedLine, connectReturnPath, FLOW_DRAFT_KEY, parseFlowDraft, reconnectScope, UNVERIFIED_NOTE, type FlowDraft, type ScopeKey, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
 import ChannelPicker from '@/components/videos/ChannelPicker';
@@ -81,7 +81,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     const connected = params.get('youtube') === 'connected';
     const errorWord = params.get('youtube_error');
     const scope = params.get('scope');
-    return { connected, errorWord, scope, draft: readDraft(connected || !!errorWord) };
+    return { connected, errorWord, scope, was: params.get('was'), draft: readDraft(connected || !!errorWord) };
   });
   const draft = landed.draft;
   const [index, setIndex] = useState(draft?.index ?? 0);
@@ -105,7 +105,19 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
   const defaultOwnerRef = prefillOrg && UUID_RE.test(prefillOrg) && (sideParam === 'league' || sideParam === 'club')
     ? `${sideParam}:${prefillOrg}`
     : `profile:${prefillProfile && UUID_RE.test(prefillProfile) ? prefillProfile : userId}`;
-  const [connection, setConnection] = useState<YouTubeConnectionView | null>(null);
+  // Correct state (Nov 10 2026): the connection shown is the one of the owner actually PICKED (an org chosen at Where, else the default) —
+  // the channel named on a door is the channel of the owner the video will belong to.
+  const activeOwnerRef = useMemo(() => {
+    if (owner && owner !== 'me') {
+      const side = (orgs ?? []).find(o => o.id === owner.orgId)?.side ?? (owner.orgId === prefillOrg && (sideParam === 'league' || sideParam === 'club') ? sideParam : null);
+      if (side) return `${side}:${owner.orgId}`;
+    }
+    if (owner === 'me') return `profile:${prefillProfile && UUID_RE.test(prefillProfile) ? prefillProfile : userId}`;
+    return defaultOwnerRef;
+  }, [owner, orgs, prefillOrg, sideParam, prefillProfile, userId, defaultOwnerRef]);
+  // The view is kept WITH the owner it was read for: a view of the previous owner is never shown under the new one.
+  const [fetched, setFetched] = useState<{ ref: string; view: YouTubeConnectionView | null } | null>(null);
+  const connection = fetched && fetched.ref === activeOwnerRef ? fetched.view : null;
   // Back from "Allow uploads" / "Allow live broadcasts": the door they were at is open again.
   const [uploadOpen, setUploadOpen] = useState(landed.connected && landed.scope === 'upload');
   // Phase 4b: the third door — schedule a live broadcast (the connector only).
@@ -113,7 +125,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
 
   // Every door to Google returns HERE, with the form kept on the device meanwhile.
   const returnTo = useMemo(() => connectReturnPath(`/videos/new${params.toString() ? `?${params.toString()}` : ''}`) ?? '/videos/new', [params]);
-  const startHref = (scope: ScopeKey) => `/api/videos/youtube/start?owner=${encodeURIComponent(defaultOwnerRef)}&scope=${scope}&return=${encodeURIComponent(returnTo)}`;
+  const startHref = (scope: ScopeKey) => `/api/videos/youtube/start?owner=${encodeURIComponent(activeOwnerRef)}&scope=${scope}&return=${encodeURIComponent(returnTo)}`;
   const saveDraft = useCallback(() => {
     try {
       const d: FlowDraft = { url, title, description, sportKey, owner, index, at: Date.now() };
@@ -140,14 +152,14 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
         ? 'Uploads are allowed now. Choose the file to upload — a file cannot be kept while you are at Google.'
         : landed.scope === 'live'
           ? 'Live broadcasts are allowed now.'
-          : 'YouTube channel connected.';
+          : connectedLine(connection?.channelTitle, landed.was);
   const [uploadedNote, setUploadedNote] = useState<string | null>(null);
   const [needsScope, setNeedsScope] = useState<'upload' | 'live' | null>(null);
   useEffect(() => {
     let live = true;
     const fetchConnection = async (): Promise<YouTubeConnectionView | null> => {
       try {
-        const res = await fetch(`/api/videos/youtube/connection?owner=${encodeURIComponent(defaultOwnerRef)}`, { cache: 'no-store' });
+        const res = await fetch(`/api/videos/youtube/connection?owner=${encodeURIComponent(activeOwnerRef)}`, { cache: 'no-store' });
         if (!res.ok) return null;
         const body = (await res.json()) as { connection?: YouTubeConnectionView };
         return body.connection ?? null;
@@ -155,9 +167,9 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
         return null;
       }
     };
-    void fetchConnection().then(next => { if (live) setConnection(next); });
+    void fetchConnection().then(next => { if (live) setFetched({ ref: activeOwnerRef, view: next }); });
     return () => { live = false; };
-  }, [defaultOwnerRef]);
+  }, [activeOwnerRef]);
 // Paste and go (Nov 6 2026): what YouTube says about the pasted id — the title, the duration, whether it plays here, its chapters.
   // One read per link (debounced; the latest paste wins); unavailable = the flow behaves as before.
   const [lookup, setLookup] = useState<{ id: string; value: VideoLookup } | null>(null);
@@ -168,7 +180,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     let live = true;
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/videos/youtube/lookup?id=${encodeURIComponent(linkId)}&owner=${encodeURIComponent(defaultOwnerRef)}`, { cache: 'no-store' });
+        const res = await fetch(`/api/videos/youtube/lookup?id=${encodeURIComponent(linkId)}&owner=${encodeURIComponent(activeOwnerRef)}`, { cache: 'no-store' });
         if (!res.ok) return;
         const body = (await res.json()) as { lookup?: VideoLookup };
         if (!live || !body.lookup) return;
@@ -184,10 +196,17 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
       live = false;
       clearTimeout(timer);
     };
-  }, [linkId, defaultOwnerRef]);
+  }, [linkId, activeOwnerRef]);
   const looked = lookup && linkId && lookup.id === linkId ? lookup.value : null;
   const refusal = lookupRefusal(looked);
 
+  // Another owner is another channel: the doors opened for the previous one close.
+  const pickOwner = (next: 'me' | { orgId: string }) => {
+    setOwner(next);
+    setUploadOpen(false);
+    setBroadcastOpen(false);
+    setNeedsScope(null);
+  };
   const pickFromChannel = (videoId: string, pickedTitle: string) => {
     setUrl(watchUrl(videoId));
     if (!title.trim() && pickedTitle) setTitle(pickedTitle.slice(0, VIDEO_TITLE_MAX));
@@ -344,10 +363,10 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 {connection.problem && (
                   <p className="text-sm text-red-600" role="status" data-new-video-youtube-problem={connection.status ?? ''}>
                     {connection.problem}{' '}
-                    {connection.canManage && <YouTubeReconnectLink owner={defaultOwnerRef} scope={connection.connectedByMe ? reconnectScope(connection.scopes) : 'readonly'} returnTo={returnTo} onNavigate={saveDraft} />}
+                    {connection.canManage && <YouTubeReconnectLink owner={activeOwnerRef} scope={connection.connectedByMe ? reconnectScope(connection.scopes) : 'readonly'} returnTo={returnTo} onNavigate={saveDraft} />}
                   </p>
                 )}
-                {connection.status !== 'revoked' && <ChannelPicker owner={defaultOwnerRef} onPick={pickFromChannel} returnTo={returnTo} onLeave={saveDraft} />}
+                {connection.status !== 'revoked' && <ChannelPicker owner={activeOwnerRef} onPick={pickFromChannel} returnTo={returnTo} onLeave={saveDraft} />}
                 {connection.canUpload && !uploadOpen && !broadcastOpen && (
                   <button type="button" onClick={() => setUploadOpen(true)} className="ea-interactive flex w-full items-center gap-3 rounded-lg border border-border px-3 min-h-[48px] text-left" data-new-video-upload-door="">
                     <FaIcon icon={faCloudArrowUp} className="text-brand-fg" />
@@ -370,7 +389,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 )}
                 {connection.canUpload && uploadOpen && (
                   <YouTubeUploadPanel
-                    owner={defaultOwnerRef}
+                    owner={activeOwnerRef}
                     onUploaded={uploaded}
                     onNeedsScope={() => setNeedsScope('upload')}
                     returnTo={returnTo}
@@ -379,7 +398,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 )}
                 {connection.canBroadcast && broadcastOpen && (
                   <YouTubeBroadcastPanel
-                    owner={defaultOwnerRef}
+                    owner={activeOwnerRef}
                     initialTitle={title}
                     onScheduled={scheduled}
                     onNeedsScope={() => setNeedsScope('live')}
@@ -446,13 +465,13 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
           <div className="px-4 pb-4 space-y-3" data-new-video-where="">
             <p className="text-sm text-secondary">Who the video belongs to decides who can see it — your profile&apos;s privacy, or the organization&apos;s.</p>
             <label className={`flex items-center gap-3 rounded-lg border px-3 min-h-[52px] ea-interactive ${owner === 'me' ? 'border-brand bg-brand-soft' : 'border-border'}`}>
-              <input type="radio" name="owner" checked={owner === 'me'} onChange={() => setOwner('me')} className="h-5 w-5" />
+              <input type="radio" name="owner" checked={owner === 'me'} onChange={() => pickOwner('me')} className="h-5 w-5" />
               <span className="text-sm font-semibold text-primary">{prefillProfile && prefillProfile !== userId ? 'The athlete\'s profile' : 'My profile'}</span>
             </label>
             {orgs === null && !profileOnly && <p className="text-xs text-muted">Loading your organizations…</p>}
             {!profileOnly && (orgs ?? []).map(o => (
               <label key={o.id} className={`flex items-center gap-3 rounded-lg border px-3 min-h-[52px] ea-interactive ${owner !== 'me' && owner?.orgId === o.id ? 'border-brand bg-brand-soft' : 'border-border'}`}>
-                <input type="radio" name="owner" checked={owner !== 'me' && owner?.orgId === o.id} onChange={() => setOwner({ orgId: o.id })} className="h-5 w-5" />
+                <input type="radio" name="owner" checked={owner !== 'me' && owner?.orgId === o.id} onChange={() => pickOwner({ orgId: o.id })} className="h-5 w-5" />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-primary truncate">{o.name}</span>
                   <span className="block text-xs text-muted">{o.side === 'league' ? 'League' : 'Club'}</span>
@@ -461,7 +480,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
             ))}
             {!profileOnly && prefillOrg && orgs !== null && !orgs.some(o => o.id === prefillOrg) && (
               <label className={`flex items-center gap-3 rounded-lg border px-3 min-h-[52px] ea-interactive ${owner !== 'me' && owner?.orgId === prefillOrg ? 'border-brand bg-brand-soft' : 'border-border'}`}>
-                <input type="radio" name="owner" checked={owner !== 'me' && owner?.orgId === prefillOrg} onChange={() => setOwner({ orgId: prefillOrg })} className="h-5 w-5" />
+                <input type="radio" name="owner" checked={owner !== 'me' && owner?.orgId === prefillOrg} onChange={() => pickOwner({ orgId: prefillOrg })} className="h-5 w-5" />
                 <span className="text-sm font-semibold text-primary">This {sideParam}</span>
               </label>
             )}

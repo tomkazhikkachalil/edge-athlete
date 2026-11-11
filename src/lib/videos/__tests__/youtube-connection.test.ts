@@ -6,6 +6,7 @@ import {
   ownerColumns, ownerRef, parseIsoDuration, parseOwnerRef, parseUploadPrivacy, parseUploadSessionBody, problemFor, projectConnection,
   returnPathFor, scopeKeysOf, scopesFor, secretContextFor, uploadsPlaylistFor, TOKEN_REFRESH_SKEW_MS, YOUTUBE_CHUNK_BYTES, YOUTUBE_SCOPES, youtubeContentRange,
   appendQuery, connectReturnPath, FLOW_DRAFT_TTL_MS, grantShortfall, landingFor, parseFlowDraft, UNVERIFIED_NOTE,
+  connectedLine, isScopeRefusal, replacedChannel, scopeAllows, scopesWithout, shouldRevokeAtGoogle, storedScopesFor,
   CALL_REFUSALS, callRefusalWord, HEALTH_CHECK_EVERY_MS, healthCheckDue, reconnectScope, TOKEN_FAILURES, tokenFailureFor, withOneRetry,
   type YouTubeConnectionRow,
 } from '../youtube-connection';
@@ -384,6 +385,67 @@ describe('the flow round', () => {
     expect(cb).toContain('grantShortfall(scope, tokens.scope)');
     expect(cb).not.toContain('returnPathFor');
     expect(cb).not.toMatch(/NextResponse\.redirect\(new URL\(params/);
+  });
+});
+
+// Correct state (Nov 10 2026): what the row says is what Google granted — never what an earlier account had.
+describe('correct state', () => {
+  const R = YOUTUBE_SCOPES.readonly, U = YOUTUBE_SCOPES.upload, L = YOUTUBE_SCOPES.live;
+  it('a connect stores exactly what Google lists — in our order, ours only — and falls back to what was asked when it lists nothing', () => {
+    expect(storedScopesFor(`${U} ${R} openid`, 'upload')).toEqual([R, U]);
+    expect(storedScopesFor(R, 'upload')).toEqual([R]); // the box left unticked: not stored
+    expect(storedScopesFor(`${R} ${U} ${L}`, 'live')).toEqual([R, U, L]);
+    expect(storedScopesFor('', 'upload')).toEqual([R, U]);
+    expect(storedScopesFor(null, 'readonly')).toEqual([R]);
+  });
+  it('force-ssl covers uploading; live needs force-ssl itself', () => {
+    expect(scopeAllows([R, U], 'upload')).toBe(true);
+    expect(scopeAllows([R, L], 'upload')).toBe(true);
+    expect(scopeAllows([R], 'upload')).toBe(false);
+    expect(scopeAllows([R, U], 'live')).toBe(false);
+    expect(scopeAllows([R, L], 'live')).toBe(true);
+    expect(scopeAllows(null, 'upload')).toBe(false);
+  });
+  it('a permission YouTube says the token lacks leaves the row, with whatever implied it', () => {
+    expect(scopesWithout([R, U, L], 'upload')).toEqual([R]);
+    expect(scopesWithout([R, U, L], 'live')).toEqual([R, U]);
+    expect(scopesWithout([R], 'upload')).toEqual([R]);
+    expect(scopesWithout(null, 'live')).toEqual([]);
+    expect(isScopeRefusal(403, 'insufficientPermissions')).toBe(true);
+    expect(isScopeRefusal(403, 'ACCESS_TOKEN_SCOPE_INSUFFICIENT')).toBe(true);
+    expect(isScopeRefusal(403, 'quotaExceeded')).toBe(false);
+    expect(isScopeRefusal(401, 'insufficientPermissions')).toBe(false);
+  });
+  it('a reconnect onto another channel names the one it replaced; the same channel, or a first connect, names nothing', () => {
+    expect(replacedChannel(null, 'UCnew')).toBeNull();
+    expect(replacedChannel({ channel_id: 'UCa', channel_title: 'Club TV' }, 'UCa')).toBeNull();
+    expect(replacedChannel({ channel_id: 'UCa', channel_title: 'Club TV' }, 'UCb')).toBe('Club TV');
+    expect(replacedChannel({ channel_id: 'UCa', channel_title: null }, 'UCb')).toBe('another channel');
+    expect(connectedLine('New Channel', 'Club TV')).toBe('Now connected to New Channel (was Club TV).');
+    expect(connectedLine('New Channel', null)).toBe('YouTube channel connected.');
+    expect(connectedLine(null, 'Club TV')).toBe('Now connected to your channel (was Club TV).');
+  });
+  it('Google is told to revoke only when the person holds no other connection here', () => {
+    expect(shouldRevokeAtGoogle(0)).toBe(true);
+    expect(shouldRevokeAtGoogle(1)).toBe(false);
+    expect(shouldRevokeAtGoogle(3)).toBe(false);
+  });
+  it('the writer replaces the scopes, counts the siblings before a revoke, and both write routes drop a refused scope', () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), f), 'utf8');
+    const server = read('src/lib/videos/youtube-connections-server.ts');
+    expect(server).toContain('const scopes = storedScopesFor(args.grantedScope, args.askedScope);');
+    expect(server).not.toContain('mergeGrantedScopes(existing');
+    expect(server).toContain("eq('connected_by_user_id', opened.row.connected_by_user_id).neq('id', opened.row.id)");
+    expect(server).toContain('if (shouldRevokeAtGoogle(count ?? 0)) await youtubeRevoke(');
+    const upload = read('src/app/api/videos/youtube/upload-session/route.ts');
+    expect(upload).toContain("scopeAllows(right.value.scopes, 'upload')");
+    expect(upload).toContain("await dropScope(admin, called.row, 'upload');");
+    const live = read('src/app/api/videos/youtube/broadcast/route.ts');
+    expect(live).toContain("scopeAllows(right.value.scopes, 'live')");
+    expect(live).toContain("await dropScope(admin, called.row, 'live');");
+    const flow = read('src/components/videos/NewVideoFlow.tsx');
+    expect(flow).toContain('fetched && fetched.ref === activeOwnerRef ? fetched.view : null');
+    expect(flow).not.toContain('owner={defaultOwnerRef}');
   });
 });
 

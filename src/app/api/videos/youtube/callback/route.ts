@@ -71,12 +71,15 @@ export async function GET(request: NextRequest) {
       channelId: channel.value.id,
       channelTitle: channel.value.title || null,
       grantedScope: tokens.scope,
+      askedScope: scope,
       secret: { refreshToken: tokens.refreshToken, accessToken: tokens.accessToken, expiresAt: tokens.expiresAt },
     });
     if (!connected.ok) return err(connected.status === 503 ? 'unavailable' : 'failed');
     const shortfall = grantShortfall(scope, tokens.scope);
     if (shortfall) return err(shortfall);
-    return back(request, landingFor(owner, returnTo, `youtube=connected&scope=${scope}`));
+    // Correct state: a reconnect that landed on another channel names the one it replaced.
+    const was = connected.value.replaced ? `&was=${encodeURIComponent(connected.value.replaced)}` : '';
+    return back(request, landingFor(owner, returnTo, `youtube=connected&scope=${scope}${was}`));
   } catch (error) {
     reportRouteError('[videos/youtube] callback error:', error);
     return back(request, FALLBACK);

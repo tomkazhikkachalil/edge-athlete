@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
-import { CALL_REFUSALS, callRefusalWord, hasScope, parseOwnerRef, parseUploadSessionBody } from '@/lib/videos/youtube-connection';
-import { callWithToken, uploadRight } from '@/lib/videos/youtube-connections-server';
+import { CALL_REFUSALS, callRefusalWord, isScopeRefusal, parseOwnerRef, parseUploadSessionBody, scopeAllows } from '@/lib/videos/youtube-connection';
+import { callWithToken, dropScope, uploadRight } from '@/lib/videos/youtube-connections-server';
 import { youtubeConfig, youtubeCreateUploadSession } from '@/lib/videos/google-youtube-server';
 
 /**
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const right = await uploadRight(admin, owner, user.id);
     if (!right.ok) return NextResponse.json({ error: right.error, ...(right.reconnect ? { reconnect: true } : {}) }, { status: right.status });
-    if (!hasScope(right.value.scopes, 'upload')) {
+    if (!scopeAllows(right.value.scopes, 'upload')) {
       return NextResponse.json({ error: 'Allow uploads to this channel first', needs_scope: 'upload' }, { status: 409 });
     }
     // A 401 is one forced refresh and one more try (callWithToken); the token handed to the device is the one that worked.
@@ -41,6 +41,11 @@ export async function POST(request: NextRequest) {
     if (!called.ok) return NextResponse.json({ error: called.error, reconnect: called.reconnect }, { status: called.status });
     const session = called.value;
     if (!session.ok) {
+      // The row claimed a permission the token does not have (another Google account, a withdrawn box): stop claiming it and ask once more.
+      if (isScopeRefusal(session.status, session.reason)) {
+        await dropScope(admin, called.row, 'upload');
+        return NextResponse.json({ error: 'Allow uploads to this channel first', needs_scope: 'upload' }, { status: 409 });
+      }
       const word = callRefusalWord(session.status, session.reason);
       const error = word === 'refused' ? 'YouTube refused the upload for this channel' : word === 'busy' ? 'YouTube did not open the upload — try again' : CALL_REFUSALS[word].error;
       return NextResponse.json({ error }, { status: CALL_REFUSALS[word].status });

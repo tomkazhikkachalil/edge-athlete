@@ -386,3 +386,90 @@ test('the flow round: connect from inside Full game and come back with the form 
   }
 });
 
+// Correct state (Nov 10 2026): the row says what Google granted — a reconnect
+// through another account never inherits the old permissions and names the
+// channel it replaced; a permission the token lacks leaves the row; force-ssl
+// covers uploads; a disconnect never ends the same person's other connection;
+// and the Full game flow shows the channel of the owner actually picked.
+test('correct state: a reconnect replaces the permissions and names the swapped channel; a stale claim corrects itself; live covers uploads; disconnect spares a sibling; the flow follows the picked owner', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const a = loadQaUser('user.json');
+  const admin = adminClient();
+  for (const bucket of ['connection-write', 'video-write', 'video-lookup'] as const) await resetRateBucket(admin, bucket, a.id);
+  const SECOND: MockChannel = { id: 'UCe2eSecondAbcdefghijklm', title: 'QA Second Channel', uploads: [{ videoId: 'e2eSecond01', title: 'Second channel game', publishedAt: '2026-10-05T12:00:00Z', durationIso: 'PT45M' }] };
+  const stamp = Date.now();
+  const clubName = `QA State Club ${stamp}`;
+  const club = await createQaOrg(admin, 'club', { name: clubName, sport_key: 'golf', owner_profile_id: a.id, visibility: 'public' });
+  await admin.from('memberships').insert([{ org_id: club.id, profile_id: a.id, kind: 'follow', role: 'owner', status: 'active' }]);
+  const mine = `profile:${a.id}`;
+  const clubRef = `club:${club.id}`;
+  const page = await (await browser.newContext({ storageState: await mintStorageState(a), extraHTTPHeaders: bypassHeaders() })).newPage();
+  const api = await ctxFor(a);
+  const viewOf = async (owner: string) => (await (await api.get(`/api/videos/youtube/connection?owner=${owner}`)).json()).connection;
+  const revokes = () => mock.calls.filter(c => c === 'POST /revoke').length;
+  const session = { title: 'QA state', description: '', privacy: 'unlisted', sizeBytes: 4096, contentType: 'video/mp4' };
+  try {
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
+    mock.grantedScopes = null;
+
+    // 1. Connected with uploads allowed.
+    mock.signInAs(CHANNEL);
+    expect(await landingOf(page, `/api/videos/youtube/start?owner=${mine}&scope=upload`)).toContain('youtube=connected');
+    expect(await viewOf(mine)).toMatchObject({ channelId: CHANNEL.id, scopes: ['readonly', 'upload'] });
+
+    // 2. A reconnect through ANOTHER Google account (it grants readonly only): the old permissions do not ride along, and the banner names the swap.
+    mock.signInAs(SECOND);
+    const landing = await landingOf(page, `/api/videos/youtube/start?owner=${mine}&scope=readonly`);
+    expect(landing).toContain('youtube=connected');
+    expect(new URL(landing).searchParams.get('was')).toBe(CHANNEL.title);
+    await expect(page.locator('[data-youtube-result="connected"]')).toHaveText(`Now connected to ${SECOND.title} (was ${CHANNEL.title}).`, { timeout: 20_000 });
+    expect(await viewOf(mine)).toMatchObject({ channelId: SECOND.id, channelTitle: SECOND.title, scopes: ['readonly'] });
+
+    // 3. A row that CLAIMS a permission its token does not have: YouTube's 403 removes the claim and the answer asks once more.
+    await admin.from('youtube_connections').update({ scopes: ['https://www.googleapis.com/auth/youtube.readonly', 'https://www.googleapis.com/auth/youtube.upload'] }).eq('profile_id', a.id);
+    let res = await api.post('/api/videos/youtube/upload-session', { data: { owner: mine, ...session } });
+    expect(res.status(), await readErrorBody(res)).toBe(409);
+    expect((await res.json()).needs_scope).toBe('upload');
+    expect((await viewOf(mine)).scopes).toEqual(['readonly']);
+
+    // 4. "Allow live broadcasts" (force-ssl) covers uploading: no second question for uploads.
+    expect(await landingOf(page, `/api/videos/youtube/start?owner=${mine}&scope=live`)).toContain('youtube=connected&scope=live');
+    expect((await viewOf(mine)).scopes).toEqual(['readonly', 'live']);
+    res = await api.post('/api/videos/youtube/upload-session', { data: { owner: mine, ...session } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+
+    // 5. The same person connects the club too; disconnecting the PROFILE does not revoke at Google, and the club's connection still reads.
+    expect(await landingOf(page, `/api/videos/youtube/start?owner=${clubRef}&scope=readonly`)).toContain('youtube=connected');
+    const before = revokes();
+    res = await api.delete(`/api/videos/youtube/connection?owner=${mine}`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    expect(revokes()).toBe(before);
+    res = await api.get(`/api/videos/youtube/channel-uploads?owner=${clubRef}`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+
+    // 6. The Full game flow follows the picked owner: the profile has no channel (the Connect door); pick the club at Where and the Link step shows the club's channel.
+    await page.goto('/videos/new');
+    await expect(page.locator('[data-new-video-youtube="connect"]')).toBeVisible({ timeout: 20_000 });
+    await page.locator('[data-new-video] input[type="url"]').fill('https://www.youtube.com/watch?v=e2eSecond01');
+    await page.locator('[data-step-next]').click();
+    await page.locator('[data-step-next]').click();
+    await page.locator('[data-new-video-where] label', { hasText: clubName }).locator('input[name="owner"]').check();
+    await page.locator('[data-step-back]').click();
+    await page.locator('[data-step-back]').click();
+    await expect(page.locator('[data-channel-picker]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-new-video-youtube="connect"]')).toHaveCount(0);
+
+    // 7. The LAST connection's disconnect does revoke at Google.
+    res = await api.delete(`/api/videos/youtube/connection?owner=${clubRef}`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    expect(revokes()).toBe(before + 1);
+  } finally {
+    mock.grantedScopes = null;
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
+    await admin.from('youtube_connections').delete().eq('org_id', club.id);
+    await deleteQaOrgs(admin, [club.id]);
+    await api.dispose();
+    await page.context().close();
+  }
+});
+

@@ -17,9 +17,9 @@ import { isMissingTableError } from '@/lib/orgs/validate';
 import { openSecret, sealSecret, secretBoxReady } from '@/lib/crypto/secret-box-server';
 import { orgVideoAccess, profileManages } from './videos-server';
 import {
-  accessTokenFresh, isYouTubeSecret, mergeGrantedScopes, ownerColumns, projectConnection, secretContextFor,
+  accessTokenFresh, isYouTubeSecret, ownerColumns, projectConnection, replacedChannel, scopesWithout, secretContextFor, shouldRevokeAtGoogle, storedScopesFor,
   TOKEN_FAILURES, tokenFailureFor, withOneRetry,
-  type ConnectionOwner, type TokenFailure, type YouTubeConnectionRow, type YouTubeConnectionView, type YouTubeSecret,
+  type ConnectionOwner, type ScopeKey, type TokenFailure, type YouTubeConnectionRow, type YouTubeConnectionView, type YouTubeSecret,
 } from './youtube-connection';
 import { youtubeConfig, youtubeMyChannel, youtubeRefresh, youtubeRevoke, type YouTubeConfig } from './google-youtube-server';
 
@@ -75,15 +75,23 @@ export interface ConnectArgs {
   channelId: string;
   channelTitle: string | null;
   grantedScope: string;
+  /** What this consent asked for — the fallback when Google's answer lists nothing. */
+  askedScope: ScopeKey;
   secret: YouTubeSecret;
 }
 
-/** Connect (or reconnect) the owner's channel: ONE row per owner, the scopes merged, the secret sealed to the owner. */
-export async function connectYouTube(admin: Admin, args: ConnectArgs): Promise<Outcome<YouTubeConnectionRow>> {
+/**
+ * Connect (or reconnect) the owner's channel: ONE row per owner, the secret
+ * sealed to the owner. The scopes are REPLACED by what Google's answer lists
+ * (correct state, Nov 10 2026) — never merged with what the row held, which
+ * may have been another Google account's. `replaced` names the channel a
+ * reconnect swapped out, for the banner.
+ */
+export async function connectYouTube(admin: Admin, args: ConnectArgs): Promise<Outcome<{ row: YouTubeConnectionRow; replaced: string | null }>> {
   if (!secretBoxReady()) return { ok: false, status: 503, error: 'Connections are not available here' };
   const existing = await readConnection(admin, args.owner);
   if (!existing.supported) return { ok: false, status: 503, error: 'Connections are not available here' };
-  const scopes = mergeGrantedScopes(existing.row?.scopes, args.grantedScope);
+  const scopes = storedScopesFor(args.grantedScope, args.askedScope);
   const sealed = sealSecret(JSON.stringify(args.secret), secretContextFor(args.owner));
   const fields = {
     connected_by_user_id: args.userId,
@@ -103,7 +111,12 @@ export async function connectYouTube(admin: Admin, args: ConnectArgs): Promise<O
     console.error('[youtube] connect failed:', error?.message);
     return { ok: false, status: 500, error: 'Could not save the connection' };
   }
-  return { ok: true, value: data as YouTubeConnectionRow };
+  return { ok: true, value: { row: data as YouTubeConnectionRow, replaced: replacedChannel(existing.row, args.channelId) } };
+}
+
+/** YouTube refused for a missing permission the row claimed: the row stops claiming it, so the screen asks once more instead of failing again. */
+export async function dropScope(admin: Admin, row: Pick<YouTubeConnectionRow, 'id' | 'scopes'>, need: 'upload' | 'live'): Promise<void> {
+  await admin.from('youtube_connections').update({ scopes: scopesWithout(row.scopes, need) }).eq('id', row.id);
 }
 
 type Opened = { ok: true; row: YouTubeConnectionRow; secret: YouTubeSecret } | { ok: false; failure: TokenFailure };
@@ -211,12 +224,20 @@ export async function checkConnection(admin: Admin, cfg: YouTubeConfig, owner: C
   }
 }
 
-/** Disconnect: revoke at Google (best effort), then the row goes; the videos it uploaded stay the owner's. */
+/**
+ * Disconnect: the row goes; the videos it uploaded stay the owner's. The
+ * grant is revoked at Google (best effort) ONLY when the connector holds no
+ * other connection here — Google revokes per account, so revoking for one
+ * owner would end the same person's other channel connection too.
+ */
 export async function disconnectYouTube(admin: Admin, owner: ConnectionOwner): Promise<Outcome<{ removed: boolean }>> {
   const cfg = youtubeConfig();
   if (cfg) {
     const opened = await openSecretFor(admin, owner).catch(() => null);
-    if (opened?.ok) await youtubeRevoke(cfg, opened.secret.refreshToken).catch(() => false);
+    if (opened?.ok) {
+      const { count } = await admin.from('youtube_connections').select('id', { count: 'exact', head: true }).eq('connected_by_user_id', opened.row.connected_by_user_id).neq('id', opened.row.id);
+      if (shouldRevokeAtGoogle(count ?? 0)) await youtubeRevoke(cfg, opened.secret.refreshToken).catch(() => false);
+    }
   }
   const q = admin.from('youtube_connections').delete();
   const { data, error } = await (owner.kind === 'profile' ? q.eq('profile_id', owner.profileId) : q.eq('org_id', owner.orgId)).select('id');
