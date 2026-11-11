@@ -1,5 +1,19 @@
 # Development Log
 
+## November 11, 2026 — Getting ready: Google's review submitted, a reviewer's account, the launch probe's state (docs only)
+
+Tom: "lets go ahead and move everything to be ready" → all three of: a reviewer account for Google, the feed's layout shift (the entry below), and the launch-readiness probe.
+
+**Google's verification is SUBMITTED** (Tom, Nov 11). The consent screen's Data Access page had been EMPTY — the three scopes were requested at runtime but never declared, so there had been nothing for Google to review. Tom added `youtube.readonly`, `youtube.upload` and `youtube.force-ssl` (all three "sensitive", none "restricted"), pasted the justification (917 of the form's 1,000 characters) and submitted; the console reads "Your app's data access is under review". The site side shipped the same day (#1461: the policies linked from the coming-soon page and inside the privacy policy and the terms). `YOUTUBE_APP_VERIFIED` is OFF until the Verification Center reads Verified, so every door to Google carries the "choose Advanced" sentence.
+
+**The reviewer's account** exists on production: `google-review@edgeathlete.ca`, handle `google_review`, made the documented way while the gate is up (the auth user through the admin API, then the profile through the app's OWN complete-profile form, so every rule ran) with onboarding skipped. Proven headless: a fresh sign-in at `/?signin=1` lands inside the app, and Create → Full game shows the Connect door with the Advanced sentence. The password went to Tom once and is recorded nowhere. **It is removed when verification passes.**
+
+**The launch probe (`npm run launch:probe`, judged as gated):** every row it could read is green — Supabase auth e-mail on custom SMTP (60/h), Site URL and the redirect allowlist on edgeathlete.ca, confirmations ON, the Google provider, the push keys, production healthy, the gate ON (robots disallow, sitemap 404, sign-up 403), the visitor doors 200. **Nine rows could not be read**: the Vercel CLI login the probe uses has expired (403), and `RESEND_API_KEY` is not in `.env.staging`. Tom's `vercel login` (or a read token as `VERCEL_API_TOKEN`) makes them readable; nothing is known to be wrong behind them. `check:schema:prod` ✓ (143 tables, the ledger at 305).
+
+**#1356 is merged** (the Ignored Build Step). This PR is docs only, so it is the proof the cost program asked for: PROOF-IGNORE.
+
+**Tom's list, in order:** `vercel login` → the probe's nine rows; Google's e-mail thread (reply there; the reviewer's sign-in is ready to send); `YOUTUBE_APP_VERIFIED=1` + remove the reviewer account when the status reads Verified; one real upload from the app; a connect from the installed iPhone app; the phone walks; then the runbook's switch.
+
 ## November 11, 2026 — The feed holds still: its 0.441 layout shift was ONE element nobody could see (zero DDL)
 
 The page-timings card's first rows (Nov 10) put the feed's layout shift at **0.441** — "poor" starts at 0.25. The suspects written down that day were the device-remembered page being replaced, the Live Now strip, the widgets, and images without boxes. **All four measured zero.**
@@ -22,7 +36,7 @@ The other main screens, measured the same way on the phone project: `/athlete`, 
 
 **Two things found on the way.** The spec's desktop test was already failing on main: 15 API calls against the budget of 14, the fifteenth being `/api/posts/views` — the beacon that reports which posts were on screen, which fires inside the settle window on a desktop (posts visible at once) and not on a phone. It is now counted apart, like the page-timings beacon: it reports the open, it is not part of it. **This changes what the budget counts and is Tom's to overrule.** And the route's loading view paints dark before a light-theme account's feed appears — seen in the filmstrip, not changed here.
 
-**Proof:** `npm run verify` exit 0 (658 files, **6,047 tests**, the build, `check:weight` ✓, the syntax floor); audit 0; guardrails ✓; `check:blocklists` ✓; `check:schema` ✓ (zero DDL). Playwright on the built server against staging: `perf-feed.spec` on `mobile` three runs — 14 API calls, cold 0 / return 0 each — and on `desktop` (14 calls with the view beacon apart, 0.002: the calendar widget settling 37 px); `hydration.spec` on `mobile` 1/1. Production line: after the merge, the same spec on edgeathlete.ca and the card's CLS row for the new build.
+**Proof:** `npm run verify` exit 0 (658 files, **6,047 tests**, the build, `check:weight` ✓, the syntax floor); audit 0; guardrails ✓; `check:blocklists` ✓; `check:schema` ✓ (zero DDL). Playwright on the built server against staging: `perf-feed.spec` on `mobile` three runs — 14 API calls, cold 0 / return 0 each — and on `desktop` (14 calls with the view beacon apart, 0.002: the calendar widget settling 37 px); `hydration.spec` on `mobile` 1/1. **On production (Nov 11 2026):** #1462 merged as `cd561f36` by the script (verify, smoke and guardrails passed by name; Vercel's deployment awaited); `/api/health` on `cd561f36`; `perf-feed.spec` on edgeathlete.ca, the `mobile` project, CPU ×4, budgets asserted — **14 API calls, layout shift 0 on the cold open and 0 on the return visit** (0.441 on the previous build), first post at 2,290 ms. The card's CLS row for this build follows from real openings.
 
 ## November 11, 2026 — Ready for Google's review: the policies are linked, not only named (zero DDL)
 
