@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
-import { cellText, deriveGame, type DerivedGame, type PlayerLine } from '@/lib/videos/game-derive';
+import AthleteClips from '@/components/videos/AthleteClips';
+import { cellText, deriveGame, personKey, type DerivedGame, type PlayerLine } from '@/lib/videos/game-derive';
 import { gameHasSides, gameShowsScore, sideLabel, type GameView } from '@/lib/videos/game-rules';
 import { gameSheetFor, periodLabel, type GameSheet, type Side } from '@/lib/videos/game-sheets';
 import { gameTagOf, hiddenNote, type RevealMode } from '@/lib/videos/game-view';
+import { revealMs } from '@/lib/videos/game-derive';
 import { formatTimestamp } from '@/lib/videos/rules';
 import type { HighlightRow } from '@/lib/videos/types';
 
@@ -58,7 +60,7 @@ function Board({ sheet, game, d }: { sheet: GameSheet; game: GameView; d: Derive
   );
 }
 
-function BoxScore({ sheet, title, players }: { sheet: GameSheet; title: string; players: PlayerLine[] }) {
+function BoxScore({ sheet, title, players, selected, onSelect }: { sheet: GameSheet; title: string; players: PlayerLine[]; selected: string | null; onSelect: (key: string) => void }) {
   if (players.length === 0 || sheet.box.length === 0) return null;
   return (
     <div data-game-box={title}>
@@ -74,7 +76,11 @@ function BoxScore({ sheet, title, players }: { sheet: GameSheet; title: string; 
           <tbody>
             {players.map(p => (
               <tr key={`${p.key}|${p.side ?? 0}`} className="border-b border-border-subtle" data-game-player={p.key}>
-                <td className="py-1.5 pr-2 text-left text-primary max-w-[9rem] truncate sticky left-0 bg-surface">{playerName(p)}</td>
+                <td className="pr-2 text-left max-w-[9rem] sticky left-0 bg-surface">
+                  <button type="button" onClick={() => onSelect(`${p.key}|${p.side ?? 0}`)} aria-pressed={selected === `${p.key}|${p.side ?? 0}`} className={`ea-interactive block w-full min-h-[44px] truncate text-left font-semibold underline decoration-dotted underline-offset-4 ${selected === `${p.key}|${p.side ?? 0}` ? 'text-brand-fg' : 'text-primary'}`} data-game-player-open={p.key}>
+                    {playerName(p)}
+                  </button>
+                </td>
                 {sheet.box.map(c => <td key={c.label} className="px-2 py-1.5 text-right text-primary whitespace-nowrap">{cellText(p.stats, c.key)}</td>)}
               </tr>
             ))}
@@ -85,8 +91,10 @@ function BoxScore({ sheet, title, players }: { sheet: GameSheet; title: string; 
   );
 }
 
-export default function GameStatsPanel({ game, highlights, mode, highWaterMs, onUnlock, onSeek }: { game: GameView; highlights: HighlightRow[]; mode: RevealMode; highWaterMs: number; onUnlock: () => void; onSeek: (ms: number) => void }) {
+export default function GameStatsPanel({ game, highlights, mode, highWaterMs, onUnlock, onSeek, onPlayTag, onPlayTags }: { game: GameView; highlights: HighlightRow[]; mode: RevealMode; highWaterMs: number; onUnlock: () => void; onSeek: (ms: number) => void; /** PR 6: play one of an athlete's clips, or walk a list of them. */ onPlayTag?: (tagId: string) => void; onPlayTags?: (tagIds: string[]) => void }) {
   const [confirming, setConfirming] = useState(false);
+  // PR 6 — the athlete drill-down: whose clips are open (one person on one side).
+  const [openPlayer, setOpenPlayer] = useState<string | null>(null);
   const sheet = gameSheetFor(game.sport_key);
   const tags = useMemo(() => highlights.map(gameTagOf), [highlights]);
   const derived = useMemo(() => (sheet ? deriveGame(sheet, tags, mode === 'all' ? Number.POSITIVE_INFINITY : highWaterMs) : null), [sheet, tags, mode, highWaterMs]);
@@ -100,6 +108,20 @@ export default function GameStatsPanel({ game, highlights, mode, highWaterMs, on
   const bySide = (s: Side | null) => derived.players.filter(p => p.side === s && Object.keys(p.stats).length > 0);
   const teamRows = sheet.team.filter(c => ([1, 2] as Side[]).some(s => (typeof c.key === 'string' ? [c.key] : [...c.key]).some(k => (derived.team[s][k] ?? 0) > 0)));
   const nothingYet = shown === 0;
+  // The drill-down is handed only what this viewer may already see.
+  const seenTags = mode === 'all' ? tags : tags.filter(t => revealMs(t) <= highWaterMs);
+  // People who are in clips but have no stat line (someone "also in the clip", or on a plain highlight) are still an athlete to open.
+  const inBox = new Set(derived.players.filter(p => Object.keys(p.stats).length > 0).map(p => p.key));
+  const others = new Map<string, PlayerLine>();
+  for (const t of seenTags) for (const p of t.people) {
+    const k = personKey(p);
+    if (!k || inBox.has(k)) continue;
+    const line = others.get(k) ?? { key: k, profileId: p.profileId, name: p.name?.trim() || null, side: null, stats: {}, tagIds: [] };
+    if (!line.tagIds.includes(t.id)) line.tagIds.push(t.id);
+    others.set(k, line);
+  }
+  const openLine = openPlayer ? derived.players.find(p => `${p.key}|${p.side ?? 0}` === openPlayer && Object.keys(p.stats).length > 0) ?? others.get(openPlayer.split('|')[0]) ?? null : null;
+  const togglePlayer = (k: string) => setOpenPlayer(prev => (prev === k ? null : k));
 
   return (
     <section className="bg-surface rounded-lg border border-border p-4 sm:p-6 space-y-4" aria-labelledby="game-stats-heading" data-game-stats={mode} data-game-stats-shown={shown} data-game-stats-total={total}>
@@ -129,8 +151,33 @@ export default function GameStatsPanel({ game, highlights, mode, highWaterMs, on
       {nothingYet && <p className="text-sm text-muted" data-game-stats-empty="">{total === 0 ? 'Nothing is tagged yet.' : 'Nothing yet — press play.'}</p>}
 
       {sides
-        ? ([1, 2] as Side[]).map(s => <BoxScore key={s} sheet={sheet} title={sideLabel(game, s)} players={bySide(s)} />)
-        : <BoxScore sheet={sheet} title="Athletes" players={bySide(null)} />}
+        ? ([1, 2] as Side[]).map(s => <BoxScore key={s} sheet={sheet} title={sideLabel(game, s)} players={bySide(s)} selected={openPlayer} onSelect={togglePlayer} />)
+        : <BoxScore sheet={sheet} title="Athletes" players={bySide(null)} selected={openPlayer} onSelect={togglePlayer} />}
+
+      {others.size > 0 && (
+        <div data-game-also-in={others.size}>
+          <p className="text-sm font-semibold text-primary mb-1">Also in clips</p>
+          <div className="flex flex-wrap gap-2">
+            {[...others.values()].map(p => (
+              <button key={p.key} type="button" onClick={() => togglePlayer(`${p.key}|0`)} aria-pressed={openPlayer === `${p.key}|0`} className={`ea-interactive min-h-[44px] rounded-full border px-3 text-sm font-semibold ${openPlayer === `${p.key}|0` ? 'border-brand bg-brand-soft text-primary' : 'border-border-strong text-secondary'}`} data-game-player-open={p.key}>
+                {playerName(p)} <span className="font-normal text-muted">· {p.tagIds.length}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {openLine && (
+        <AthleteClips
+          key={openPlayer}
+          sheet={sheet}
+          line={openLine}
+          tags={seenTags}
+          onClose={() => setOpenPlayer(null)}
+          onPlay={id => (onPlayTag ? onPlayTag(id) : onSeek(tags.find(t => t.id === id)?.startMs ?? 0))}
+          onPlayAll={ids => (onPlayTags ? onPlayTags(ids) : onSeek(tags.find(t => t.id === ids[0])?.startMs ?? 0))}
+        />
+      )}
 
       {sides && teamRows.length > 0 && (
         <div data-game-team-stats={teamRows.length}>

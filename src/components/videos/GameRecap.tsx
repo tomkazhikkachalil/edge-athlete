@@ -26,7 +26,7 @@ function dayText(day: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export default function GameRecap({ videoId, videoTitle, game, highlights, mode, highWaterMs, onUnlock, onWatch, onPlay }: {
+export default function GameRecap({ videoId, videoTitle, game, highlights, mode, highWaterMs, onUnlock, onWatch, onPlay, onPlayTag, onPlayTags }: {
   videoId: string;
   videoTitle: string;
   game: GameView;
@@ -37,6 +37,8 @@ export default function GameRecap({ videoId, videoTitle, game, highlights, mode,
   /** Back to the video (optionally at a moment). */
   onWatch: (ms?: number) => void;
   onPlay: (h: HighlightRow) => void;
+  onPlayTag?: (tagId: string) => void;
+  onPlayTags?: (tagIds: string[]) => void;
 }) {
   const [shared, setShared] = useState<'idle' | 'copied' | 'failed'>('idle');
   const sheet = gameSheetFor(game.sport_key);
@@ -79,7 +81,7 @@ export default function GameRecap({ videoId, videoTitle, game, highlights, mode,
         )}
       </div>
 
-      <GameStatsPanel game={game} highlights={highlights} mode={mode} highWaterMs={highWaterMs} onUnlock={onUnlock} onSeek={ms => onWatch(ms)} />
+      <GameStatsPanel game={game} highlights={highlights} mode={mode} highWaterMs={highWaterMs} onUnlock={onUnlock} onSeek={ms => onWatch(ms)} onPlayTag={onPlayTag} onPlayTags={onPlayTags} />
 
       {top.length > 0 && (
         <section className="bg-surface rounded-lg border border-border p-4 sm:p-6" aria-labelledby="recap-top-heading" data-game-recap-top={top.length}>

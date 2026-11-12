@@ -79,6 +79,16 @@ A video becomes a **game** when it has a `video_games` row: `sport_key` (the she
 
 **Pinned by** the recap cases in `game-view.test.ts`, `e2e/video-recap.spec.ts` (375 px).
 
+### The athlete drill-down (PR 6, zero DDL)
+
+**From the game, any athlete opens.** A name in a box score is a button; it opens `AthleteClips` under the panel (one athlete at a time, on the video page and in the recap alike): their line for the game (the sheet's columns they have a number in) beside their clips, and the clips narrowed by chips — **Scoring plays** (every tag of theirs that moved the board, an assist on a teammate's basket included), **a period** (when theirs span more than one), **a kind of play** (when they have more than one). A clip plays the video there; **"Play these"** walks exactly the clips on screen (`playlistOf` / `nextInPlaylist`, the same engine as "Play highlights"). The rule is `tagsForPerson` (pure, `game-derive.ts`).
+
+- **Someone with no stat line** — "also in the clip", or on a plain highlight — is listed under **Also in clips** with their count and opens the same way (no line, just the clips).
+- **The spoiler-free cut holds:** the drill-down is handed only the tags the viewer may already see, so a viewer who has not watched is offered nobody; as the video plays, the athletes and their clips arrive with their stats.
+- A typed name and a linked athlete are one person each (`personKey`); a masked athlete ("Player 2") opens under that stand-in.
+
+**Pinned by** the drill-down cases in `game-derive.test.ts`, `e2e/video-athlete-clips.spec.ts` (375 px).
+
 ### What comes next (the sprint's later PRs, each extends this file)
 
-Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the athlete drill-down; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).
+Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).

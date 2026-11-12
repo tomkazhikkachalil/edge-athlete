@@ -1,5 +1,15 @@
 # Development Log
 
+## November 12, 2026 — Sprint 3 (YouTube game film), PR 6 of 8: the athlete drill-down (zero DDL)
+
+**Before it:** PR 5 (#1482) merged as `fb3557d9`; production probes one at a time — `video-recap.spec` desktop 1/1, `videos-mobile.spec` mobile 1/1.
+
+**What.** From a game's box score any athlete opens: their line for the game beside their clips, narrowed by chips to the scoring plays, one period, or one kind of play; a clip plays the video there and "Play these" walks the ones on screen. People who are in clips without a stat line are listed under "Also in clips" and open the same way. It is on the video page and in the recap.
+
+**The spoiler-free cut holds:** the drill-down only ever receives the tags the viewer may already see — a viewer who has not watched is offered nobody.
+
+**Tests.** `e2e/video-athlete-clips.spec.ts` on staging at 375 px: a five-tag basketball game — QA Guard's four clips and 5 points; scoring → 3 (the assist on a teammate's basket counts), Q3 → 1, steals → 1; a clip makes its highlight the active row; another athlete replaces the first; "Also in clips"; the recap's drill-down leads back to the video; a viewer who has not watched has no names to open.
+
 ## November 12, 2026 — Sprint 3 (YouTube game film), PR 5 of 8: the game recap (zero DDL)
 
 **Before it:** PR 4 (#1481) merged as `2cc06b74`; `video-spoiler-free.spec` green on production with the real player (desktop 1/1).
