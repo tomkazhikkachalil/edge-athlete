@@ -57,6 +57,18 @@ A video becomes a **game** when it has a `video_games` row: `sport_key` (the she
 
 **Pinned by** `tag-rules.test.ts` (15), the `revealMs` case in `game-derive.test.ts`, the purity chain in `migration-296.test.ts`, `e2e/video-tagging.spec.ts`.
 
+### The spoiler-free view (PR 4, zero DDL)
+
+**A viewer sees only what the video has played past.** `game-view.ts` (pure): `revealMode(game, canManage, unlocked)` is `all` for a manager, an unlocked viewer, a game with `stats_hidden` off, and a video that is not a game; otherwise `progressive`. In progressive mode `visibleHighlights` keeps only the highlights whose clip has ENDED before the furthest point watched (`revealMs`), and `GameStatsPanel` derives the game from the same cut — so the board, the box scores, the team rows, the scoring summary and the highlight list all fill in together, and the timeline (every mark is a spoiler) is not drawn at all.
+
+- **The furthest point watched only moves forward** (`advanceWatch` → `nextHighWater`): skipping ahead reveals up to there, skipping back hides nothing. It and the unlock are kept on the DEVICE per video (`ea:game-watch:v1:<video id>` — nothing personal; cleared with site data), written with the resume position every few seconds.
+- **"Show full stats"** asks first — it names what it shows and that it spoils the game — and stays unlocked on that device. After it the tag marks are on the timeline to jump to.
+- **Hidden means not drawn.** The page's payload still carries the highlights (the video page is one read); nothing of an unrevealed tag is rendered — not its label, not its people, not a count per player. The only thing said is how many tagged plays are still ahead.
+- **What is shown** follows the game: a board only when `gameShowsScore` (coverage `full` and the sheet keeps one); "Highlights only" says so and claims no score; a combat result line; race results; a golf scorecard. Box-score rows are people with at least one stat; a masked athlete keeps one stand-in name across the game ("Player 2").
+- **Without the IFrame API** (blocked) the playhead is unknown, so nothing unlocks by watching — "Show full stats" is the way in.
+
+**Pinned by** `game-view.test.ts` (7), `e2e/video-spoiler-free.spec.ts` (a real viewer, the real player: nothing → the first basket once its clip has played → everything after the confirm → still unlocked after a reload; the manager sees all; spoilers off shows all).
+
 ### What comes next (the sprint's later PRs, each extends this file)
 
-Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the spoiler-free view and "Show full stats"; the recap; the athlete drill-down; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).
+Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the recap; the athlete drill-down; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).
