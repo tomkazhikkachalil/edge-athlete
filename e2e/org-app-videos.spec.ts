@@ -2,7 +2,7 @@ import { test, expect } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
-import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
+import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
 // Videos program (296): the org's Videos bubble reads /api/videos?side=&orgId=
 // under the org gallery's gate. The owner links a full game to the club; a
@@ -12,7 +12,7 @@ import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
 // manages (403 on a write); the owner's hidden video stays the managers'.
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 // Only the connected channel (Nov 11 2026): the link saves because the owner's connection names that video's channel.
-useOwnChannel(['jNQXAC9IVRw']);
+withOwnChannel(['jNQXAC9IVRw']);
 
 test('org videos: owner links → member sees the bubble + window; public → anyone; private → members only; a member cannot manage', async ({ page, browser }) => {
   test.setTimeout(240_000);

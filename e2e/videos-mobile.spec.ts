@@ -3,7 +3,7 @@ import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from '
 import { fitsViewportWidth } from './helpers/layout';
 import { cleanup } from './helpers/cleanup';
 import path from 'node:path';
-import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
+import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
 // Videos program (296) at phone width: the Videos tab is reachable on the
 // profile (/athlete?tab=videos), the video page fits the viewport with the
@@ -11,7 +11,7 @@ import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
 // render one column. Web and mobile ship together.
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 // Only the connected channel (Nov 11 2026): the link saves because the owner's connection names that video's channel.
-useOwnChannel(['jNQXAC9IVRw']);
+withOwnChannel(['jNQXAC9IVRw']);
 
 test('videos at phone width: the tab, the page, the player, the steps @mobile', async ({ page }) => {
   test.setTimeout(180_000);

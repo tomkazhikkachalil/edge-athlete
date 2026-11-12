@@ -3,7 +3,7 @@ import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 import { publishSite, revisionsSupported } from './helpers/org-site';
-import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
+import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
 // Videos program, Phase 1b: the public site's Videos tile. The owner links a
 // full game to the club, places the `video_list` tile on the draft (the
@@ -13,7 +13,7 @@ import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
 // profile video never reaches it either (the tile is the org's rows only).
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 // Only the connected channel (Nov 11 2026): the links save because the owner's connection names those videos' channel.
-useOwnChannel(['jNQXAC9IVRw', 'aqz-KE-bpKQ', '9bZkp7q19f0']);
+withOwnChannel(['jNQXAC9IVRw', 'aqz-KE-bpKQ', '9bZkp7q19f0']);
 type Widget = { id: string; key: string; x: number; y: number; w: number; h: number; cv: number; visibility: string; config: Record<string, unknown> };
 
 test('public site Videos tile: the org\'s published linked game on the published home; hidden and profile-owned videos never', async ({ browser }) => {

@@ -1,5 +1,5 @@
 import { test, expect, request as pwRequest } from './helpers/test';
-import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
+import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The player that knows the time (Videos program polish B, Nov 6 2026):
@@ -13,7 +13,7 @@ import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState,
 
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw'; // "Me at the zoo" — 19 s, public, embeddable
 // Only the connected channel (Nov 11 2026): the link saves because the owner's connection names that video's channel.
-useOwnChannel(['jNQXAC9IVRw']);
+withOwnChannel(['jNQXAC9IVRw']);
 
 test('the API answers: the player is the API\'s, "This moment" types the playhead, "Play highlights" walks the list; blocked, the plain frame and typed times still work', async ({ browser }) => {
   test.setTimeout(150_000);

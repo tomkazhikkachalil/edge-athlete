@@ -1,7 +1,7 @@
 import { test, expect } from './helpers/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { liveWire } from './helpers/activities';
-import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
+import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
 // Videos program, Phase 1b (297): a video's place can be a golf round, an
 // activity or a workout. Attaching needs the PLACE's manager; a place's
@@ -13,7 +13,7 @@ const ROUND_YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 const ACTIVITY_YT = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ';
 const WORKOUT_YT = 'https://www.youtube.com/watch?v=9bZkp7q19f0';
 // Only the connected channel (Nov 11 2026): the links save because the owner's connection names those videos' channel.
-useOwnChannel(['jNQXAC9IVRw', 'aqz-KE-bpKQ', '9bZkp7q19f0']);
+withOwnChannel(['jNQXAC9IVRw', 'aqz-KE-bpKQ', '9bZkp7q19f0']);
 
 test('videos on a round, an activity and a workout: the place\'s manager attaches; the place\'s rule gates the list; the surfaces show them', async ({ page }) => {
   test.setTimeout(240_000);

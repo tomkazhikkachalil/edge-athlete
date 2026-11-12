@@ -297,7 +297,8 @@ describe('paste and go (Nov 6 2026)', () => {
     expect(route).toContain("enforceRateLimit(request, 'video-lookup', { userId: user.id })");
     expect(route).toContain('ownerManaged(admin, owner, user.id)');
     expect(route).toContain('youtubeReadConfig()');
-    expect(route).toContain('{ lookup: UNAVAILABLE }');
+    // Unavailable stays a quiet answer; since Nov 11 2026 it also carries whose video it is (only the connected channel).
+    expect(route).toContain('{ lookup: { ...UNAVAILABLE, channel, channelTitle } }');
     expect(route).toContain('chapters: parseChapters(v.description)');
     expect(read('src/lib/rate-limit-core.ts')).toContain("'video-lookup': { max: 60, windowSeconds: 60, keyBy: 'user' }");
     expect(read('src/lib/videos/google-youtube-server.ts')).toContain('part=snippet,contentDetails,status,liveStreamingDetails');

@@ -9,7 +9,7 @@ import { MOCK_DEFAULT_CHANNEL, startYouTubeMock, type YouTubeMock } from './yout
  * owner. A spec that is NOT about the connection itself gets both halves
  * here:
  *
- *  - `useOwnChannel(ids)` — on staging the stand-in Google is started for
+ *  - `withOwnChannel(ids)` — on staging the stand-in Google is started for
  *    the file and answers those ids as public videos on MOCK_DEFAULT_CHANNEL.
  *    On production (the sanctioned probe) nothing is started: the real
  *    YouTube answers through the server's key.
@@ -34,7 +34,7 @@ export function ownChannelFor(videoId = 'jNQXAC9IVRw'): string {
 }
 
 /** Start the stand-in for this file (staging only) and have it answer `ids` as the default channel's public videos. */
-export function useOwnChannel(ids: readonly string[]): { mock: () => YouTubeMock | null } {
+export function withOwnChannel(ids: readonly string[]): { mock: () => YouTubeMock | null } {
   let mock: YouTubeMock | null = null;
   test.beforeAll(async () => {
     if (E2E_TARGET === 'prod') return;

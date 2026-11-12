@@ -1,7 +1,7 @@
 import { test, expect } from './helpers/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
-import { ownChannelFor, seedOwnChannel, useOwnChannel } from './helpers/own-channel';
+import { ownChannelFor, seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
 // Videos program (296): a full game is a YouTube LINK. The QA user links one
 // to their own profile through the API, sees it on the profile's Videos tab,
@@ -11,7 +11,7 @@ import { ownChannelFor, seedOwnChannel, useOwnChannel } from './helpers/own-chan
 // The video: YouTube's own first upload — public, embeddable, never going away.
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 // Only the connected channel (Nov 11 2026): the link saves because the QA user's connection names that video's channel.
-useOwnChannel(['jNQXAC9IVRw']);
+withOwnChannel(['jNQXAC9IVRw']);
 
 test('link a full game → profile Videos tab → the video page → a highlight seeks the player → delete', async ({ page }) => {
   test.setTimeout(180_000);
