@@ -1,5 +1,17 @@
 # Development Log
 
+## November 12, 2026 — Sprint 3 (YouTube game film), PR 5 of 8: the game recap (zero DDL)
+
+**Before it:** PR 4 (#1481) merged as `2cc06b74`; `video-spoiler-free.spec` green on production with the real player (desktop 1/1).
+
+**What.** The page a club shares after the game: `/videos/<id>?view=recap`. Who played, the sport and the day; the final score with the score by period; a box score per side; team stats; the scoring summary in order with the running score; top highlights (six at most — the plays that moved the board, then the ones the tagger named). "Share the recap" opens the device's share sheet, or copies the link. Every number is the tags, derived on the page — the recap stores nothing.
+
+**The recap is the spoiler,** so a viewer who has not watched is asked first (the same confirm and device unlock as the stats); the manager reads it at once. "Watch the game", a top highlight and a summary row all lead back to the video, at that moment.
+
+**How it is built.** A view of the video page, not a second route: the server page reads `?view=` and hands it down; the video is hidden under the recap rather than unmounted, so the player keeps its place.
+
+**Tests.** Three recap cases in `game-view.test.ts`. `e2e/video-recap.spec.ts` on staging at 375 px: a soccer game of six tags — 2–1 with an own goal credited to the other side in the summary; a highlight leads to the video and the address follows; a viewer sees 0–0 and no names until the confirm; a video that is not a game shows the video.
+
 ## November 12, 2026 — Sprint 3 (YouTube game film), PR 4 of 8: the spoiler-free view — the stats unlock as the video plays (zero DDL)
 
 **Before it:** PR 3 (#1480) merged as `e05b644f`; production probes one at a time — `video-tagging.spec` desktop 1/1, `videos.spec` desktop 1/1, `videos-mobile.spec` mobile 1/1.

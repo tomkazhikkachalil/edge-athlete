@@ -8,7 +8,8 @@ import HighlightList from '@/components/videos/HighlightList';
 import GameDetailsCard from '@/components/videos/GameDetailsCard';
 import TagTimeline from '@/components/videos/TagTimeline';
 import GameStatsPanel from '@/components/videos/GameStatsPanel';
-import { advanceWatch, EMPTY_WATCH, gameWatchKey, parseGameWatch, revealMode, serializeGameWatch, visibleHighlights, type GameWatch } from '@/lib/videos/game-view';
+import GameRecap from '@/components/videos/GameRecap';
+import { advanceWatch, EMPTY_WATCH, gameWatchKey, parseGameWatch, recapPath, revealMode, serializeGameWatch, visibleHighlights, type GameWatch, type VideoPageView } from '@/lib/videos/game-view';
 import type { GameView } from '@/lib/videos/game-rules';
 import { LivePill } from '@/components/videos/VideoCards';
 import { formatLiveWhen, liveBadgeFor, liveRefetchMs } from '@/lib/videos/live-rules';
@@ -78,8 +79,14 @@ function placeHref(v: VideoView): string | null {
  * this fetches with the session; a signed-out visitor of a public owner is
  * welcome. A refusal is the same "not available" as not-found.
  */
-export default function VideoScreen({ videoId }: { videoId: string }) {
+export default function VideoScreen({ videoId, initialView = 'watch' }: { videoId: string; initialView?: VideoPageView }) {
   const router = useRouter();
+  // Sprint 3 PR 5: the recap is a view of this page (`?view=recap`), so its link is shareable and Back leaves it.
+  const [view, setView] = useState<VideoPageView>(initialView);
+  const showView = (next: VideoPageView) => {
+    setView(next);
+    router.replace(next === 'recap' ? recapPath(videoId) : `/videos/${encodeURIComponent(videoId)}`, { scroll: false });
+  };
   const { user, initialAuthCheckComplete } = useAuth();
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [startMs, setStartMs] = useState<number | null>(null);
@@ -417,6 +424,22 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         )}
       </div>
 
+      {view === 'recap' && load.game && (
+        <GameRecap
+          videoId={video.id}
+          videoTitle={video.title}
+          game={load.game}
+          highlights={allHighlights}
+          mode={mode}
+          highWaterMs={watch.highWaterMs}
+          onUnlock={unlockStats}
+          onWatch={ms => { showView('watch'); if (ms !== undefined) seekTo(ms); }}
+          onPlay={h => { showView('watch'); play(h); }}
+        />
+      )}
+
+      {/* The video itself: hidden (not unmounted) under the recap, so coming back keeps the player where it was. */}
+      <div className={view === 'recap' && load.game ? 'hidden' : 'space-y-4'} data-video-watch="">
       {live && (
         <p className="flex flex-wrap items-center gap-2 text-sm text-secondary" data-video-live={live.kind}>
           {live.kind === 'live' && <LivePill />}
@@ -532,7 +555,14 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         onChange={game => setLoad(prev => (prev.state === 'ready' ? { ...prev, game } : prev))}
       />
 
-      {load.game && <GameStatsPanel game={load.game} highlights={allHighlights} mode={mode} highWaterMs={watch.highWaterMs} onUnlock={unlockStats} onSeek={seekTo} />}
+      {load.game && (
+        <div className="flex justify-end">
+          <button type="button" onClick={() => showView('recap')} className={BTN} data-video-open-recap="">Game recap</button>
+        </div>
+      )}
+
+      {/* One stats panel at a time: under the recap it is the recap's. */}
+      {load.game && view === 'watch' && <GameStatsPanel game={load.game} highlights={allHighlights} mode={mode} highWaterMs={watch.highWaterMs} onUnlock={unlockStats} onSeek={seekTo} />}
 
       {/* The marks are spoilers: a manager always has the timeline; a viewer of a game gets it once everything is shown. */}
       {(canManage || (load.game && mode === 'all')) && <TagTimeline highlights={highlights} durationMs={video.duration_ms} game={load.game} activeId={activeId} onPlay={play} />}
@@ -550,6 +580,7 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         game={load.game}
         durationMs={video.duration_ms}
       />
+      </div>
 
       <ConfirmModal
         isOpen={confirmDelete}

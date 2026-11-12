@@ -10,6 +10,7 @@
  */
 import { nextHighWater, revealMs, type GameTag } from './game-derive';
 import type { GameView } from './game-rules';
+import { sheetEvent, type GameSheet } from './game-sheets';
 import type { HighlightRow } from './types';
 
 /** A highlight as the engine reads it. */
@@ -82,4 +83,38 @@ export function advanceWatch(w: GameWatch, playheadMs: number): GameWatch {
 export function hiddenNote(count: number): string {
   if (count <= 0) return '';
   return count === 1 ? '1 more highlight shows as you watch.' : `${count} more highlights show as you watch.`;
+}
+
+// ── The recap ───────────────────────────────────────────────────────────────
+
+export type VideoPageView = 'watch' | 'recap';
+
+/** `?view=recap` opens the recap; anything else is the video. */
+export function videoPageView(raw: string | string[] | null | undefined): VideoPageView {
+  return (Array.isArray(raw) ? raw[0] : raw) === 'recap' ? 'recap' : 'watch';
+}
+
+/** The link a club shares after the game. */
+export function recapPath(videoId: string): string {
+  return `/videos/${encodeURIComponent(videoId)}?view=recap`;
+}
+
+export const TOP_HIGHLIGHTS_MAX = 6;
+
+/**
+ * The recap's top highlights: the plays that moved the board or ended it
+ * first (in time order), then plain highlights the tagger named, up to `max`.
+ * A recap is never a second list of every tag.
+ */
+export function topHighlights(sheet: GameSheet | null, highlights: readonly HighlightRow[], max: number = TOP_HIGHLIGHTS_MAX): HighlightRow[] {
+  const byTime = [...highlights].sort((a, b) => a.start_ms - b.start_ms);
+  const big = byTime.filter(h => {
+    const e = sheet ? sheetEvent(sheet, h.event_key) : null;
+    return !!e && (!!e.score || !!e.finish || e.group === 'result');
+  });
+  const plain = byTime.filter(h => !h.event_key);
+  const rest = byTime.filter(h => !big.includes(h) && !plain.includes(h));
+  // Too many scoring plays to list (a basketball game): the named highlights lead, then the scoring plays fill what is left.
+  const ordered = big.length > max ? [...plain, ...big, ...rest] : [...big, ...plain, ...rest];
+  return ordered.slice(0, Math.max(0, max)).sort((a, b) => a.start_ms - b.start_ms);
 }

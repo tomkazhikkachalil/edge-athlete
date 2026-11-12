@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { advanceWatch, EMPTY_WATCH, gameTagOf, gameWatchKey, hiddenCount, hiddenNote, parseGameWatch, revealMode, serializeGameWatch, visibleHighlights } from '../game-view';
+import { advanceWatch, EMPTY_WATCH, gameTagOf, gameWatchKey, hiddenCount, hiddenNote, parseGameWatch, recapPath, revealMode, serializeGameWatch, topHighlights, videoPageView, visibleHighlights } from '../game-view';
+import { GAME_SHEETS } from '../game-sheets';
 import type { HighlightRow } from '../types';
 
 /** The spoiler-free view (Sprint 3 PR 4): a viewer sees only what the video has played past. */
@@ -59,5 +60,28 @@ describe('gameTagOf', () => {
   it('a highlight as the engine reads it', () => {
     const row = h('t', 1000, 4000, { event_key: 'fg3_made', period: 2, side: 1, value: null, label: 'Three', people: [{ id: 'r1', profile_id: 'p1', name: 'Ann', handle: 'ann', avatar_url: null, role: 'scorer', side: null }] });
     expect(gameTagOf(row)).toEqual({ id: 't', startMs: 1000, endMs: 4000, eventKey: 'fg3_made', period: 2, side: 1, value: null, label: 'Three', people: [{ profileId: 'p1', name: 'Ann', role: 'scorer', side: null }] });
+  });
+});
+
+describe('the recap', () => {
+  it('?view=recap opens it; anything else is the video; the share link says so', () => {
+    expect(videoPageView('recap')).toBe('recap');
+    expect(videoPageView(['recap', 'x'])).toBe('recap');
+    expect(videoPageView('stats')).toBe('watch');
+    expect(videoPageView(undefined)).toBe('watch');
+    expect(recapPath('abc')).toBe('/videos/abc?view=recap');
+  });
+  it('top highlights: the plays that moved the board first, then named highlights, in time order, six at most', () => {
+    const soccer = GAME_SHEETS.soccer;
+    const list = [h('foul', 5, null, { event_key: 'foul' }), h('nice', 10), h('goal1', 20, null, { event_key: 'goal' }), h('save', 30, null, { event_key: 'save' }), h('goal2', 40, null, { event_key: 'own_goal' })];
+    expect(topHighlights(soccer, list, 3).map(x => x.id)).toEqual(['nice', 'goal1', 'goal2']);
+    expect(topHighlights(soccer, list).map(x => x.id)).toEqual(['foul', 'nice', 'goal1', 'save', 'goal2']);
+    expect(topHighlights(null, list, 2).map(x => x.id)).toEqual(['foul', 'nice']); // not a game: just the first highlights... the named one leads
+  });
+  it('a game with more scoring plays than fit leads with the highlights the tagger named', () => {
+    const bb = GAME_SHEETS.basketball;
+    const buckets = Array.from({ length: 10 }, (_, i) => h(`b${i}`, i * 10, null, { event_key: 'fg2_made' }));
+    const picked = topHighlights(bb, [...buckets, h('dunk', 55), h('buzzer', 95)], 4).map(x => x.id);
+    expect(picked).toEqual(['b0', 'b1', 'dunk', 'buzzer']);
   });
 });
