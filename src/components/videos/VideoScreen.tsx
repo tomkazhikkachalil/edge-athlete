@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import HighlightList from '@/components/videos/HighlightList';
+import GameDetailsCard from '@/components/videos/GameDetailsCard';
+import type { GameView } from '@/lib/videos/game-rules';
 import { LivePill } from '@/components/videos/VideoCards';
 import { formatLiveWhen, liveBadgeFor, liveRefetchMs } from '@/lib/videos/live-rules';
 import { watchUrl } from '@/lib/videos/youtube';
@@ -28,7 +30,7 @@ type Load =
   | { state: 'loading' }
   | { state: 'missing' }
   | { state: 'error' }
-  | { state: 'ready'; video: VideoView; highlights: HighlightRow[]; canManage: boolean };
+  | { state: 'ready'; video: VideoView; highlights: HighlightRow[]; canManage: boolean; game: GameView | null };
 
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
@@ -99,8 +101,8 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
       const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}`, { cache: 'no-store' });
       if (res.status === 404) return { state: 'missing' };
       if (!res.ok) return { state: 'error' };
-      const body = (await res.json()) as { video: VideoView; highlights: HighlightRow[]; can_manage: boolean };
-      return { state: 'ready', video: body.video, highlights: body.highlights, canManage: body.can_manage };
+      const body = (await res.json()) as { video: VideoView; highlights: HighlightRow[]; can_manage: boolean; game?: GameView | null };
+      return { state: 'ready', video: body.video, highlights: body.highlights, canManage: body.can_manage, game: body.game ?? null };
     } catch {
       return { state: 'error' };
     }
@@ -463,6 +465,14 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         )}
         {note && <p className="text-sm text-red-600" role="alert">{note}</p>}
       </div>
+
+      <GameDetailsCard
+        videoId={video.id}
+        game={load.game}
+        canManage={canManage}
+        videoSportKey={video.sport_key}
+        onChange={game => setLoad(prev => (prev.state === 'ready' ? { ...prev, game } : prev))}
+      />
 
       <HighlightList
         highlights={highlights}

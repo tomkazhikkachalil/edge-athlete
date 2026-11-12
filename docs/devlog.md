@@ -1,5 +1,17 @@
 # Development Log
 
+## November 12, 2026 — Sprint 3 (YouTube game film), PR 2 of 8: the game on the video (migration 307)
+
+**What.** A linked video can now be a **game**: its sport, the two sides, the day, whether every scoring play is tagged (`coverage`), and the spoiler-free default. Migration 307 adds `video_games` (one per video), four nullable columns on `video_highlights` (`event_key`, `period`, `side`, `value` — a row without an event is the plain marker it always was) and `video_highlight_people` (who is in a tag: a profile XOR a typed name, the role, `active | removed`). The tag columns and the people table are made here and WRITTEN by PR 3.
+
+**The code.** `game-rules.ts` (pure: `parseGameBody`, a real calendar day, `gameShowsScore`, the copy for the two coverage choices), `video-games-server.ts` (the one writer; a side that names a team takes the team's name; a missing table is "no game", never a 500), `GET | PUT | DELETE /api/videos/[id]/game` (the video's own rights; `video-write`), `GET /api/videos/[id]` carries `game`, and `GameDetailsCard` on the video page.
+
+**Two things that differ from the plan, both mine:** (1) the game fields live on the video page, not yet inside the Full game flow's Details step — the video page is where tagging happens, and the flow's Save would have needed a second write; the flow follows in a later PR. (2) `video_highlight_people.profile_id` is **`survives`**, not "leaves with the person": a game's box score must not lose points when someone deletes their account — the same rule as a contest's stat line and media tag (Convention 25). The person can still remove their own tags (PR 7).
+
+**Tests.** `game-rules.test.ts` (17), `migration-307.test.ts` (5); `src/lib/videos` 327 green. `e2e/video-game.spec.ts` on staging at phone width (the `mobile` project): the manager adds, edits, a reload keeps it, a stranger gets the video's 404, a race drops the sides, removing keeps the video.
+
+**Tom's step: migration 307 in the production SQL editor BEFORE this merges** (expected row `307 APPLIED | 2 | 4 | false | 307`). Staging has it.
+
 ## November 12, 2026 — Sprint 3 (YouTube game film), PR 1 of 8: the game sheets and the engine — every stat from the tags (no UI, zero DDL)
 
 Tom's brief: clubs, leagues and sports creators post full games on YouTube and this is the tool they tag them with — highlights pinned to exact moments with an event type and the athletes involved, **every stat from the tags**, a spoiler-free view that unlocks as the video plays, a recap, the athlete's clips and stats on their profile without the athlete doing anything. His decisions: **every sport** (baselines from the broadcasters' box scores), tag anyone the tagger may view or a typed name, no approval (told at once, removable).
