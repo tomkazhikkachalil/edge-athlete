@@ -1,5 +1,20 @@
 # Development Log
 
+## November 11, 2026 — Training redesign, PR 4 of 8: History is one list (every workout and activity, paged), and the week counts a year
+
+Tom: "the way you navigate and the groups, don't really make sense." A session could sit in three places (Recent sessions, the workouts window, the Activities section), each grouped its own way, and the workouts window — like the week, the streak and the load — only ever knew the last 50 workouts.
+
+**What changed (zero DDL):**
+- **`GET /api/profile/[profileId]/training/history`** — every completed workout and every activity in ONE list, newest first, 20 a page. Both tables are read past the same keyset cursor (`started_at`, then `id`), a page + 1 each, and merged (`src/lib/training/history.ts`, pure: `mergeHistoryPage`, `compareHistory` to the microsecond, `groupByMonth`). `?kind=all|workouts|activities`. The gate is the activity readers' one gate (`resolveActivityAccess`: blocks, a departed athlete, supervision, guardians as the owner — the workouts route's hand-rolled gate knew none of those), then the Training privacy `workouts` aspect. A non-owner never receives a workout the owner hid or has not decided, nor an "Only me" activity.
+- **`?sessions=1`** on the same route: the last 52 weeks of workouts as training sessions (a narrow read: no clip, no note), beside the activities. The Overview's week, streak and load count from it — not from "the last 50 workouts". The 50 remain the fallback if that read fails, and the Progress chart's source until PR 5.
+- **`TrainingHistory`** replaces the workouts list and the Activities section: All / Workouts / Activities, month headings, "Load more". A workout row is the card it was (expand for the sets, the owner's actions, "Shared" opens the post); an activity row is the row it was and opens the activity's page. Filtered to Activities it shows the week's totals and, for the athlete, "Connect a watch". `?tab=activities` opens it already filtered.
+- `src/lib/workouts/read-server.ts` — the workouts route's nested select, sort and media proxy, shared so History reads a workout exactly as that route does.
+- Deleted: `WorkoutDetailOverlay`, `ActivitiesTab` (its row and totals live on as `ActivityHistoryRow`, `ActivityWeekTotals`).
+
+**A correction to the plan.** It said the training-posts grid would go because those posts "stay in Media". They do not: Convention 50 keeps every training post OUT of Media and Stats (`profile-buckets.spec` pins it), so removing the grid would have removed a plain training post from the profile altogether. The grid stays, under History, headed "Training posts", with Log Training.
+
+**Proof:** `npm run verify` exit 0 (6,075 tests). `training-history.test.ts`: walking the cursor over two interleaved sources returns every session exactly once, in order; the microsecond order; months; the route's gate before any read and `private, no-store` on every answer; the visitor filters. Staging e2e — mobile: the new `training-history` (25 seeded workouts: a visitor gets 23 over two pages, never the hidden or the undecided one; the owner 25; the privacy aspect hides it from the visitor only; a bad cursor is 400; at 375 px twenty rows, months, Load more, the filter, no sideways overflow), `training-mobile`, `activities-profile`, `activities-doors`, `activities-ui`, `workout-drafts`; desktop: `training`, `connections`, `polar`, `profile-buckets`.
+
 ## November 11, 2026 — Training redesign, PR 3 of 8: four views behind one switcher (the shell)
 
 Tom: "the way you navigate and the groups, don't really make sense." Training was one scroll of nine stacked sections. Tom's decision: four views — **Overview · History · Exercises · Body & tests**.

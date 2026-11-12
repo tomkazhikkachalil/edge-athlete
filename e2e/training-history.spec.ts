@@ -90,11 +90,13 @@ test('History pages past twenty, groups by month, filters by kind; a visitor nev
     // ── The screen, at phone width: the view's own address, twenty rows, months, Load more, the filter.
     const page = await ctx.newPage();
     await page.goto('/athlete?tab=training&view=history');
+    // The undecided workout is this owner's draft: the reopen prompt offers it once per device and covers the page until answered.
+    await page.getByRole('dialog').getByRole('button', { name: 'Not now' }).click({ timeout: 30_000 });
     const history = page.locator('[data-training-history]');
     await expect(history).toBeVisible({ timeout: 30_000 });
     await expect(history.locator('[data-history-item]')).toHaveCount(20, { timeout: 20_000 });
     expect(await history.locator('[data-history-month]').count()).toBeGreaterThanOrEqual(2);
-    await expect(history.locator('[data-history-month]').first().getByRole('heading')).toBeVisible();
+    await expect(history.locator('[data-history-month]').first().getByRole('heading').first()).toHaveText(new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }));
     await history.locator('[data-training-history-more]').click();
     await expect(history.locator('[data-history-item]')).toHaveCount(25, { timeout: 20_000 });
     await expect(history.locator('[data-training-history-more]')).toHaveCount(0);
