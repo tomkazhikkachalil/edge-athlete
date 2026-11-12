@@ -83,8 +83,8 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
     await page.locator('[data-workout-effort] [data-effort="8"]').click();
     await expect.poll(async () => (await (await api.get(`/api/workouts/${id}`)).json()).session.effort, { timeout: 15_000 }).toBe(8);
 
-    // Training lists every exercise's records.
-    await page.goto('/athlete?tab=training');
+    // Training lists every exercise's records — the Exercises view, by its own address.
+    await page.goto('/athlete?tab=training&view=exercises');
     const records = page.locator('[data-exercise-records]');
     await expect(records).toBeVisible({ timeout: 30_000 });
     await expect(records.locator('[data-exercise-record="bench_press"]')).toContainText('195');

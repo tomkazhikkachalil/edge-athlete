@@ -62,15 +62,20 @@ test('activities live inside Training on /u/ and /athlete; the feed card; no imp
     await expect(pageB.locator('[data-activities-import-link]')).toHaveCount(0);
     // There is no separate Activities tab any more.
     await expect(pageB.getByRole('navigation', { name: 'Profile sections' }).getByRole('button', { name: 'Activities' })).toHaveCount(0);
-    // The activities COUNT in Training: this athlete has no gym workout at all,
-    // yet today's run is a session this week and an active day, and both
+    // The old link opens the HISTORY view (Training redesign PR 3, Nov 11 2026), where the activities live.
+    const viewsB = pageB.getByRole('tablist', { name: 'Training views' });
+    await expect(viewsB.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
+    // The activities COUNT in Training (the Overview): this athlete has no gym workout
+    // at all, yet today's run is a session this week and an active day, and both
     // runs lead Recent sessions.
+    await viewsB.getByRole('tab', { name: 'Overview' }).click();
     await expect(pageB.getByText('Sessions this week')).toBeVisible();
     await expect(pageB.getByRole('img', { name: 'Active 1 of 7 days this week' })).toBeVisible();
     await expect(pageB.locator('[data-training-recent-sessions] [data-session-kind="activity"]')).toHaveCount(2);
     await expect(pageB.locator('[data-training-recent-sessions]')).toContainText('Hill repeats');
-    // …and the shared one sits under Training Activity — as a tile (the Stats /
+    // …and the shared one sits under Training Activity (History) — as a tile (the Stats /
     // Media grid, Training fixes PR 2); a tap opens the post with its card.
+    await viewsB.getByRole('tab', { name: 'History' }).click();
     const grid = pageB.locator('[data-training-activity-grid]');
     await expect(grid).toBeVisible({ timeout: 20_000 });
     await expect(grid.locator(`[data-post-id="${sharedPostId}"]`)).toBeVisible();
@@ -82,6 +87,7 @@ test('activities live inside Training on /u/ and /athlete; the feed card; no imp
     // The same on /athlete/[id].
     await pageB.goto(`/athlete/${a.id}?tab=activities`);
     await expect(pageB.locator('[data-activity-item]')).toHaveCount(2, { timeout: 20_000 });
+    await pageB.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'Overview' }).click();
     await expect(pageB.locator('[data-training-recent-sessions] [data-session-kind="activity"]')).toHaveCount(2);
 
     // The feed card: the follower sees it, and it opens the activity.
@@ -110,8 +116,10 @@ test('activities live inside Training on /u/ and /athlete; the feed card; no imp
     }
     await pageB.goto(`/u/${handle}?tab=training`);
     await expect(pageB.getByRole('heading', { name: 'Training', exact: true })).toBeVisible({ timeout: 20_000 });
-    await expect(pageB.locator('[data-activities-tab]')).toHaveCount(0);
     await expect(pageB.locator('[data-training-recent-sessions]')).toHaveCount(0);
+    await pageB.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'History' }).click();
+    await expect(pageB.locator('[data-training-workouts]')).toBeVisible();
+    await expect(pageB.locator('[data-activities-tab]')).toHaveCount(0);
     await admin.from('profiles').update({ vitals_privacy: null }).eq('id', a.id);
 
     // The owner: Record in their own Training, and NO import door — not in

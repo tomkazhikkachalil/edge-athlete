@@ -22,6 +22,15 @@ test('training @mobile: deep links reach the dashboard at phone width', async ({
   const trainingTab = page.getByRole('button', { name: /training/i }).first();
   await expect(trainingTab).toBeInViewport({ timeout: 15_000 });
   await expect(page.getByText('Sessions this week')).toBeVisible({ timeout: 15_000 });
+  // The four views fit the phone: every tab is on screen without a sideways scroll, and nothing overflows the page.
+  const views = page.getByRole('tablist', { name: 'Training views' });
+  for (const name of ['Overview', 'History', 'Exercises', 'Body & tests']) await expect(views.getByRole('tab', { name })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  for (const name of ['History', 'Exercises', 'Body & tests']) {
+    await views.getByRole('tab', { name }).click();
+    await expect(views.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${name} overflows the phone`).toBe(true);
+  }
 
   // /u/<handle>?tab=training — the public-profile route (where most in-app
   // profile links land) must carry the same design. User B views user A's
@@ -59,6 +68,12 @@ test('training @mobile: deep links reach the dashboard at phone width', async ({
     await expect(pageB.getByText('Sessions this week')).toBeVisible({ timeout: 15_000 });
     // Read-only for a visitor: no owner actions at phone width either.
     await expect(pageB.locator('[data-training-start]')).toHaveCount(0);
+    // Route parity: a view's own address lands on that view here too.
+    await pageB.goto(`/u/@${handle}?tab=training&view=history`);
+    await expect(pageB.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+    await expect(pageB.locator('[data-training-workouts]')).toBeVisible();
+    await pageB.goto(`/athlete/${userA.id}?tab=training&view=body`);
+    await expect(pageB.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'Body & tests' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
   } finally {
     await ctxB.close();
     await admin.from('profiles').update({ visibility: priorVisibility }).eq('id', userA.id);

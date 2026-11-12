@@ -65,19 +65,32 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   await expect(page.getByText('Latest personal best')).toBeVisible();
   await expect(page.getByText('Bench Press · 225 lbs')).toBeVisible();
 
-  // PB showcase: mm:ss formatting for the timed metric (never raw seconds).
+  // Four views (Training redesign PR 3, Nov 11 2026): the Overview is the landing one,
+  // and what belongs to another view is not on it.
+  const views = page.getByRole('tablist', { name: 'Training views' });
+  await expect(views.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByLabel('Tracking')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add Metric' })).toHaveCount(0);
+
+  // History — the Recent sessions card is its door: the month-grouped diary is the
+  // view's own list (no window over the page); expanding a session shows its set line.
+  await page.getByRole('button', { name: /Recent sessions/i }).click();
+  await expect(views.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page).toHaveURL(/\?tab=training&view=history$/);
+  const diary = page.locator('[data-training-workouts]');
+  const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  await expect(diary.getByRole('heading', { name: month })).toBeVisible();
+  await diary.getByText(`QA Push ${stamp}`).first().click();
+  await expect(diary.getByText('5 reps × 185 lbs').first()).toBeVisible();
+  await expect(page.getByText('Sessions this week')).toHaveCount(0);
+
+  // Body & tests — the bests typed in: mm:ss formatting for the timed metric (never raw seconds).
+  await views.getByRole('tab', { name: 'Body & tests' }).click();
+  await expect(page).toHaveURL(/\?tab=training&view=body$/);
   await expect(page.getByText('5:48').first()).toBeVisible();
   // exact: a random QA-title timestamp can contain "348" as a substring
   await expect(page.getByText('348', { exact: true })).toHaveCount(0);
-
-  // Progress chart renders with the chip picker; switching to the mile
-  // swaps the charted series (aria-label carries the metric name).
-  const picker = page.getByLabel('Tracking');
-  await expect(picker).toBeVisible();
-  await expect(page.locator('svg[aria-label*="Bench Press"], svg[aria-label*="latest"]').first())
-    .toBeVisible();
-  await picker.getByRole('button', { name: '1-Mile Run' }).click();
-  await expect(page.locator('svg[aria-label*="1-Mile Run"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add Metric' })).toBeVisible();
 
   // Metric history lives behind the metric's larger window (tap the trophy
   // or library bubble — both carry the metric name and open the overlay).
@@ -86,15 +99,23 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   await expect(metricDialog.getByText('185 lbs').first()).toBeVisible();
   await metricDialog.getByRole('button', { name: 'Close' }).click();
 
-  // The month-grouped diary opens from the Recent Workouts bubble; expanding
-  // a session still shows its set line.
-  await page.getByRole('button', { name: /Recent sessions/i }).click();
-  const workoutsDialog = page.getByRole('dialog', { name: 'Workouts' });
-  const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  await expect(workoutsDialog.getByRole('heading', { name: month })).toBeVisible();
-  await workoutsDialog.getByText(`QA Push ${stamp}`).first().click();
-  await expect(workoutsDialog.getByText('5 reps × 185 lbs').first()).toBeVisible();
-  await workoutsDialog.getByRole('button', { name: 'Close' }).click();
+  // Exercises — the progress chart renders with the chip picker; switching to the
+  // mile swaps the charted series (aria-label carries the metric name).
+  await views.getByRole('tab', { name: 'Exercises' }).click();
+  await expect(page).toHaveURL(/\?tab=training&view=exercises$/);
+  const picker = page.getByLabel('Tracking');
+  await expect(picker).toBeVisible();
+  await expect(page.locator('svg[aria-label*="Bench Press"], svg[aria-label*="latest"]').first())
+    .toBeVisible();
+  await picker.getByRole('button', { name: '1-Mile Run' }).click();
+  await expect(page.locator('svg[aria-label*="1-Mile Run"]')).toBeVisible();
+
+  // A refresh lands on the same view (the view is in the URL), and the bare tab is the Overview again.
+  await page.reload();
+  await expect(page.getByLabel('Tracking')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'Overview' }).click();
+  await expect(page).toHaveURL(/\?tab=training$/);
+  await expect(page.getByText('Sessions this week', { exact: false })).toBeVisible();
 
   // Visitor (user B): read-only dashboard — hero visible, no owner actions.
   await adminClient().from('profiles').update({ visibility: 'public' }).eq('id', userA.id);
@@ -107,7 +128,14 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
     await expect(pageB.getByText('Bench Press · 225 lbs')).toBeVisible();
     await expect(pageB.locator('[data-training-start]')).toHaveCount(0);
     await expect(pageB.getByRole('button', { name: 'Start', exact: true })).toHaveCount(0);
-    await expect(pageB.getByRole('button', { name: 'Add Metric' })).toHaveCount(0);
+    // …on every view: the visitor has the same four, and no owner action on any.
+    for (const name of ['History', 'Exercises', 'Body & tests']) {
+      await pageB.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name }).click();
+      await expect(pageB.locator('[data-training-start]')).toHaveCount(0);
+      await expect(pageB.getByRole('button', { name: 'Add Metric' })).toHaveCount(0);
+      await expect(pageB.getByRole('button', { name: 'Log Training' })).toHaveCount(0);
+      await expect(pageB.locator('[data-exercise-records]')).toHaveCount(0);
+    }
 
     // Training privacy: the owner hides the section via the real settings API;
     // the visitor gets a lock card and zero data, while the owner still sees

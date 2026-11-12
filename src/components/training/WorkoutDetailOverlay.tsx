@@ -22,11 +22,14 @@ interface WorkoutDetailOverlayProps {
   onEdit: (sessionId: string) => void;
   onShare: (sessionId: string) => void;
   onDeleted: (sessionId: string) => void;
-  onClose: () => void;
+  /** The overlay's close; absent when the list is `inline`. */
+  onClose?: () => void;
+  /** Training redesign PR 3 (Nov 11 2026): the diary is the History view's own list, not a window over the page. */
+  inline?: boolean;
 }
 
 export default function WorkoutDetailOverlay({
-  sessions, isOwnProfile, onOpenPost, onEdit, onShare, onDeleted, onClose,
+  sessions, isOwnProfile, onOpenPost, onEdit, onShare, onDeleted, onClose, inline = false,
 }: WorkoutDetailOverlayProps) {
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const yearOptions = useMemo(
@@ -46,12 +49,8 @@ export default function WorkoutDetailOverlay({
     []
   );
 
-  return (
-    <TrainingOverlay
-      title="Workouts"
-      subtitle={`${visible.length} session${visible.length !== 1 ? 's' : ''}`}
-      onClose={onClose}
-    >
+  const content = (
+    <>
       {yearOptions.length > 1 && (
         <div className="mb-4">
           <MultiSelectDropdown<number>
@@ -67,7 +66,7 @@ export default function WorkoutDetailOverlay({
 
       {visible.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-sm text-tertiary">No workouts match your filters.</p>
+          <p className="text-sm text-tertiary">{sessions.length === 0 ? 'No workouts yet.' : 'No workouts match your filters.'}</p>
         </div>
       ) : (
         <div className="space-y-5">
@@ -91,6 +90,28 @@ export default function WorkoutDetailOverlay({
           ))}
         </div>
       )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <section data-training-workouts={visible.length}>
+        <div className="mb-4">
+          <h3 className="text-base font-bold text-primary">Workouts</h3>
+          {sessions.length > 0 && <p className="text-xs text-muted mt-0.5">{visible.length} workout{visible.length !== 1 ? 's' : ''}</p>}
+        </div>
+        {content}
+      </section>
+    );
+  }
+
+  return (
+    <TrainingOverlay
+      title="Workouts"
+      subtitle={`${visible.length} session${visible.length !== 1 ? 's' : ''}`}
+      onClose={onClose ?? (() => {})}
+    >
+      {content}
     </TrainingOverlay>
   );
 }

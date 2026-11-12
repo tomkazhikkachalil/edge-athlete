@@ -28,6 +28,8 @@ import ActivitiesTab from './activities/ActivitiesTab';
 import { formatDuration } from '@/lib/workouts/summary';
 import { useStartWorkout } from '@/hooks/useStartWorkout';
 import TrainingHero from './training/TrainingHero';
+import TrainingViewSwitcher from './training/TrainingViewSwitcher';
+import { parseTrainingView, trainingViewSearch, type TrainingView } from '@/lib/training/views';
 import PBShowcase from './training/PBShowcase';
 import ProgressSection from './training/ProgressSection';
 import ExerciseRecords from './training/ExerciseRecords';
@@ -161,7 +163,20 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   // opens the modal by id (`linkedPostId`), without navigation.
   const [activityIndex, setActivityIndex] = useState<number | null>(null);
   const [metricOverlayKey, setMetricOverlayKey] = useState<string | null>(null);
-  const [showWorkoutsOverlay, setShowWorkoutsOverlay] = useState(false);
+  // Training redesign PR 3 (Nov 11 2026): four views behind one switcher, the view in
+  // the URL (?tab=training&view=history). Read in the initializer, window-guarded: this
+  // component renders its spinner first on both sides, so the first DOM cannot diverge.
+  const [view, setView] = useState<TrainingView>(() => {
+    const aliasTab = focusSection === 'activities' ? 'activities' : null;
+    if (typeof window === 'undefined') return parseTrainingView(null, aliasTab);
+    const query = new URLSearchParams(window.location.search);
+    return parseTrainingView(query.get('view'), aliasTab ?? query.get('tab'));
+  });
+  const changeView = (next: TrainingView) => {
+    setView(next);
+    // The hosts mirror the tab the same way (replaceState, no navigation): shareable, refresh-stable.
+    window.history.replaceState(null, '', `${window.location.pathname}${trainingViewSearch(next)}`);
+  };
   const [showActivityOverlay, setShowActivityOverlay] = useState(false);
   const [showBodyOverlay, setShowBodyOverlay] = useState(false);
   const [showRoutinesModal, setShowRoutinesModal] = useState(false);
@@ -259,9 +274,6 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   // The bubble shows the top of the diary, whichever kind it is.
   const recentSessions = sessions.slice(0, 3);
   const [unit] = useState(() => (typeof window === 'undefined' ? 'km' : readUnitPreference()));
-  const scrollToActivities = () =>
-    document.getElementById('training-activities')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
   // `?tab=activities` lands on the Activities section once it has rendered
   // (it loads its own page; a couple of frames is not enough on a slow link).
   useEffect(() => {
@@ -405,6 +417,11 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
 
       </div>
 
+      <TrainingViewSwitcher view={view} onChange={changeView} />
+
+      {/* ══ Overview: this week, the streak, the latest sessions ═══════════ */}
+      {view === 'overview' && (
+      <>
       {/* ── Hero: greeting, active-days ring, this week, streak, latest PB —
              always all-time-true ─────────────────────────────────────────── */}
       <TrainingHero
@@ -441,9 +458,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
             span="md"
             icon={Dumbbell}
             label="Recent sessions"
-            // The whole card is one button: the workout diary when there is
-            // one, else the Activities section further down.
-            onOpen={() => (completedWorkouts.length > 0 ? setShowWorkoutsOverlay(true) : scrollToActivities())}
+            // The whole card is one button: the History view (every workout and activity).
+            onOpen={() => changeView('history')}
             staggerIndex={1}
           >
             <div className="space-y-2" data-training-recent-sessions>
@@ -478,10 +494,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
                 );
               })}
             </div>
-            <div className="mt-3 text-xs font-bold text-brand-fg-strong">
-              {completedWorkouts.length > 0
-                ? `See all ${completedWorkouts.length} workout${completedWorkouts.length !== 1 ? 's' : ''}${activitySessions.length > 0 ? ' and activities' : ''}`
-                : 'See activities'}
+            <div className="mt-3 text-xs font-bold text-brand-fg-strong" data-training-see-history="">
+              See all history
             </div>
           </StatBubbleCard>
         ) : (
@@ -507,6 +521,47 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           </StatBubbleCard>
         )}
 
+      </div>
+      </>
+      )}
+
+      {/* ══ History: every workout, every activity ═════════════════════════ */}
+      {view === 'history' && (
+      <>
+      <WorkoutDetailOverlay
+        inline
+        sessions={completedWorkouts}
+        isOwnProfile={isOwnProfile}
+        onOpenPost={postId => setLinkedPostId(postId)}
+        onEdit={id => router.push(`/app/workout/${id}`)}
+        onShare={id => router.push(`/app/workout/${id}?step=preview`)}
+        onDeleted={id => {
+          setWorkouts(ws => ws.filter(w => w.id !== id));
+          fetchDataRef.current();
+        }}
+      />
+
+      {/* ── Activities — runs, rides, swims recorded on the phone. Its own
+             gated fetch (routes are trimmed for a viewer, "Only me" is the
+             owner's); hidden with the Workouts privacy aspect. ─────────── */}
+      {!activitiesHidden && <ActivitiesTab profileId={profileId} />}
+      </>
+      )}
+
+      {/* ══ Exercises: progress and every exercise's records ═══════════════ */}
+      {view === 'exercises' && (
+      <>
+      {/* ── Progress — one big chart, pick what to track ─────────────── */}
+      <ProgressSection bodyMetrics={bodyMetrics} sessions={completedWorkouts} />
+      {/* A10: every exercise's records — the athlete's own (workouts are owner-only). */}
+      {isOwnProfile && <ExerciseRecords />}
+      </>
+      )}
+
+      {/* ══ Body & tests: height and weight, the bests typed in, every metric ═ */}
+      {view === 'body' && (
+      <>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 empty:hidden">
         {/* Owners update height/weight via the header gear (each save also
             appends a dated timeline entry); DOB stays an Edit Profile job and
             shows only inside the owner's detail overlay. */}
@@ -544,16 +599,6 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
 
       {/* ── Personal bests — the trophy wall (each trophy opens its metric) */}
       <PBShowcase bodyMetrics={bodyMetrics} onOpenMetric={key => setMetricOverlayKey(key)} />
-
-      {/* ── Progress — one big chart, pick what to track ─────────────── */}
-      <ProgressSection bodyMetrics={bodyMetrics} sessions={completedWorkouts} />
-      {/* A10: every exercise's records — the athlete's own (workouts are owner-only). */}
-      {isOwnProfile && <ExerciseRecords />}
-
-      {/* ── Activities — runs, rides, swims recorded on the phone. Its own
-             gated fetch (routes are trimmed for a viewer, "Only me" is the
-             owner's); hidden with the Workouts privacy aspect. ─────────── */}
-      {!activitiesHidden && <ActivitiesTab profileId={profileId} />}
 
       {/* ── Metrics library — bubbles by category; history behind a tap ── */}
       <div>
@@ -618,7 +663,11 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
         )}
       </div>
 
-      {/* ── Section B: Training Activity Feed ───────────────────────── */}
+      </>
+      )}
+
+      {/* ══ History, continued: the training posts (their own list until the merged diary, PR 4) ═ */}
+      {view === 'history' && (
       <div>
         <div className="flex items-center justify-between mb-5">
           <div>
@@ -678,6 +727,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           </div>
         )}
       </div>
+      )}
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
       <AddBodyMetricModal
@@ -752,21 +802,6 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
               ? () => { setMetricOverlayKey(null); setShowTrainingSettings(true); }
               : undefined
           }
-        />
-      )}
-
-      {showWorkoutsOverlay && (
-        <WorkoutDetailOverlay
-          sessions={completedWorkouts}
-          isOwnProfile={isOwnProfile}
-          onOpenPost={postId => setLinkedPostId(postId)}
-          onEdit={id => router.push(`/app/workout/${id}`)}
-          onShare={id => router.push(`/app/workout/${id}?step=preview`)}
-          onDeleted={id => {
-            setWorkouts(ws => ws.filter(w => w.id !== id));
-            fetchDataRef.current();
-          }}
-          onClose={() => setShowWorkoutsOverlay(false)}
         />
       )}
 
