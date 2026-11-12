@@ -1,5 +1,19 @@
 # Development Log
 
+## November 11, 2026 — Training redesign, PR 5 of 8: one row and one page per exercise; a visitor sees bests
+
+Tom: "the groups, don't really make sense." One lift was reachable four ways — a trophy, a metric bubble, a chip under "Strength" and a chip under "Workouts" — and its records were a five-column table only the owner ever saw. The leading apps (Strong, Hevy, Boostcamp) put an exercise's records, chart and history on the exercise's own page.
+
+**What changed (zero DDL):**
+- **Exercises view** (`TrainingExercises`): one row per exercise the athlete has trained, grouped by body area (a new `bodyArea` on every catalog exercise; a name the catalog does not know is "Other"), most recently trained first. A row shows ONE headline best — the weight, else the reps, else the hold.
+- **The exercise's page** (`ExerciseDetailOverlay`, a larger window, address `?tab=training&view=exercises&exercise=<ref>`): every kind of best it has, a chart by session, and its sessions newest first with their sets and the kinds each one set a record in — `exerciseTimeline` replays the finish summary's own rule over the whole history, so the page and the summary cannot disagree. The owner's rows open the workout.
+- **`GET /api/profile/[profileId]/training/bests[?exercise=]`** — a visitor can see an athlete's bests for the first time. The gate is the activity readers' one gate, then the Training privacy `records` aspect. **A non-owner's bests are folded only from sessions that viewer could open** (completed, not hidden, decided), so a hidden workout's numbers never surface through a best; with the `workouts` aspect private the bests stand and the sessions, their dates and their counts are withheld.
+- **The narrow reader** (`src/lib/workouts/bests-server.ts`): exercise rows with five set columns and four session fields, 1000 a page, and one exercise through migration 306's `(profile_id, exercise_ref)` index (a NULL reference is still read; identity is recomputed). `GET /api/workouts/prs` — which read every session with every set's clips on each live mount and each finish — now reads through it.
+- **Training no longer reads "the last 50 workouts" at all** (three reads on open → two).
+- Deleted: `ExerciseRecords`, `ProgressSection` (a metric's chart is its own window in Body & tests).
+
+**Proof:** `npm run verify` exit 0 (6,088 tests). `exercise-list.test.ts`: one row per exercise across spellings, the headline, the areas, records against earlier sessions only, the route's gate order and `private, no-store` on every answer, the visitor filters. Staging e2e — mobile: the new `training-exercises` (the owner's bench best is a hidden 250; the visitor's is 195, two sessions, never the hidden or the undecided one in any payload or on screen; a non-identity `?exercise=` is 404; each privacy aspect), `workout-prs` (the page marks the session that set heaviest, est. 1RM and volume), `training-mobile`, `training-history`, `workout-drafts`, `workout-rest-stopwatch`; desktop: `training`.
+
 ## November 11, 2026 — Training redesign, PR 4 of 8: History is one list (every workout and activity, paged), and the week counts a year
 
 Tom: "the way you navigate and the groups, don't really make sense." A session could sit in three places (Recent sessions, the workouts window, the Activities section), each grouped its own way, and the workouts window — like the week, the streak and the load — only ever knew the last 50 workouts.
