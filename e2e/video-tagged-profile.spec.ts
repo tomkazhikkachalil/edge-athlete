@@ -81,6 +81,15 @@ test('tagged by someone else: told once, on the profile with the clips and the l
     await expect(card.locator('[data-tagged-game-open]')).toHaveAttribute('href', `/videos/${videoId}`);
     expect(await fitsViewportWidth(page)).toBe(true);
 
+    // 3b. The Stats tab (Tom, Nov 12): "From game film" — a third list, labelled apart, the line with the link back, and said NOT to be in the totals.
+    await page.goto('/athlete?tab=stats');
+    const film = page.locator(`[data-game-film-row="${videoId}"]`);
+    await expect(film).toBeVisible({ timeout: 20_000 });
+    await expect(film.locator('[data-game-film-link]')).toHaveAttribute('href', `/videos/${videoId}`);
+    await expect(film.locator('[data-game-film-line]')).toContainText('PTS');
+    await expect(page.locator('[data-game-film-lines]')).toContainText('not counted in the season totals');
+    expect(await fitsViewportWidth(page)).toBe(true);
+
     // 4. One highlight's tag removed through the API: one clip left, three points gone.
     res = await athleteApi.delete(`/api/videos/${videoId}/tags?highlightId=${ids[0]}`);
     expect(res.status(), await readErrorBody(res)).toBe(200);

@@ -11,6 +11,7 @@
  * Later rounds add the sport-chip layers and per-sport breakdowns.
  */
 
+import GameFilmLines from '@/components/stats/GameFilmLines';
 import RivalsPanel from '@/components/play/RivalsPanel';
 import { COPY } from '@/lib/copy';
 import ChallengesPanel from '@/components/play/ChallengesPanel';
@@ -364,6 +365,9 @@ export default function StatsHub({
       {/* Play (244): the athlete's challenges across sports — a challenge in a
           sport with no layer yet (no results there) still lands here. */}
       {!selectedSport && isOwnProfile && <ChallengesPanel sportKey={null} />}
+
+      {/* Game film (Nov 12 2026): the athlete's line in games someone else tagged them in — a third list, labelled apart, never in the totals. */}
+      <GameFilmLines profileId={profileId} sportKey={selectedSport ?? null} />
 
       {/* All layer: the per-sport summary intros above the combined grid. */}
       {!selectedSport && (skillCards?.length ?? 0) > 0 && (

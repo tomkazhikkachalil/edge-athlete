@@ -59,4 +59,17 @@ describe('tagged by someone else', () => {
     expect(screen).toContain('allHighlights.some(h => h.people.some(p => p.profile_id === user.id))');
     expect(screen).toContain('data-video-untag-me=""');
   });
+
+  it('the Stats tab lists game-film lines as a THIRD list — labelled apart, never in the totals, both shown when an official line exists (Tom, Nov 12)', () => {
+    const film = read('src/components/stats/GameFilmLines.tsx');
+    expect(film).toContain('/api/videos/tagged?profileId=');
+    expect(film).toContain('not counted in the season totals');
+    expect(film).toContain('data-game-film-hidden=""');
+    // It reads the derived lines only: it never touches the stat-line or rollup routes, so nothing it shows can reach a total or a tile.
+    expect(film).not.toMatch(/api\/sports\/stat-lines|api\/performance\/rollups/);
+    expect(read('src/components/stats/StatsHub.tsx')).toContain('<GameFilmLines profileId={profileId} sportKey={selectedSport ?? null} />');
+    // And the totals' own sources are untouched: no video source feeds the route or the performance table.
+    expect(read('src/app/api/sports/stat-lines/route.ts')).not.toMatch(/video_highlight|listTaggedGames/);
+    expect(read('src/lib/performance/map.ts')).not.toMatch(/video/i);
+  });
 });
