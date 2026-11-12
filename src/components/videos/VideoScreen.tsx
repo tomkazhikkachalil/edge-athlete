@@ -7,6 +7,8 @@ import ConfirmModal from '@/components/ConfirmModal';
 import HighlightList from '@/components/videos/HighlightList';
 import GameDetailsCard from '@/components/videos/GameDetailsCard';
 import TagTimeline from '@/components/videos/TagTimeline';
+import GameStatsPanel from '@/components/videos/GameStatsPanel';
+import { advanceWatch, EMPTY_WATCH, gameWatchKey, parseGameWatch, revealMode, serializeGameWatch, visibleHighlights, type GameWatch } from '@/lib/videos/game-view';
 import type { GameView } from '@/lib/videos/game-rules';
 import { LivePill } from '@/components/videos/VideoCards';
 import { formatLiveWhen, liveBadgeFor, liveRefetchMs } from '@/lib/videos/live-rules';
@@ -163,14 +165,54 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
     return () => clearInterval(timer);
   }, [refetchMs, fetchVideo]);
 
+  // Sprint 3 PR 4 — the spoiler-free view: the furthest point watched (it only moves forward) and the unlock, kept on this device per video.
+  const [watch, setWatch] = useState<GameWatch>(EMPTY_WATCH);
+  const watchRef = useRef(watch);
+  useEffect(() => {
+    watchRef.current = watch;
+  }, [watch]);
+  const saveWatch = useCallback((w: GameWatch) => {
+    try {
+      defaultPlayerStorage()?.setItem(gameWatchKey(videoId), serializeGameWatch(w));
+    } catch {
+      /* without storage the reveal starts over on a reload — nothing else is lost */
+    }
+  }, [videoId]);
+  useEffect(() => {
+    let stored: GameWatch = EMPTY_WATCH;
+    try {
+      stored = parseGameWatch(defaultPlayerStorage()?.getItem(gameWatchKey(videoId)));
+    } catch {
+      stored = EMPTY_WATCH;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the device's stored watch is read once per video, after mount (never during render: storage is not there on the server)
+    setWatch(stored);
+  }, [videoId]);
+  const unlockStats = () => {
+    const next = { ...watchRef.current, unlocked: true };
+    setWatch(next);
+    saveWatch(next);
+  };
+  /** What THIS viewer may be shown right now: everything, or what the video has played past. */
+  const shownFor = (w: GameWatch): HighlightRow[] => {
+    if (load.state !== 'ready') return [];
+    return visibleHighlights(load.highlights, revealMode(load.game, load.canManage, w.unlocked), w.highWaterMs);
+  };
   const onTime = (ms: number) => {
     if (!providerVideoId) return;
     // The active row follows the playhead.
-    if (load.state === 'ready') setActiveId(activeHighlightAt(load.highlights, ms));
-    // Resume: the position every few seconds.
+    // The spoiler-free view: the furthest point only moves forward.
+    const advanced = advanceWatch(watchRef.current, ms);
+    if (advanced !== watchRef.current) {
+      watchRef.current = advanced;
+      setWatch(advanced);
+    }
+    if (load.state === 'ready') setActiveId(activeHighlightAt(shownFor(advanced), ms));
+    // Resume: the position every few seconds (and the furthest point with it).
     if (Date.now() - lastSavedRef.current > RESUME_SAVE_EVERY_MS) {
       lastSavedRef.current = Date.now();
       writeResumeMs(defaultPlayerStorage(), providerVideoId, ms);
+      saveWatch(watchRef.current);
     }
     // Play highlights: stay, step, or stop.
     const pa = playAllRef.current;
@@ -190,8 +232,9 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
     setPlayAll(null);
   };
   const playHighlights = () => {
-    if (load.state !== 'ready' || load.highlights.length === 0) return;
-    const list = playlistOf(load.highlights);
+    const shown = shownFor(watch);
+    if (load.state !== 'ready' || shown.length === 0) return;
+    const list = playlistOf(shown);
     setPlayAll({ list, index: 0 });
     setActiveId(list[0].id);
     if (playerMode === 'api') playerRef.current?.seekTo(list[0].startMs, true);
@@ -207,6 +250,11 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
     setResumeAt(null);
   };
 
+  const seekTo = (ms: number) => {
+    setPlayAll(null);
+    setStartMs(ms);
+    setPlayKey(k => k + 1);
+  };
   const play = (h: HighlightRow) => {
     setPlayAll(null);
     setStartMs(h.start_ms);
@@ -347,7 +395,10 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
     );
   }
 
-  const { video, highlights, canManage } = load;
+  const { video, highlights: allHighlights, canManage } = load;
+  // A viewer of a game with hidden stats is shown only what the video has played past (PR 4).
+  const mode = revealMode(load.game, canManage, watch.unlocked);
+  const highlights = visibleHighlights(allHighlights, mode, watch.highWaterMs);
   const sport = video.sport_key ? SPORT_REGISTRY[video.sport_key as SportKey]?.display_name ?? null : null;
   const place = placeHref(video);
   const live = liveBadgeFor(video);
@@ -481,7 +532,10 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         onChange={game => setLoad(prev => (prev.state === 'ready' ? { ...prev, game } : prev))}
       />
 
-      {canManage && <TagTimeline highlights={highlights} durationMs={video.duration_ms} game={load.game} activeId={activeId} onPlay={play} />}
+      {load.game && <GameStatsPanel game={load.game} highlights={allHighlights} mode={mode} highWaterMs={watch.highWaterMs} onUnlock={unlockStats} onSeek={seekTo} />}
+
+      {/* The marks are spoilers: a manager always has the timeline; a viewer of a game gets it once everything is shown. */}
+      {(canManage || (load.game && mode === 'all')) && <TagTimeline highlights={highlights} durationMs={video.duration_ms} game={load.game} activeId={activeId} onPlay={play} />}
 
       <HighlightList
         highlights={highlights}

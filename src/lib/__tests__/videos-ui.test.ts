@@ -344,7 +344,9 @@ describe('the player that knows the time (polish B, Nov 6 2026)', () => {
     const screen = read('src/components/videos/VideoScreen.tsx');
     expect(screen).toContain("data-video-play-highlights={playAll ? 'on' : 'off'}");
     expect(screen).toContain('nextInPlaylist(pa.list, pa.index, ms)');
-    expect(screen).toContain('setActiveId(activeHighlightAt(load.highlights, ms))');
+    // Sprint 3 PR 4: the active row follows the playhead among the highlights THIS viewer may be shown (the spoiler-free cut).
+    expect(screen).toContain('setActiveId(activeHighlightAt(shownFor(advanced), ms))');
+    expect(screen).toContain('const list = playlistOf(shown);');
     expect(screen).toContain('data-video-resume={resumeAt}');
     expect(screen).toContain('resumeOffer(readResumeMs(defaultPlayerStorage()');
     expect(screen).toContain('clearResumeMs(defaultPlayerStorage(), providerVideoId)');

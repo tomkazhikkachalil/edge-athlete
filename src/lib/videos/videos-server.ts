@@ -357,12 +357,22 @@ async function readTagPeople(admin: Admin, videoId: string, viewer: TagViewer): 
       visible.set(id, viewer.id ? (await canViewProfile(id, viewer.id)).canView : false);
     }));
   }
+  // Someone this viewer may not see keeps ONE stand-in name across the game ("Player 2"), so their line in the box score is theirs alone.
+  const masked = new Map<string, string>();
+  const maskedName = (profileId: string): string => {
+    let name = masked.get(profileId);
+    if (!name) {
+      name = `${MASKED_PERSON_NAME} ${masked.size + 1}`;
+      masked.set(profileId, name);
+    }
+    return name;
+  };
   for (const r of rows) {
     // A typed name is always shown; a linked athlete only while their profile stands AND this viewer may see it.
     const shown = !r.profile_id || (!!r.profile && !r.profile.departed_at && (viewer.canManage || visible.get(r.profile_id) === true));
     const person: HighlightPerson = r.profile_id && r.profile && shown
       ? { id: r.id, profile_id: r.profile_id, name: r.profile.display_name || r.profile.full_name || MASKED_PERSON_NAME, handle: r.profile.handle, avatar_url: r.profile.avatar_url, role: r.role, side: r.side }
-      : { id: r.id, profile_id: null, name: r.profile_id ? MASKED_PERSON_NAME : (r.name ?? MASKED_PERSON_NAME), handle: null, avatar_url: null, role: r.role, side: r.side };
+      : { id: r.id, profile_id: null, name: r.profile_id ? maskedName(r.profile_id) : (r.name ?? MASKED_PERSON_NAME), handle: null, avatar_url: null, role: r.role, side: r.side };
     const list = out.get(r.highlight_id);
     if (list) list.push(person);
     else out.set(r.highlight_id, [person]);

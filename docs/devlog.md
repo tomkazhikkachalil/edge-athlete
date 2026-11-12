@@ -1,5 +1,19 @@
 # Development Log
 
+## November 12, 2026 — Sprint 3 (YouTube game film), PR 4 of 8: the spoiler-free view — the stats unlock as the video plays (zero DDL)
+
+**Before it:** PR 3 (#1480) merged as `e05b644f`; production probes one at a time — `video-tagging.spec` desktop 1/1, `videos.spec` desktop 1/1, `videos-mobile.spec` mobile 1/1.
+
+**What.** The first place a game's stats are SHOWN. `GameStatsPanel` derives the game from its tags on the page (`deriveGame`) — the board with the score by period, a box score per side, team stats, the scoring summary (each row seeks the video), a combat result, race results, a golf scorecard. For a **viewer** of a game with hidden stats it is progressive: only tags whose clip has ended before the furthest point watched are counted, the highlight list shows only those, and the timeline is not drawn. **"Show full stats"** confirms first ("it spoils the game"), then shows everything and stays unlocked on the device. A manager, and a game with spoilers off, see it all at once.
+
+**Tom's rules, as built:** skipping ahead reveals everything up to that point; skipping back re-hides nothing (`advanceWatch`, pinned); the confirm before the unlock; after it every tag is on the timeline to jump to.
+
+**Two things to know.** (1) "Hidden" means not drawn — the page's one read still carries the highlights; a determined viewer can read them in the network tab. Holding them back on the server would mean a request per reveal; said in the spec, Tom's to overrule. (2) Without YouTube's IFrame API (blocked by an extension) the page cannot know the playhead, so nothing unlocks by watching — the unlock button is the way in.
+
+**A trap met:** the React compiler lint read the playhead handler as render-phase ("Cannot call impure function") once it used state declared BELOW it. Declaring the watch state above `onTime` cleared it.
+
+**Tests.** `game-view.test.ts` (7). `e2e/video-spoiler-free.spec.ts` on staging with the real player: a viewer at 375 px sees 0–0 and no rows → after the first clip plays, 3–0 and one row → Cancel changes nothing → confirm → 3–2, both box scores, the timeline → still unlocked after a reload; the manager sees all; spoilers off shows all.
+
 ## November 12, 2026 — Sprint 3 (YouTube game film), PR 3 of 8: tagging — what happened and who was in it (zero DDL)
 
 **Before it:** PR 2 (#1479) merged as `c65eac3f` after Tom ran migration 307 on production (`307 APPLIED | 2 | 4 | false | 307`; `check:schema:prod` ✓); `video-game.spec` green on production (mobile).
