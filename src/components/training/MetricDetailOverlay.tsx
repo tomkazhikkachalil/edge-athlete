@@ -9,6 +9,7 @@ import { computeMetricStats, formatEntryValue, type BodyMetricEntry } from './me
 import { BODY_METRIC_CATEGORIES, getAgeAtDate, formatSecondsToDisplay } from '@/lib/body-metrics-config';
 import { metricSeries } from '@/lib/workouts/dashboard';
 import { useTheme } from '@/lib/use-theme';
+import PinToggle from './PinToggle';
 
 // parseDateLocal, not new Date(): metric dates are DATE-column values and would
 // label the previous day in US timezones (matches ProgressSection).
@@ -32,10 +33,13 @@ interface MetricDetailOverlayProps {
   /** When provided (own-profile body metrics), shows an "Update" button that
    *  opens the body-metrics editor. Absent for other metrics / other viewers. */
   onEdit?: () => void;
+  /** PR 7: a TEST's best pins to the top of Training (the athlete's own view; a body measurement is not a best). */
+  pinned?: boolean;
+  onTogglePin?: () => void;
 }
 
 export default function MetricDetailOverlay({
-  metricKey, entries, athleteBirthday, onOpenPost, onClose, onEdit,
+  metricKey, entries, athleteBirthday, onOpenPost, onClose, onEdit, pinned, onTogglePin,
 }: MetricDetailOverlayProps) {
   const { theme } = useTheme();
   const stats = computeMetricStats(metricKey, entries);
@@ -72,6 +76,12 @@ export default function MetricDetailOverlay({
       subtitle={categoryLabel ? `${categoryLabel} · ${metric.unit}` : metric.unit}
       onClose={onClose}
     >
+      {onTogglePin && metric.lower_is_better !== null && (
+        <div className="mb-3 flex items-center justify-end gap-1 text-xs text-muted">
+          {pinned ? 'Pinned to the top of Training' : 'Pin this best to the top of Training'}
+          <PinToggle pinned={!!pinned} label={`${metric.label} best`} dataKey={`test:${metricKey}`} onToggle={onTogglePin} />
+        </div>
+      )}
       {/* Headline */}
       <div className="rounded-2xl bg-surface-muted p-4 sm:p-5 mb-5">
         <div className="flex items-center gap-2 flex-wrap">

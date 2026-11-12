@@ -16,6 +16,7 @@ import { formatPr, PR_SHORT_LABELS } from '@/lib/workouts/prs';
 import ExerciseDetailOverlay from './ExerciseDetailOverlay';
 import TestedMaxForm from './TestedMaxForm';
 import { useAuth } from '@/lib/auth';
+import type { TrainingPin } from '@/lib/training/pins';
 
 type Wire = Omit<ExerciseSummary, 'lastAt' | 'sessions'> & { lastAt: string | null; sessions: number | null };
 type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'hidden' } | { kind: 'ready'; exercises: Wire[]; unit: 'lb' | 'kg' };
@@ -28,9 +29,14 @@ interface TrainingExercisesProps {
   /** The exercise whose page is open (the URL's `exercise`), or null. */
   openRef: string | null;
   onOpen: (ref: string | null) => void;
+  /** PR 7: the athlete's own pins (absent for anyone else) and the toggle. */
+  pins?: readonly TrainingPin[];
+  onTogglePin?: (pin: TrainingPin) => void;
+  /** A tested max was added or removed: a pinned best's number may have moved. */
+  onBestsChanged?: () => void;
 }
 
-export default function TrainingExercises({ profileId, isOwnProfile, openRef, onOpen }: TrainingExercisesProps) {
+export default function TrainingExercises({ profileId, isOwnProfile, openRef, onOpen, pins, onTogglePin, onBestsChanged }: TrainingExercisesProps) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [reload, setReload] = useState(0);
   // PR 6: the athlete can type in a best for an exercise they never logged here.
@@ -73,6 +79,7 @@ export default function TrainingExercises({ profileId, isOwnProfile, openRef, on
             onSaved={ref => {
               setAdding(false);
               setReload(n => n + 1);
+              onBestsChanged?.();
               onOpen(ref);
             }}
           />
@@ -133,7 +140,7 @@ export default function TrainingExercises({ profileId, isOwnProfile, openRef, on
           </div>
         ))}
 
-      {openRef && <ExerciseDetailOverlay profileId={profileId} exerciseRef={openRef} fallbackName={ready?.exercises.find(e => e.ref === openRef)?.name} onClose={() => onOpen(null)} onChanged={() => setReload(n => n + 1)} />}
+      {openRef && <ExerciseDetailOverlay profileId={profileId} exerciseRef={openRef} fallbackName={ready?.exercises.find(e => e.ref === openRef)?.name} onClose={() => onOpen(null)} onChanged={() => { setReload(n => n + 1); onBestsChanged?.(); }} pins={pins} onTogglePin={onTogglePin} />}
     </section>
   );
 }

@@ -15,6 +15,8 @@ import { COPY } from '@/lib/copy';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { TESTED_MAX_ID_PREFIX } from '@/lib/workouts/tested-max';
 import TestedMaxForm from './TestedMaxForm';
+import PinToggle from './PinToggle';
+import { isPinned, type TrainingPin } from '@/lib/training/pins';
 import TrainingOverlay from './TrainingOverlay';
 import BodyMetricTrendChart from '@/components/charts/BodyMetricTrendChart';
 import { BODY_AREAS, type BodyArea } from '@/lib/workout-config';
@@ -41,9 +43,12 @@ interface ExerciseDetailOverlayProps {
   onClose: () => void;
   /** A tested max was added or removed: the list's numbers are stale. */
   onChanged?: () => void;
+  /** PR 7: the athlete's own pins and the toggle — a best of one kind pins to the top of Training. */
+  pins?: readonly TrainingPin[];
+  onTogglePin?: (pin: TrainingPin) => void;
 }
 
-export default function ExerciseDetailOverlay({ profileId, exerciseRef, fallbackName, onClose, onChanged }: ExerciseDetailOverlayProps) {
+export default function ExerciseDetailOverlay({ profileId, exerciseRef, fallbackName, onClose, onChanged, pins, onTogglePin }: ExerciseDetailOverlayProps) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   // PR 6: a tested max is the athlete's own entry — offered to the athlete, never to a guardian or a visitor.
   const { user } = useAuth();
@@ -110,9 +115,19 @@ export default function ExerciseDetailOverlay({ profileId, exerciseRef, fallback
             <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">Bests</p>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {kinds.map(kind => (
-                <div key={kind} className="ea-surface rounded-lg p-3" data-exercise-best={kind}>
-                  <dt className="text-xs text-muted">{PR_LABELS[kind]}</dt>
-                  <dd className="mt-0.5 text-lg font-bold text-primary tabular-nums">{formatPr(kind as PrKind, detail.exercise.bests[kind]!, detail.unit)}</dd>
+                <div key={kind} className="ea-surface flex items-start gap-1 rounded-lg p-3" data-exercise-best={kind}>
+                  <div className="min-w-0 flex-1">
+                    <dt className="text-xs text-muted">{PR_LABELS[kind]}</dt>
+                    <dd className="mt-0.5 text-lg font-bold text-primary tabular-nums">{formatPr(kind as PrKind, detail.exercise.bests[kind]!, detail.unit)}</dd>
+                  </div>
+                  {isSelf && pins && onTogglePin && (
+                    <PinToggle
+                      pinned={isPinned(pins, { kind: 'exercise', ref: detail.exercise.ref, recordKind: kind })}
+                      label={`${detail.exercise.name} ${PR_LABELS[kind].toLowerCase()}`}
+                      dataKey={`exercise:${detail.exercise.ref}:${kind}`}
+                      onToggle={() => onTogglePin({ kind: 'exercise', ref: detail.exercise.ref, recordKind: kind })}
+                    />
+                  )}
                 </div>
               ))}
             </dl>
