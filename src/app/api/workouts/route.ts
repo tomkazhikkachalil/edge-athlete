@@ -3,7 +3,6 @@ import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { aspectHidden } from '@/lib/training-privacy';
 import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
-import { healStoredMediaUrl, toProxyUrl } from '@/lib/media/proxy-url';
 import { validateEntriesPayload, type EntryExercise } from '@/lib/workouts/entries';
 import { healEntriesMedia } from '@/lib/workouts/entries-heal-server';
 import { exerciseRefOf } from '@/lib/workout-config';
@@ -14,6 +13,7 @@ import {
   type RoutinePlan,
 } from '@/lib/calendar/event-routine';
 import { reportRouteError } from '@/lib/observability/report';
+import { proxyWorkoutMedia, sortNestedWorkouts, WORKOUT_SESSION_SELECT } from '@/lib/workouts/read-server';
 
 /**
  * Training workout sessions.
@@ -40,13 +40,7 @@ import { reportRouteError } from '@/lib/observability/report';
  *                                          atomically (compensating delete)
  */
 
-const SESSION_SELECT = `
-  *,
-  exercises:workout_exercises (
-    *,
-    sets:workout_sets (*)
-  )
-`;
+const SESSION_SELECT = WORKOUT_SESSION_SELECT;
 
 interface SessionRow {
   id: string;
@@ -56,14 +50,7 @@ interface SessionRow {
   exercises?: Array<{ position: number; sets?: Array<{ set_number: number }> }>;
 }
 
-function sortNested(sessions: SessionRow[]): void {
-  for (const session of sessions) {
-    session.exercises?.sort((a, b) => a.position - b.position);
-    for (const exercise of session.exercises ?? []) {
-      exercise.sets?.sort((a, b) => a.set_number - b.set_number);
-    }
-  }
-}
+const sortNested = (sessions: SessionRow[]): void => sortNestedWorkouts(sessions);
 
 /**
  * Bulk-insert a session's exercises+sets (two admin-client calls, not a true
@@ -218,28 +205,8 @@ export async function GET(request: NextRequest) {
     }
 
     sortNested((sessions ?? []) as unknown as SessionRow[]);
-    // Proxy workout-set media bytes (workout_sets.media JSONB: [{ url, ... }]),
-    // governed by the owner profile's visibility + the training `workouts` aspect.
-    for (const session of (sessions ?? []) as Array<{ exercises?: Array<{ sets?: Array<{ media?: Array<{ url?: string; thumbnailUrl?: string }> }> }> }>) {
-      for (const exercise of session.exercises ?? []) {
-        for (const set of exercise.sets ?? []) {
-          if (Array.isArray(set.media)) {
-            // A row written before the Oct 4 heal may hold a proxied path:
-            // heal it on read, so it renders and the next save stores it right.
-            set.media = set.media.map((m: { url?: string; thumbnailUrl?: string }) => {
-              const stored = m?.url ? (healStoredMediaUrl(m.url) ?? m.url) : m?.url;
-              // A clip's poster (video posters PR 2b) rides the same proxy as the clip.
-              const poster = m?.thumbnailUrl ? (healStoredMediaUrl(m.thumbnailUrl) ?? m.thumbnailUrl) : undefined;
-              return {
-                ...m,
-                url: (stored ? toProxyUrl(stored, { type: 'workout', id: profileId }) : stored) ?? stored,
-                ...(poster ? { thumbnailUrl: toProxyUrl(poster, { type: 'workout', id: profileId }) ?? poster } : {}),
-              };
-            });
-          }
-        }
-      }
-    }
+    // Proxy workout-set media bytes — the one reader's rule (workouts/read-server.ts), shared with Training's History.
+    proxyWorkoutMedia((sessions ?? []) as unknown as Parameters<typeof proxyWorkoutMedia>[0], profileId);
     return NextResponse.json({ sessions: sessions || [] });
   } catch (error) {
     if (error instanceof Response) return error;

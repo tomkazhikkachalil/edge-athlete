@@ -40,5 +40,6 @@ describe('training views', () => {
     // Every section sits under exactly one view: the nine stacked sections are gone.
     for (const v of TRAINING_VIEWS) expect(tab).toContain(`view === '${v.id}' && (`);
     expect(tab).not.toContain('setShowWorkoutsOverlay');
+    expect(tab).not.toContain('WorkoutDetailOverlay');
   });
 });

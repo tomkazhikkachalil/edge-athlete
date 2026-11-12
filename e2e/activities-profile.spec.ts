@@ -118,8 +118,8 @@ test('activities live inside Training on /u/ and /athlete; the feed card; no imp
     await expect(pageB.getByRole('heading', { name: 'Training', exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(pageB.locator('[data-training-recent-sessions]')).toHaveCount(0);
     await pageB.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'History' }).click();
-    await expect(pageB.locator('[data-training-workouts]')).toBeVisible();
-    await expect(pageB.locator('[data-activities-tab]')).toHaveCount(0);
+    await expect(pageB.locator('[data-training-history-empty="hidden"]')).toBeVisible({ timeout: 20_000 });
+    await expect(pageB.locator('[data-activity-item]')).toHaveCount(0);
     await admin.from('profiles').update({ vitals_privacy: null }).eq('id', a.id);
 
     // The owner: Record in their own Training, and NO import door — not in

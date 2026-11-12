@@ -45,6 +45,11 @@ export function fromActivity(a: ActivitySession): TrainingSession {
   };
 }
 
+/** Workout sessions the server already folded (the History route's ?sessions=1 — a year of them, not the list's last 50) and activities together, newest first. */
+export function mergeTrainingSessions(workouts: readonly TrainingSession[], activities: readonly ActivitySession[]): TrainingSession[] {
+  return [...workouts, ...activities.map(fromActivity)].sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+}
+
 /** Completed workouts and activities together, newest first. */
 export function mergeSessions(
   workouts: readonly ServerWorkoutSession[],

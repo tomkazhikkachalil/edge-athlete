@@ -77,7 +77,7 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   await page.getByRole('button', { name: /Recent sessions/i }).click();
   await expect(views.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
   await expect(page).toHaveURL(/\?tab=training&view=history$/);
-  const diary = page.locator('[data-training-workouts]');
+  const diary = page.locator('[data-training-history]');
   const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   await expect(diary.getByRole('heading', { name: month })).toBeVisible();
   await diary.getByText(`QA Push ${stamp}`).first().click();

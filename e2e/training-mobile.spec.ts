@@ -71,7 +71,7 @@ test('training @mobile: deep links reach the dashboard at phone width', async ({
     // Route parity: a view's own address lands on that view here too.
     await pageB.goto(`/u/@${handle}?tab=training&view=history`);
     await expect(pageB.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
-    await expect(pageB.locator('[data-training-workouts]')).toBeVisible();
+    await expect(pageB.locator('[data-training-history]')).toBeVisible();
     await pageB.goto(`/athlete/${userA.id}?tab=training&view=body`);
     await expect(pageB.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'Body & tests' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
   } finally {
