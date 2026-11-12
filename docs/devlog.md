@@ -16,7 +16,9 @@ Tom, trying the app on production: (1) "Pick from channel" does nothing; (2) *"I
 
 **Merged and proven (Nov 12):** #1475 → `aa4a80ff`, `/api/health` on the commit. Production probes one at a time, against the REAL YouTube through the server's key: `videos.spec` desktop 1/1 (no channel → 409 `needs_connection`; a connection naming another channel → 403; the connection naming "Me at the zoo"'s real channel → 201), `org-app-videos.spec` desktop 1/1 (a club without a channel → 409, then saved), `videos-mobile.spec` mobile 1/1. `check:schema:prod` ✓.
 
-**Still Tom's:** try the picker on production; after this PR is live, paste someone else's video (refused) and his own (saved); then the one real upload from the app.
+**Confirmed by Tom on production (Nov 12), with his real channel:** the picker lists his uploads; a pasted link to another channel's video is refused under the preview ("This video is on another YouTube channel. Only videos from <his channel> can be added here."); and **the one real upload is PROVEN** — the 940 MB test file went from his browser straight to YouTube through the app and the video shows on his Videos tab. That closes the uploads round's last open item (#1460): Google's CORS answer on a real resumable session and the CSP's `connect-src` hold outside the stand-in. Not tried by hand: the connection dropping mid-upload (proven in `youtube-upload.spec` only).
+
+**Still Tom's:** a connect and a short upload from the installed iPhone app; Google's verification reply (3–5 days for the first answer, up to 6 weeks), then `YOUTUBE_APP_VERIFIED=1` and the reviewer account removed.
 ## November 11, 2026 — Maintenance after the Training redesign: every gate green on 02b50db1; production's iPhone-engine probe was stopped by Vercel's Security Checkpoint, not by the app
 
 Tom: "run maintenance". The checklist, in its order, on main `02b50db1` (the Training redesign's eight PRs, #1465–#1472).
