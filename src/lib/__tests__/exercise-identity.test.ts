@@ -84,7 +84,8 @@ describe('exercise identity', () => {
   it('the rule file imports nothing, and no reader spells the identity itself', () => {
     const src = (p: string) => readFileSync(join(process.cwd(), 'src', p), 'utf8');
     expect(src('lib/workouts/exercise-identity.ts')).not.toMatch(/^import /m);
-    for (const p of ['lib/workouts/prs.ts', 'lib/workouts/dashboard.ts', 'lib/workouts/summary.ts']) {
+    // (dashboard.ts's progression — the third copy — was removed with the chart it fed, Training redesign PR 8.)
+    for (const p of ['lib/workouts/prs.ts', 'lib/workouts/summary.ts']) {
       expect(src(p)).not.toMatch(/exerciseKey \?\? [\w.]*name\.trim\(\)\.toLowerCase\(\)/);
       expect(src(p)).toContain('exerciseRefOf(');
     }

@@ -272,6 +272,8 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'youtube_connections.connected_by_user_id': 'goes',
   'workout_exercises.profile_id': 'goes',
   'workout_routine_exercises.profile_id': 'goes',
+  // the bests an athlete pinned to the top of Training (306): their own arrangement of their own page
+  'training_pins.profile_id': 'goes',
   'workout_routines.profile_id': 'goes',
   'workout_sessions.profile_id': 'goes',
   'workout_sets.profile_id': 'goes',

@@ -42,6 +42,7 @@ export const EXPORT_SECTIONS: readonly ExportSection[] = [
   { key: 'workout_sessions', table: 'workout_sessions', column: 'profile_id' },
   { key: 'workout_exercises', table: 'workout_exercises', column: 'profile_id' },
   { key: 'workout_sets', table: 'workout_sets', column: 'profile_id' },
+  { key: 'training_pins', table: 'training_pins', column: 'profile_id' },
   { key: 'workout_routines', table: 'workout_routines', column: 'profile_id' },
   { key: 'body_metrics', table: 'athlete_vitals', column: 'profile_id' },
   { key: 'performances', table: 'performances', column: 'profile_id' },

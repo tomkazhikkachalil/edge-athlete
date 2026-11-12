@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   startOfWeek, weeklySummary, streakWeeks, latestPB,
-  exerciseProgression, progressionKey, metricSeries, sessionDistanceM, toMetres, workoutToSession,
+  metricSeries, sessionDistanceM, toMetres, workoutToSession,
 } from '../workouts/dashboard';
 import type { ServerWorkoutSession } from '../workouts/serialize';
 
@@ -149,53 +149,6 @@ describe('latestPB', () => {
   it('excludes body metrics (lower_is_better null) and empty input', () => {
     expect(latestPB([entry('height', 72, '2026-08-01')])).toBeNull();
     expect(latestPB([])).toBeNull();
-  });
-});
-
-describe('exerciseProgression', () => {
-  it('merges catalog rows with normalized free-text of the same lift', () => {
-    expect(progressionKey('bench_press', 'whatever')).toBe('bench_press');
-    expect(progressionKey(null, ' Bench Press ')).toBe('bench_press');
-    expect(progressionKey(null, 'DB  Bench')).toBe('db_bench');
-    const sessions = [
-      session('2026-07-01T10:00:00', {}, [
-        { name: 'Bench Press', exercise_key: 'bench_press', sets: [{ set_number: 1, reps: 5, weight: 185, weight_unit: 'lbs' }] },
-      ]),
-      session('2026-07-08T10:00:00', {}, [
-        { name: 'bench press', exercise_key: null, sets: [{ set_number: 1, reps: 3, weight: 205, weight_unit: 'lbs' }] },
-      ]),
-    ];
-    const map = exerciseProgression(sessions);
-    // One lift, one line (exercise-identity.ts, Nov 11 2026): the typed name is the catalog's lift.
-    expect(map.get('bench_press')?.points).toHaveLength(2);
-    expect(map.has('bench press')).toBe(false);
-  });
-
-  it('takes the best set per session, ascending dates, mode-appropriate value', () => {
-    const sessions = [
-      session('2026-07-08T10:00:00', {}, [
-        { name: 'Bench', exercise_key: 'bench_press', sets: [
-          { set_number: 1, reps: 5, weight: 185, weight_unit: 'lbs' },
-          { set_number: 2, reps: 1, weight: 100, weight_unit: 'kg' }, // 220.46 lbs — best
-        ] },
-        { name: 'Pull-Ups', exercise_key: 'pull_ups', sets: [{ set_number: 1, reps: 12 }] },
-      ]),
-      session('2026-07-01T10:00:00', {}, [
-        { name: 'Bench', exercise_key: 'bench_press', sets: [{ set_number: 1, reps: 5, weight: 175, weight_unit: 'lbs' }] },
-      ]),
-    ];
-    const map = exerciseProgression(sessions);
-    const bench = map.get('bench_press')!;
-    expect(bench.unit).toBe('lbs');
-    expect(bench.points.map(p => p.value)).toEqual([175, 220.5]);
-    expect(bench.points[0].date < bench.points[1].date).toBe(true);
-    expect(map.get('pull_ups')).toMatchObject({ unit: 'reps' });
-    expect(map.get('pull_ups')!.points[0].value).toBe(12);
-  });
-
-  it('skips active sessions and empty input', () => {
-    expect(exerciseProgression([session('2026-08-04T10:00:00', { status: 'active' })]).size).toBe(0);
-    expect(exerciseProgression([]).size).toBe(0);
   });
 });
 
