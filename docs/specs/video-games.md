@@ -102,6 +102,11 @@ A video becomes a **game** when it has a `video_games` row: `sport_key` (the she
 
 **Pinned by** `tagged-profile.test.ts`, `e2e/video-tagged-profile.spec.ts` (375 px).
 
-### What comes next (the sprint's later PRs, each extends this file)
+### Open after the sprint (decisions and work that were named, not built)
 
-Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).
+- **Video-derived stats and the official record.** A tagged game's numbers show on the game, the recap and the athlete's Tagged-in card; they are NOT written to `contest_stat_lines` / `athlete_performances`, so they are not under the profile's Stats tab. Merging them needs a rule for when a video's tags and a league's official line disagree — Tom's decision.
+- **Hidden is not withheld.** The spoiler-free view does not DRAW unrevealed tags; the page's one read still carries them. Holding them on the server costs a request per reveal.
+- **A typed name stays a name:** no step links it to a profile once that person joins. **A removal has no undo.**
+- **The game fields inside the Full game flow** (they are on the video page), **a real team for a side** with its roster first in the people picker, **football and tennis** (their sheets exist; the sports are off).
+- **The baselines** were written from the broadcasters' box-score conventions as known, not checked against each site; a sport's event list is one edit in `game-sheets.ts`, pinned by `game-sheets.test.ts`.
+- **Name masking** (a linked athlete a viewer may not see → "Player 2") has no browser spec: it needs a private profile the tagger can see (a follow) that the QA users do not have.
