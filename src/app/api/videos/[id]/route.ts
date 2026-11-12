@@ -4,6 +4,7 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseVideoPatch, placeOf } from '@/lib/videos/rules';
 import { deleteVideo, placeRight, readVideoForViewer, updateVideo } from '@/lib/videos/videos-server';
 import { refreshLiveViews } from '@/lib/videos/videos-live-server';
+import { readGame } from '@/lib/videos/video-games-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
@@ -28,7 +29,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!read) return NOT_FOUND();
     // Phase 4a: a broadcast's state is read when someone looks; a change re-reads the one projection.
     if (await refreshLiveViews(admin, [read.view])) read = (await readVideoForViewer(admin, id, user ?? null)) ?? read;
-    return NextResponse.json({ video: read.view, highlights: read.highlights, can_manage: read.canManage }, { headers: PRIVATE });
+    // Sprint 3 (307): the game on the video, when it is one — the sport whose sheet reads its tags.
+    return NextResponse.json({ video: read.view, highlights: read.highlights, can_manage: read.canManage, game: await readGame(admin, id) }, { headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos/id] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
