@@ -2,6 +2,7 @@ import { test, expect } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
+import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
 
 // Videos program (296): the org's Videos bubble reads /api/videos?side=&orgId=
 // under the org gallery's gate. The owner links a full game to the club; a
@@ -10,6 +11,8 @@ import { openWindow } from './helpers/org-page';
 // refused (members only) and the member still reads. A member never
 // manages (403 on a write); the owner's hidden video stays the managers'.
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
+// Only the connected channel (Nov 11 2026): the link saves because the owner's connection names that video's channel.
+useOwnChannel(['jNQXAC9IVRw']);
 
 test('org videos: owner links → member sees the bubble + window; public → anyone; private → members only; a member cannot manage', async ({ page, browser }) => {
   test.setTimeout(240_000);
@@ -30,8 +33,12 @@ test('org videos: owner links → member sees the bubble + window; public → an
   const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   let videoId: string | null = null;
   try {
-    // The owner links it to the club.
+    // The owner links it to the club — refused until the club has a channel (only the connected channel), then saved.
     let res = await ownerApi.post('/api/videos', { data: { url: YT, title: `QA Club final ${stamp}`, side: 'club', org_id: clubId } });
+    expect(res.status(), await readErrorBody(res)).toBe(409);
+    expect(await res.json()).toMatchObject({ needs_connection: true });
+    await seedOwnChannel(admin, { orgId: clubId }, owner.id);
+    res = await ownerApi.post('/api/videos', { data: { url: YT, title: `QA Club final ${stamp}`, side: 'club', org_id: clubId } });
     expect(res.status(), await readErrorBody(res)).toBe(201);
     const video = (await res.json()).video as { id: string; owner: { kind: string; id: string } };
     videoId = video.id;

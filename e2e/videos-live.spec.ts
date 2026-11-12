@@ -1,6 +1,7 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket, type QaUser } from './helpers/qa-user';
 import { startYouTubeMock, type YouTubeMock } from './helpers/youtube-mock';
+import { seedOwnChannel } from './helpers/own-channel';
 
 // Videos program Phase 4a (Nov 5 2026): a linked broadcast the app knows is
 // live. The person links a scheduled broadcast (a youtube.com/live/<id> link)
@@ -35,6 +36,7 @@ test('a linked broadcast: upcoming → live (the pill, "Now") → ended (the arc
   const stale = () => admin.from('videos').update({ live_checked_at: past(10 * 60_000) }).eq('id', videoId!);
   try {
     await admin.from('videos').delete().eq('profile_id', a.id).eq('provider_video_id', LIVE_ID);
+    await seedOwnChannel(admin, { profileId: a.id }, a.id); // only the connected channel (Nov 11): the broadcast is this channel's
 
     // 1. Link a scheduled broadcast: the first read happens on the link — upcoming, with its time.
     const startsAt = future(30 * 60_000);
@@ -136,6 +138,7 @@ test('a linked broadcast: upcoming → live (the pill, "Now") → ended (the arc
   } finally {
     if (videoId) await api.delete(`/api/videos/${videoId}`).catch(() => undefined);
     mock.live.clear();
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
     await api.dispose();
     await stranger.dispose();
     await page.context().close();

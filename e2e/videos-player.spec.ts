@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest } from './helpers/test';
+import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
 import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The player that knows the time (Videos program polish B, Nov 6 2026):
@@ -11,6 +12,8 @@ import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState,
 // poster's i.ytimg.com already does).
 
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw'; // "Me at the zoo" — 19 s, public, embeddable
+// Only the connected channel (Nov 11 2026): the link saves because the owner's connection names that video's channel.
+useOwnChannel(['jNQXAC9IVRw']);
 
 test('the API answers: the player is the API\'s, "This moment" types the playhead, "Play highlights" walks the list; blocked, the plain frame and typed times still work', async ({ browser }) => {
   test.setTimeout(150_000);
@@ -23,6 +26,7 @@ test('the API answers: the player is the API\'s, "This moment" types the playhea
   let videoId: string | null = null;
   try {
     await admin.from('videos').delete().eq('profile_id', a.id).eq('provider_video_id', 'jNQXAC9IVRw');
+    await seedOwnChannel(admin, { profileId: a.id }, a.id);
     let res = await api.post('/api/videos', { data: { url: YT, title: 'Player spec' } });
     expect(res.status(), await readErrorBody(res)).toBe(201);
     videoId = ((await res.json()).video as { id: string }).id;
@@ -76,6 +80,7 @@ test('the API answers: the player is the API\'s, "This moment" types the playhea
     await blocked.close();
   } finally {
     if (videoId) await api.delete(`/api/videos/${videoId}`).catch(() => undefined);
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
     await api.dispose();
     await ctx.close();
   }

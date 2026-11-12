@@ -20,15 +20,21 @@ export interface VideoStepState {
   owner: 'me' | { orgId: string } | null;
   /** Paste and go: YouTube said the video cannot play here for anyone (a private video) — the sentence to show. */
   blocked?: string | null;
+  /** Only the connected channel (Nov 11 2026): the video is not the owner's connected channel's (or no channel is connected) — the sentence to show. Refuses Link AND Where (the owner is chosen there). */
+  channelBlocked?: string | null;
+  /** The person manages a club or league too, so the owner can still change at Where: Link lets them through (the sentence shows as a note) and Where is the refusal. Never a dead end for someone adding a club's game without a channel of their own. */
+  canChangeOwner?: boolean;
 }
 
 export function canAdvanceVideoStep(step: VideoStepId, s: VideoStepState): { ok: true } | { ok: false; refusal: string } {
   if (step === 'link') {
     if (s.videoId && s.blocked) return { ok: false, refusal: s.blocked };
+    if (s.videoId && s.channelBlocked && !s.canChangeOwner) return { ok: false, refusal: s.channelBlocked };
     if (s.videoId) return { ok: true };
     return { ok: false, refusal: s.linkTyped ? 'That is not a YouTube video link we can play.' : 'Paste a YouTube link to continue.' };
   }
   if (step === 'details') return { ok: true };
   if (s.owner === null) return { ok: false, refusal: 'Choose where the video goes.' };
+  if (s.channelBlocked) return { ok: false, refusal: s.channelBlocked };
   return { ok: true };
 }

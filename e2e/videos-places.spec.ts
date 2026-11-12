@@ -1,6 +1,7 @@
 import { test, expect } from './helpers/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { liveWire } from './helpers/activities';
+import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
 
 // Videos program, Phase 1b (297): a video's place can be a golf round, an
 // activity or a workout. Attaching needs the PLACE's manager; a place's
@@ -11,6 +12,8 @@ import { liveWire } from './helpers/activities';
 const ROUND_YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 const ACTIVITY_YT = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ';
 const WORKOUT_YT = 'https://www.youtube.com/watch?v=9bZkp7q19f0';
+// Only the connected channel (Nov 11 2026): the links save because the owner's connection names those videos' channel.
+useOwnChannel(['jNQXAC9IVRw', 'aqz-KE-bpKQ', '9bZkp7q19f0']);
 
 test('videos on a round, an activity and a workout: the place\'s manager attaches; the place\'s rule gates the list; the surfaces show them', async ({ page }) => {
   test.setTimeout(240_000);
@@ -30,6 +33,7 @@ test('videos on a round, an activity and a workout: the place\'s manager attache
   const { data: alphaProfile } = await admin.from('profiles').select('visibility').eq('id', alpha.id).single();
   const priorVisibility = alphaProfile!.visibility as string;
   await admin.from('profiles').update({ visibility: 'public' }).eq('id', alpha.id);
+  const unseed = await seedOwnChannel(admin, { profileId: alpha.id }, alpha.id);
   try {
     // ── A public round A created (A is its creator; B is nobody there).
     let res = await apiA.post('/api/group-posts', {
@@ -119,6 +123,7 @@ test('videos on a round, an activity and a workout: the place\'s manager attache
     if (activityId) await apiA.delete(`/api/activities/${activityId}`).catch(() => undefined);
     if (groupPostId) await admin.from('group_posts').delete().eq('id', groupPostId);
     await admin.from('profiles').update({ visibility: priorVisibility }).eq('id', alpha.id);
+    await unseed();
     await apiA.dispose();
     await apiB.dispose();
   }

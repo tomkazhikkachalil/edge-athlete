@@ -13,7 +13,7 @@ import { isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
 import { UUID_RE } from '@/lib/uuid';
 import { formatTimestamp, VIDEO_DESCRIPTION_MAX, VIDEO_TITLE_MAX } from '@/lib/videos/rules';
 import { formatLiveWhen } from '@/lib/videos/live-rules';
-import { chaptersToHighlights, LOOKUP_NOTES, lookupRefusal, type VideoLookup } from '@/lib/videos/youtube-connection';
+import { channelRefusalText, chaptersToHighlights, LOOKUP_NOTES, lookupRefusal, type VideoLookup } from '@/lib/videos/youtube-connection';
 import { canAdvanceVideoStep, VIDEO_STEPS } from '@/lib/videos/video-steps';
 import { parseYouTubeLink, thumbUrl, watchUrl } from '@/lib/videos/youtube';
 import { CONNECT_ERRORS, connectedLine, connectReturnPath, FLOW_DRAFT_KEY, parseFlowDraft, reconnectScope, UNVERIFIED_NOTE, type FlowDraft, type ScopeKey, type YouTubeConnectionView } from '@/lib/videos/youtube-connection';
@@ -199,6 +199,9 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
   }, [linkId, activeOwnerRef]);
   const looked = lookup && linkId && lookup.id === linkId ? lookup.value : null;
   const refusal = lookupRefusal(looked);
+  // Only the connected channel (Nov 11 2026): no channel connected, or YouTube says the video is another channel's — said here, before Save; the server's check is the truth.
+  const channelWord = connection?.available && !connection.connected ? 'unconnected' as const : looked?.channel && looked.channel !== 'own' ? looked.channel : null;
+  const channelBlocked = channelWord ? channelRefusalText(channelWord, looked?.channelTitle ?? connection?.channelTitle) : null;
 
   // Another owner is another channel: the doors opened for the previous one close.
   const pickOwner = (next: 'me' | { orgId: string }) => {
@@ -254,11 +257,13 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     };
   }, [userId]);
 
+  // Someone who also manages a club or league can still pick it at Where — the Link step warns, Where refuses.
+  const canChangeOwner = (orgs ?? []).length > 0;
   const dirty = () => url.trim().length > 0 || title.trim().length > 0 || description.trim().length > 0;
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(dirty, () => backOr(router, '/feed'));
 
   const step = VIDEO_STEPS[index];
-  const advance = canAdvanceVideoStep(step.id, { videoId: link?.id ?? null, linkTyped: url.trim().length > 0, title, owner, blocked: refusal === 'private' ? LOOKUP_NOTES.private : null });
+  const advance = canAdvanceVideoStep(step.id, { videoId: link?.id ?? null, linkTyped: url.trim().length > 0, title, owner, blocked: refusal === 'private' ? LOOKUP_NOTES.private : null, channelBlocked, canChangeOwner });
 
   const finish = async () => {
     if (!advance.ok || !link || saving) return;
@@ -341,7 +346,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
               />
             </label>
             <p className="text-xs text-muted">
-              A full game, a tournament, a broadcast — anything long lives on YouTube. Upload it there first (your own channel), then paste the link. Edge Athlete keeps the link and your highlights; it never downloads or re-hosts the video. Short clips still go in a post.
+              A full game, a tournament, a broadcast — anything long lives on YouTube, on your own channel. Only videos from {connection?.connected && connection.channelTitle ? connection.channelTitle : 'the YouTube channel you connect here'} can be added — a link to someone else&apos;s video is refused. Edge Athlete keeps the link and your highlights; it never downloads or re-hosts the video. Short clips still go in a post.
             </p>
             {landedLine && (
               <p className={`text-sm ${landed.errorWord ? 'text-red-600' : 'text-secondary'}`} role="status" data-new-video-youtube-result={landed.errorWord ? 'error' : 'connected'}>{landedLine}</p>
@@ -350,7 +355,7 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
             {connection && !connection.connected && connection.available && connection.canManage && (
               <div className="rounded-lg border border-border p-3 space-y-2" data-new-video-youtube="connect">
                 <p className="text-sm font-semibold text-primary"><FaIcon icon={faYoutubeBrands} className="text-red-600 mr-1.5" />Connect your YouTube channel</p>
-                <p className="text-xs text-muted">Pick from your channel&apos;s uploads in one tap, or upload a full game from here straight to YouTube. You&apos;ll sign in with Google and come back to this step.</p>
+                <p className="text-xs text-muted">A full game is added from your own channel: connect it, then pick from its uploads in one tap, paste a link to one of its videos, or upload a full game from here straight to YouTube. You&apos;ll sign in with Google and come back to this step.</p>
                 <a href={startHref('readonly')} onClick={saveDraft} className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover" data-new-video-connect="">
                   Connect YouTube
                 </a>
@@ -426,6 +431,9 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 )}
                 {refusal && (
                   <p className={`px-3 pt-1 text-xs ${refusal === 'private' ? 'text-red-600' : 'text-secondary'}`} role="status" data-new-video-lookup={refusal}>{LOOKUP_NOTES[refusal]}</p>
+                )}
+                {channelWord && channelBlocked && (
+                  <p className="px-3 pt-1 text-xs text-red-600" role="status" data-new-video-channel={channelWord}>{channelBlocked}{canChangeOwner ? ' Adding it for a club or league? Choose it at the last step.' : ''}</p>
                 )}
                 {looked && looked.chapters.length > 0 && (
                   <label className="flex items-center gap-2 px-3 pt-2 text-sm text-primary min-h-[44px]" data-new-video-chapters={looked.chapters.length}>

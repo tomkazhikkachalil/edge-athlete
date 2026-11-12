@@ -3,12 +3,15 @@ import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from '
 import { fitsViewportWidth } from './helpers/layout';
 import { cleanup } from './helpers/cleanup';
 import path from 'node:path';
+import { seedOwnChannel, useOwnChannel } from './helpers/own-channel';
 
 // Videos program (296) at phone width: the Videos tab is reachable on the
 // profile (/athlete?tab=videos), the video page fits the viewport with the
 // 16:9 player, the highlight row is a 44 px target, and the new-video steps
 // render one column. Web and mobile ship together.
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
+// Only the connected channel (Nov 11 2026): the link saves because the owner's connection names that video's channel.
+useOwnChannel(['jNQXAC9IVRw']);
 
 test('videos at phone width: the tab, the page, the player, the steps @mobile', async ({ page }) => {
   test.setTimeout(180_000);
@@ -18,7 +21,9 @@ test('videos at phone width: the tab, the page, the player, the steps @mobile', 
   const api = await apiAs('state.json');
   const title = `QA Phone game ${Date.now()}`;
   let videoId: string | null = null;
+  let unseed: (() => Promise<void>) | null = null;
   try {
+    unseed = await seedOwnChannel(admin, { profileId: me.id }, me.id);
     let res = await api.post('/api/videos', { data: { url: YT, title } });
     expect(res.status(), await readErrorBody(res)).toBe(201);
     videoId = ((await res.json()).video as { id: string }).id;
@@ -81,6 +86,7 @@ test('videos at phone width: the tab, the page, the player, the steps @mobile', 
       async () => {
         if (videoId) await api.delete(`/api/videos/${videoId}`);
       },
+      async () => { await unseed?.(); },
       () => api.dispose(),
     ]);
   }

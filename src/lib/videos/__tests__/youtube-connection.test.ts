@@ -299,11 +299,13 @@ describe('self-healing', () => {
     expect(server).not.toContain('recordError');
     expect(server.match(/await markRevoked\(/g)).toHaveLength(2);
     expect(server).toContain("if (out.result.ok && row.status === 'error')");
+    // The lookup route reads through videoChannelCheck (Nov 11 2026, only the connected channel) — which itself calls through callWithToken.
+    expect(read('src/app/api/videos/youtube/lookup/route.ts')).toContain('videoChannelCheck(admin, owner, id)');
+    expect(server).toContain('const called = await callWithToken(admin, cfg, owner, token => youtubeLiveDetails(');
     for (const f of [
       'src/app/api/videos/youtube/channel-uploads/route.ts',
       'src/app/api/videos/youtube/upload-session/route.ts',
       'src/app/api/videos/youtube/broadcast/route.ts',
-      'src/app/api/videos/youtube/lookup/route.ts',
       'src/app/api/videos/[id]/refresh/route.ts',
       'src/lib/videos/videos-live-server.ts',
     ]) {

@@ -422,6 +422,40 @@ export function callRefusalWord(status: number, reason: string | null | undefine
   return status === 403 ? 'refused' : 'busy';
 }
 
+/**
+ * Only the connected channel (Nov 11 2026, Tom): a full game is linked only
+ * when YouTube says the video belongs to the channel connected to that
+ * profile or org — a pasted link to someone else's video is refused, so
+ * nobody posts another creator's game as their own. `connected` is the
+ * connection's channel id (null = no connection); `video` is what the read
+ * said: undefined = the read failed, null = YouTube has no such video (or it
+ * is another channel's private one), else its channel id. A check that
+ * cannot be made REFUSES — it never lets the video through.
+ */
+export type ChannelVerdict = 'own' | 'other' | 'unconnected' | 'missing' | 'unreadable';
+
+export function channelVerdict(connected: string | null | undefined, video: { channelId: string | null } | null | undefined): ChannelVerdict {
+  if (!connected) return 'unconnected';
+  if (video === undefined) return 'unreadable';
+  if (video === null) return 'missing';
+  if (!video.channelId) return 'unreadable';
+  return video.channelId === connected ? 'own' : 'other';
+}
+
+export const CHANNEL_REFUSALS = {
+  unconnected: { status: 409, error: 'Connect your YouTube channel first — a full game comes from your own channel.' },
+  other: { status: 403, error: 'This video is on another YouTube channel. Only videos from the connected channel can be added here.' },
+  missing: { status: 404, error: 'YouTube has no video at this link that the connected channel can see.' },
+  unreadable: { status: 503, error: 'YouTube did not answer, so the video’s channel could not be checked — try again.' },
+} as const;
+
+/** The sentence for a refusal, naming the connected channel when it is known. */
+export function channelRefusalText(verdict: Exclude<ChannelVerdict, 'own'>, channelTitle?: string | null): string {
+  const name = channelTitle?.trim();
+  if (verdict === 'other' && name) return `This video is on another YouTube channel. Only videos from ${name} can be added here.`;
+  return CHANNEL_REFUSALS[verdict].error;
+}
+
 /** The scope a Reconnect asks for: the widest the connection had (force-ssl covers uploads), so one yes restores everything. */
 export function reconnectScope(scopes: readonly ScopeKey[] | null | undefined): ScopeKey {
   if (scopes?.includes('live')) return 'live';
@@ -619,6 +653,10 @@ export interface VideoLookup {
   embeddable: boolean | null;
   live: { status: 'none' | 'upcoming' | 'live' | 'ended'; scheduledStartAt: string | null } | null;
   chapters: Chapter[];
+  /** Only the connected channel (Nov 11): whose video this is for the owner asked about; absent/null = the rule is off here (no YouTube configuration) or no owner was named. */
+  channel?: ChannelVerdict | null;
+  /** The connected channel's name, for the sentence. */
+  channelTitle?: string | null;
 }
 
 export interface Chapter { startMs: number; label: string }

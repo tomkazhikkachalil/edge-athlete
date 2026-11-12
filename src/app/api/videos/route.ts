@@ -23,6 +23,9 @@ import {
   type VideoFilter,
 } from '@/lib/videos/videos-server';
 import { refreshLiveState, refreshLiveViews } from '@/lib/videos/videos-live-server';
+import { parseYouTubeLink } from '@/lib/videos/youtube';
+import type { ConnectionOwner } from '@/lib/videos/youtube-connection';
+import { channelRefusal, videoChannelCheck } from '@/lib/videos/youtube-connections-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
@@ -110,6 +113,10 @@ export async function GET(request: NextRequest) {
  * to a profile (your own, or an athlete you guard) or to an org you manage
  * video for; a place needs the place's manager. 201 {video}; 409
  * {error, existing_id} when the same video is already on that owner.
+ * ONLY THE CONNECTED CHANNEL (Nov 11 2026): the video must belong to the
+ * YouTube channel connected to that owner — 409 {needs_connection} with no
+ * channel, 403 for another channel's video, 404 when YouTube has none, 503 /
+ * 429 when the check cannot be made (it refuses, never lets through).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -128,22 +135,32 @@ export async function POST(request: NextRequest) {
     const admin = getSupabaseAdmin();
 
     let owner: { profileId: string } | { orgId: string };
+    let channelOwner: ConnectionOwner;
     let actorProfileId = user.id;
     if (input.owner.kind === 'org') {
       const gate = await requireOrgManager(admin, user, input.owner.side, input.owner.orgId, { intent: 'manage_video' });
       if (!gate.ok) return gate.response;
       owner = { orgId: input.owner.orgId };
+      channelOwner = { kind: 'org', side: input.owner.side, orgId: input.owner.orgId };
     } else {
       const acting = await resolveActingProfile(user.id, input.owner.profileId, 'Not authorized to add videos for this profile');
       if (!acting.ok) return NextResponse.json({ error: acting.error }, { status: acting.status });
       actorProfileId = acting.actorId;
       owner = { profileId: acting.actorId };
+      channelOwner = { kind: 'profile', profileId: acting.actorId };
     }
 
     const place = placeOf(input);
     if (place) {
       const right = await placeRight(admin, place, actorProfileId, user);
       if (!right.ok) return NextResponse.json({ error: right.error }, { status: right.status });
+    }
+
+    // Only the connected channel (Nov 11 2026): YouTube must say the video is the owner's connected channel's. A link that does not parse is createVideo's own 400.
+    const link = parseYouTubeLink(input.url);
+    if (link) {
+      const refused = channelRefusal(await videoChannelCheck(admin, channelOwner, link.id));
+      if (refused) return NextResponse.json(refused.body, { status: refused.status, headers: PRIVATE });
     }
 
     const created = await createVideo(admin, { input, owner, userId: user.id });
