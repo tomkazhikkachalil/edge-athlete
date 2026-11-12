@@ -14,6 +14,8 @@ Tom, trying the app on production: (1) "Pick from channel" does nothing; (2) *"I
 
 **Tests.** 210 unit tests in `src/lib/videos` (the new file + the callWithToken pin moved to the check). The stand-in Google answers `snippet.channelId` (`videoChannels`, `MOCK_DEFAULT_CHANNEL`). Eight specs that add a video seed a connection first (`e2e/helpers/own-channel.ts`); all green on staging — `videos`, `org-app-videos`, `videos-live`, `videos-lookup`, `videos-player`, `videos-places`, `org-site-videos`, `youtube-connect` (5), `youtube-upload` on desktop, `videos-mobile` on mobile. Seen once and green alone: `youtube-connect` "self-healing" step 2 read `active` where it had just written `error` (the Videos card's own health check on the still-open page healed the row first — a race in the spec, not the rule).
 
+**Merged and proven (Nov 12):** #1475 → `aa4a80ff`, `/api/health` on the commit. Production probes one at a time, against the REAL YouTube through the server's key: `videos.spec` desktop 1/1 (no channel → 409 `needs_connection`; a connection naming another channel → 403; the connection naming "Me at the zoo"'s real channel → 201), `org-app-videos.spec` desktop 1/1 (a club without a channel → 409, then saved), `videos-mobile.spec` mobile 1/1. `check:schema:prod` ✓.
+
 **Still Tom's:** try the picker on production; after this PR is live, paste someone else's video (refused) and his own (saved); then the one real upload from the app.
 ## November 11, 2026 — Maintenance after the Training redesign: every gate green on 02b50db1; production's iPhone-engine probe was stopped by Vercel's Security Checkpoint, not by the app
 
