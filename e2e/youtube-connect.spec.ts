@@ -318,6 +318,18 @@ test('the flow round: connect from inside Full game and come back with the form 
     await expect(page.locator('[data-channel-picker]')).toBeVisible();
     expect(await viewOf()).toMatchObject({ connected: true, scopes: ['readonly'], unverified: true });
 
+    // 2b. The picker, by hand (Nov 11): the FIRST open reads the channel's uploads — it used to sit on "Reading your uploads…" — and one tap fills the link.
+    await page.locator('[data-channel-picker-toggle]').click();
+    await expect(page.locator('[data-channel-picker="open"]')).toBeVisible();
+    await expect(page.locator('[data-channel-upload]')).toHaveCount(CHANNEL.uploads.length, { timeout: 20_000 });
+    await expect(page.locator('[data-channel-upload="e2eUpload01"]')).toContainText('Club Championship Final');
+    expect(await fits()).toBe(true);
+    await page.locator('[data-channel-upload="e2eUpload02"]').click();
+    await expect(urlField).toHaveValue(/e2eUpload02/);
+    await page.locator('[data-channel-picker-toggle]').click();
+    await expect(page.locator('[data-channel-picker="closed"]')).toBeVisible();
+    await urlField.fill(LINK);
+
     // 3. "Allow uploads" with the box left unticked at Google: the channel stays connected, the flow says what happened, the link is still there.
     await askUploadScope();
     mock.grantedScopes = ['https://www.googleapis.com/auth/youtube.readonly'];

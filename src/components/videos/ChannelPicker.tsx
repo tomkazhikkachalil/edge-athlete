@@ -13,6 +13,10 @@ import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
  * own uploads, newest first — one tap fills the link. The list is fetched
  * once the person opens it (a Link step must not pay for a Data API read
  * nobody asked for). Props only; the parent owns the chosen id.
+ *
+ * Nov 11 2026: the toggle only opens — it used to mark the state `loading`
+ * as well, and the fetch below runs from `idle` alone, so the first open
+ * never asked YouTube and sat on "Reading your uploads…" for good.
  */
 type PickerState = { status: 'idle' } | { status: 'loading' } | { status: 'ready'; uploads: ChannelUpload[] } | { status: 'error'; message: string; reconnect: boolean };
 
@@ -41,7 +45,7 @@ export default function ChannelPicker({ owner, onPick, returnTo, onLeave }: { ow
     <div className="rounded-lg border border-border" data-channel-picker={open ? 'open' : 'closed'}>
       <button
         type="button"
-        onClick={() => { setOpen(o => !o); if (state.status === 'idle') setState({ status: 'loading' }); }}
+        onClick={() => setOpen(o => !o)}
         className="ea-interactive flex w-full items-center gap-3 px-3 min-h-[48px] text-left"
         aria-expanded={open}
         data-channel-picker-toggle=""
