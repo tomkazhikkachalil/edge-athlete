@@ -80,6 +80,24 @@ test('a visitor sees an exercise\'s bests from the sessions they may open — ne
     expect((await visitorApi.get(`/api/profile/${owner.id}/training/bests?exercise=${encodeURIComponent('x,exercise_ref.is.null')}`)).status()).toBe(404);
     expect((await visitorApi.get('/api/profile/00000000-0000-4000-8000-000000000000/training/bests')).status()).toBe(404);
 
+    // ── A TESTED MAX (PR 6): the athlete types in a squat they never logged here. It is an exercise with a best
+    // for the visitor too; only its owner can remove it; a malformed one is refused.
+    const tested = await ownerApi.post('/api/vitals', { data: { metric_key: 'squat', metric_category: 'strength', metric_label: 'Squat', value: 315, value_display: '315 lbs', unit: 'lbs', recorded_at: '2026-06-01', source: 'tested_max' } });
+    expect(tested.ok(), await readErrorBody(tested)).toBe(true);
+    // The answer is one saved row under one key: read the row, whatever the payload names it.
+    const testedId = Object.values((await tested.json()) as Record<string, { id: string }>)[0].id;
+    for (const bad of [{ value: 0 }, { value: 9000 }, { unit: 'stone' }, { metric_key: 'a b' }, { recorded_at: '2999-01-01' }, { metric_category: 'body' }]) {
+      const res = await ownerApi.post('/api/vitals', { data: { metric_key: 'squat', metric_category: 'strength', metric_label: 'Squat', value: 315, unit: 'lbs', recorded_at: '2026-06-01', source: 'tested_max', ...bad } });
+      expect(res.status(), JSON.stringify(bad)).toBe(400);
+    }
+    const withSquat = await list(visitorApi);
+    expect(withSquat.exercises.find(e => e.ref === 'squat')).toMatchObject({ area: 'legs', headline: { kind: 'heaviest', value: 315 }, sessions: 0 });
+    expect((await visitorApi.delete(`/api/vitals?id=${testedId}`)).status()).toBe(404);
+    expect((await list(visitorApi)).exercises.some(e => e.ref === 'squat')).toBe(true);
+    expect((await ownerApi.delete(`/api/vitals?id=${testedId}`)).status()).toBe(200);
+    expect((await ownerApi.delete(`/api/vitals?id=${testedId}`)).status()).toBe(404);
+    expect((await list(visitorApi)).exercises.some(e => e.ref === 'squat')).toBe(false);
+
     // ── The screen, as the visitor at phone width: the exercise's own address on /athlete/[id].
     const page = await ctx.newPage();
     await page.goto(`/athlete/${owner.id}?tab=training&view=exercises&exercise=bench_press`);

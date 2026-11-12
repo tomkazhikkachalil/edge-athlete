@@ -50,6 +50,8 @@ describe('runWorkoutSweep', () => {
     expect(editor).not.toMatch(/keepPrivate/);
     // The switch OFF (Done) stamps the decision, records, clears the device draft, then leaves by replace.
     expect(editor).toMatch(/body: JSON\.stringify\(\{ decided: true \}\)/);
-    expect(editor).toMatch(/await recordPRs\(null\);\s*clearFinishDraft\(finishedSessionId\);\s*void refreshDrafts\(\);\s*router\.replace\('\/athlete\?tab=training'\);/);
+    expect(editor).toMatch(/if \(!res\.ok\) throw new Error\([^)]*\);\s*clearFinishDraft\(finishedSessionId\);\s*void refreshDrafts\(\);\s*router\.replace\('\/athlete\?tab=training'\);/);
+    // ONE system of bests (Training redesign PR 6): Done writes nothing to a second store.
+    expect(editor).not.toMatch(/recordPRs|detectPRs|edge_vitals/);
   });
 });

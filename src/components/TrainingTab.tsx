@@ -30,7 +30,6 @@ import { useStartWorkout } from '@/hooks/useStartWorkout';
 import TrainingHero from './training/TrainingHero';
 import TrainingViewSwitcher from './training/TrainingViewSwitcher';
 import { parseExerciseParam, parseTrainingView, trainingViewSearch, type TrainingView } from '@/lib/training/views';
-import PBShowcase from './training/PBShowcase';
 import TrainingExercises from './training/TrainingExercises';
 import StatBubbleCard from './training/StatBubbleCard';
 import MetricBubbleCard from './training/MetricBubbleCard';
@@ -244,7 +243,11 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   const weekly = useMemo(() => sessionsWeeklySummary(sessions), [sessions]);
   const streak = useMemo(() => sessionsStreakWeeks(sessions), [sessions]);
   const activeDays = useMemo(() => sessionsActiveDays(sessions), [sessions]);
-  const pbSpotlight = useMemo(() => latestPB(bodyMetrics), [bodyMetrics]);
+  // ONE system of bests (Training redesign PR 6, Nov 11 2026): a lift's numbers are its exercise's
+  // (logged sets and tested maxes, the Exercises view). What Body & tests holds — and what the
+  // hero's "latest personal best" reads — is everything else: the tests and the body.
+  const testMetrics = useMemo(() => bodyMetrics.filter(entry => entry.metric_category !== 'strength'), [bodyMetrics]);
+  const pbSpotlight = useMemo(() => latestPB(testMetrics), [testMetrics]);
   const [showAllActivity, setShowAllActivity] = useState(false);
   const shownActivityPosts = showAllActivity ? trainingPosts : trainingPosts.slice(0, ACTIVITY_TILES_FIRST);
 
@@ -270,7 +273,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   const [unit] = useState(() => (typeof window === 'undefined' ? 'km' : readUnitPreference()));
   // Group bodyMetrics by metric key (all-time — bubbles never lie either)
   const bodyMetricsByMetric: Record<string, BodyMetricEntry[]> = {};
-  for (const entry of bodyMetrics) {
+  for (const entry of testMetrics) {
     if (!bodyMetricsByMetric[entry.metric_key]) bodyMetricsByMetric[entry.metric_key] = [];
     bodyMetricsByMetric[entry.metric_key].push(entry);
   }
@@ -589,7 +592,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       </>
       )}
 
-      {/* ══ Body & tests: height and weight, the bests typed in, every metric ═ */}
+      {/* ══ Body & tests: height and weight, and every test (a lift is its exercise's) ═ */}
       {view === 'body' && (
       <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 empty:hidden">
@@ -628,16 +631,13 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
         )}
       </div>
 
-      {/* ── Personal bests — the trophy wall (each trophy opens its metric) */}
-      <PBShowcase bodyMetrics={bodyMetrics} onOpenMetric={key => setMetricOverlayKey(key)} />
-
       {/* ── Metrics library — bubbles by category; history behind a tap ── */}
       <div>
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-base font-bold text-primary">Performance Metrics</h3>
+            <h3 className="text-base font-bold text-primary">Tests</h3>
             {totalMetrics > 0 && (
-              <p className="text-xs text-muted mt-0.5">{totalMetrics} metric{totalMetrics !== 1 ? 's' : ''} tracked</p>
+              <p className="text-xs text-muted mt-0.5">{totalMetrics} tracked</p>
             )}
           </div>
           {isOwnProfile && (
@@ -654,13 +654,13 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
         {totalMetrics === 0 ? (
           <SectionEmptyState
             icon={Ruler}
-            title="No metrics recorded yet"
-            body="Track physical development over time — speed, strength, conditioning, and body metrics."
+            title="No tests recorded yet"
+            body="Track physical development over time — speed, conditioning and body metrics. Lifting numbers live on each exercise's page."
             cta={isOwnProfile ? { label: 'Add First Metric', onClick: () => setShowAddBodyMetric(true) } : undefined}
           />
         ) : (
           <div className="space-y-6">
-            {BODY_METRIC_CATEGORIES.map(category => {
+            {BODY_METRIC_CATEGORIES.filter(category => category.key !== 'strength').map(category => {
               const categoryMetrics = category.metrics.filter(
                 m => bodyMetricsByMetric[m.key] && bodyMetricsByMetric[m.key].length > 0
               );

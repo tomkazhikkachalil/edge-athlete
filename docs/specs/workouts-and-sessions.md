@@ -151,7 +151,7 @@ Tom's items 6–8 for workouts. **Finish is the record, Post or Done is the deci
 ### Oct 16 2026 — Strength training is the Workout: records for every exercise, effort (activities details A10)
 
 - **Strength is not an activity type** (Tom approved, Oct 16): the recorder's picker carries a **Strength training** tile in its Indoor group that opens the Workout (`useStartWorkout` — its routines sheet when there are routines). A second set-and-rep logger would record one session twice. Hidden while a guardian acts for an athlete (workouts are the athlete's own).
-- **Records for every exercise** (`src/lib/workouts/prs.ts`, pure): heaviest weight, best estimated 1-rep max (Epley, sets of 1–12 reps), most reps in an unweighted set, best session volume — **derived from the sets, never stored**. An exercise is one lift by the one identity rule (amended Nov 11 2026, below). A session's records are its bests that beat EVERY earlier completed session's (`GET /api/workouts/prs?exclude=<id>`, owner-only, `private, no-store`); a first-ever lift is a baseline, never a record. The summary shows them ("New PRs"), a shared post carries them; the five-lift body-metric confirm stays as it was.
+- **Records for every exercise** (`src/lib/workouts/prs.ts`, pure): heaviest weight, best estimated 1-rep max (Epley, sets of 1–12 reps), most reps in an unweighted set, best session volume — **derived from the sets, never stored**. An exercise is one lift by the one identity rule (amended Nov 11 2026, below). A session's records are its bests that beat EVERY earlier completed session's (`GET /api/workouts/prs?exclude=<id>`, owner-only, `private, no-store`); a first-ever lift is a baseline, never a record. The summary shows them ("New PRs"), a shared post carries them. (The five-lift body-metric confirm was retired Nov 11 2026 — "One system of bests", below.)
 - **Effort 1–10** on the summary (`EffortChips`, the activities' one control) → `workout_sessions.effort` (265) through the PATCH, saved as tapped.
 - **Units:** a workout reads in the unit most of its weighted sets were logged in (`workoutUnit`; lbs on a tie — the app's spelling); Training's **Personal records** card (own profile) reads in the unit most of the athlete's sets use.
 
@@ -260,3 +260,12 @@ Tom: "sometimes there are too many personal bests, we need to group and store in
 - **The read:** `bests-server.ts readExerciseSessions` — narrow (no clips), 1000 rows a page; one exercise filters on `exercise_ref` OR NULL and recomputes identity. `GET /api/workouts/prs` uses it.
 - Training's open is two reads: `/api/vitals` and the History route's `?sessions=1`. Nothing counts from the workouts list any more.
 - Pinned by `exercise-list.test.ts`, `training-views.test.ts`, `e2e/training-exercises.spec.ts`, `e2e/workout-prs.spec.ts`, `e2e/training.spec.ts`.
+
+## One system of bests (Training redesign PR 6, Nov 11 2026)
+
+- **A lift's best comes from one fold:** its logged sets AND its tested maxes (`bests-server.ts readBestsSources`; `exercise-list.ts sessionBests`). Bests are derived from the sets **and the tested maxes**, never stored.
+- **A tested max** (`tested-max.ts`): an `athlete_vitals` row, category `strength`, source `manual` or `tested_max`, value above zero; its exercise is its key when the catalog knows it, else its label's identity. One dated entry at the start of its day — a weight for one rep, or reps. It raises the bar, is never a record, has no volume, and is not counted in "N sessions". `edge_vitals` rows are never read.
+- **No second store:** nothing at Finish, Post or Done writes a best anywhere. `stats_data.prs` is the exercises' records, ranked.
+- **Adding and removing:** `POST /api/vitals` with `source: 'tested_max'` (a strength row, an identity for a key, lbs | kg | reps, 0 < value ≤ 5000, a date not in the future — else 400); `DELETE /api/vitals?id=` removes the athlete's OWN entered strength row and nothing else (404 otherwise). The athlete only — not a guardian, not a visitor. The remove confirm names the number, the date and the exercise; an unsaved value closes through `useDirtyClose`.
+- **Body & tests is tests and body:** no strength rows there, in the hero's latest best, or in the metric modal.
+- Pinned by `tested-max.test.ts`, `exercise-list.test.ts`, `workout-prs.test.ts`, `e2e/training.spec.ts`, `e2e/training-exercises.spec.ts`.

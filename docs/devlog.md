@@ -1,5 +1,22 @@
 # Development Log
 
+## November 11, 2026 — Training redesign, PR 6 of 8: one system of bests — a typed max is a tested max, the finish-step confirm is gone
+
+Tom's decision 3: "Merge into one." There were two systems with nearly one name — "Personal Bests" (numbers typed into `athlete_vitals`, plus five lifts copied there by a confirm at the end of a workout) and "Personal records" (derived from the sets) — and they could disagree about the same lift.
+
+**What changed (zero DDL):**
+- **A tested max** (`src/lib/workouts/tested-max.ts`, pure): a strength row of `athlete_vitals` the athlete entered — source `manual` (every row typed before today) or `tested_max`. It reads into the SAME fold as the logged sets, as one dated entry: a weight for one rep, or a rep count. It raises the bar later sessions must beat, is never itself announced, and has no volume. Rows with source `edge_vitals` — the copies the old confirm wrote — are not read: the set each one copied is already in the fold. No data moved.
+- **Both bests routes fold both sources** (`bests-server.ts readBestsSources`): the exercise's page and the finish summary can no longer disagree.
+- **The five-lift confirm is gone**: `pr-detection.ts`, the "Save them to your Personal Bests" block, `recordPRs`. Finish, Post and Done write nothing to a second store; a post's `prs` is one ranked list.
+- **On an exercise's page the athlete can add a tested max** (weight or reps, unit, date) and remove one — `DELETE /api/vitals?id=` takes the athlete's OWN entered strength row and nothing else (the table has no Data API delete, and a typo would otherwise be a best for ever). The confirm names what is lost; an unsaved value asks before the window closes. From the Exercises list, a tested max can be added for an exercise never logged here.
+- **Body & tests holds tests and body only**: the lift rows leave "Performance Metrics" (now "Tests"), the trophy wall (`PBShowcase`) is deleted, the metric modal no longer offers Strength and says where lifts live. The hero's "latest personal best" reads tests.
+
+**Two flaws the specs found, both fixed in the rules:** (1) a tested max's single rep was counted as a "session volume", so the first real workout after it wore a volume record — `sessionBests` gives a tested max no volume; (2) 205 × 3 estimates 225.50000000000003, and that last digit made a record over a tested 225 — `beats` reads the gap to the hundredth.
+
+**What an athlete sees change:** a lift typed in earlier now shows on its exercise's page as a tested max and counts in its bests; it is no longer a trophy or a metric bubble. A best that existed ONLY as an `edge_vitals` copy of a workout since deleted no longer counts.
+
+**Proof:** `npm run verify` exit 0 (6,093 tests). `tested-max.test.ts`: what is and is not a tested max, the one fold, never a record, no volume, the delete door's four clauses, the second system's files gone. Staging e2e — desktop: `training` (typed 185 and 225 show as tested maxes beside a logged 205, which wears no record; add 250 → best 250; remove names "250 lbs … will no longer count toward your Bench Press bests" → 225; an unsaved value asks before closing); mobile: `training-exercises` (a visitor sees a tested squat as an exercise; six malformed entries are 400; a visitor's delete is 404, the owner's 200 then 404), `workout-prs`, `workout-drafts`, `workout-review`, `workout-summary`, `training-mobile`. The tested-max form itself was driven on desktop only.
+
 ## November 11, 2026 — Training redesign, PR 5 of 8: one row and one page per exercise; a visitor sees bests
 
 Tom: "the groups, don't really make sense." One lift was reachable four ways — a trophy, a metric bubble, a chip under "Strength" and a chip under "Workouts" — and its records were a five-column table only the owner ever saw. The leading apps (Strong, Hevy, Boostcamp) put an exercise's records, chart and history on the exercise's own page.

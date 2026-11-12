@@ -8,12 +8,14 @@
 // visitor sees it too: the server folds what that viewer may see.
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Dumbbell } from 'lucide-react';
+import { ChevronRight, Dumbbell, Plus } from 'lucide-react';
 import SectionInfo from '@/components/SectionInfo';
 import SectionEmptyState from '@/components/SectionEmptyState';
 import { groupByArea, type ExerciseSummary } from '@/lib/workouts/exercise-list';
 import { formatPr, PR_SHORT_LABELS } from '@/lib/workouts/prs';
 import ExerciseDetailOverlay from './ExerciseDetailOverlay';
+import TestedMaxForm from './TestedMaxForm';
+import { useAuth } from '@/lib/auth';
 
 type Wire = Omit<ExerciseSummary, 'lastAt' | 'sessions'> & { lastAt: string | null; sessions: number | null };
 type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'hidden' } | { kind: 'ready'; exercises: Wire[]; unit: 'lb' | 'kg' };
@@ -30,6 +32,11 @@ interface TrainingExercisesProps {
 
 export default function TrainingExercises({ profileId, isOwnProfile, openRef, onOpen }: TrainingExercisesProps) {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const [reload, setReload] = useState(0);
+  // PR 6: the athlete can type in a best for an exercise they never logged here.
+  const { user } = useAuth();
+  const isSelf = user?.id === profileId;
+  const [adding, setAdding] = useState(false);
   useEffect(() => {
     let live = true;
     fetch(`/api/profile/${profileId}/training/bests`, { credentials: 'include', cache: 'no-store' })
@@ -46,7 +53,7 @@ export default function TrainingExercises({ profileId, isOwnProfile, openRef, on
     return () => {
       live = false;
     };
-  }, [profileId]);
+  }, [profileId, reload]);
 
   const groups = useMemo(() => (state.kind === 'ready' ? groupByArea(state.exercises as ExerciseSummary[]) : []), [state]);
   const ready = state.kind === 'ready' ? state : null;
@@ -56,6 +63,26 @@ export default function TrainingExercises({ profileId, isOwnProfile, openRef, on
       <SectionInfo as="h3" heading="Exercises" headingClassName="text-base font-bold text-primary" dense>
         <p>Every exercise you have logged, with its best. Tap one for its bests, its chart and every session it was in.</p>
       </SectionInfo>
+
+      {isSelf && ready && (
+        adding ? (
+          <TestedMaxForm
+            defaultUnit={ready.unit}
+            onDirtyChange={() => undefined}
+            onCancel={() => setAdding(false)}
+            onSaved={ref => {
+              setAdding(false);
+              setReload(n => n + 1);
+              onOpen(ref);
+            }}
+          />
+        ) : (
+          <button type="button" onClick={() => setAdding(true)} className="ea-interactive inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-border-strong px-4 text-sm font-semibold text-secondary" data-tested-max-add-any="">
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Add a tested max
+          </button>
+        )
+      )}
 
       {state.kind === 'loading' && (
         <div className="flex justify-center py-12" aria-busy="true">
@@ -106,7 +133,7 @@ export default function TrainingExercises({ profileId, isOwnProfile, openRef, on
           </div>
         ))}
 
-      {openRef && <ExerciseDetailOverlay profileId={profileId} exerciseRef={openRef} fallbackName={ready?.exercises.find(e => e.ref === openRef)?.name} onClose={() => onOpen(null)} />}
+      {openRef && <ExerciseDetailOverlay profileId={profileId} exerciseRef={openRef} fallbackName={ready?.exercises.find(e => e.ref === openRef)?.name} onClose={() => onOpen(null)} onChanged={() => setReload(n => n + 1)} />}
     </section>
   );
 }

@@ -18,6 +18,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { exerciseRefOf } from '@/lib/workout-config';
 import type { EntryExercise, EntrySet } from './entries';
 import type { ExerciseSession } from './exercise-list';
+import { TESTED_MAX_SOURCES, testedMaxSessions, type TestedMaxRow } from './tested-max';
 
 const PAGE = 1000;
 const MAX_ROWS = 20_000;
@@ -77,4 +78,34 @@ export async function readExerciseSessions(admin: SupabaseClient, profileId: str
     ok: true,
     sessions: [...bySession.values()].map(s => ({ id: s.id, startedAt: s.startedAt, title: s.title, exercises: s.order.sort((a, b) => a.position - b.position).map(o => o.exercise) })),
   };
+}
+
+/**
+ * The athlete's TESTED MAXES as sessions (PR 6, tested-max.ts): the strength
+ * rows of athlete_vitals the athlete typed in — never the copies the old
+ * finish-step confirm wrote (`edge_vitals`). One exercise's when `ref` is
+ * given. A failed read costs the tested maxes, never the bests: the sets
+ * still fold.
+ */
+export async function readTestedMaxes(admin: SupabaseClient, profileId: string, ref?: string): Promise<ExerciseSession[]> {
+  const { data, error } = await admin
+    .from('athlete_vitals')
+    .select('id, metric_key, metric_category, metric_label, value, unit, source, recorded_at')
+    .eq('profile_id', profileId)
+    .eq('metric_category', 'strength')
+    .in('source', [...TESTED_MAX_SOURCES])
+    .order('recorded_at', { ascending: false })
+    .limit(2000);
+  if (error) {
+    console.error('[workouts/bests] tested maxes read failed:', error.message);
+    return [];
+  }
+  return testedMaxSessions((data ?? []) as unknown as TestedMaxRow[], ref);
+}
+
+/** Everything a best is folded from: the logged sets and the tested maxes. */
+export async function readBestsSources(admin: SupabaseClient, profileId: string, opts: ExerciseReadOptions): Promise<{ ok: true; sessions: ExerciseSession[]; workouts: ExerciseSession[] } | { ok: false }> {
+  const [read, tested] = await Promise.all([readExerciseSessions(admin, profileId, opts), readTestedMaxes(admin, profileId, opts.ref)]);
+  if (!read.ok) return { ok: false };
+  return { ok: true, sessions: [...read.sessions, ...tested], workouts: read.sessions };
 }

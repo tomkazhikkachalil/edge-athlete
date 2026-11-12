@@ -56,7 +56,7 @@ describe('the step in the URL', () => {
     // The wake lock and the live rest rule follow the EFFECTIVE mode.
     expect(editor).toMatch(/useWakeLock\(effectiveMode === 'live' && phase === 'editing'\)/);
     // A completed session recomputes BOTH record lists.
-    expect(editor).toMatch(/void loadPRs\(initial\.exercises\);\s*void loadExercisePRs\(initial\.exercises, session\.id\);/);
+    expect(editor).toMatch(/void loadExercisePRs\(initial\.exercises, session\.id\);/);
     // The preview is the feed's own card.
     expect(editor).toMatch(/<PostCard post=\{previewPost\} currentUserId=\{currentUserId\} showActions=\{false\} inReview \/>/);
     const flow = read('src/components/workouts/FinishFlow.tsx');

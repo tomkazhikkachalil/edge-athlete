@@ -5,9 +5,9 @@ import { reportRouteError } from '@/lib/observability/report';
 import { resolveActivityAccess } from '@/lib/activities/read-server';
 import { aspectHidden } from '@/lib/training-privacy';
 import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
-import { readExerciseSessions } from '@/lib/workouts/bests-server';
-import { describeExercise, exerciseTimeline, summarizeExercises } from '@/lib/workouts/exercise-list';
-import { foldBests, bestsOf, workoutUnit } from '@/lib/workouts/prs';
+import { readBestsSources } from '@/lib/workouts/bests-server';
+import { describeExercise, exerciseTimeline, sessionBests, summarizeExercises } from '@/lib/workouts/exercise-list';
+import { foldBests, workoutUnit } from '@/lib/workouts/prs';
 
 /**
  * GET /api/profile/[profileId]/training/bests — Training's Exercises view
@@ -50,9 +50,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const ref = new URL(request.url).searchParams.get('exercise');
     if (ref !== null && !REF.test(ref)) return NextResponse.json({ error: 'Exercise not found' }, { status: 404, headers: NO_STORE });
 
-    const read = await readExerciseSessions(admin, profileId, { visitor: !isOwner, ...(ref ? { ref } : {}) });
+    // PR 6: the logged sets AND the tested maxes — one fold, one best per exercise.
+    const read = await readBestsSources(admin, profileId, { visitor: !isOwner, ...(ref ? { ref } : {}) });
     if (!read.ok) return NextResponse.json({ error: 'Could not load exercises' }, { status: 500, headers: NO_STORE });
-    const unit = workoutUnit(read.sessions.flatMap(s => s.exercises));
+    const unit = workoutUnit(read.workouts.flatMap(s => s.exercises));
 
     const sessionsHidden = privacy ? aspectHidden(privacy, 'workouts', isOwner) : false;
     if (ref === null) {
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const timeline = exerciseTimeline(read.sessions, ref);
     if (timeline.length === 0) return NextResponse.json({ error: 'Exercise not found' }, { status: 404, headers: NO_STORE });
-    const bests = foldBests(read.sessions.map(s => bestsOf(s.exercises))).get(ref)!;
+    const bests = foldBests(read.sessions.map(sessionBests)).get(ref)!;
     return NextResponse.json(
       { exercise: { ref, ...describeExercise(ref, bests.name), bests }, timeline: sessionsHidden ? [] : timeline, sessionsHidden, unit, isOwner },
       { headers: NO_STORE }
