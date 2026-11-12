@@ -1,6 +1,6 @@
 /**
  * Videos (296) — the pure rules. Zero runtime imports (one type import, erased); every rule pinned by
- * src/lib/videos/__tests__/rules.test.ts.
+ * src/lib/videos/__tests__/rules.test.ts. (Sprint 3: the tag fields of a highlight are parsed by tag-rules.ts — itself pure.)
  *
  * A linked video is owned by a profile XOR an org and may sit on a sport
  * event XOR a contest. Who may MANAGE it: the owner (or their guardian) for a
@@ -17,6 +17,7 @@
  */
 
 import type { OrgKind } from '@/lib/orgs/org-ref';
+import { parseTagFields, TAG_KEYS, type TagInput } from './tag-rules';
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -101,9 +102,12 @@ export interface HighlightInput {
   end_ms: number | null;
   label: string;
   meta: HighlightMeta;
+  /** Sprint 3 (307): the event, its period / side / value, and the people in it. Absent = a plain marker; on a PATCH, absent = leave the tag alone. */
+  tag?: TagInput;
 }
 
-const HIGHLIGHT_KEYS = ['start_ms', 'end_ms', 'label', 'meta'] as const;
+const HIGHLIGHT_KEYS = ['start_ms', 'end_ms', 'label', 'meta', ...TAG_KEYS] as const;
+const hasTagKey = (body: Record<string, unknown>): boolean => TAG_KEYS.some(k => body[k] !== undefined);
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -164,7 +168,10 @@ export function parseHighlightBody(body: unknown): Parsed<HighlightInput> {
   if (label.length > HIGHLIGHT_LABEL_MAX) return { ok: false, error: `label must be at most ${HIGHLIGHT_LABEL_MAX} characters` };
   const meta = parseHighlightMeta(body.meta);
   if (!meta.ok) return meta;
-  return { ok: true, value: { start_ms: start.value, end_ms: end, label, meta: meta.value } };
+  if (!hasTagKey(body)) return { ok: true, value: { start_ms: start.value, end_ms: end, label, meta: meta.value } };
+  const tag = parseTagFields(body);
+  if (!tag.ok) return tag;
+  return { ok: true, value: { start_ms: start.value, end_ms: end, label, meta: meta.value, tag: tag.value } };
 }
 
 /** PATCH body of a highlight: any subset; the range rule is checked against
@@ -200,6 +207,12 @@ export function parseHighlightPatch(body: unknown): Parsed<Partial<HighlightInpu
     const meta = parseHighlightMeta(body.meta);
     if (!meta.ok) return meta;
     out.meta = meta.value;
+  }
+  // A tag is replaced whole (the event with its people) — never half of one.
+  if (hasTagKey(body)) {
+    const tag = parseTagFields(body);
+    if (!tag.ok) return tag;
+    out.tag = tag.value;
   }
   return { ok: true, value: out };
 }

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!read.canManage) return NextResponse.json({ error: 'Only a manager can add highlights.' }, { status: 403 });
     const added = await addHighlights(admin, id, inputs, user.id);
     if (!added.ok) return NextResponse.json({ error: added.error }, { status: added.status });
-    const highlights = await listHighlights(admin, id);
+    const highlights = await listHighlights(admin, id, { id: user.id, canManage: true });
     return NextResponse.json({ highlights, added: added.value.length }, { status: 201, headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos/highlights/import] POST error:', error);

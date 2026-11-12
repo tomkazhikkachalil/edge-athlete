@@ -41,7 +41,10 @@ import {
   type VideoPatch,
   type VideoRightFacts,
 } from './rules';
-import type { HighlightRow, VideoOwnerView, VideoPlaceView, VideoRow, VideoView } from './types';
+import type { HighlightPerson, HighlightRow, VideoOwnerView, VideoPlaceView, VideoRow, VideoView } from './types';
+import { filterBlockedBidirectional } from '@/lib/blocks';
+import { checkTag, tagPersonKey, type TagInput, type TagPersonInput } from './tag-rules';
+import { gameSheetFor } from './game-sheets';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the house Admin alias (schema-agnostic helper)
 type Admin = SupabaseClient<any, 'public', any>;
@@ -52,7 +55,7 @@ export const VIDEO_COLUMNS =
   'id, provider, provider_video_id, profile_id, org_id, sport_event_id, contest_id, group_post_id, activity_id, workout_session_id, created_by_user_id, title, description, sport_key, duration_ms, status, live_status, scheduled_start_at, live_started_at, live_ended_at, live_checked_at, created_at, updated_at';
 /** The read shape: the row, the marker count, the owner and the place by name. Two FKs reach profiles, so the owner embed names its constraint. */
 export const VIEW_COLUMNS = `${VIDEO_COLUMNS}, highlights:video_highlights(count), profile:profiles!videos_profile_id_fkey(id, full_name, display_name, handle, avatar_url), org:organizations(id, name, kind), sport_event:sport_events(id, name), contest:contests(id, round, competition:competitions(id, name)), group_post:group_posts(id, title, date, golf_data:golf_scorecard_data(course_name)), activity:activities(id, name), workout_session:workout_sessions(id, title)`;
-export const HIGHLIGHT_COLUMNS = 'id, video_id, start_ms, end_ms, label, meta, created_by_user_id, created_at, updated_at';
+export const HIGHLIGHT_COLUMNS = 'id, video_id, start_ms, end_ms, label, meta, created_by_user_id, created_at, updated_at, event_key, period, side, value';
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; status: 400 | 401 | 403 | 404 | 409 | 500; error: string; existing_id?: string };
 
@@ -284,24 +287,150 @@ export async function readVideoForViewer(admin: Admin, id: string, user: User | 
   const view = viewRight(facts);
   if (!view.allowed) return null;
   const canManage = manageRight(facts).allowed;
-  const highlights = await listHighlights(admin, id);
+  const highlights = await listHighlights(admin, id, { id: user?.id ?? null, canManage });
   return { row: raw, view: projectVideo(raw, canManage), highlights, canManage };
 }
 
-export async function listHighlights(admin: Admin, videoId: string): Promise<HighlightRow[]> {
+/** Who reads the tags: a manager sees every name; anyone else sees a linked athlete's name only where they may see that profile. */
+export interface TagViewer { id: string | null; canManage: boolean }
+
+/**
+ * The video's highlights in time order, each with the people in it (active
+ * tags only). A linked athlete the viewer may NOT see is still counted — as
+ * "Player", with no link — so a game's numbers are the same for everyone
+ * and a private profile is never named to a stranger.
+ */
+export async function listHighlights(admin: Admin, videoId: string, viewer: TagViewer = { id: null, canManage: false }): Promise<HighlightRow[]> {
   const { data, error } = await admin
     .from('video_highlights')
     .select(HIGHLIGHT_COLUMNS)
     .eq('video_id', videoId)
     .order('start_ms', { ascending: true })
     .order('created_at', { ascending: true })
-    .limit(500);
+    .limit(HIGHLIGHT_READ_MAX);
   if (error) {
     console.error(`${TAG} highlights read failed:`, error.message);
     return [];
   }
-  return (data ?? []) as unknown as HighlightRow[];
+  const rows = (data ?? []) as unknown as Array<Omit<HighlightRow, 'people'>>;
+  const people = await readTagPeople(admin, videoId, viewer);
+  return rows.map(r => ({ ...r, people: people.get(r.id) ?? [] }));
 }
+
+/** A fully tagged game has a tag per scoring play — far more than a list of highlights (Sprint 3). */
+export const HIGHLIGHT_READ_MAX = 2000;
+export const MASKED_PERSON_NAME = 'Player';
+
+interface PersonRow {
+  id: string;
+  highlight_id: string;
+  profile_id: string | null;
+  name: string | null;
+  role: string;
+  side: 1 | 2 | null;
+  profile: { id: string; full_name: string | null; display_name: string | null; handle: string | null; avatar_url: string | null; visibility: string | null; departed_at: string | null } | null;
+}
+
+async function readTagPeople(admin: Admin, videoId: string, viewer: TagViewer): Promise<Map<string, HighlightPerson[]>> {
+  const out = new Map<string, HighlightPerson[]>();
+  const { data, error } = await admin
+    .from('video_highlight_people')
+    .select('id, highlight_id, profile_id, name, role, side, profile:profiles!video_highlight_people_profile_id_fkey(id, full_name, display_name, handle, avatar_url, visibility, departed_at)')
+    .eq('video_id', videoId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true })
+    .limit(HIGHLIGHT_READ_MAX * 4);
+  if (error) {
+    // 307 not here yet = nobody is tagged; anything else is said in the log and the highlights still read.
+    if (error.code !== '42P01' && error.code !== 'PGRST205') console.error(`${TAG} tag people read failed:`, error.message);
+    return out;
+  }
+  const rows = (data ?? []) as unknown as PersonRow[];
+  // Whose names may THIS viewer read? A manager: all. Otherwise each distinct profile once.
+  const visible = new Map<string, boolean>();
+  if (!viewer.canManage) {
+    const ids = [...new Set(rows.map(r => r.profile_id).filter((v): v is string => !!v))];
+    await Promise.all(ids.map(async id => {
+      const p = rows.find(r => r.profile_id === id)?.profile;
+      if (!p) { visible.set(id, false); return; }
+      if (viewer.id === id || p.visibility === 'public') { visible.set(id, true); return; }
+      visible.set(id, viewer.id ? (await canViewProfile(id, viewer.id)).canView : false);
+    }));
+  }
+  for (const r of rows) {
+    // A typed name is always shown; a linked athlete only while their profile stands AND this viewer may see it.
+    const shown = !r.profile_id || (!!r.profile && !r.profile.departed_at && (viewer.canManage || visible.get(r.profile_id) === true));
+    const person: HighlightPerson = r.profile_id && r.profile && shown
+      ? { id: r.id, profile_id: r.profile_id, name: r.profile.display_name || r.profile.full_name || MASKED_PERSON_NAME, handle: r.profile.handle, avatar_url: r.profile.avatar_url, role: r.role, side: r.side }
+      : { id: r.id, profile_id: null, name: r.profile_id ? MASKED_PERSON_NAME : (r.name ?? MASKED_PERSON_NAME), handle: null, avatar_url: null, role: r.role, side: r.side };
+    const list = out.get(r.highlight_id);
+    if (list) list.push(person);
+    else out.set(r.highlight_id, [person]);
+  }
+  return out;
+}
+
+/**
+ * Who a tagger may name (the photo-tag rule): only profiles the tagger can
+ * SEE; anyone with a block in either direction is silently left out (never
+ * reveal who blocked whom); a typed name is always allowed.
+ */
+export async function taggablePeople(admin: Admin, people: readonly TagPersonInput[], taggerId: string): Promise<Outcome<TagPersonInput[]>> {
+  const ids = [...new Set(people.map(p => p.profile_id).filter((v): v is string => !!v && v !== taggerId))];
+  if (ids.length === 0) return { ok: true, value: [...people] };
+  const checks = await Promise.all(ids.map(id => canViewProfile(id, taggerId)));
+  if (checks.some(c => !c.canView)) return { ok: false, status: 403, error: 'You can only tag people whose profile you can view' };
+  const { allowed } = await filterBlockedBidirectional(admin, taggerId, ids);
+  const ok = new Set(allowed);
+  return { ok: true, value: people.filter(p => !p.profile_id || p.profile_id === taggerId || ok.has(p.profile_id)) };
+}
+
+/**
+ * The people on one tag become exactly `people`: rows no longer wanted go,
+ * new ones are added. A row someone REMOVED of themselves stays removed —
+ * a manager's save never tags them back in.
+ */
+async function writeTagPeople(admin: Admin, videoId: string, highlightId: string, people: readonly TagPersonInput[], userId: string): Promise<boolean> {
+  const { data: existing, error: readError } = await admin.from('video_highlight_people').select('id, profile_id, name, role, status').eq('highlight_id', highlightId);
+  if (readError) {
+    console.error(`${TAG} tag people read failed:`, readError.message);
+    return false;
+  }
+  const keyOf = (p: { profile_id: string | null; name: string | null; role: string }) => `${tagPersonKey(p)}|${p.role}`;
+  const have = new Map((existing ?? []).map(r => [keyOf(r as { profile_id: string | null; name: string | null; role: string }), r as { id: string; status: string }]));
+  const want = new Map(people.map(p => [keyOf(p), p]));
+  const gone = [...have.entries()].filter(([k, r]) => r.status === 'active' && !want.has(k)).map(([, r]) => r.id);
+  if (gone.length > 0) {
+    const { error } = await admin.from('video_highlight_people').delete().in('id', gone);
+    if (error) { console.error(`${TAG} tag people delete failed:`, error.message); return false; }
+  }
+  const fresh = [...want.entries()].filter(([k]) => !have.has(k)).map(([, p]) => ({ highlight_id: highlightId, video_id: videoId, profile_id: p.profile_id, name: p.name, role: p.role, side: p.side, created_by_user_id: userId }));
+  if (fresh.length > 0) {
+    const { error } = await admin.from('video_highlight_people').insert(fresh);
+    if (error) { console.error(`${TAG} tag people insert failed:`, error.message); return false; }
+  }
+  // A person kept on the tag may have changed side.
+  for (const [k, p] of want) {
+    const row = have.get(k);
+    if (row && row.status === 'active') await admin.from('video_highlight_people').update({ side: p.side }).eq('id', row.id);
+  }
+  return true;
+}
+
+/**
+ * A tag is ready to save: its event and roles are the game's sheet's (no game
+ * = no events), and its people are ones this tagger may name.
+ */
+export async function prepareTag(admin: Admin, videoId: string, tag: TagInput, taggerId: string): Promise<Outcome<TagInput>> {
+  const { data } = await admin.from('video_games').select('sport_key').eq('video_id', videoId).maybeSingle();
+  const checked = checkTag(gameSheetFor((data as { sport_key?: string } | null)?.sport_key ?? null), tag);
+  if (!checked.ok) return { ok: false, status: 400, error: checked.error };
+  const people = await taggablePeople(admin, tag.people, taggerId);
+  if (!people.ok) return people;
+  return { ok: true, value: { ...tag, people: people.value } };
+}
+
+const tagColumns = (tag: TagInput) => ({ event_key: tag.event_key, period: tag.period, side: tag.side, value: tag.value });
 
 // ── The places ──────────────────────────────────────────────────────────────
 
@@ -514,14 +643,20 @@ export async function deleteVideo(admin: Admin, id: string, orgId: string | null
 export async function addHighlight(admin: Admin, videoId: string, input: HighlightInput, userId: string): Promise<Outcome<HighlightRow>> {
   const { data, error } = await admin
     .from('video_highlights')
-    .insert({ video_id: videoId, start_ms: input.start_ms, end_ms: input.end_ms, label: input.label, meta: input.meta, created_by_user_id: userId })
+    .insert({ video_id: videoId, start_ms: input.start_ms, end_ms: input.end_ms, label: input.label, meta: input.meta, created_by_user_id: userId, ...(input.tag ? tagColumns(input.tag) : {}) })
     .select(HIGHLIGHT_COLUMNS)
     .single();
   if (error || !data) {
     console.error(`${TAG} highlight insert failed:`, error?.message);
     return { ok: false, status: 500, error: 'Could not add the highlight' };
   }
-  return { ok: true, value: data as unknown as HighlightRow };
+  const row = data as unknown as Omit<HighlightRow, 'people'>;
+  if (input.tag && input.tag.people.length > 0 && !(await writeTagPeople(admin, videoId, row.id, input.tag.people, userId))) {
+    // A tag without its people would count a stat for nobody: take the highlight back rather than keep half of it.
+    await admin.from('video_highlights').delete().eq('id', row.id);
+    return { ok: false, status: 500, error: 'Could not add the highlight' };
+  }
+  return { ok: true, value: { ...row, people: [] } };
 }
 
 /** Paste and go (Nov 6): YouTube's chapters as markers — ONE insert, refused when the video already has any marker (never a duplicate pile). */
@@ -537,16 +672,16 @@ export async function addHighlights(admin: Admin, videoId: string, inputs: reado
     console.error(`${TAG} highlights import failed:`, error?.message);
     return { ok: false, status: 500, error: 'Could not add the highlights' };
   }
-  return { ok: true, value: data as unknown as HighlightRow[] };
+  return { ok: true, value: (data as unknown as Array<Omit<HighlightRow, 'people'>>).map(r => ({ ...r, people: [] })) };
 }
 
-export async function updateHighlight(admin: Admin, videoId: string, highlightId: string, patch: Partial<HighlightInput>): Promise<Outcome<HighlightRow>> {
+export async function updateHighlight(admin: Admin, videoId: string, highlightId: string, patch: Partial<HighlightInput>, userId: string | null = null): Promise<Outcome<HighlightRow>> {
   const { data: stored } = await admin.from('video_highlights').select('id, start_ms, end_ms').eq('id', highlightId).eq('video_id', videoId).maybeSingle();
   if (!stored) return { ok: false, status: 404, error: 'Highlight not found' };
   if (!highlightRangeOk(stored as { start_ms: number; end_ms: number | null }, patch)) return { ok: false, status: 400, error: 'end_ms must be after start_ms' };
   const { data, error } = await admin
     .from('video_highlights')
-    .update({ ...patch, updated_at: new Date().toISOString() })
+    .update({ ...(patch.start_ms !== undefined ? { start_ms: patch.start_ms } : {}), ...(patch.end_ms !== undefined ? { end_ms: patch.end_ms } : {}), ...(patch.label !== undefined ? { label: patch.label } : {}), ...(patch.meta !== undefined ? { meta: patch.meta } : {}), ...(patch.tag ? tagColumns(patch.tag) : {}), updated_at: new Date().toISOString() })
     .eq('id', highlightId)
     .eq('video_id', videoId)
     .select(HIGHLIGHT_COLUMNS)
@@ -555,7 +690,8 @@ export async function updateHighlight(admin: Admin, videoId: string, highlightId
     console.error(`${TAG} highlight update failed:`, error?.message);
     return { ok: false, status: 500, error: 'Could not save the highlight' };
   }
-  return { ok: true, value: data as unknown as HighlightRow };
+  if (patch.tag && userId && !(await writeTagPeople(admin, videoId, highlightId, patch.tag.people, userId))) return { ok: false, status: 500, error: 'Could not save who is in the highlight' };
+  return { ok: true, value: { ...(data as unknown as Omit<HighlightRow, 'people'>), people: [] } };
 }
 
 export async function deleteHighlight(admin: Admin, videoId: string, highlightId: string): Promise<Outcome<null>> {

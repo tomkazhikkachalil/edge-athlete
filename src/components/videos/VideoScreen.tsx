@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import HighlightList from '@/components/videos/HighlightList';
 import GameDetailsCard from '@/components/videos/GameDetailsCard';
+import TagTimeline from '@/components/videos/TagTimeline';
 import type { GameView } from '@/lib/videos/game-rules';
 import { LivePill } from '@/components/videos/VideoCards';
 import { formatLiveWhen, liveBadgeFor, liveRefetchMs } from '@/lib/videos/live-rules';
@@ -42,6 +43,12 @@ async function readError(res: Response): Promise<string> {
   } catch {
     return `Request failed (${res.status})`;
   }
+}
+
+/** The API takes a highlight's tag fields flat, beside its time and label (absent = a plain marker / leave the tag alone). */
+function highlightBody(input: HighlightInput): Record<string, unknown> {
+  const { tag, ...rest } = input;
+  return tag ? { ...rest, ...tag } : rest;
 }
 
 function ownerHref(v: VideoView): string {
@@ -223,11 +230,11 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
   };
 
   const addHighlight = async (input: HighlightInput) => {
-    const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/highlights`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/highlights`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(highlightBody(input)) });
     return withHighlights(res)();
   };
   const editHighlight = async (id: string, input: HighlightInput) => {
-    const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/highlights/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+    const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/highlights/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(highlightBody(input)) });
     return withHighlights(res)();
   };
   const deleteHighlight = async (id: string) => {
@@ -474,6 +481,8 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         onChange={game => setLoad(prev => (prev.state === 'ready' ? { ...prev, game } : prev))}
       />
 
+      {canManage && <TagTimeline highlights={highlights} durationMs={video.duration_ms} game={load.game} activeId={activeId} onPlay={play} />}
+
       <HighlightList
         highlights={highlights}
         canManage={canManage}
@@ -484,6 +493,8 @@ export default function VideoScreen({ videoId }: { videoId: string }) {
         onDelete={deleteHighlight}
         liveStartedAt={video.live_status === 'live' ? video.live_started_at : null}
         currentMs={playerMode === 'api' ? () => playerRef.current?.currentMs() ?? null : undefined}
+        game={load.game}
+        durationMs={video.duration_ms}
       />
 
       <ConfirmModal

@@ -1,5 +1,19 @@
 # Development Log
 
+## November 12, 2026 — Sprint 3 (YouTube game film), PR 3 of 8: tagging — what happened and who was in it (zero DDL)
+
+**Before it:** PR 2 (#1479) merged as `c65eac3f` after Tom ran migration 307 on production (`307 APPLIED | 2 | 4 | false | 307`; `check:schema:prod` ✓); `video-game.spec` green on production (mobile).
+
+**What.** On a video that is a game, a highlight can now be a **tag**: the sport's event, whose it is, the period, a value where the event carries one, and the people in it by role — a linked athlete, or a typed name for someone not on Edge Athlete yet (Tom's two decisions: tag anyone you can view, or by name; no approval). `tag-rules.ts` (pure) parses the shape and `checkTag` holds it to the sport's sheet; `videos-server.ts` stays the one writer (`prepareTag`, `writeTagPeople`, `taggablePeople` — the photo-tag rule: profiles the tagger can see, blocks silently skipped). Reading masks: a linked athlete a viewer may not see is counted as "Player", never named.
+
+**The screen.** The highlight form on a game: "What happened" (grouped), whose, the period, people by role (search or a typed name), Start / End ±5 s and "End here"; "This moment" makes a clip from 8 s before to 4 s after. A tagged event names itself. Rows show the event's chip, the side and the people; a timeline strip under the player puts every highlight on one line (managers).
+
+**One rule found while building:** with a lead-in, revealing a stat at the clip's START would show the basket 8 seconds early. A tag now reveals at its **end** (`revealMs`) — pinned.
+
+**Not in this PR:** the athlete is not notified yet and cannot remove a tag yet (PR 7); picking a real team's roster first in the people picker; name masking has no browser spec (a private profile the tagger can see needs a follow relationship the QA users do not have) — it is in the code, not yet proven by a test.
+
+**Tests.** `tag-rules.test.ts` (15) + the reveal case; `src/lib/videos` green. `e2e/video-tagging.spec.ts` on staging: the API's refusals (no game, another sport's event, no side, a role the event has not, two scorers, a stray value, a private stranger → 403), a real tag, PATCH leaving / replacing the tag, the form at 375 px with a typed name, the nudges, the edit, the cascade on delete.
+
 ## November 12, 2026 — Sprint 3 (YouTube game film), PR 2 of 8: the game on the video (migration 307)
 
 **What.** A linked video can now be a **game**: its sport, the two sides, the day, whether every scoring play is tagged (`coverage`), and the spoiler-free default. Migration 307 adds `video_games` (one per video), four nullable columns on `video_highlights` (`event_key`, `period`, `side`, `value` — a row without an event is the plain marker it always was) and `video_highlight_people` (who is in a tag: a profile XOR a typed name, the role, `active | removed`). The tag columns and the people table are made here and WRITTEN by PR 3.

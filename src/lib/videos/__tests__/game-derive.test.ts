@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GAME_SHEETS } from '../game-sheets';
-import { cellText, deriveGame, nextHighWater, personKey, revealAt, setWinner, tagsForPerson, type GameTag, type TagPerson } from '../game-derive';
+import { cellText, deriveGame, nextHighWater, personKey, revealAt, revealMs, setWinner, tagsForPerson, type GameTag, type TagPerson } from '../game-derive';
 
 /**
  * Every stat of a tagged game comes from its tags (Sprint 3, Nov 12 2026):
@@ -61,6 +61,13 @@ describe('the spoiler-free cut', () => {
     expect(revealAt(sheet, tags, 10_000).score).toEqual({ 1: 2, 2: 0 });
     expect(revealAt(sheet, tags, 89_000).summary).toHaveLength(1);
     expect(revealAt(sheet, tags, 90_000).score).toEqual({ 1: 2, 2: 3 });
+  });
+  it('a clip with a lead-in reveals at its END — the build-up to a basket never shows the basket', () => {
+    const clip = [tag(22_000, 'fg3_made', 1, [who('scorer', 'ann')], { endMs: 34_000 })];
+    expect(revealMs(clip[0])).toBe(34_000);
+    expect(revealAt(sheet, clip, 30_000).score).toEqual({ 1: 0, 2: 0 });
+    expect(revealAt(sheet, clip, 34_000).score).toEqual({ 1: 3, 2: 0 });
+    expect(revealMs({ startMs: 10, endMs: null })).toBe(10);
   });
   it('the furthest point watched only moves forward', () => {
     expect(nextHighWater(null, 30_000)).toBe(30_000);

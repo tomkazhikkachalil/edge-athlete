@@ -6,6 +6,10 @@ import SectionInfo from '@/components/SectionInfo';
 import { markNowOffsetMs } from '@/lib/videos/live-rules';
 import { formatTimestamp, HIGHLIGHT_HOLE_MAX, HIGHLIGHT_LABEL_MAX, parseTypedTimestamp, type HighlightInput } from '@/lib/videos/rules';
 import type { HighlightRow } from '@/lib/videos/types';
+import TagFields, { EMPTY_TAG_DRAFT, tagDraftOf, tagInputOf, type TagDraft } from '@/components/videos/TagFields';
+import { gameSheetFor, sheetEvent, type GameSheet } from '@/lib/videos/game-sheets';
+import { sideLabel, type GameView } from '@/lib/videos/game-rules';
+import { clipAround, defaultTagLabel, nudgeMs, ROLE_IN_CLIP } from '@/lib/videos/tag-rules';
 import FaIcon from '@/components/FaIcon';
 import { faPen } from '@/lib/icons/fa/pen';
 import { faPlay } from '@/lib/icons/fa/play';
@@ -27,6 +31,9 @@ interface Props {
   liveStartedAt?: string | null;
   /** Polish B: the player's playhead in ms when the IFrame API answers — "Mark this moment"; null/undefined = no such button. */
   currentMs?: () => number | null;
+  /** Sprint 3: the video is a game — a highlight may be tagged with the sport's event and the people in it. */
+  game?: GameView | null;
+  durationMs?: number | null;
 }
 
 interface Draft {
@@ -38,12 +45,14 @@ interface Draft {
   note: string;
   /** Set by "Now": the server stamps the time from its own clock (meta.live). */
   live: boolean;
+  tag: TagDraft;
 }
 
-const EMPTY: Draft = { time: '', end: '', label: '', hole: '', score: '', note: '', live: false };
+const EMPTY: Draft = { time: '', end: '', label: '', hole: '', score: '', note: '', live: false, tag: EMPTY_TAG_DRAFT };
 
-function draftOf(h: HighlightRow): Draft {
+function draftOf(h: HighlightRow, sheet: GameSheet | null): Draft {
   return {
+    tag: tagDraftOf(h, sheet),
     time: formatTimestamp(h.start_ms),
     end: h.end_ms === null ? '' : formatTimestamp(h.end_ms),
     label: h.label,
@@ -54,7 +63,7 @@ function draftOf(h: HighlightRow): Draft {
   };
 }
 
-function inputOf(d: Draft): { ok: true; value: HighlightInput } | { ok: false; error: string } {
+function inputOf(d: Draft, sheet: GameSheet | null): { ok: true; value: HighlightInput } | { ok: false; error: string } {
   const start = parseTypedTimestamp(d.time);
   if (start === null) return { ok: false, error: 'Type the time as m:ss or h:mm:ss (for example 12:30).' };
   let end: number | null = null;
@@ -63,7 +72,9 @@ function inputOf(d: Draft): { ok: true; value: HighlightInput } | { ok: false; e
     if (end === null) return { ok: false, error: 'Type the end as m:ss or h:mm:ss.' };
     if (end <= start) return { ok: false, error: 'The end must come after the start.' };
   }
-  const label = d.label.trim();
+  // A tagged event names itself when nothing was typed ("3-pointer made — Ann Lee").
+  const firstTagged = d.tag.people.find(p => p.role !== ROLE_IN_CLIP)?.name ?? null;
+  const label = d.label.trim() || (defaultTagLabel(sheet, { event_key: d.tag.eventKey || null }, firstTagged) ?? '');
   if (!label) return { ok: false, error: 'Give the moment a name.' };
   if (label.length > HIGHLIGHT_LABEL_MAX) return { ok: false, error: `Keep the name to ${HIGHLIGHT_LABEL_MAX} characters.` };
   const meta: HighlightInput['meta'] = {};
@@ -79,10 +90,14 @@ function inputOf(d: Draft): { ok: true; value: HighlightInput } | { ok: false; e
   }
   if (d.note.trim()) meta.note = d.note.trim();
   if (d.live) meta.live = true;
-  return { ok: true, value: { start_ms: start, end_ms: end, label, meta } };
+  if (!sheet) return { ok: true, value: { start_ms: start, end_ms: end, label, meta } };
+  const tag = tagInputOf(d.tag, sheet);
+  if (!tag.ok) return tag;
+  return { ok: true, value: { start_ms: start, end_ms: end, label, meta, tag: tag.value } };
 }
 
-function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null, currentMs }: { initial: Draft; onSave: (input: HighlightInput) => Promise<string | null>; onCancel: () => void; saving: boolean; liveStartedAt?: string | null; currentMs?: () => number | null }) {
+function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null, currentMs, game = null, durationMs = null }: { initial: Draft; onSave: (input: HighlightInput) => Promise<string | null>; onCancel: () => void; saving: boolean; liveStartedAt?: string | null; currentMs?: () => number | null; game?: GameView | null; durationMs?: number | null }) {
+  const sheet = game ? gameSheetFor(game.sport_key) : null;
   const [d, setD] = useState<Draft>(initial);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => setD(prev => ({ ...prev, [k]: e.target.value, ...(k === 'time' ? { live: false } : {}) }));
@@ -97,11 +112,26 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
   const markMoment = () => {
     const ms = currentMs?.();
     if (ms === null || ms === undefined) return;
+    // On a game the moment becomes a clip: a lead-in before it and a tail after (both nudgeable).
+    if (sheet) {
+      const clip = clipAround(ms, durationMs);
+      setD(prev => ({ ...prev, time: formatTimestamp(clip.start_ms), end: formatTimestamp(clip.end_ms), live: false }));
+      return;
+    }
     setD(prev => ({ ...prev, time: formatTimestamp(ms), live: false }));
   };
+  const endHere = () => {
+    const ms = currentMs?.();
+    if (ms === null || ms === undefined) return;
+    setD(prev => ({ ...prev, end: formatTimestamp(ms) }));
+  };
+  const nudge = (k: 'time' | 'end', deltaMs: number) => setD(prev => {
+    const at = parseTypedTimestamp(prev[k]);
+    return at === null ? prev : { ...prev, [k]: formatTimestamp(nudgeMs(at, deltaMs, durationMs)), live: false };
+  });
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = inputOf(d);
+    const parsed = inputOf(d, sheet);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -131,14 +161,30 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
         </label>
         <label className="block text-sm text-secondary">
           Ends at (optional)
-          <input className={`${FIELD} mt-1`} inputMode="numeric" placeholder="13:05" value={d.end} onChange={set('end')} />
+          <div className="mt-1 flex gap-2">
+            <input className={FIELD} inputMode="numeric" placeholder="13:05" value={d.end} onChange={set('end')} data-highlight-end="" />
+            {sheet && canMark && (
+              <button type="button" onClick={endHere} className={`${BTN} shrink-0`} title="End the clip where the player is" data-highlight-end-here="">
+                End here
+              </button>
+            )}
+          </div>
         </label>
       </div>
+      {sheet && (
+        <div className="flex flex-wrap gap-2" data-highlight-nudge="">
+          <button type="button" onClick={() => nudge('time', -5000)} className={BTN} data-highlight-nudge-start="-5">Start −5s</button>
+          <button type="button" onClick={() => nudge('time', 5000)} className={BTN} data-highlight-nudge-start="5">Start +5s</button>
+          <button type="button" onClick={() => nudge('end', -5000)} className={BTN} data-highlight-nudge-end="-5">End −5s</button>
+          <button type="button" onClick={() => nudge('end', 5000)} className={BTN} data-highlight-nudge-end="5">End +5s</button>
+        </div>
+      )}
+      {sheet && game && <TagFields sheet={sheet} game={game} value={d.tag} onChange={tag => setD(prev => ({ ...prev, tag }))} />}
       <label className="block text-sm text-secondary">
-        What happens
-        <input className={`${FIELD} mt-1`} maxLength={HIGHLIGHT_LABEL_MAX} placeholder="Eagle on 7" value={d.label} onChange={set('label')} data-highlight-label="" />
+        {sheet ? 'Name it (optional — a tagged event names itself)' : 'What happens'}
+        <input className={`${FIELD} mt-1`} maxLength={HIGHLIGHT_LABEL_MAX} placeholder={sheet ? (defaultTagLabel(sheet, { event_key: d.tag.eventKey || null }) ?? 'Great play') : 'Eagle on 7'} value={d.label} onChange={set('label')} data-highlight-label="" />
       </label>
-      <div className="grid grid-cols-3 gap-3">
+      {(!sheet || sheet.family === 'golf') && <div className="grid grid-cols-3 gap-3">
         <label className="block text-sm text-secondary">
           Hole
           <input className={`${FIELD} mt-1`} inputMode="numeric" value={d.hole} onChange={set('hole')} />
@@ -151,8 +197,8 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
           Note
           <input className={`${FIELD} mt-1`} value={d.note} onChange={set('note')} />
         </label>
-      </div>
-      <p className="text-xs text-muted">The time is where the player starts — to the second, as YouTube seeks. Read it off the player and type it here.</p>
+      </div>}
+      <p className="text-xs text-muted">{sheet ? 'Pause the video on the play and press This moment — the clip starts a few seconds before and ends a few after; nudge either end. The stats are built from what you tag here.' : 'The time is where the player starts — to the second, as YouTube seeks. Read it off the player and type it here.'}</p>
       {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       <div className="flex gap-2 justify-end">
         <button type="button" onClick={onCancel} className={BTN}>Cancel</button>
@@ -169,7 +215,8 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
  * the player there; a manager adds, edits and removes them. The count is in
  * the heading. A marker is a cue — an end is a note on it, never a cut.
  */
-export default function HighlightList({ highlights, canManage, activeId, onPlay, onAdd, onEdit, onDelete, liveStartedAt = null, currentMs }: Props) {
+export default function HighlightList({ highlights, canManage, activeId, onPlay, onAdd, onEdit, onDelete, liveStartedAt = null, currentMs, game = null, durationMs = null }: Props) {
+  const sheet = game ? gameSheetFor(game.sport_key) : null;
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [removing, setRemoving] = useState<HighlightRow | null>(null);
@@ -206,6 +253,8 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
             initial={EMPTY}
             liveStartedAt={liveStartedAt}
             currentMs={currentMs}
+            game={game}
+            durationMs={durationMs}
             saving={saving}
             onCancel={() => setAdding(false)}
             onSave={input => run(async () => {
@@ -219,7 +268,7 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
 
       {n === 0 && !adding && (
         <p className="mt-4 text-sm text-muted" data-video-highlights-empty="">
-          {canManage ? 'No highlights yet. Add the moments worth jumping to.' : 'No highlights yet.'}
+          {canManage ? (sheet ? 'No highlights yet. Pause on a play and tag what happened and who was in it.' : 'No highlights yet. Add the moments worth jumping to.') : 'No highlights yet.'}
         </p>
       )}
 
@@ -229,7 +278,10 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
             <li key={h.id} className="py-1" data-video-highlight={h.id}>
               {editing === h.id ? (
                 <HighlightForm
-                  initial={draftOf(h)}
+                  initial={draftOf(h, sheet)}
+                  currentMs={currentMs}
+                  game={game}
+                  durationMs={durationMs}
                   saving={saving}
                   onCancel={() => setEditing(null)}
                   onSave={input => run(async () => {
@@ -249,7 +301,15 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
                   >
                     <span className="font-mono text-sm text-brand-fg shrink-0 w-16">{formatTimestamp(h.start_ms)}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-primary truncate">{h.label}</span>
+                      <span className="block text-sm font-semibold text-primary truncate">
+                        {sheet && sheetEvent(sheet, h.event_key) && <span className="mr-2 inline-block rounded bg-surface-muted px-1.5 py-0.5 font-mono text-xs font-semibold text-secondary align-middle" data-highlight-event={h.event_key ?? ''}>{sheetEvent(sheet, h.event_key)!.short}</span>}
+                        {h.label}
+                      </span>
+                      {(h.people.length > 0 || (game && h.side)) && (
+                        <span className="block text-xs text-secondary truncate" data-highlight-people={h.people.length}>
+                          {[game && h.side ? sideLabel(game, h.side) : null, h.people.map(p => p.name).join(', ') || null].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
                       {(h.meta?.hole !== undefined || h.meta?.score !== undefined || h.meta?.note || h.end_ms !== null) && (
                         <span className="block text-xs text-muted truncate">
                           {[

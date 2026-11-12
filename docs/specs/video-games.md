@@ -43,6 +43,20 @@ A video becomes a **game** when it has a `video_games` row: `sport_key` (the she
 
 **Pinned by** `game-rules.test.ts`, `migration-307.test.ts`, `e2e/video-game.spec.ts` (`@mobile`).
 
+### Tagging (PR 3, zero DDL — the columns and the table are 307's)
+
+**A tag is a highlight that says what happened and who was in it.** The highlight body gains five optional fields beside its time and label — `event_key`, `period`, `side`, `value`, `people: [{ profile_id | name, role, side? }]`. None sent = the plain marker it always was; on a PATCH, none sent = the tag is left alone, any sent = the tag is replaced **whole** (never half an event).
+
+- **The shape** is `tag-rules.ts` (pure; its one import is the sheets): a person is a profile XOR a typed name (trimmed, single-spaced, 80 at most), has a role, appears once per role, twelve people at most.
+- **The sheet decides** (`checkTag`): an event needs the video to be a game and must be the sport's; on a two-sided sport an event needs its side (whose point is it?); a value only where the event takes one, inside its range (a default stands in — a 2-minute minor); each role is the event's, no more than it allows (two assists in hockey). Anyone can also be **`in_clip`**: the clip is theirs, no stat is — allowed on any highlight, game or not.
+- **Who may be named** (`taggablePeople`, the photo-tag rule): only profiles the tagger can SEE (`canViewProfile` → 403 otherwise); a block in either direction is silently left out; a typed name is always allowed; yourself always.
+- **The one writer** stays `videos-server.ts`: `prepareTag` (sheet + people) → `addHighlight` / `updateHighlight` write the columns and `writeTagPeople` makes the tag's people exactly the list sent. A row someone **removed** of themselves stays removed — a manager's save never tags them back in. A tag whose people cannot be written is taken back whole.
+- **Reading** (`listHighlights(admin, videoId, viewer)`): each highlight carries `people` (active only). A manager reads every name; anyone else reads a linked athlete's name only where they may see that profile — otherwise the person is still COUNTED, as "Player" with no link, so a game's numbers are the same for everyone and a private profile is never named to a stranger. The read cap is 2,000 (a fully tagged game has a tag per scoring play).
+- **A clip reveals at its END** (`revealMs`): "This moment" on a game makes a clip from 8 s before to 4 s after (`clipAround`), and the lead-in to a basket must not show the basket.
+- **The screen:** in the highlight form on a game — "What happened" (the sheet's events, grouped), whose, the period, a value where one belongs, people by role (search, or "Use “…” as a name"), Start / End ±5 s, "End here"; a tagged event names itself when no name is typed. A row shows the event's chip, the side and the people. `TagTimeline` puts every highlight on one line under the player (managers; a viewer gets it with the unlock in PR 4).
+
+**Pinned by** `tag-rules.test.ts` (15), the `revealMs` case in `game-derive.test.ts`, the purity chain in `migration-296.test.ts`, `e2e/video-tagging.spec.ts`.
+
 ### What comes next (the sprint's later PRs, each extends this file)
 
-Picking a real team for a side and the game fields inside the Full game flow; tagging on the video page (event, side, people with roles, start and end; edit, move, delete); the spoiler-free view and "Show full stats"; the recap; the athlete drill-down; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).
+Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the spoiler-free view and "Show full stats"; the recap; the athlete drill-down; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).

@@ -71,7 +71,10 @@ describe('the videos program\'s wiring', () => {
     expect(read('src/lib/videos/videos-server.ts')).toContain('resolveActingProfile(');
   });
   it('the pure rules stay pure (one erased type import) and the link helper imports only the embed module', () => {
-    expect(read('src/lib/videos/rules.ts').match(/^import .*$/gm) ?? []).toEqual(["import type { OrgKind } from '@/lib/orgs/org-ref';"]);
+    // Sprint 3: the tag fields are parsed by tag-rules.ts, whose one import is the zero-import sheets — the chain stays pure.
+    expect(read('src/lib/videos/rules.ts').match(/^import .*$/gm) ?? []).toEqual(["import type { OrgKind } from '@/lib/orgs/org-ref';", "import { parseTagFields, TAG_KEYS, type TagInput } from './tag-rules';"]);
+    expect(read('src/lib/videos/tag-rules.ts').match(/^import .*$/gm) ?? []).toEqual(["import { sheetEvent, type GameSheet, type Side } from './game-sheets';"]);
+    expect(read('src/lib/videos/game-sheets.ts').match(/^import .*$/gm) ?? []).toEqual([]);
     const imports = read('src/lib/videos/youtube.ts').match(/^import .*$/gm) ?? [];
     expect(imports).toEqual(["import { EMBED_FRAME_HOSTS, embedSrc, parseEmbedUrl } from '@/lib/site-builder/embeds';"]);
   });

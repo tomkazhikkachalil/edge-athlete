@@ -43,6 +43,24 @@ export interface HighlightRow {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Sprint 3 (307): the game sheet's event this highlight is, or null for a plain marker. */
+  event_key: string | null;
+  period: number | null;
+  side: 1 | 2 | null;
+  value: number | null;
+  /** Who is in it (active tags only), in the order they were added. */
+  people: HighlightPerson[];
+}
+
+/** One person on a tag, as a reader gets it: a linked profile (its name as THIS viewer may see it) or a typed name. */
+export interface HighlightPerson {
+  id: string;
+  profile_id: string | null;
+  name: string;
+  handle: string | null;
+  avatar_url: string | null;
+  role: string;
+  side: 1 | 2 | null;
 }
 
 export type VideoOwnerView =
