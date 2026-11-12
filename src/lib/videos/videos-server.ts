@@ -401,10 +401,19 @@ export async function taggablePeople(admin: Admin, people: readonly TagPersonInp
  * a manager's save never tags them back in.
  */
 async function writeTagPeople(admin: Admin, videoId: string, highlightId: string, people: readonly TagPersonInput[], userId: string): Promise<boolean> {
+  const added = await writeTagPeopleRows(admin, videoId, highlightId, people, userId);
+  if (added === null) return false;
+  // PR 7: the athlete is told ONCE per game — when they first appear in it — never per tag.
+  if (added.length > 0) await notifyNewlyTagged(admin, videoId, added, userId);
+  return true;
+}
+
+/** The rows of one tag become `people`. Returns the profiles this write ADDED to the tag (null = the write failed). */
+async function writeTagPeopleRows(admin: Admin, videoId: string, highlightId: string, people: readonly TagPersonInput[], userId: string): Promise<string[] | null> {
   const { data: existing, error: readError } = await admin.from('video_highlight_people').select('id, profile_id, name, role, status').eq('highlight_id', highlightId);
   if (readError) {
     console.error(`${TAG} tag people read failed:`, readError.message);
-    return false;
+    return null;
   }
   const keyOf = (p: { profile_id: string | null; name: string | null; role: string }) => `${tagPersonKey(p)}|${p.role}`;
   const have = new Map((existing ?? []).map(r => [keyOf(r as { profile_id: string | null; name: string | null; role: string }), r as { id: string; status: string }]));
@@ -412,19 +421,98 @@ async function writeTagPeople(admin: Admin, videoId: string, highlightId: string
   const gone = [...have.entries()].filter(([k, r]) => r.status === 'active' && !want.has(k)).map(([, r]) => r.id);
   if (gone.length > 0) {
     const { error } = await admin.from('video_highlight_people').delete().in('id', gone);
-    if (error) { console.error(`${TAG} tag people delete failed:`, error.message); return false; }
+    if (error) { console.error(`${TAG} tag people delete failed:`, error.message); return null; }
   }
   const fresh = [...want.entries()].filter(([k]) => !have.has(k)).map(([, p]) => ({ highlight_id: highlightId, video_id: videoId, profile_id: p.profile_id, name: p.name, role: p.role, side: p.side, created_by_user_id: userId }));
   if (fresh.length > 0) {
     const { error } = await admin.from('video_highlight_people').insert(fresh);
-    if (error) { console.error(`${TAG} tag people insert failed:`, error.message); return false; }
+    if (error) { console.error(`${TAG} tag people insert failed:`, error.message); return null; }
   }
   // A person kept on the tag may have changed side.
   for (const [k, p] of want) {
     const row = have.get(k);
     if (row && row.status === 'active') await admin.from('video_highlight_people').update({ side: p.side }).eq('id', row.id);
   }
-  return true;
+  // Someone already on this tag in another role is not "added".
+  const already = new Set(((existing ?? []) as Array<{ profile_id: string | null }>).map(r => r.profile_id).filter(Boolean));
+  return fresh.map(f => f.profile_id).filter((v): v is string => !!v && !already.has(v));
+}
+
+/**
+ * Tell the people a write just tagged — once per GAME (PR 7; Tom: no
+ * approval, but they are told and can remove it). Someone already in this
+ * video (on another highlight, or who removed themselves before) is not
+ * told again. A supervised athlete's guardians are told instead of relying
+ * on the child's own bell (the photo-tag rule). Best-effort: a notification
+ * that fails never fails the tag.
+ */
+async function notifyNewlyTagged(admin: Admin, videoId: string, profileIds: readonly string[], actorId: string): Promise<void> {
+  try {
+    const ids = [...new Set(profileIds)].filter(id => id !== actorId);
+    if (ids.length === 0) return;
+    // Rows this profile has in the video beyond the ones just written = they were already in the game.
+    const { data: rows } = await admin.from('video_highlight_people').select('profile_id, highlight_id').eq('video_id', videoId).in('profile_id', ids);
+    const highlightsOf = new Map<string, Set<string>>();
+    for (const r of (rows ?? []) as Array<{ profile_id: string; highlight_id: string }>) {
+      const set = highlightsOf.get(r.profile_id) ?? new Set<string>();
+      set.add(r.highlight_id);
+      highlightsOf.set(r.profile_id, set);
+    }
+    const first = ids.filter(id => (highlightsOf.get(id)?.size ?? 0) <= 1);
+    if (first.length === 0) return;
+    const [{ data: video }, { data: profiles }] = await Promise.all([
+      admin.from('videos').select('title').eq('id', videoId).maybeSingle(),
+      admin.from('profiles').select('id, first_name, supervision_state').in('id', first),
+    ]);
+    const title = ((video as { title?: string } | null)?.title ?? 'a game').slice(0, 120);
+    const actionUrl = `/videos/${videoId}`;
+    const { error } = await admin.from('notifications').insert(first.map(user_id => ({
+      user_id, type: 'tag', actor_id: actorId, title: `You were tagged in ${title}`, message: 'Your clips and stats from this game are on your profile. You can remove the tags from the video.', action_url: actionUrl, is_read: false, metadata: { video_id: videoId },
+    })));
+    if (error) console.error(`${TAG} tag notification failed:`, error.message);
+    const supervised = ((profiles ?? []) as Array<{ id: string; first_name: string | null; supervision_state: string | null }>).filter(p => p.supervision_state === 'supervised');
+    if (supervised.length > 0) {
+      const { notifyGuardians } = await import('@/lib/guardian-notify');
+      for (const child of supervised) {
+        await notifyGuardians(admin, child.id, { type: 'tag_alert', title: `${child.first_name || 'Your athlete'} was tagged in ${title}`, actionUrl, actorId, metadata: { video_id: videoId } }, actorId);
+      }
+    }
+  } catch (e) {
+    console.error(`${TAG} tag notification failed:`, e);
+  }
+}
+
+/**
+ * The tagged person (or their guardian — the route's gate) removes the tags
+ * of them on a video: every one, or one highlight's. The rows stay as
+ * `removed` — the mark that it was refused, so a manager's later save never
+ * tags them back in — and the stat drops with them (reads count `active`).
+ */
+export async function removeTagsOf(admin: Admin, videoId: string, profileId: string, byUserId: string, highlightId: string | null = null): Promise<Outcome<{ removed: number }>> {
+  let q = admin.from('video_highlight_people').update({ status: 'removed', removed_by_user_id: byUserId, removed_at: new Date().toISOString() }).eq('video_id', videoId).eq('profile_id', profileId).eq('status', 'active');
+  if (highlightId) q = q.eq('highlight_id', highlightId);
+  const { data, error } = await q.select('id');
+  if (error) {
+    console.error(`${TAG} tag removal failed:`, error.message);
+    return { ok: false, status: 500, error: 'Could not remove the tags' };
+  }
+  return { ok: true, value: { removed: data?.length ?? 0 } };
+}
+
+/** The videos a profile is tagged in (active tags), newest tag first, with how many clips each. */
+export async function taggedVideoIds(admin: Admin, profileId: string, max = 24): Promise<Array<{ videoId: string; clips: number }>> {
+  const { data, error } = await admin.from('video_highlight_people').select('video_id, highlight_id, created_at').eq('profile_id', profileId).eq('status', 'active').order('created_at', { ascending: false }).limit(2000);
+  if (error) {
+    if (error.code !== '42P01' && error.code !== 'PGRST205') console.error(`${TAG} tagged read failed:`, error.message);
+    return [];
+  }
+  const clips = new Map<string, Set<string>>();
+  for (const r of (data ?? []) as Array<{ video_id: string; highlight_id: string }>) {
+    const set = clips.get(r.video_id) ?? new Set<string>();
+    set.add(r.highlight_id);
+    clips.set(r.video_id, set);
+  }
+  return [...clips.entries()].slice(0, max).map(([videoId, set]) => ({ videoId, clips: set.size }));
 }
 
 /**
