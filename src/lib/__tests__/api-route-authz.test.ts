@@ -140,6 +140,8 @@ const REVIEWED_SELF_SCOPED: Record<string, string> = {
   'privacy/check': 'read-only visibility probe; leaks only a boolean the UI needs',
   'profile/[profileId]/media': 'visibility-filtered public read surface',
   'profile/[profileId]/activities': 'Activities (245): gated by read-server resolveActivityAccess (self / guardian / canViewProfile / blocks / departed), projected per audience',
+  'profile/[profileId]/training/history':
+    'Training History (Training redesign PR 4): the SAME gate as the activities list — resolveActivityAccess, then the Training privacy workouts aspect; a non-owner receives completed, shown, decided workouts and non-"Only me" activities only (pinned in training-history.test.ts)',
   'profile/[profileId]/contest-media':
     'visibility-filtered public read (GET mirrors the media route gate); DELETE self/guardian-gated inline',
   'profile/[profileId]/organizations': 'public org membership read',

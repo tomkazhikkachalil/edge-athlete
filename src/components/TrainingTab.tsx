@@ -16,15 +16,16 @@ import { formatHeight, formatWeightWithUnit, formatAge, parseDateLocal } from '@
 import { latestPB } from '@/lib/workouts/dashboard';
 import {
   mergeSessions,
+  mergeTrainingSessions,
   sessionsActiveDays,
   sessionsStreakWeeks,
   sessionsWeeklyBars,
   sessionsWeeklySummary,
   type ActivitySession,
+  type TrainingSession,
 } from '@/lib/training/sessions';
 import { ACTIVITY_TYPE_DEFS, isActivityType } from '@/lib/activities/catalog';
 import { formatDistance, readUnitPreference } from '@/lib/activities/format';
-import ActivitiesTab from './activities/ActivitiesTab';
 import { formatDuration } from '@/lib/workouts/summary';
 import { useStartWorkout } from '@/hooks/useStartWorkout';
 import TrainingHero from './training/TrainingHero';
@@ -36,7 +37,7 @@ import ExerciseRecords from './training/ExerciseRecords';
 import StatBubbleCard from './training/StatBubbleCard';
 import MetricBubbleCard from './training/MetricBubbleCard';
 import MetricDetailOverlay from './training/MetricDetailOverlay';
-import WorkoutDetailOverlay from './training/WorkoutDetailOverlay';
+import TrainingHistory from './training/TrainingHistory';
 import WeeklyActivityOverlay from './training/WeeklyActivityOverlay';
 import BodyDetailOverlay from './training/BodyDetailOverlay';
 import RoundedBarChart from './training/RoundedBarChart';
@@ -96,8 +97,8 @@ interface TrainingTabProps {
   profileId: string;
   currentUserId?: string;
   isOwnProfile?: boolean;
-  /** `?tab=activities` (the old tab's deep link): open Training AT its
-   *  Activities section. */
+  /** `?tab=activities` (the old tab's deep link): open Training's History,
+   *  filtered to activities. */
   focusSection?: 'activities';
 }
 
@@ -117,7 +118,7 @@ interface HeroProfile {
 // Shared look for the two responsive placements of the settings gear.
 // Display classes (flex/hidden) stay per-instance — a display value in a
 // shared string is the .ea-icon-btn lg:hidden trap.
-/** The Training Activity grid shows this many tiles before "Show all" (two rows on a phone, one on a wide screen). */
+/** The training posts grid shows this many tiles before "Show all" (two rows on a phone, one on a wide screen). */
 const ACTIVITY_TILES_FIRST = 6;
 
 const TRAINING_GEAR_CLASSES =
@@ -145,7 +146,10 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   // days. Their own gated read — "Only me" and the Training privacy aspect
   // are applied on the server.
   const [activitySessions, setActivitySessions] = useState<ActivitySession[]>([]);
-  const [activitiesHidden, setActivitiesHidden] = useState(false);
+  // Training redesign PR 4 (Nov 11 2026): the week, the streak and the load count a
+  // YEAR of workouts (the History route's ?sessions=1), not the list route's last 50.
+  // null = that read failed: the 50 are the fallback, never an empty week.
+  const [yearWorkouts, setYearWorkouts] = useState<TrainingSession[] | null>(null);
   const [athleteBirthday, setAthleteBirthday] = useState<string | null>(null);
   const [currentBodyMetrics, setCurrentBodyMetrics] = useState<CurrentBodyMetrics | null>(null);
   const [heroProfile, setHeroProfile] = useState<HeroProfile | null>(null);
@@ -155,12 +159,10 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   const [error, setError] = useState('');
   const [showAddBodyMetric, setShowAddBodyMetric] = useState(false);
   const [showTrainingSettings, setShowTrainingSettings] = useState(false);
-  const [showCreatePost, setShowCreatePost] = useState(false);
   const [linkedPostId, setLinkedPostId] = useState<string | null>(null);
-  // Training fixes PR 2 (Oct 21 2026): the Training Activity posts are the
-  // Stats / Media tile grid; a tile opens the post detail modal at its index
-  // (prev / next walk the shown tiles). A workout card's "Shared" tag still
-  // opens the modal by id (`linkedPostId`), without navigation.
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  // The training posts are the Stats / Media tile grid (Training fixes PR 2, Oct 21 2026); a tile opens the post
+  // detail modal at its index (prev / next walk the shown tiles). A workout card's "Shared" tag opens it by id.
   const [activityIndex, setActivityIndex] = useState<number | null>(null);
   const [metricOverlayKey, setMetricOverlayKey] = useState<string | null>(null);
   // Training redesign PR 3 (Nov 11 2026): four views behind one switcher, the view in
@@ -194,8 +196,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           const [bodyMetricsRes, workoutsRes, activitiesRes] = await Promise.all([
             fetch(`/api/vitals?profileId=${profileId}`),
             fetch(`/api/workouts?profileId=${profileId}&limit=50`, { credentials: 'include' }),
-            // A failure here costs the activities, never the tab.
-            fetch(`/api/profile/${profileId}/activities?sessions=1`, { credentials: 'include', cache: 'no-store' }).catch(() => null),
+            // A failure here costs the year's sessions, never the tab.
+            fetch(`/api/profile/${profileId}/training/history?sessions=1`, { credentials: 'include', cache: 'no-store' }).catch(() => null),
           ]);
           if (!bodyMetricsRes.ok) {
             const data = await bodyMetricsRes.json();
@@ -215,13 +217,12 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
             setWorkouts(workoutData.sessions || []);
           }
           if (activitiesRes?.ok) {
-            const activityData = await activitiesRes.json();
-            setActivitySessions(Array.isArray(activityData.sessions) ? activityData.sessions : []);
-            setActivitiesHidden(Boolean(activityData.hidden));
+            const year = await activitiesRes.json();
+            setActivitySessions(Array.isArray(year.activities) ? year.activities : []);
+            setYearWorkouts(Array.isArray(year.workouts) ? year.workouts : null);
           } else {
             setActivitySessions([]);
-            // A 404 is the activity gate's refusal (blocked, departed) — no section.
-            setActivitiesHidden(activitiesRes?.status === 404);
+            setYearWorkouts(null);
           }
         } catch (e) {
           console.error('Failed to load training data:', e);
@@ -246,7 +247,10 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
     [workouts]
   );
   // Every session — completed workouts and activities — newest first.
-  const sessions = useMemo(() => mergeSessions(workouts, activitySessions), [workouts, activitySessions]);
+  const sessions = useMemo(
+    () => (yearWorkouts ? mergeTrainingSessions(yearWorkouts, activitySessions) : mergeSessions(workouts, activitySessions)),
+    [yearWorkouts, workouts, activitySessions]
+  );
   const weekly = useMemo(() => sessionsWeeklySummary(sessions), [sessions]);
   const streak = useMemo(() => sessionsStreakWeeks(sessions), [sessions]);
   const activeDays = useMemo(() => sessionsActiveDays(sessions), [sessions]);
@@ -274,20 +278,6 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   // The bubble shows the top of the diary, whichever kind it is.
   const recentSessions = sessions.slice(0, 3);
   const [unit] = useState(() => (typeof window === 'undefined' ? 'km' : readUnitPreference()));
-  // `?tab=activities` lands on the Activities section once it has rendered
-  // (it loads its own page; a couple of frames is not enough on a slow link).
-  useEffect(() => {
-    if (focusSection !== 'activities' || loading) return;
-    let tries = 0;
-    const timer = setInterval(() => {
-      const el = document.getElementById('training-activities');
-      tries += 1;
-      if (el) el.scrollIntoView({ block: 'start' });
-      if (el || tries > 40) clearInterval(timer);
-    }, 150);
-    return () => clearInterval(timer);
-  }, [focusSection, loading]);
-
   // Group bodyMetrics by metric key (all-time — bubbles never lie either)
   const bodyMetricsByMetric: Record<string, BodyMetricEntry[]> = {};
   for (const entry of bodyMetrics) {
@@ -528,23 +518,77 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       {/* ══ History: every workout, every activity ═════════════════════════ */}
       {view === 'history' && (
       <>
-      <WorkoutDetailOverlay
-        inline
-        sessions={completedWorkouts}
+      <TrainingHistory
+        profileId={profileId}
         isOwnProfile={isOwnProfile}
+        initialKind={focusSection === 'activities' ? 'activities' : 'all'}
         onOpenPost={postId => setLinkedPostId(postId)}
-        onEdit={id => router.push(`/app/workout/${id}`)}
-        onShare={id => router.push(`/app/workout/${id}?step=preview`)}
-        onDeleted={id => {
-          setWorkouts(ws => ws.filter(w => w.id !== id));
-          fetchDataRef.current();
-        }}
+        onEditWorkout={id => router.push(`/app/workout/${id}`)}
+        onShareWorkout={id => router.push(`/app/workout/${id}?step=preview`)}
+        onChanged={() => fetchDataRef.current()}
       />
 
-      {/* ── Activities — runs, rides, swims recorded on the phone. Its own
-             gated fetch (routes are trimmed for a viewer, "Only me" is the
-             owner's); hidden with the Workouts privacy aspect. ─────────── */}
-      {!activitiesHidden && <ActivitiesTab profileId={profileId} />}
+      {/* ── The posted training items (Convention 50: training posts are Training's — the Media tab
+             never holds them). A workout or an activity has its row above; this is what was POSTED. ── */}
+      <div>
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-base font-bold text-primary">Training posts</h3>
+            {trainingPosts.length > 0 && (
+              <p className="text-xs text-muted mt-0.5">{trainingPosts.length} post{trainingPosts.length !== 1 ? 's' : ''}</p>
+            )}
+          </div>
+          {isOwnProfile && (
+            <button
+              onClick={() => setShowCreatePost(true)}
+              className="tr-pill flex items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+              Log Training
+            </button>
+          )}
+        </div>
+
+        {trainingPosts.length === 0 ? (
+          <SectionEmptyState
+            icon={Dumbbell}
+            title="No training activity logged yet"
+            body="Share training sessions, workouts, and gym progress to build your development history. Workouts count even when you don't post."
+            cta={isOwnProfile ? { label: 'Log First Session', onClick: () => setShowCreatePost(true) } : undefined}
+          />
+        ) : (
+          <div className="space-y-4">
+            {/* The tile grid the Stats and Media tabs use (Tom, Oct 21 2026: a
+                full post card showed its media ~800 px wide on a desktop
+                profile); the tile carries [data-post-id] and a "+N" badge, a
+                tap opens the post. The first six tiles, then Show all. */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2" data-training-activity-grid={shownActivityPosts.length}>
+              {shownActivityPosts.map((post, index) => (
+                <MediaGridItem
+                  key={post.id}
+                  item={toMediaItem(post, currentUserId)}
+                  viewerId={currentUserId}
+                  onClick={() => setActivityIndex(index)}
+                />
+              ))}
+            </div>
+            {!showAllActivity && trainingPosts.length > ACTIVITY_TILES_FIRST && (
+              <button
+                onClick={() => setShowAllActivity(true)}
+                className="ea-interactive tr-pill w-full flex items-center justify-center gap-2 py-3 rounded-full border border-border text-sm font-semibold text-brand-fg-strong"
+              >
+                Show all {trainingPosts.length} posts
+                <ChevronDown className="w-4 h-4" aria-hidden="true" />
+              </button>
+            )}
+            {showAllActivity && trainingPosts.length >= 20 && (
+              <div className="text-center py-4">
+                <p className="text-xs text-faint">Showing the most recent 20 posts</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       </>
       )}
 
@@ -664,69 +708,6 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       </div>
 
       </>
-      )}
-
-      {/* ══ History, continued: the training posts (their own list until the merged diary, PR 4) ═ */}
-      {view === 'history' && (
-      <div>
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-base font-bold text-primary">Training Activity</h3>
-            {trainingPosts.length > 0 && (
-              <p className="text-xs text-muted mt-0.5">{trainingPosts.length} session{trainingPosts.length !== 1 ? 's' : ''} logged</p>
-            )}
-          </div>
-          {isOwnProfile && (
-            <button
-              onClick={() => setShowCreatePost(true)}
-              className="tr-pill flex items-center gap-1.5 px-4 py-2 border border-border-strong text-secondary rounded-full text-sm font-semibold hover:bg-surface-muted transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-              Log Training
-            </button>
-          )}
-        </div>
-
-        {trainingPosts.length === 0 ? (
-          <SectionEmptyState
-            icon={Dumbbell}
-            title="No training activity logged yet"
-            body="Share training sessions, workouts, and gym progress to build your development history. Workouts count even when you don't post."
-            cta={isOwnProfile ? { label: 'Log First Session', onClick: () => setShowCreatePost(true) } : undefined}
-          />
-        ) : (
-          <div className="space-y-4">
-            {/* The tile grid the Stats and Media tabs use (Tom, Oct 21 2026: a
-                full post card showed its media ~800 px wide on a desktop
-                profile); the tile carries [data-post-id] and a "+N" badge, a
-                tap opens the post. The first six tiles, then Show all. */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2" data-training-activity-grid={shownActivityPosts.length}>
-              {shownActivityPosts.map((post, index) => (
-                <MediaGridItem
-                  key={post.id}
-                  item={toMediaItem(post, currentUserId)}
-                  viewerId={currentUserId}
-                  onClick={() => setActivityIndex(index)}
-                />
-              ))}
-            </div>
-            {!showAllActivity && trainingPosts.length > ACTIVITY_TILES_FIRST && (
-              <button
-                onClick={() => setShowAllActivity(true)}
-                className="ea-interactive tr-pill w-full flex items-center justify-center gap-2 py-3 rounded-full border border-border text-sm font-semibold text-brand-fg-strong"
-              >
-                Show all {trainingPosts.length} posts
-                <ChevronDown className="w-4 h-4" aria-hidden="true" />
-              </button>
-            )}
-            {showAllActivity && trainingPosts.length >= 20 && (
-              <div className="text-center py-4">
-                <p className="text-xs text-faint">Showing most recent 20 sessions</p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
       )}
 
       {/* ── Modals ───────────────────────────────────────────────────── */}

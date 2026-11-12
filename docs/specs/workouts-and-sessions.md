@@ -242,3 +242,12 @@ Tom: "sometimes there are too many personal bests, we need to group and store in
 - **The view lives in the URL:** `?tab=training` is the Overview, `?tab=training&view=history|exercises|body` the others; read in `TrainingTab`'s initializer, mirrored with `replaceState` (never a navigation). `?tab=activities` opens History; `?tab=vitals` the Overview. The same on `/athlete`, `/athlete/[id]` and `/u/[username]`; the owner redirects carry the query string.
 - **A section sits under exactly one view.** What happened lately is the Overview; every workout and activity is History; anything about one exercise is Exercises; height, weight and tests are Body & tests. The Recent sessions card opens History.
 - Pinned by `training-views.test.ts`, `e2e/training.spec.ts`, `e2e/training-mobile.spec.ts`.
+
+## History is one list (Training redesign PR 4, Nov 11 2026)
+
+- **One row per session, in one place.** `GET /api/profile/[profileId]/training/history` returns every completed workout and every activity, newest first, 20 a page, by a keyset cursor over both tables (`history-server.ts`; the merge and the order are `src/lib/training/history.ts`, pure). `?kind=all|workouts|activities`; the first Activities page carries the activities' twelve weeks and count.
+- **The gate:** `resolveActivityAccess`, then the Training privacy `workouts` aspect (`hidden: true`, nothing else). A non-owner receives completed workouts that are shown (`profile_hidden_at IS NULL`) and decided (`share_decided_at` set), and activities that are not "Only me". Every answer is `private, no-store`.
+- **The week counts a year.** `?sessions=1` returns 52 weeks of workouts as training sessions beside the activities; the Overview's week, streak and load are folded from that, never from the workouts list's cap.
+- **The training posts keep their place** (Convention 50: Media and Stats never hold a training post): the tile grid sits under History as "Training posts".
+- `?tab=activities` opens History filtered to Activities.
+- Pinned by `training-history.test.ts`, `e2e/training-history.spec.ts`, `e2e/activities-profile.spec.ts`.
