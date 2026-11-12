@@ -1,5 +1,23 @@
 # Development Log
 
+## November 11, 2026 — Maintenance after the Training redesign: every gate green on 02b50db1; production's iPhone-engine probe was stopped by Vercel's Security Checkpoint, not by the app
+
+Tom: "run maintenance". The checklist, in its order, on main `02b50db1` (the Training redesign's eight PRs, #1465–#1472).
+
+**Gates:** `npm run verify` exit 0 — typecheck, lint 0 warnings, **6,099 tests in 663 files**, the build, `check:weight` ✓ (root 132 KB gz of 150; the athlete page **590 KB gz of 600** — it was 586 before the redesign and is the route to watch), `check:syntax` ✓ (300 chunks). `npm audit --omit=dev` 0. Hardening guardrails ✓. `check:blocklists` ✓. `check:schema` and `check:schema:prod` ✓ — ledger head 306 on both, 305 files. Main's own CI run on 02b50db1: success.
+
+**Staging, the built app, one project at a time:** desktop @smoke 16/16; mobile @smoke 4/4; webkit-mobile @smoke 4/4. The redesigned Training on the two phone engines it had not been run on while it was built — `training-mobile`, `training-history`, `training-exercises`, `training-pins`, `workout-prs`, `activities-profile` — webkit-mobile 6/6, android 6/6.
+
+**Production (`/api/health`: ok, 02b50db1, 25–41 ms throughout), one probe at a time:**
+- desktop @smoke 14/16 — the two are the launch-gate class (`landing`: the "coming soon" page; `org-site`: the gated anon shell and robots).
+- mobile @smoke 3/4 — the one is `tab-bar`'s signed-out step (`/sports/explore` → the coming-soon page, no "Log in" link): the gate.
+- **webkit-mobile @smoke 1/4, then 0/4 on a rerun — NOT the app.** The pages the probe received were Vercel's own: "Vercel Security Checkpoint — Failed to verify your browser — Code 21". The platform challenged the headless WebKit browser (this machine had sent many probes that day) and it could not pass the challenge. An ordinary request to the same hosts a minute later was answered normally (307 to the coming-soon page, no mitigation header), Chromium's phone probe had passed minutes before, and the same four specs are 4/4 on staging in WebKit. The probes were stopped there rather than repeated against a challenge.
+- What this does NOT prove: that a real iPhone passes that checkpoint. A real Safari normally does (the challenge is a script a real browser runs); it was not checked from here.
+
+**Tom's:** open the installed app or Safari on the iPhone against production once; and in Vercel → Firewall, see whether Bot Protection or Attack Challenge Mode is switched on and what it logged for that hour. If it is deliberate, the WebKit production probe needs a bypass rule for the probe's header; if it is not, it wants turning off before the gate opens.
+
+**Still owed from the redesign:** the phone walk (four views, a finish with more than three records, an exercise's page, Add a tested max, pin and unpin, a visitor's view).
+
 ## November 11, 2026 — Training redesign, PR 8 of 8: the close — what shipped, what was left out on purpose, what is Tom's
 
 Tom: "We need to re-design how the information is displayed in training … the way you navigate and the groups, don't really make sense, also, sometimes there are too many personal bests, we need to group and store information, slightly differently. Review some of the best applications for training in the world."
