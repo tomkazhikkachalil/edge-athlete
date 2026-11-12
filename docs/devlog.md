@@ -1,5 +1,17 @@
 # Development Log
 
+## November 12, 2026 — Sprint 3 (YouTube game film), PR 1 of 8: the game sheets and the engine — every stat from the tags (no UI, zero DDL)
+
+Tom's brief: clubs, leagues and sports creators post full games on YouTube and this is the tool they tag them with — highlights pinned to exact moments with an event type and the athletes involved, **every stat from the tags**, a spoiler-free view that unlocks as the video plays, a recap, the athlete's clips and stats on their profile without the athlete doing anything. His decisions: **every sport** (baselines from the broadcasters' box scores), tag anyone the tagger may view or a typed name, no approval (told at once, removable).
+
+**This PR is the rules, before any screen.** `src/lib/videos/game-sheets.ts` (zero imports): one sheet per sport — all 17 in the registry — in four families (team, combat, race, golf): the event types, the roles, what one person in a role gains in the sport's own stat-schema keys (anything else a declared extra), what moves the board, the box-score columns. `src/lib/videos/game-derive.ts`: `deriveGame(sheet, tags, uptoMs?)` computes the score (points, or sets won), the points per period, a line per person per side, team totals, the scoring summary with the running score, a combat result, race results and golf holes — nothing stored; `revealAt` is the same shape cut at a playhead; `nextHighWater` only moves forward; `tagsForPerson` is the drill-down.
+
+**Three calls of mine, written into the spec for Tom to overrule:** a highlight stays a marker (never a cut file); stats are computed on read and never written into official contest results; a game is *fully tagged* (a score is shown) or *highlights only* (no score is claimed — ten highlights are not a final score).
+
+**Spec:** `docs/specs/video-games.md` (Convention 60) with the per-sport baselines. **Tests:** 100 new (`game-sheets.test.ts` 77, `game-derive.test.ts` 23); `src/lib/videos` 310 green.
+
+**Next:** PR 2 — the game on the video (the migration: `video_games`, the event / period / side / value columns on a highlight, `video_highlight_people`).
+
 ## November 11, 2026 — Only the connected channel: a full game is saved only from the owner's own YouTube channel; the channel picker loads
 
 Tom, trying the app on production: (1) "Pick from channel" does nothing; (2) *"I can add the YouTube link like I did before, but it doesn't have to be for my video. It could be any YouTube video… people can start stealing other people's YouTube content and post it to get views. I want to ensure that uploads of that length and coming from YouTube come from the creator's channel or club channel."*
