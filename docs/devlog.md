@@ -1,5 +1,22 @@
 # Development Log
 
+## November 11, 2026 — Training redesign, PR 3 of 8: four views behind one switcher (the shell)
+
+Tom: "the way you navigate and the groups, don't really make sense." Training was one scroll of nine stacked sections. Tom's decision: four views — **Overview · History · Exercises · Body & tests**.
+
+**What changed (zero DDL):**
+- `src/lib/training/views.ts` (pure, zero-import): the four views, `parseTrainingView` (anything unrecognised is the Overview; the old `?tab=activities` link is History), `trainingViewSearch` (the Overview is the bare `?tab=training` every old link has).
+- `TrainingViewSwitcher` — a tablist under the heading; it scrolls sideways before it wraps.
+- `TrainingTab` is the shell: the view is read from the URL in the initializer and mirrored with `replaceState`, the way the hosts mirror the tab (shareable, refresh-stable, remount-stable). Every section sits under exactly one view:
+  - **Overview** — the hero (this week, streak, load, latest best), Weekly activity, Recent sessions. The Recent sessions card is the door to History ("See all history").
+  - **History** — the month-grouped workout diary as the view's own list (it was a window over the page), Activities, the training posts.
+  - **Exercises** — Progress and the records table.
+  - **Body & tests** — Body metrics, the typed-in bests, Performance Metrics.
+- `/u/[username]`'s owner redirect carries the query string, as `/athlete/[id]` does: a link to one's own handle lands on the view it names.
+- **This PR rehouses; it does not rebuild.** The merged History list, the page per exercise, the visitor's bests and the "all-time is really the last 50 workouts" read are PRs 4 and 5; the merged bests and Body & tests are PR 6.
+
+**Proof:** `npm run verify` exit 0 (6,063 tests), `check:blocklists` ✓. Staging e2e, one project at a time — mobile: `training-mobile` (all four tabs in the viewport at 390 px, no sideways overflow on any view, a view's address lands on it on `/u/` and `/athlete/[id]`), `activities-profile`, `activities-doors`, `workout-prs`, `workout-drafts`, `training-load`; desktop: `training` (each view holds only its own sections, the URL follows, a reload keeps the view, a visitor has the same four with no owner action on any). Pinned by `training-views.test.ts`.
+
 ## November 11, 2026 — Training redesign, PR 2 of 8: one exercise, one indexed reference; the pins table (migration 306)
 
 Tom: "we need to group and store information, slightly differently." One exercise's history could only be read by reading every set the athlete ever logged: no index on the exercise, and a typed name had no key to index.
