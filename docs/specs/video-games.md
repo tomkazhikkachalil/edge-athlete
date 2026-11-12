@@ -89,6 +89,19 @@ A video becomes a **game** when it has a `video_games` row: `sport_key` (the she
 
 **Pinned by** the drill-down cases in `game-derive.test.ts`, `e2e/video-athlete-clips.spec.ts` (375 px).
 
+### On the athlete's profile (PR 7, zero DDL)
+
+**The athlete does nothing.** When someone tags a linked athlete in a game:
+
+- **They are told once per game** (`notifyNewlyTagged`): a `tag` notification the first time they appear in that video — never per tag, never to the tagger, never again after they removed themselves — with the link to the video. A supervised athlete's guardians get a `tag_alert` (the photo-tag rule). Best-effort: a notification that fails never fails the tag. Both types were already in the table's check (259): no DDL.
+- **"Tagged in" on the profile's Videos tab** (`TaggedGames`, on `/athlete`, `/athlete/[id]` and `/u/[username]` alike — the one tab component): each game with its link back ("Watch the full game"), who posted it, the day, how many clips the athlete is in, and their **line for the game** in the sport's box-score columns. `GET /api/videos/tagged?profileId=` — who may ask is the profile's privacy; which games answer is each video's own rule (`readVideoForViewer` per video, so a hidden or private video is not listed); the line is derived from the tags on the read (`listTaggedGames` stores nothing).
+- **The profile is not the spoiler:** on a game whose stats are hidden, the line is held back (`stats_hidden: true`, "the stats show as you watch") from everyone but the athlete, their guardian and the game's managers.
+- **Removal is the tagged person's** (`DELETE /api/videos/[id]/tags[?profileId=][&highlightId=]`): all their tags in a video, or one highlight's; a guardian for a supervised athlete (`resolveActingProfile`). No right over the video is needed — it is their own name — and a video they are not tagged in answers `removed: 0`. The rows become `removed` (never deleted): the stat drops (reads count `active`), the game leaves their profile, and **a manager's later save cannot tag them back in**. Doors: "Remove me" on the profile card, "Remove my tags" on the video page — each with a confirm that names what is lost.
+
+**Not built (said, not assumed):** the line under the profile's **Stats** tab (it lives on the Tagged-in card for now — the Stats tab reads the one performance table, and writing video-derived stats there is the merge-with-official-records decision this sprint left out); linking a typed name to a profile after the fact; undoing a removal.
+
+**Pinned by** `tagged-profile.test.ts`, `e2e/video-tagged-profile.spec.ts` (375 px).
+
 ### What comes next (the sprint's later PRs, each extends this file)
 
 Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).

@@ -1,5 +1,17 @@
 # Development Log
 
+## November 12, 2026 — Sprint 3 (YouTube game film), PR 7 of 8: on the athlete's profile — told once, the clips and the line, removable for good (zero DDL)
+
+**Before it:** PR 6 (#1483) merged as `b5ecfdaf`; `video-athlete-clips.spec` green on production (desktop 1/1).
+
+**What.** Tom: *"When leagues or clubs tag players in these long YouTube videos, those clips and stats should also show up on the athlete's profile page. The athlete shouldn't have to do anything."* A tagged athlete is told **once per game** (not per tag; a supervised athlete's guardians too). The game appears under **Tagged in** on their Videos tab — the link back, who posted it, the clip count, their line in the sport's box-score columns. The athlete (or a guardian) removes the tags of themselves — one highlight's or all — from the card or from the video page; the rows stay as `removed`, the stat drops, and the tagger's next save cannot tag them back in.
+
+**The profile is not the spoiler:** on a spoiler-free game a stranger sees the game and the clip count but not the line; the athlete, their guardian and the game's managers see it.
+
+**Left out, on purpose:** the line under the Stats tab (it would mean writing video-derived numbers into the one performance table — the merge-with-official-records decision this sprint set aside); linking a typed name to a profile later; undoing a removal.
+
+**Tests.** `tagged-profile.test.ts` (5). `e2e/video-tagged-profile.spec.ts` on staging at 375 px — the first spec with a LINKED second person: two tags → one notification; the athlete's read shows 2 clips and 5 points though the game is spoiler-free; a stranger gets `line: null, stats_hidden: true` and cannot remove; the card on the profile; one highlight's tag removed → 1 clip, 2 points; "Remove my tags" on the video page → gone from the profile; the tagger's re-save does not bring the athlete back and sends no second notification.
+
 ## November 12, 2026 — Sprint 3 (YouTube game film), PR 6 of 8: the athlete drill-down (zero DDL)
 
 **Before it:** PR 5 (#1482) merged as `fb3557d9`; production probes one at a time — `video-recap.spec` desktop 1/1, `videos-mobile.spec` mobile 1/1.

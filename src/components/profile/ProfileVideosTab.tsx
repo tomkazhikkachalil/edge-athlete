@@ -3,6 +3,7 @@
 import SectionInfo from '@/components/SectionInfo';
 import VideosGrid from '@/components/videos/VideosGrid';
 import YouTubeConnectCard from '@/components/videos/YouTubeConnectCard';
+import TaggedGames from '@/components/videos/TaggedGames';
 
 interface Props {
   profileId: string;
@@ -38,6 +39,8 @@ export default function ProfileVideosTab({ profileId, isOwnProfile, currentUserI
         emptyManagerCopy="No videos yet. Link a full game from YouTube and mark the moments worth jumping to."
         onLoaded={count => onCountsChanged?.(count)}
       />
+      {/* Sprint 3 PR 7: games someone else tagged this athlete in — clips and stats, with the link back. */}
+      <TaggedGames profileId={profileId} />
     </section>
   );
 }
