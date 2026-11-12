@@ -26,7 +26,17 @@ export function parseTrainingView(view: string | null | undefined, tab?: string 
   return tab === 'activities' ? 'history' : 'overview';
 }
 
-/** The query string that names a view: the Overview is the bare tab (the address every old link already has). */
-export function trainingViewSearch(view: TrainingView): string {
-  return view === 'overview' ? '?tab=training' : `?tab=training&view=${view}`;
+/**
+ * The query string that names a view: the Overview is the bare tab (the address
+ * every old link already has). An open exercise page (PR 5) rides the Exercises
+ * view: `?tab=training&view=exercises&exercise=bench_press`.
+ */
+export function trainingViewSearch(view: TrainingView, exercise?: string | null): string {
+  if (view === 'overview') return '?tab=training';
+  return `?tab=training&view=${view}${view === 'exercises' && exercise ? `&exercise=${encodeURIComponent(exercise)}` : ''}`;
+}
+
+/** `?exercise=` arrives from the URL: an identity is letters, digits and underscores (exercise-identity.ts), at most 80; anything else is no exercise. */
+export function parseExerciseParam(value: string | null | undefined): string | null {
+  return value && /^[\p{L}\p{N}_]{1,80}$/u.test(value) ? value : null;
 }

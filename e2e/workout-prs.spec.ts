@@ -85,14 +85,20 @@ test('a workout beating last week shows its new PRs (and none for a first-ever l
 
     // Training lists every exercise's records — the Exercises view, by its own address.
     await page.goto('/athlete?tab=training&view=exercises');
-    const records = page.locator('[data-exercise-records]');
-    await expect(records).toBeVisible({ timeout: 30_000 });
-    await expect(records.locator('[data-exercise-record="bench_press"]')).toContainText('195');
-    await expect(records.locator('[data-exercise-record="deadlift"]')).toContainText('315');
-    await expect(records).toContainText('Heaviest (lbs)');
-    // A hold has a row with its longest time (Oct 23 2026).
-    await expect(records).toContainText('Longest');
-    await expect(records.locator('[data-exercise-record="plank"] [data-exercise-record-duration]')).toHaveText(/0:0[2-4]/);
+    const list = page.locator('[data-training-exercises]');
+    await expect(list.locator('[data-exercise-row="bench_press"] [data-exercise-headline="heaviest"]')).toHaveText('195 lbs', { timeout: 30_000 });
+    await expect(list.locator('[data-exercise-row="deadlift"] [data-exercise-headline="heaviest"]')).toHaveText('315 lbs');
+    await expect(list.locator('[data-exercise-row="pull_ups"] [data-exercise-headline="reps"]')).toHaveText('12 reps');
+    // A hold leads with its longest time (Oct 23 2026).
+    await expect(list.locator('[data-exercise-row="plank"] [data-exercise-headline="duration"]')).toHaveText(/0:0[2-4]/);
+    // Today's workout is finished but not decided: the reopen prompt may cover the page — answer it if it is there.
+    await page.getByRole('dialog').getByRole('button', { name: 'Not now' }).click({ timeout: 5_000 }).catch(() => undefined);
+    // The exercise's page says which session set which record — the SAME rule as the finish summary's, replayed.
+    await list.locator('[data-exercise-row="bench_press"]').click();
+    const benchPage = page.locator('[data-exercise-detail="bench_press"]');
+    await expect(benchPage.locator('[data-exercise-session]')).toHaveCount(2, { timeout: 20_000 });
+    for (const kind of ['heaviest', 'e1rm', 'volume']) await expect(benchPage.locator('[data-exercise-session]').first().locator(`[data-exercise-session-record="${kind}"]`)).toBeVisible();
+    await expect(benchPage.locator('[data-exercise-session]').nth(1).locator('[data-exercise-session-record]')).toHaveCount(0);
 
     // The recorder's picker: Strength training opens the Workout's start screen (E2); Start makes the row.
     await page.goto('/activities/record');

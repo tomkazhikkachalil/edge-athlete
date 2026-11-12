@@ -251,3 +251,12 @@ Tom: "sometimes there are too many personal bests, we need to group and store in
 - **The training posts keep their place** (Convention 50: Media and Stats never hold a training post): the tile grid sits under History as "Training posts".
 - `?tab=activities` opens History filtered to Activities.
 - Pinned by `training-history.test.ts`, `e2e/training-history.spec.ts`, `e2e/activities-profile.spec.ts`.
+
+## One row and one page per exercise (Training redesign PR 5, Nov 11 2026)
+
+- **The list:** every exercise the athlete has trained, by body area (`CatalogExercise.bodyArea`, `BODY_AREAS`; unknown names are "Other"), most recently trained first, one headline best per row (`exercise-list.ts headlineOf`: weight → reps → hold).
+- **The page:** bests (every kind present), a chart by session, sessions newest first with their sets and records (`exerciseTimeline`: a record beat every EARLIER session by `prs.ts beats`; the first session is the baseline). Address `?tab=training&view=exercises&exercise=<ref>` (`views.ts parseExerciseParam`: letters, digits, underscores, ≤ 80).
+- **Who sees it:** `GET /api/profile/[profileId]/training/bests` — `resolveActivityAccess`, then the `records` privacy aspect. A non-owner's bests are folded ONLY from sessions that viewer could open; with the `workouts` aspect private, the sessions, their dates and counts are withheld and the bests stand. `private, no-store`.
+- **The read:** `bests-server.ts readExerciseSessions` — narrow (no clips), 1000 rows a page; one exercise filters on `exercise_ref` OR NULL and recomputes identity. `GET /api/workouts/prs` uses it.
+- Training's open is two reads: `/api/vitals` and the History route's `?sessions=1`. Nothing counts from the workouts list any more.
+- Pinned by `exercise-list.test.ts`, `training-views.test.ts`, `e2e/training-exercises.spec.ts`, `e2e/workout-prs.spec.ts`, `e2e/training.spec.ts`.
