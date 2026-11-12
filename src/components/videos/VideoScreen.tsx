@@ -238,6 +238,26 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
     setResumeAt(null);
     setPlayAll(null);
   };
+  /** Walk a list of clips: all the shown highlights, or (PR 6) one athlete's. Outside API mode the first one plays and the rest are a tap away. */
+  const playList = (rows: HighlightRow[]) => {
+    if (rows.length === 0) return;
+    const list = playlistOf(rows);
+    setPlayAll({ list, index: 0 });
+    setActiveId(list[0].id);
+    if (playerMode === 'api') playerRef.current?.seekTo(list[0].startMs, true);
+    else {
+      setStartMs(list[0].startMs);
+      setPlayKey(k => k + 1);
+    }
+  };
+  const playTags = (ids: string[]) => {
+    const wanted = new Set(ids);
+    playList(shownFor(watch).filter(h => wanted.has(h.id)));
+  };
+  const playTag = (id: string) => {
+    const h = shownFor(watch).find(x => x.id === id);
+    if (h) play(h);
+  };
   const playHighlights = () => {
     const shown = shownFor(watch);
     if (load.state !== 'ready' || shown.length === 0) return;
@@ -435,6 +455,8 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
           onUnlock={unlockStats}
           onWatch={ms => { showView('watch'); if (ms !== undefined) seekTo(ms); }}
           onPlay={h => { showView('watch'); play(h); }}
+          onPlayTag={id => { showView('watch'); playTag(id); }}
+          onPlayTags={ids => { showView('watch'); playTags(ids); }}
         />
       )}
 
@@ -562,7 +584,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
       )}
 
       {/* One stats panel at a time: under the recap it is the recap's. */}
-      {load.game && view === 'watch' && <GameStatsPanel game={load.game} highlights={allHighlights} mode={mode} highWaterMs={watch.highWaterMs} onUnlock={unlockStats} onSeek={seekTo} />}
+      {load.game && view === 'watch' && <GameStatsPanel game={load.game} highlights={allHighlights} mode={mode} highWaterMs={watch.highWaterMs} onUnlock={unlockStats} onSeek={seekTo} onPlayTag={playTag} onPlayTags={playTags} />}
 
       {/* The marks are spoilers: a manager always has the timeline; a viewer of a game gets it once everything is shown. */}
       {(canManage || (load.game && mode === 'all')) && <TagTimeline highlights={highlights} durationMs={video.duration_ms} game={load.game} activeId={activeId} onPlay={play} />}
