@@ -118,8 +118,16 @@ export function setWinner(sheet: GameSheet, set: number, score: Record<Side, num
   return null;
 }
 
+/**
+ * When a tag stops being a spoiler: at the END of its clip (the lead-in to a
+ * basket must not show the basket), or at its start when it has no end.
+ */
+export function revealMs(tag: Pick<GameTag, 'startMs' | 'endMs'>): number {
+  return tag.endMs !== null && tag.endMs > tag.startMs ? tag.endMs : tag.startMs;
+}
+
 export function deriveGame(sheet: GameSheet, tags: readonly GameTag[], uptoMs: number = Number.POSITIVE_INFINITY): DerivedGame {
-  const counted = tags.filter(t => t.startMs <= uptoMs).slice().sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
+  const counted = tags.filter(t => revealMs(t) <= uptoMs).slice().sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
   const out: DerivedGame = {
     family: sheet.family, scoreMode: sheet.scoreMode, score: board(), periods: [], players: [], team: { 1: {}, 2: {} },
     summary: [], result: null, results: [], holes: [], tagIds: [],

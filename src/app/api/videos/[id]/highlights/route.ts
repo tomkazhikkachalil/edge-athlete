@@ -3,13 +3,13 @@ import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { markNowOffsetMs } from '@/lib/videos/live-rules';
 import { parseHighlightBody } from '@/lib/videos/rules';
-import { addHighlight, listHighlights, readVideoForViewer } from '@/lib/videos/videos-server';
+import { addHighlight, listHighlights, prepareTag, readVideoForViewer } from '@/lib/videos/videos-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
 const NOT_FOUND = () => NextResponse.json({ error: 'Video not found' }, { status: 404, headers: PRIVATE });
 
-/** POST {start_ms, end_ms?, label, meta?} — a manager adds a marker. 201 {highlight, highlights}. */
+/** POST {start_ms, end_ms?, label, meta?, and the tag: event_key?, period?, side?, value?, people?} — a manager adds a marker, or a tagged event with the people in it (Sprint 3). 201 {highlight, highlights}. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return NOT_FOUND();
@@ -36,9 +36,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       parsed.value.start_ms = offset;
       if (parsed.value.end_ms !== null && parsed.value.end_ms <= offset) parsed.value.end_ms = null;
     }
+    // Sprint 3: a tag's event and roles are the game sheet's; its people are ones this tagger may name.
+    if (parsed.value.tag) {
+      const tag = await prepareTag(admin, id, parsed.value.tag, user.id);
+      if (!tag.ok) return NextResponse.json({ error: tag.error }, { status: tag.status, headers: PRIVATE });
+      parsed.value.tag = tag.value;
+    }
     const added = await addHighlight(admin, id, parsed.value, user.id);
     if (!added.ok) return NextResponse.json({ error: added.error }, { status: added.status });
-    const highlights = await listHighlights(admin, id);
+    const highlights = await listHighlights(admin, id, { id: user.id, canManage: true });
     return NextResponse.json({ highlight: added.value, highlights }, { status: 201, headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos/highlights] POST error:', error);
