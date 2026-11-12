@@ -15,6 +15,8 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   // could never pass. Start from no sessions (the metric rows are plain inserts
   // and a duplicate changes no PB).
   await adminClient().from('workout_sessions').delete().eq('profile_id', userA.id);
+  // The lift rows are TESTED MAXES on the exercise's page now (PR 6) and the page counts them: start from none.
+  await adminClient().from('athlete_vitals').delete().eq('profile_id', userA.id).eq('metric_category', 'strength');
 
   const api = await apiAs('state.json');
   try {
@@ -63,7 +65,7 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   const volume = 5 * 185 + 3 * 205; // 1540
   await expect(page.getByText(`${volume.toLocaleString('en-US')} lbs`).first()).toBeVisible();
   await expect(page.getByText('Latest personal best')).toBeVisible();
-  await expect(page.getByText('Bench Press · 225 lbs')).toBeVisible();
+  await expect(page.getByText('Mile Run · 5:48')).toBeVisible();
 
   // Four views (Training redesign PR 3, Nov 11 2026): the Overview is the landing one,
   // and what belongs to another view is not on it.
@@ -92,12 +94,9 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   await expect(page.getByText('348', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add Metric' })).toBeVisible();
 
-  // Metric history lives behind the metric's larger window (tap the trophy
-  // or library bubble — both carry the metric name and open the overlay).
-  await page.getByRole('button', { name: /Bench Press/ }).first().click();
-  const metricDialog = page.getByRole('dialog', { name: 'Bench Press' });
-  await expect(metricDialog.getByText('185 lbs').first()).toBeVisible();
-  await metricDialog.getByRole('button', { name: 'Close' }).click();
+  // ONE system of bests (PR 6): a lift is not a second record here — its numbers are its exercise's.
+  await expect(page.getByRole('button', { name: /Bench Press/ })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Tests', exact: true })).toBeVisible();
 
   // The mile's chart is its metric's own window (the chip picker that held it is gone, PR 5).
   await page.getByRole('button', { name: /1-Mile Run/ }).first().click();
@@ -110,19 +109,46 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   await expect(page).toHaveURL(/\?tab=training&view=exercises$/);
   const bench = page.locator('[data-exercise-row="bench_press"]');
   await expect(bench).toContainText('Bench Press', { timeout: 15_000 });
-  await expect(bench.locator('[data-exercise-headline="heaviest"]')).toHaveText('205 lbs');
+  // The two bench numbers typed in (185 in 2025, 225 in Aug 2026) are TESTED MAXES: they count beside the logged 205.
+  await expect(bench.locator('[data-exercise-headline="heaviest"]')).toHaveText('225 lbs');
   await expect(page.locator('[data-exercise-area="chest"]')).toBeVisible();
   await bench.click();
   await expect(page).toHaveURL(/\?tab=training&view=exercises&exercise=bench_press$/);
   const exercisePage = page.locator('[data-exercise-detail="bench_press"]');
-  await expect(exercisePage.locator('[data-exercise-best="heaviest"]')).toContainText('205 lbs', { timeout: 15_000 });
+  await expect(exercisePage.locator('[data-exercise-best="heaviest"]')).toContainText('225 lbs', { timeout: 15_000 });
   await expect(exercisePage.locator('[data-exercise-best="e1rm"]')).toBeVisible();
-  await expect(exercisePage.locator('[data-exercise-session]')).toHaveCount(1);
+  await expect(exercisePage.locator('[data-exercise-session]')).toHaveCount(3);
+  await expect(exercisePage.locator('[data-exercise-tested]')).toHaveCount(2);
   await expect(exercisePage.locator('[data-exercise-session]').first()).toContainText(`QA Push ${stamp}`);
   await expect(exercisePage.locator('[data-exercise-session]').first()).toContainText('5 reps × 185 lbs');
+  // The logged 205 came after the tested 225: it beat nothing, so it wears no record.
+  await expect(exercisePage.locator('[data-exercise-session-record]')).toHaveCount(0);
+  await expect(exercisePage.locator('[data-exercise-tested]').first()).toContainText('Aug 1, 2026');
+
+  // Add a tested max, then remove it — the remove names what is lost and leaves the workouts alone.
+  await exercisePage.locator('[data-tested-max-add]').click();
+  await exercisePage.locator('[data-tested-max-value]').fill('250');
+  await exercisePage.locator('[data-tested-max-save]').click();
+  await expect(exercisePage.locator('[data-exercise-best="heaviest"]')).toContainText('250 lbs', { timeout: 15_000 });
+  await expect(exercisePage.locator('[data-exercise-tested]')).toHaveCount(3);
+  await exercisePage.locator('[data-exercise-tested]').first().locator('[data-tested-max-remove]').click();
+  const confirmRemove = page.getByRole('dialog').filter({ hasText: 'Remove this tested max?' });
+  await expect(confirmRemove).toContainText('250 lbs');
+  await expect(confirmRemove).toContainText('will no longer count toward your Bench Press bests');
+  await confirmRemove.getByRole('button', { name: 'Remove' }).click();
+  await expect(exercisePage.locator('[data-exercise-best="heaviest"]')).toContainText('225 lbs', { timeout: 15_000 });
+  await expect(exercisePage.locator('[data-exercise-tested]')).toHaveCount(2);
+  // A value typed and not saved is not lost silently: closing asks first.
+  await exercisePage.locator('[data-tested-max-add]').click();
+  await exercisePage.locator('[data-tested-max-value]').fill('300');
+  await page.getByRole('dialog', { name: 'Bench Press' }).getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByText('Discard changes?')).toBeVisible();
+  await page.getByRole('button', { name: 'Discard' }).click();
+  await expect(page.locator('[data-exercise-detail]')).toHaveCount(0);
+  await page.locator('[data-exercise-row="bench_press"]').click();
   // A refresh lands on the same page (the view AND the exercise are in the URL); closing it leaves the list.
   await page.reload();
-  await expect(page.locator('[data-exercise-detail="bench_press"] [data-exercise-best="heaviest"]')).toContainText('205 lbs', { timeout: 20_000 });
+  await expect(page.locator('[data-exercise-detail="bench_press"] [data-exercise-best="heaviest"]')).toContainText('225 lbs', { timeout: 20_000 });
   await page.getByRole('dialog', { name: 'Bench Press' }).getByRole('button', { name: 'Close' }).click();
   await expect(page).toHaveURL(/\?tab=training&view=exercises$/);
   await expect(page.locator('[data-exercise-row="bench_press"]')).toBeVisible();
@@ -138,7 +164,7 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
     await pageB.goto(`/athlete/${userA.id}`);
     await pageB.getByRole('button', { name: /training/i }).first().click();
     await expect(pageB.getByText('Latest personal best')).toBeVisible({ timeout: 15_000 });
-    await expect(pageB.getByText('Bench Press · 225 lbs')).toBeVisible();
+    await expect(pageB.getByText('Mile Run · 5:48')).toBeVisible();
     await expect(pageB.locator('[data-training-start]')).toHaveCount(0);
     await expect(pageB.getByRole('button', { name: 'Start', exact: true })).toHaveCount(0);
     // …on every view: the visitor has the same four, and no owner action on any.
@@ -169,11 +195,11 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
       await pageB.reload();
       await pageB.getByRole('button', { name: /training/i }).first().click();
       await expect(pageB.getByText('Your training is private')).toBeVisible({ timeout: 15_000 });
-      await expect(pageB.getByText('Bench Press · 225 lbs')).toHaveCount(0);
+      await expect(pageB.getByText('Mile Run · 5:48')).toHaveCount(0);
 
       await page.reload();
       await page.getByRole('button', { name: /training/i }).first().click();
-      await expect(page.getByText('Bench Press · 225 lbs')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText('Mile Run · 5:48')).toBeVisible({ timeout: 15_000 });
     }
   } finally {
     await ctxB.close();

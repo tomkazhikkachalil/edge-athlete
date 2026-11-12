@@ -86,7 +86,7 @@ describe('the route and the reader hold the privacy rules', () => {
   const src = (p: string) => readFileSync(join(process.cwd(), 'src', p), 'utf8');
   it('the gate, then the records aspect, before any read; every answer is private, no-store; the ref is checked before it reaches a filter', () => {
     const route = src('app/api/profile/[profileId]/training/bests/route.ts');
-    const order = ['resolveActivityAccess(', "aspectHidden(privacy, 'records', isOwner)", 'REF.test(ref)', 'readExerciseSessions('].map(m => route.indexOf(m));
+    const order = ['resolveActivityAccess(', "aspectHidden(privacy, 'records', isOwner)", 'REF.test(ref)', 'readBestsSources('].map(m => route.indexOf(m));
     expect(order.every(i => i > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     const answers = route.match(/NextResponse\.json\(/g)?.length ?? 0;
@@ -95,7 +95,7 @@ describe('the route and the reader hold the privacy rules', () => {
   });
   it('a non-owner\'s bests come only from sessions that viewer could open; with workouts private the sessions and their timing are withheld', () => {
     const route = src('app/api/profile/[profileId]/training/bests/route.ts');
-    expect(route).toContain('readExerciseSessions(admin, profileId, { visitor: !isOwner,');
+    expect(route).toContain('readBestsSources(admin, profileId, { visitor: !isOwner,');
     expect(route).toContain('timeline: sessionsHidden ? [] : timeline');
     expect(route).toContain('lastAt: null, sessions: null');
     const reader = src('lib/workouts/bests-server.ts');
@@ -109,7 +109,7 @@ describe('the route and the reader hold the privacy rules', () => {
   });
   it('the athlete\'s own bests route reads through the same narrow reader, and still compares with EARLIER sessions only', () => {
     const prs = src('app/api/workouts/prs/route.ts');
-    expect(prs).toContain('readExerciseSessions(admin, user.id, { visitor: false })');
+    expect(prs).toContain('readBestsSources(admin, user.id, { visitor: false })');
     expect(prs).toContain('Date.parse(s.startedAt) < before');
     expect(prs).not.toContain('workout_sets (*)');
   });

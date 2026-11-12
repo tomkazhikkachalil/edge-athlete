@@ -70,6 +70,8 @@ describe('bests and records', () => {
     expect(beats('heaviest', 225.4, 225)).toBe(false);
     expect(beats('heaviest', 226, 225)).toBe(true);
     expect(beats('e1rm', 225.5, 225)).toBe(false);
+    expect(beats('e1rm', 205 * (1 + 3 / 30), 225)).toBe(false); // 225.50000000000003: arithmetic's last digit is not a record
+    expect(beats('e1rm', 225.51, 225)).toBe(true);
     expect(beats('reps', 12, 12)).toBe(false);
     expect(beats('reps', 13, 12)).toBe(true);
     expect(beats('duration', 90.4, 90)).toBe(false);
@@ -110,14 +112,8 @@ describe('ranked, capped, said once', () => {
     expect(capPRs([])).toEqual({ shown: [], more: 0 });
   });
 
-  it('a post\'s lines: ranked; a confirmed five-lift best only when it beat something and the sets did not already say so', () => {
-    const confirmed = [
-      { metricKey: 'bench_press', metricLabel: 'Bench Press', valueDisplay: '195 lbs', previousBest: 185 }, // the sets say it
-      { metricKey: 'deadlift', metricLabel: 'Deadlift', valueDisplay: '315 lbs', previousBest: null }, // a first entry: a baseline
-      { metricKey: 'overhead_press', metricLabel: 'Overhead Press', valueDisplay: '135 lbs', previousBest: 130 },
-    ];
-    expect(prLines(hits, 'lb', confirmed)).toEqual([
-      { label: 'Overhead Press', display: '135 lbs' },
+  it('a post\'s lines are the exercises\' records, ranked — ONE list since the systems merged (PR 6)', () => {
+    expect(prLines(hits, 'lb')).toEqual([
       { label: 'bench_press · Heaviest', display: '195 lbs' },
       { label: 'pull_ups · Most reps', display: '12 reps' },
       { label: 'squat · Best volume', display: '3,000 lbs' },
@@ -126,6 +122,7 @@ describe('ranked, capped, said once', () => {
       { label: 'bench_press · Best volume', display: '975 lbs' },
     ]);
     expect(prLines([], 'lb')).toEqual([]);
+    expect(prLines.length).toBe(2);
   });
 });
 

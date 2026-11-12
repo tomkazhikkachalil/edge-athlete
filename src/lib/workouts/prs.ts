@@ -138,7 +138,9 @@ const KINDS = PR_KIND_RANK;
  * than a quarter of a percent.
  */
 export function beats(kind: PrKind, value: number, previous: number): boolean {
-  if (kind === 'heaviest' || kind === 'e1rm') return value > previous + 0.5;
+  // The gap is read to the hundredth: 205 × 3 estimates 225.50000000000003, and that last digit
+  // of floating-point arithmetic must not be what makes a record over a tested 225 (PR 6).
+  if (kind === 'heaviest' || kind === 'e1rm') return Math.round((value - previous) * 100) / 100 > 0.5;
   if (kind === 'volume') return value > previous * 1.0025;
   return value >= previous + 1;
 }
