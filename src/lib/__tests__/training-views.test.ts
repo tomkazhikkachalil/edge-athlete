@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseTrainingView, TRAINING_VIEWS, trainingViewSearch } from '../training/views';
+import { parseExerciseParam, parseTrainingView, TRAINING_VIEWS, trainingViewSearch } from '../training/views';
 
 // Training's four views (Training redesign PR 3, Nov 11 2026).
 describe('training views', () => {
@@ -28,6 +28,16 @@ describe('training views', () => {
       expect(q.get('tab')).toBe('training');
       expect(parseTrainingView(q.get('view'), q.get('tab'))).toBe(v.id);
     }
+  });
+
+  it('an open exercise rides the Exercises view only; the URL\'s value is an identity or nothing', () => {
+    expect(trainingViewSearch('exercises', 'bench_press')).toBe('?tab=training&view=exercises&exercise=bench_press');
+    expect(trainingViewSearch('exercises', null)).toBe('?tab=training&view=exercises');
+    expect(trainingViewSearch('history', 'bench_press')).toBe('?tab=training&view=history');
+    expect(trainingViewSearch('overview', 'bench_press')).toBe('?tab=training');
+    expect(parseExerciseParam('bench_press')).toBe('bench_press');
+    expect(parseExerciseParam('élévation_latérale')).toBe('élévation_latérale');
+    for (const v of [null, undefined, '', 'bench press', 'a,b', 'x.eq.1', '"', 'x'.repeat(81)]) expect(parseExerciseParam(v)).toBeNull();
   });
 
   it('the rule file imports nothing; the tab reads the view from the URL and mirrors it without navigating', () => {

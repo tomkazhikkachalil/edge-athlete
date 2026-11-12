@@ -69,7 +69,7 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   // and what belongs to another view is not on it.
   const views = page.getByRole('tablist', { name: 'Training views' });
   await expect(views.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Tracking')).toHaveCount(0);
+  await expect(page.locator('[data-training-exercises]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add Metric' })).toHaveCount(0);
 
   // History — the Recent sessions card is its door: the month-grouped diary is the
@@ -99,20 +99,33 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   await expect(metricDialog.getByText('185 lbs').first()).toBeVisible();
   await metricDialog.getByRole('button', { name: 'Close' }).click();
 
-  // Exercises — the progress chart renders with the chip picker; switching to the
-  // mile swaps the charted series (aria-label carries the metric name).
+  // The mile's chart is its metric's own window (the chip picker that held it is gone, PR 5).
+  await page.getByRole('button', { name: /1-Mile Run/ }).first().click();
+  await expect(page.locator('svg[aria-label*="1-Mile Run"]')).toBeVisible();
+  await page.getByRole('dialog', { name: '1-Mile Run' }).getByRole('button', { name: 'Close' }).click();
+
+  // Exercises — one row per exercise with its ONE headline best; the row opens the exercise's own
+  // page (bests, sessions), and the page has its own address.
   await views.getByRole('tab', { name: 'Exercises' }).click();
   await expect(page).toHaveURL(/\?tab=training&view=exercises$/);
-  const picker = page.getByLabel('Tracking');
-  await expect(picker).toBeVisible();
-  await expect(page.locator('svg[aria-label*="Bench Press"], svg[aria-label*="latest"]').first())
-    .toBeVisible();
-  await picker.getByRole('button', { name: '1-Mile Run' }).click();
-  await expect(page.locator('svg[aria-label*="1-Mile Run"]')).toBeVisible();
-
-  // A refresh lands on the same view (the view is in the URL), and the bare tab is the Overview again.
+  const bench = page.locator('[data-exercise-row="bench_press"]');
+  await expect(bench).toContainText('Bench Press', { timeout: 15_000 });
+  await expect(bench.locator('[data-exercise-headline="heaviest"]')).toHaveText('205 lbs');
+  await expect(page.locator('[data-exercise-area="chest"]')).toBeVisible();
+  await bench.click();
+  await expect(page).toHaveURL(/\?tab=training&view=exercises&exercise=bench_press$/);
+  const exercisePage = page.locator('[data-exercise-detail="bench_press"]');
+  await expect(exercisePage.locator('[data-exercise-best="heaviest"]')).toContainText('205 lbs', { timeout: 15_000 });
+  await expect(exercisePage.locator('[data-exercise-best="e1rm"]')).toBeVisible();
+  await expect(exercisePage.locator('[data-exercise-session]')).toHaveCount(1);
+  await expect(exercisePage.locator('[data-exercise-session]').first()).toContainText(`QA Push ${stamp}`);
+  await expect(exercisePage.locator('[data-exercise-session]').first()).toContainText('5 reps × 185 lbs');
+  // A refresh lands on the same page (the view AND the exercise are in the URL); closing it leaves the list.
   await page.reload();
-  await expect(page.getByLabel('Tracking')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-exercise-detail="bench_press"] [data-exercise-best="heaviest"]')).toContainText('205 lbs', { timeout: 20_000 });
+  await page.getByRole('dialog', { name: 'Bench Press' }).getByRole('button', { name: 'Close' }).click();
+  await expect(page).toHaveURL(/\?tab=training&view=exercises$/);
+  await expect(page.locator('[data-exercise-row="bench_press"]')).toBeVisible();
   await page.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'Overview' }).click();
   await expect(page).toHaveURL(/\?tab=training$/);
   await expect(page.getByText('Sessions this week', { exact: false })).toBeVisible();
@@ -134,7 +147,6 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
       await expect(pageB.locator('[data-training-start]')).toHaveCount(0);
       await expect(pageB.getByRole('button', { name: 'Add Metric' })).toHaveCount(0);
       await expect(pageB.getByRole('button', { name: 'Log Training' })).toHaveCount(0);
-      await expect(pageB.locator('[data-exercise-records]')).toHaveCount(0);
     }
 
     // Training privacy: the owner hides the section via the real settings API;

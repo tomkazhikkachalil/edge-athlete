@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
 import { isUuid } from '@/lib/uuid';
-import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
-import { bestsOf, foldBests, workoutUnit, type ExerciseBests } from '@/lib/workouts/prs';
-import type { EntryExercise } from '@/lib/workouts/entries';
+import { readExerciseSessions } from '@/lib/workouts/bests-server';
+import { bestsOf, foldBests, workoutUnit } from '@/lib/workouts/prs';
 
 /**
  * GET /api/workouts/prs[?exclude=<sessionId>] — the signed-in athlete's
@@ -21,9 +20,6 @@ import type { EntryExercise } from '@/lib/workouts/entries';
  * records read in it, as a workout's summary does).
  */
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
-const PAGE = 200;
-const MAX_SESSIONS = 2000;
-const SELECT = 'id, exercises:workout_exercises ( name, exercise_key, position, client_id, category, notes, group_id, group_kind, group_rounds, sets:workout_sets (*) )';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,31 +27,30 @@ export async function GET(request: NextRequest) {
     const exclude = request.nextUrl.searchParams.get('exclude');
     if (exclude !== null && !isUuid(exclude)) return NextResponse.json({ error: 'Invalid workout ID' }, { status: 400, headers: NO_STORE });
     const admin = getSupabaseAdmin();
-    // The excluded session's own start is the line: nothing at or after it is "earlier".
-    let before: string | null = null;
+    // The narrow reader (Training redesign PR 5, Nov 11 2026): the exercise rows with five set
+    // columns, never a clip — this route used to read every session with every set's media.
+    const read = await readExerciseSessions(admin, user.id, { visitor: false });
+    if (!read.ok) {
+      reportRouteError('[workouts/prs] read failed:', new Error('exercise sessions read failed'));
+      return NextResponse.json({ error: 'Could not read your records.' }, { status: 500, headers: NO_STORE });
+    }
+    // The excluded session's own start is the line: nothing at or after it is "earlier" (PR 1).
+    // A session with no exercise rows is not in the read: its start is asked for directly.
+    let before: number | null = null;
     if (exclude) {
-      const { data: own } = await admin.from('workout_sessions').select('started_at').eq('id', exclude).eq('profile_id', user.id).maybeSingle();
-      before = (own as { started_at?: string | null } | null)?.started_at ?? null;
-    }
-    const perSession: Map<string, ExerciseBests>[] = [];
-    const allExercises: EntryExercise[] = [];
-    for (let from = 0; from < MAX_SESSIONS; from += PAGE) {
-      let q = admin.from('workout_sessions').select(SELECT).eq('profile_id', user.id).eq('status', 'completed').order('started_at', { ascending: false }).range(from, from + PAGE - 1);
-      if (exclude) q = q.neq('id', exclude);
-      if (before) q = q.lt('started_at', before);
-      const { data, error } = await q;
-      if (error) {
-        reportRouteError('[workouts/prs] read failed:', error);
-        return NextResponse.json({ error: 'Could not read your records.' }, { status: 500, headers: NO_STORE });
+      const own = read.sessions.find(s => s.id === exclude);
+      if (own) before = Date.parse(own.startedAt);
+      else {
+        const { data } = await admin.from('workout_sessions').select('started_at').eq('id', exclude).eq('profile_id', user.id).maybeSingle();
+        const startedAt = (data as { started_at?: string | null } | null)?.started_at;
+        before = startedAt ? Date.parse(startedAt) : null;
       }
-      for (const row of data ?? []) {
-        const entries = serverToEntries(row as unknown as ServerWorkoutSession);
-        perSession.push(bestsOf(entries));
-        allExercises.push(...entries);
-      }
-      if (!data || data.length < PAGE) break;
     }
-    return NextResponse.json({ bests: Object.fromEntries(foldBests(perSession)), unit: workoutUnit(allExercises) }, { headers: NO_STORE });
+    const earlier = read.sessions.filter(s => s.id !== exclude && (before === null || Date.parse(s.startedAt) < before));
+    return NextResponse.json(
+      { bests: Object.fromEntries(foldBests(earlier.map(s => bestsOf(s.exercises)))), unit: workoutUnit(earlier.flatMap(s => s.exercises)) },
+      { headers: NO_STORE }
+    );
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[workouts/prs] GET error:', error);

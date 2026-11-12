@@ -15,7 +15,6 @@ import { useAuth } from '@/lib/auth';
 import { formatHeight, formatWeightWithUnit, formatAge, parseDateLocal } from '@/lib/formatters';
 import { latestPB } from '@/lib/workouts/dashboard';
 import {
-  mergeSessions,
   mergeTrainingSessions,
   sessionsActiveDays,
   sessionsStreakWeeks,
@@ -30,10 +29,9 @@ import { formatDuration } from '@/lib/workouts/summary';
 import { useStartWorkout } from '@/hooks/useStartWorkout';
 import TrainingHero from './training/TrainingHero';
 import TrainingViewSwitcher from './training/TrainingViewSwitcher';
-import { parseTrainingView, trainingViewSearch, type TrainingView } from '@/lib/training/views';
+import { parseExerciseParam, parseTrainingView, trainingViewSearch, type TrainingView } from '@/lib/training/views';
 import PBShowcase from './training/PBShowcase';
-import ProgressSection from './training/ProgressSection';
-import ExerciseRecords from './training/ExerciseRecords';
+import TrainingExercises from './training/TrainingExercises';
 import StatBubbleCard from './training/StatBubbleCard';
 import MetricBubbleCard from './training/MetricBubbleCard';
 import MetricDetailOverlay from './training/MetricDetailOverlay';
@@ -49,7 +47,6 @@ import { categoryAccent } from './training/category-colors';
 import { useTheme } from '@/lib/use-theme';
 import type { BodyMetricEntry } from './training/metric-stats';
 import type { TrainingPrivacy } from '@/lib/training-privacy';
-import type { ServerWorkoutSession } from '@/lib/workouts/serialize';
 import FaIcon from '@/components/FaIcon';
 import { faDumbbell } from '@/lib/icons/fa/dumbbell';
 import { sportIcon } from '@/lib/sports/sport-icons';
@@ -140,7 +137,6 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
     : '';
   const [bodyMetrics, setBodyMetrics] = useState<BodyMetricEntry[]>([]);
   const [trainingPosts, setTrainingPosts] = useState<TrainingPost[]>([]);
-  const [workouts, setWorkouts] = useState<ServerWorkoutSession[]>([]);
   // Activities (runs, rides, swims recorded on the phone) are part of Training
   // since Oct 1 2026: they count in the week, the streak and the active
   // days. Their own gated read — "Only me" and the Training privacy aspect
@@ -148,8 +144,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   const [activitySessions, setActivitySessions] = useState<ActivitySession[]>([]);
   // Training redesign PR 4 (Nov 11 2026): the week, the streak and the load count a
   // YEAR of workouts (the History route's ?sessions=1), not the list route's last 50.
-  // null = that read failed: the 50 are the fallback, never an empty week.
-  const [yearWorkouts, setYearWorkouts] = useState<TrainingSession[] | null>(null);
+  const [yearWorkouts, setYearWorkouts] = useState<TrainingSession[]>([]);
   const [athleteBirthday, setAthleteBirthday] = useState<string | null>(null);
   const [currentBodyMetrics, setCurrentBodyMetrics] = useState<CurrentBodyMetrics | null>(null);
   const [heroProfile, setHeroProfile] = useState<HeroProfile | null>(null);
@@ -174,10 +169,19 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
     const query = new URLSearchParams(window.location.search);
     return parseTrainingView(query.get('view'), aliasTab ?? query.get('tab'));
   });
+  // PR 5: the exercise whose page is open rides the Exercises view's address (&exercise=bench_press).
+  const [openExercise, setOpenExercise] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : parseExerciseParam(new URLSearchParams(window.location.search).get('exercise'))
+  );
   const changeView = (next: TrainingView) => {
     setView(next);
+    setOpenExercise(null);
     // The hosts mirror the tab the same way (replaceState, no navigation): shareable, refresh-stable.
     window.history.replaceState(null, '', `${window.location.pathname}${trainingViewSearch(next)}`);
+  };
+  const changeExercise = (ref: string | null) => {
+    setOpenExercise(ref);
+    window.history.replaceState(null, '', `${window.location.pathname}${trainingViewSearch('exercises', ref)}`);
   };
   const [showActivityOverlay, setShowActivityOverlay] = useState(false);
   const [showBodyOverlay, setShowBodyOverlay] = useState(false);
@@ -193,9 +197,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
     const run = async () => {
         try {
           setError('');
-          const [bodyMetricsRes, workoutsRes, activitiesRes] = await Promise.all([
+          const [bodyMetricsRes, activitiesRes] = await Promise.all([
             fetch(`/api/vitals?profileId=${profileId}`),
-            fetch(`/api/workouts?profileId=${profileId}&limit=50`, { credentials: 'include' }),
             // A failure here costs the year's sessions, never the tab.
             fetch(`/api/profile/${profileId}/training/history?sessions=1`, { credentials: 'include', cache: 'no-store' }).catch(() => null),
           ]);
@@ -212,17 +215,13 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           setHeroProfile(data.profile || null);
           setTrainingPrivacy(data.vitalsPrivacy ?? null);
           setHiddenByPrivacy(Boolean(data.hidden));
-          if (workoutsRes.ok) {
-            const workoutData = await workoutsRes.json();
-            setWorkouts(workoutData.sessions || []);
-          }
           if (activitiesRes?.ok) {
             const year = await activitiesRes.json();
             setActivitySessions(Array.isArray(year.activities) ? year.activities : []);
-            setYearWorkouts(Array.isArray(year.workouts) ? year.workouts : null);
+            setYearWorkouts(Array.isArray(year.workouts) ? year.workouts : []);
           } else {
             setActivitySessions([]);
-            setYearWorkouts(null);
+            setYearWorkouts([]);
           }
         } catch (e) {
           console.error('Failed to load training data:', e);
@@ -240,17 +239,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   // 409 → resume, the same refreshDrafts(), the same screen.
   const { refreshRoutines, starting: startingWorkout, open: openStartWorkout } = useStartWorkout(isOwnProfile);
 
-  // Dashboard headline stats — all-time on purpose: the year filter now
-  // lives inside the workouts overlay, and "this week" / PBs must never lie.
-  const completedWorkouts = useMemo(
-    () => workouts.filter(s => s.status === 'completed'),
-    [workouts]
-  );
   // Every session — completed workouts and activities — newest first.
-  const sessions = useMemo(
-    () => (yearWorkouts ? mergeTrainingSessions(yearWorkouts, activitySessions) : mergeSessions(workouts, activitySessions)),
-    [yearWorkouts, workouts, activitySessions]
-  );
+  const sessions = useMemo(() => mergeTrainingSessions(yearWorkouts, activitySessions), [yearWorkouts, activitySessions]);
   const weekly = useMemo(() => sessionsWeeklySummary(sessions), [sessions]);
   const streak = useMemo(() => sessionsStreakWeeks(sessions), [sessions]);
   const activeDays = useMemo(() => sessionsActiveDays(sessions), [sessions]);
@@ -592,13 +582,10 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       </>
       )}
 
-      {/* ══ Exercises: progress and every exercise's records ═══════════════ */}
+      {/* ══ Exercises: one row per exercise, one page per exercise ═════════ */}
       {view === 'exercises' && (
       <>
-      {/* ── Progress — one big chart, pick what to track ─────────────── */}
-      <ProgressSection bodyMetrics={bodyMetrics} sessions={completedWorkouts} />
-      {/* A10: every exercise's records — the athlete's own (workouts are owner-only). */}
-      {isOwnProfile && <ExerciseRecords />}
+      <TrainingExercises profileId={profileId} isOwnProfile={isOwnProfile} openRef={openExercise} onOpen={changeExercise} />
       </>
       )}
 
