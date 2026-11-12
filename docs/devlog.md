@@ -1,5 +1,18 @@
 # Development Log
 
+## November 11, 2026 — Training redesign, PR 7 of 8: the pinned showcase — up to six bests the athlete chose lead the Overview
+
+Tom's decision 4: "Pinned showcase." None of the apps reviewed lets an athlete choose which bests a visitor sees first.
+
+**What changed (zero DDL — `training_pins` came with migration 306):**
+- **A pin is what is pinned, never a value** (`src/lib/training/pins.ts`, pure): an exercise's best of one kind, or a test's best; at most six, each once, in the athlete's order. The number is derived on read for whoever is looking (`pins-server.ts resolvePins`): an exercise's through the same fold as its page — a visitor's from the sessions they may open — and a test's from the athlete's test rows (never a lift row, never a body measurement). A pin can therefore never show a stale or a private number.
+- **The athlete pins where the best is**: a pin control on each best of an exercise's page and on a test's window. Never a guardian, never a visitor. A seventh is refused with a notice; nothing is dropped to make room. The tap is optimistic and synced, saves queue one at a time, a failed save puts the list back and says so.
+- **The Overview leads with them** (`PinnedBests`): label, number, kind; a card opens its own page. Nothing pinned renders nothing — for the owner too (Convention 52: arranging one's own view, no empty-slot nudge).
+- **Routes:** `GET /api/profile/[profileId]/training/pins` (the one gate, then the `records` privacy aspect; the raw list is the athlete's alone) and `PUT /api/training/pins` (the session's own profile, the whole list, refused whole if it is not exactly pins).
+- **Not in this PR, as planned:** an activity's best effort cannot be pinned — no all-time effort best is stored to pin. The table's CHECK already admits the kind.
+
+**Proof:** `npm run verify` exit 0 (6,102 tests). `training-pins.test.ts`: the pin, the list, the toggle, the gate order, the writer's profile, no value stored. Staging e2e — mobile: the new `training-pins` (pin a bench best and a 40-yard dash where they are; the Overview shows two; the owner's bench is a hidden 250, the visitor's 185 and "250" is nowhere in the visitor's payload or page; a visitor's PUT changes the visitor's own pins only; seven, a duplicate and a non-pin are 400 with nothing written; records private hides the showcase from the visitor only; unpin removes the card; no sideways overflow at 375 px), `training-mobile`, `training-exercises`; desktop: `training`.
+
 ## November 11, 2026 — Training redesign, PR 6 of 8: one system of bests — a typed max is a tested max, the finish-step confirm is gone
 
 Tom's decision 3: "Merge into one." There were two systems with nearly one name — "Personal Bests" (numbers typed into `athlete_vitals`, plus five lifts copied there by a confirm at the end of a workout) and "Personal records" (derived from the sets) — and they could disagree about the same lift.

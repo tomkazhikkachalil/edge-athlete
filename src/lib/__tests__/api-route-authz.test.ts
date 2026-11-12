@@ -142,6 +142,8 @@ const REVIEWED_SELF_SCOPED: Record<string, string> = {
   'profile/[profileId]/activities': 'Activities (245): gated by read-server resolveActivityAccess (self / guardian / canViewProfile / blocks / departed), projected per audience',
   'profile/[profileId]/training/bests':
     'Training bests (Training redesign PR 5): resolveActivityAccess, then the Training privacy records aspect; a non-owner\'s bests are folded only from sessions that viewer could open, and the timeline is withheld when the workouts aspect is hidden (pinned in exercise-list.test.ts)',
+  'profile/[profileId]/training/pins':
+    'Training pins (Training redesign PR 7): resolveActivityAccess, then the Training privacy records aspect; a pin holds no value — each is resolved for THIS viewer through the bests reader and the test rows (pinned in training-pins.test.ts)',
   'profile/[profileId]/training/history':
     'Training History (Training redesign PR 4): the SAME gate as the activities list — resolveActivityAccess, then the Training privacy workouts aspect; a non-owner receives completed, shown, decided workouts and non-"Only me" activities only (pinned in training-history.test.ts)',
   'profile/[profileId]/contest-media':

@@ -269,3 +269,12 @@ Tom: "sometimes there are too many personal bests, we need to group and store in
 - **Adding and removing:** `POST /api/vitals` with `source: 'tested_max'` (a strength row, an identity for a key, lbs | kg | reps, 0 < value ≤ 5000, a date not in the future — else 400); `DELETE /api/vitals?id=` removes the athlete's OWN entered strength row and nothing else (404 otherwise). The athlete only — not a guardian, not a visitor. The remove confirm names the number, the date and the exercise; an unsaved value closes through `useDirtyClose`.
 - **Body & tests is tests and body:** no strength rows there, in the hero's latest best, or in the metric modal.
 - Pinned by `tested-max.test.ts`, `exercise-list.test.ts`, `workout-prs.test.ts`, `e2e/training.spec.ts`, `e2e/training-exercises.spec.ts`.
+
+## The pinned showcase (Training redesign PR 7, Nov 11 2026)
+
+- **Up to six pins per athlete, in their order** (`training_pins`, migration 306; `pins.ts MAX_PINS`): `{ kind: 'exercise', ref, recordKind }` or `{ kind: 'test', ref }`. A pin stores no value.
+- **The value is the viewer's:** `resolvePins` folds an exercise pin through `readBestsSources` (a non-owner's from sessions they may open) and reads a test pin from the athlete's non-strength, non-body rows. A pin with no number for this viewer is not in the answer; it still counts toward the athlete's six.
+- **Who pins:** the athlete only, where the best is (`PinToggle` on an exercise's bests and a test's window). A seventh is refused, never swapped in.
+- **Where they show:** the top of Training's Overview (`PinnedBests`), for every viewer the `records` privacy aspect admits; a card opens the exercise's page or the test's window. Nothing pinned renders nothing.
+- **Routes:** `GET /api/profile/[profileId]/training/pins` (`private, no-store`; `mine` for the athlete alone); `PUT /api/training/pins { pins }` — the whole list for the session's own profile, 400 and nothing written unless it parses (`parsePins`).
+- Pinned by `training-pins.test.ts`, `e2e/training-pins.spec.ts`.

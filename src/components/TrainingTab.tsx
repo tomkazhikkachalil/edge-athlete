@@ -31,6 +31,9 @@ import TrainingHero from './training/TrainingHero';
 import TrainingViewSwitcher from './training/TrainingViewSwitcher';
 import { parseExerciseParam, parseTrainingView, trainingViewSearch, type TrainingView } from '@/lib/training/views';
 import TrainingExercises from './training/TrainingExercises';
+import PinnedBests from './training/PinnedBests';
+import { useTrainingPins } from '@/hooks/useTrainingPins';
+import { isPinned, type TrainingPin } from '@/lib/training/pins';
 import StatBubbleCard from './training/StatBubbleCard';
 import MetricBubbleCard from './training/MetricBubbleCard';
 import MetricDetailOverlay from './training/MetricDetailOverlay';
@@ -168,6 +171,10 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
     const query = new URLSearchParams(window.location.search);
     return parseTrainingView(query.get('view'), aliasTab ?? query.get('tab'));
   });
+  // PR 7: the pinned showcase — what this viewer may see of the athlete's pins; the athlete (never a
+  // guardian, never a visitor) pins and unpins where each best is.
+  const isSelf = !!currentUserId && currentUserId === profileId;
+  const pins = useTrainingPins(profileId, isSelf);
   // PR 5: the exercise whose page is open rides the Exercises view's address (&exercise=bench_press).
   const [openExercise, setOpenExercise] = useState<string | null>(() =>
     typeof window === 'undefined' ? null : parseExerciseParam(new URLSearchParams(window.location.search).get('exercise'))
@@ -181,6 +188,16 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   const changeExercise = (ref: string | null) => {
     setOpenExercise(ref);
     window.history.replaceState(null, '', `${window.location.pathname}${trainingViewSearch('exercises', ref)}`);
+  };
+  /** A pinned best opens its own page: the exercise's, or the test's window in Body & tests. */
+  const openPin = (pin: TrainingPin) => {
+    if (pin.kind === 'exercise') {
+      setView('exercises');
+      changeExercise(pin.ref);
+      return;
+    }
+    changeView('body');
+    setMetricOverlayKey(pin.ref);
   };
   const [showActivityOverlay, setShowActivityOverlay] = useState(false);
   const [showBodyOverlay, setShowBodyOverlay] = useState(false);
@@ -419,6 +436,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
         onOpenMetric={openBodyMetric}
       />
 
+      <PinnedBests pins={pins.resolved} onOpen={openPin} />
+
       {/* ── Bubble grid — tap a card for its larger window ───────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatBubbleCard
@@ -588,7 +607,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       {/* ══ Exercises: one row per exercise, one page per exercise ═════════ */}
       {view === 'exercises' && (
       <>
-      <TrainingExercises profileId={profileId} isOwnProfile={isOwnProfile} openRef={openExercise} onOpen={changeExercise} />
+      <TrainingExercises profileId={profileId} isOwnProfile={isOwnProfile} openRef={openExercise} onOpen={changeExercise} pins={isSelf ? pins.mine : undefined} onTogglePin={pins.toggle} onBestsChanged={() => void pins.reload()} />
       </>
       )}
 
@@ -763,6 +782,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           athleteBirthday={athleteBirthday}
           onOpenPost={postId => setLinkedPostId(postId)}
           onClose={() => setMetricOverlayKey(null)}
+          pinned={isSelf ? isPinned(pins.mine, { kind: 'test', ref: metricOverlayKey }) : undefined}
+          onTogglePin={isSelf ? () => pins.toggle({ kind: 'test', ref: metricOverlayKey }) : undefined}
           // Own-profile body metrics get an Update button → the bodyMetrics editor
           // (each save also appends a dated timeline entry).
           onEdit={
