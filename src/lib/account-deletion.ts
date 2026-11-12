@@ -542,6 +542,7 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   await mustDelete('workout_sets', 'profile_id');
   await mustDelete('workout_exercises', 'profile_id');
   await mustDelete('workout_routine_exercises', 'profile_id');
+  await mustDelete('training_pins', 'profile_id');
   await mustDelete('workout_routines', 'profile_id');
   await mustDelete('workout_sessions', 'profile_id');
 }

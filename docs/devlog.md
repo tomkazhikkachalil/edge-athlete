@@ -19,6 +19,8 @@ Tom: "We need to re-design how the information is displayed in training … the 
 
 **This PR (zero DDL):** `dashboard.ts exerciseProgression` / `progressionKey` and their tests are removed (the chart they fed is gone; it was the third copy of the identity rule). `database/baseline/000_rebuild.sql` rebuilt from production at ledger head 306 (144 tables, 146 functions). `docs/WORKOUTS.md` gains "Training's shape".
 
+**A gap PR 7 left, closed here:** `training_pins` cascades from `profiles`, and an account that departs as a tombstone keeps its profile row — so the cascade never fires. The rebuilt baseline made `profile-fk-classification.test.ts` see the new table: it is now `'goes'` in `PROFILE_FK_POLICY`, `account-deletion.ts` deletes it (`mustDelete('training_pins', 'profile_id')`), and the athlete's data export carries it. Between PR 7's merge and this one, a tombstoned account's pins would have stayed (unreachable: Training is not served for a departed athlete).
+
 **Left out on purpose:**
 - **Migration 307 (`exercise_ref SET NOT NULL`) is not written.** Production has no NULL reference (95 of 95), so there is nothing to heal; and NOT NULL would turn any future gap in a writer into a failed workout save. The column stays nullable and every reader keeps reading a NULL row and recomputing identity. The plan had 307; this is the reason it is not here.
 - **"Only ticked sets count"** (PR 1): nothing stamps a set at Finish or in a manual log.
@@ -30,7 +32,7 @@ Tom: "We need to re-design how the information is displayed in training … the 
 
 **Tom's:** the phone walk — the four views, a workout's finish with more than three records, an exercise's page, Add a tested max (the form was driven on desktop only), pin and unpin, and a visitor's view of the same profile.
 
-**Proof:** `npm run verify` exit 0; `check:schema` and `check:schema:prod` ✓ at ledger head 306.
+**Proof:** `npm run verify` exit 0 (6,099 tests); `check:schema` and `check:schema:prod` ✓ at ledger head 306. Staging e2e: `account-export` (mobile), `account-departure` (desktop; the tombstone case is skipped without `E2E_ADMIN_EMAIL`, as on earlier rounds — the pins delete is held by the classification test and the statement was run on staging), `training` (desktop).
 
 ## November 11, 2026 — Training redesign, PR 7 of 8: the pinned showcase — up to six bests the athlete chose lead the Overview
 
