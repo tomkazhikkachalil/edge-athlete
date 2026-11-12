@@ -6,7 +6,6 @@
  * (GET /api/vitals returns ALL entries, GET /api/workouts up to 50 sessions).
  */
 
-import { EXERCISE_MAP, exerciseRefOf } from '@/lib/workout-config';
 import { BODY_METRIC_MAP } from '@/lib/body-metrics-config';
 import { serverToEntries, type ServerWorkoutSession } from './serialize';
 import { toLbs } from './summary';
@@ -175,111 +174,6 @@ export function latestPB(bodyMetrics: BodyMetricEntryLike[]): LatestPB | null {
     }
   }
   return latest;
-}
-
-// ── Exercise progression ─────────────────────────────────────────────────────
-
-export interface ProgressionPoint {
-  /** Session start date (ISO). */
-  date: string;
-  value: number;
-  /** e.g. "185 lbs × 5" — the set behind the point. */
-  meta: string;
-}
-
-export interface ExerciseProgression {
-  key: string;
-  /** Display name — catalog label when known, else the (first-seen) name. */
-  label: string;
-  /** What `value` measures. */
-  unit: 'lbs' | 'reps' | 'sec';
-  points: ProgressionPoint[];
-}
-
-/**
- * Identity for cross-session progress: the catalog key when present, else
- * the normalized free-text name — "Bench Press" (custom) and `bench_press`
- * (catalog) must not fork one lift's history.
- */
-export function progressionKey(exerciseKey: string | null, name: string): string {
-  return exerciseRefOf(exerciseKey, name);
-}
-
-/**
- * Best set per session per exercise across all COMPLETED sessions, ascending
- * by date — the "am I getting stronger" series. The measured value follows
- * the exercise's inputMode: reps_weight → max weight (lbs); reps_only → max
- * reps; duration/distance_duration → max duration; unknown (custom) → weight
- * if any set has one, else reps.
- */
-export function exerciseProgression(
-  sessions: ServerWorkoutSession[]
-): Map<string, ExerciseProgression> {
-  const byKey = new Map<string, ExerciseProgression>();
-
-  const ordered = [...sessions]
-    .filter(s => s.status === 'completed')
-    .sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
-
-  for (const session of ordered) {
-    // Best value per exercise key WITHIN this session
-    const sessionBest = new Map<string, { value: number; meta: string; label: string; unit: ExerciseProgression['unit'] }>();
-
-    for (const exercise of serverToEntries(session)) {
-      const key = progressionKey(exercise.exerciseKey, exercise.name);
-      const catalog = exercise.exerciseKey ? EXERCISE_MAP[exercise.exerciseKey] : undefined;
-      const label = catalog?.label ?? exercise.name;
-
-      for (const set of exercise.sets) {
-        let value: number | null = null;
-        let unit: ExerciseProgression['unit'] = 'lbs';
-        let meta = '';
-
-        const mode = catalog?.inputMode;
-        const weightLbs =
-          set.weight !== null && set.weight > 0 ? toLbs(set.weight, set.weightUnit) : null;
-
-        if (mode === 'reps_only') {
-          if (set.reps !== null && set.reps > 0) {
-            value = set.reps; unit = 'reps'; meta = `${set.reps} reps`;
-          }
-        } else if (mode === 'duration' || mode === 'distance_duration') {
-          if (set.durationSeconds !== null && set.durationSeconds > 0) {
-            value = set.durationSeconds; unit = 'sec';
-            meta = set.distance ? `${set.distance} ${set.distanceUnit ?? 'mi'}` : 'duration';
-          }
-        } else if (mode === 'reps_weight' || weightLbs !== null) {
-          if (weightLbs !== null) {
-            value = weightLbs; unit = 'lbs';
-            meta = `${set.weight} ${set.weightUnit ?? 'lbs'}${set.reps ? ` × ${set.reps}` : ''}`;
-          }
-        } else if (set.reps !== null && set.reps > 0) {
-          value = set.reps; unit = 'reps'; meta = `${set.reps} reps`;
-        }
-
-        if (value === null) continue;
-        const existing = sessionBest.get(key);
-        if (!existing || value > existing.value) {
-          sessionBest.set(key, { value, meta, label, unit });
-        }
-      }
-    }
-
-    for (const [key, best] of sessionBest) {
-      let progression = byKey.get(key);
-      if (!progression) {
-        progression = { key, label: best.label, unit: best.unit, points: [] };
-        byKey.set(key, progression);
-      }
-      progression.points.push({
-        date: session.started_at,
-        value: Math.round(best.value * 10) / 10,
-        meta: best.meta,
-      });
-    }
-  }
-
-  return byKey;
 }
 
 // ── Metric series ────────────────────────────────────────────────────────────

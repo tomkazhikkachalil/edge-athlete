@@ -129,3 +129,19 @@ start screen with the editor, so Back never offers a new workout over an unposte
 - The e2e specs read the clock by `[data-live-clock]` (not the first `span.tabular-nums`
   — the bar's numbers would shadow it) and dismiss the reopen prompt before tapping
   anything under its backdrop.
+
+## Training's shape (the redesign, Nov 11 2026)
+
+The rules are in `docs/specs/workouts-and-sessions.md` (the sections from "Fewer, truer personal bests" on). The map:
+
+| View | Address | What it holds | Reads |
+| --- | --- | --- | --- |
+| Overview | `?tab=training` | this week, streak, load, pinned bests, latest sessions | `/api/vitals`, `…/training/history?sessions=1`, `…/training/pins` |
+| History | `&view=history` | every workout and activity, by month, 20 a page; the training posts | `…/training/history` |
+| Exercises | `&view=exercises[&exercise=<ref>]` | one row per exercise by body area; an exercise's bests, chart, sessions, tested maxes | `…/training/bests[?exercise=]` |
+| Body & tests | `&view=body` | height, weight, age; every test | `/api/vitals` |
+
+- **Identity** — `workouts/exercise-identity.ts`, bound by `workout-config.ts exerciseRefOf`; stored as the index filter `workout_exercises.exercise_ref` (306), never trusted as the truth.
+- **Bests** — derived on read from the logged sets and the tested maxes (`prs.ts`, `exercise-list.ts`, `tested-max.ts`, `bests-server.ts`); nothing stores a best.
+- **Pins** — `training_pins` holds what is pinned (`training/pins.ts`); the value is resolved per viewer.
+- **Privacy** — every profile-scoped Training route takes `resolveActivityAccess`, then its aspect (`workouts` for History, `records` for bests and pins); a non-owner's numbers come only from sessions that viewer could open.

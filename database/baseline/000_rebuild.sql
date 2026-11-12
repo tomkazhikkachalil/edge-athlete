@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-07T00:08:20.210487+00:00 from server 17.6 by
+-- Generated 2026-11-12T03:12:54.711471+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 304.
+-- public.schema_dump() (migration 227). Ledger head at generation: 306.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -3788,7 +3788,7 @@ BEGIN
     -- one (an old client) gets a distinct id from the default.
     INSERT INTO public.workout_exercises (
       session_id, profile_id, name, exercise_key, category, position, notes,
-      client_id, group_id, group_kind, group_rounds
+      client_id, group_id, group_kind, group_rounds, exercise_ref
     )
     VALUES (
       p_session_id,
@@ -3801,7 +3801,11 @@ BEGIN
       COALESCE((v_exercise.ex->>'clientId')::uuid, gen_random_uuid()),
       (v_exercise.ex->>'groupId')::uuid,
       v_exercise.ex->>'groupKind',
-      (v_exercise.ex->>'groupRounds')::int
+      (v_exercise.ex->>'groupRounds')::int,
+      -- 306: the identity the ROUTE computed (exercise-identity.ts); a payload
+      -- without one (a deploy older than the migration) leaves it NULL — readers
+      -- recompute identity from key and name, and 307 heals the gap.
+      left(NULLIF(v_exercise.ex->>'exerciseRef', ''), 80)
     )
     RETURNING id INTO v_exercise_id;
 
@@ -5393,7 +5397,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (142) ──────────────────────────────────────────────────────────────
+-- ── Tables (144) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -6612,6 +6616,19 @@ CREATE TABLE IF NOT EXISTS public.organizations (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.page_timings (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  received_at timestamp with time zone DEFAULT now() NOT NULL,
+  build text NOT NULL,
+  route text NOT NULL,
+  metric text NOT NULL,
+  value numeric(12,3) NOT NULL,
+  rating text,
+  device text NOT NULL,
+  navigation text,
+  signed_in boolean DEFAULT false NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.pending_profiles (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   payload jsonb NOT NULL,
@@ -7345,6 +7362,15 @@ CREATE TABLE IF NOT EXISTS public.tickets (
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.training_pins (
+  profile_id uuid NOT NULL,
+  position smallint NOT NULL,
+  kind text NOT NULL,
+  ref text NOT NULL,
+  record_kind text,
+  created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.user_blocks (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   blocker_id uuid NOT NULL,
@@ -7444,7 +7470,8 @@ CREATE TABLE IF NOT EXISTS public.workout_exercises (
   client_id uuid DEFAULT gen_random_uuid() NOT NULL,
   group_id uuid,
   group_kind text,
-  group_rounds integer
+  group_rounds integer,
+  exercise_ref text
 );
 
 CREATE TABLE IF NOT EXISTS public.workout_routine_exercises (
@@ -7929,6 +7956,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'page_timings_pkey' AND conrelid = 'public.page_timings'::regclass) THEN
+    ALTER TABLE public.page_timings ADD CONSTRAINT page_timings_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pending_profiles_pkey' AND conrelid = 'public.pending_profiles'::regclass) THEN
     ALTER TABLE public.pending_profiles ADD CONSTRAINT pending_profiles_pkey PRIMARY KEY (id);
   END IF;
@@ -8176,6 +8208,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tickets_pkey' AND conrelid = 'public.tickets'::regclass) THEN
     ALTER TABLE public.tickets ADD CONSTRAINT tickets_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'training_pins_pkey' AND conrelid = 'public.training_pins'::regclass) THEN
+    ALTER TABLE public.training_pins ADD CONSTRAINT training_pins_pkey PRIMARY KEY (profile_id, "position");
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9828,6 +9865,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'page_timings_device_check' AND conrelid = 'public.page_timings'::regclass) THEN
+    ALTER TABLE public.page_timings ADD CONSTRAINT page_timings_device_check CHECK ((device = ANY (ARRAY['phone'::text, 'tablet'::text, 'desktop'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'page_timings_metric_check' AND conrelid = 'public.page_timings'::regclass) THEN
+    ALTER TABLE public.page_timings ADD CONSTRAINT page_timings_metric_check CHECK ((metric = ANY (ARRAY['LCP'::text, 'INP'::text, 'CLS'::text, 'TTFB'::text, 'FCP'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pending_profiles_state_check' AND conrelid = 'public.pending_profiles'::regclass) THEN
     ALTER TABLE public.pending_profiles ADD CONSTRAINT pending_profiles_state_check CHECK ((state = ANY (ARRAY['awaiting_guardian'::text, 'consent_pending'::text, 'approved'::text, 'rejected'::text, 'expired'::text])));
   END IF;
@@ -10483,6 +10530,26 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'training_pins_kind_check' AND conrelid = 'public.training_pins'::regclass) THEN
+    ALTER TABLE public.training_pins ADD CONSTRAINT training_pins_kind_check CHECK ((kind = ANY (ARRAY['exercise'::text, 'test'::text, 'effort'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'training_pins_position_check' AND conrelid = 'public.training_pins'::regclass) THEN
+    ALTER TABLE public.training_pins ADD CONSTRAINT training_pins_position_check CHECK ((("position" >= 1) AND ("position" <= 6)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'training_pins_record_kind_check' AND conrelid = 'public.training_pins'::regclass) THEN
+    ALTER TABLE public.training_pins ADD CONSTRAINT training_pins_record_kind_check CHECK (((record_kind IS NULL) OR (record_kind = ANY (ARRAY['heaviest'::text, 'e1rm'::text, 'reps'::text, 'volume'::text, 'duration'::text]))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'training_pins_ref_check' AND conrelid = 'public.training_pins'::regclass) THEN
+    ALTER TABLE public.training_pins ADD CONSTRAINT training_pins_ref_check CHECK (((char_length(ref) >= 1) AND (char_length(ref) <= 80)));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_media_presets_name_check' AND conrelid = 'public.user_media_presets'::regclass) THEN
     ALTER TABLE public.user_media_presets ADD CONSTRAINT user_media_presets_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 40)));
   END IF;
@@ -10565,6 +10632,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_exercises_category_check' AND conrelid = 'public.workout_exercises'::regclass) THEN
     ALTER TABLE public.workout_exercises ADD CONSTRAINT workout_exercises_category_check CHECK ((category = ANY (ARRAY['strength'::text, 'cardio'::text, 'mobility'::text, 'other'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workout_exercises_exercise_ref_check' AND conrelid = 'public.workout_exercises'::regclass) THEN
+    ALTER TABLE public.workout_exercises ADD CONSTRAINT workout_exercises_exercise_ref_check CHECK (((exercise_ref IS NULL) OR ((char_length(exercise_ref) >= 1) AND (char_length(exercise_ref) <= 80))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -12145,6 +12217,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'training_pins_profile_id_fkey' AND conrelid = 'public.training_pins'::regclass) THEN
+    ALTER TABLE public.training_pins ADD CONSTRAINT training_pins_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_blocks_blocked_id_fkey' AND conrelid = 'public.user_blocks'::regclass) THEN
     ALTER TABLE public.user_blocks ADD CONSTRAINT user_blocks_blocked_id_fkey FOREIGN KEY (blocked_id) REFERENCES profiles(id) ON DELETE CASCADE;
   END IF;
@@ -12563,6 +12640,8 @@ CREATE INDEX IF NOT EXISTS idx_organizations_place ON public.organizations USING
 CREATE INDEX IF NOT EXISTS idx_organizations_search ON public.organizations USING gin (search_vector);
 CREATE INDEX IF NOT EXISTS organizations_listing_idx ON public.organizations USING btree (listing_status) WHERE (listing_status <> 'listed'::text);
 CREATE INDEX IF NOT EXISTS organizations_pending_idx ON public.organizations USING btree (created_at) WHERE (approved_at IS NULL);
+CREATE INDEX IF NOT EXISTS page_timings_build_received_idx ON public.page_timings USING btree (build, received_at DESC);
+CREATE INDEX IF NOT EXISTS page_timings_received_idx ON public.page_timings USING btree (received_at);
 CREATE INDEX IF NOT EXISTS idx_pending_profiles_promoted_profile_id ON public.pending_profiles USING btree (promoted_profile_id);
 CREATE INDEX IF NOT EXISTS idx_pending_profiles_state ON public.pending_profiles USING btree (state, expires_at);
 CREATE INDEX IF NOT EXISTS idx_performances_profile_id ON public.performances USING btree (profile_id);
@@ -12716,6 +12795,7 @@ CREATE INDEX IF NOT EXISTS idx_tickets_reporter ON public.tickets USING btree (r
 CREATE INDEX IF NOT EXISTS idx_tickets_retention ON public.tickets USING btree (closed_at) WHERE ((closed_at IS NOT NULL) AND (anonymized_at IS NULL));
 CREATE INDEX IF NOT EXISTS idx_tickets_target_item ON public.tickets USING btree (target_type, target_id, created_at DESC) WHERE (target_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_tickets_target_profile ON public.tickets USING btree (target_profile_id, created_at DESC) WHERE (target_profile_id IS NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS training_pins_one_per_thing ON public.training_pins USING btree (profile_id, kind, ref, COALESCE(record_kind, ''::text));
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON public.user_blocks USING btree (blocked_id);
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON public.user_blocks USING btree (blocker_id);
 CREATE INDEX IF NOT EXISTS idx_user_media_presets_profile ON public.user_media_presets USING btree (profile_id, created_at DESC);
@@ -12738,7 +12818,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS videos_provider_owner_uidx ON public.videos US
 CREATE INDEX IF NOT EXISTS videos_sport_event_id_idx ON public.videos USING btree (sport_event_id);
 CREATE INDEX IF NOT EXISTS videos_workout_session_id_idx ON public.videos USING btree (workout_session_id);
 CREATE INDEX IF NOT EXISTS idx_waitlist_created_at ON public.waitlist USING btree (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_workout_exercises_profile ON public.workout_exercises USING btree (profile_id);
+CREATE INDEX IF NOT EXISTS idx_workout_exercises_profile_ref ON public.workout_exercises USING btree (profile_id, exercise_ref);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_session ON public.workout_exercises USING btree (session_id, "position");
 CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_exercises_session_client ON public.workout_exercises USING btree (session_id, client_id);
 CREATE INDEX IF NOT EXISTS idx_workout_routine_exercises_profile ON public.workout_routine_exercises USING btree (profile_id);
@@ -16347,7 +16427,7 @@ BEGIN
     -- one (an old client) gets a distinct id from the default.
     INSERT INTO public.workout_exercises (
       session_id, profile_id, name, exercise_key, category, position, notes,
-      client_id, group_id, group_kind, group_rounds
+      client_id, group_id, group_kind, group_rounds, exercise_ref
     )
     VALUES (
       p_session_id,
@@ -16360,7 +16440,11 @@ BEGIN
       COALESCE((v_exercise.ex->>'clientId')::uuid, gen_random_uuid()),
       (v_exercise.ex->>'groupId')::uuid,
       v_exercise.ex->>'groupKind',
-      (v_exercise.ex->>'groupRounds')::int
+      (v_exercise.ex->>'groupRounds')::int,
+      -- 306: the identity the ROUTE computed (exercise-identity.ts); a payload
+      -- without one (a deploy older than the migration) leaves it NULL — readers
+      -- recompute identity from key and name, and 307 heals the gap.
+      left(NULLIF(v_exercise.ex->>'exerciseRef', ''), 80)
     )
     RETURNING id INTO v_exercise_id;
 
@@ -18192,6 +18276,7 @@ ALTER TABLE public.org_sites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.org_staff_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.org_staff_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.page_timings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pending_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.performances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.place_aliases ENABLE ROW LEVEL SECURITY;
@@ -18242,6 +18327,7 @@ ALTER TABLE public.team_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ticket_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.training_pins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_media_presets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_mutes ENABLE ROW LEVEL SECURITY;
@@ -19445,6 +19531,8 @@ REVOKE ALL ON TABLE public.org_staff_invites FROM anon, authenticated, service_r
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.org_staff_invites TO service_role;
 REVOKE ALL ON TABLE public.organizations FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.organizations TO service_role;
+REVOKE ALL ON TABLE public.page_timings FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.page_timings TO service_role;
 REVOKE ALL ON TABLE public.pending_profiles FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.pending_profiles TO service_role;
 REVOKE ALL ON TABLE public.performances FROM anon, authenticated, service_role;
@@ -19579,6 +19667,8 @@ REVOKE ALL ON TABLE public.ticket_events FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.ticket_events TO service_role;
 REVOKE ALL ON TABLE public.tickets FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.tickets TO service_role;
+REVOKE ALL ON TABLE public.training_pins FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.training_pins TO service_role;
 REVOKE ALL ON TABLE public.user_blocks FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.user_blocks TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.user_blocks TO authenticated;
@@ -19625,6 +19715,8 @@ REVOKE ALL ON TABLE public.leagues FROM anon, authenticated, service_role;
 GRANT DELETE, SELECT, UPDATE ON TABLE public.leagues TO service_role;
 
 -- ── Sequence grants ───────────────────────────────────────────────────────────
+REVOKE ALL ON SEQUENCE public.page_timings_id_seq FROM anon, authenticated, service_role;
+GRANT USAGE ON SEQUENCE public.page_timings_id_seq TO anon, authenticated, service_role;
 REVOKE ALL ON SEQUENCE public.tickets_number_seq FROM anon, authenticated, service_role;
 GRANT USAGE ON SEQUENCE public.tickets_number_seq TO anon, authenticated, service_role;
 
@@ -20042,6 +20134,7 @@ COMMENT ON TABLE public.organizations IS 'One row per league or club (Round 5, 2
 COMMENT ON COLUMN public.organizations.kind IS 'What the org calls itself and its route family (league | club; school later). Behaviour is the capability flags, never this.';
 COMMENT ON COLUMN public.organizations.sport_key IS 'leagues.sport_key or clubs.primary_sport; nullable (a multi-sport club).';
 COMMENT ON COLUMN public.organizations.location IS 'clubs'' legacy free-text location; superseded by the place block; carried so nothing is lost.';
+COMMENT ON TABLE public.page_timings IS 'Real-user page timings by build (305): one row per browser timing metric (LCP, INP, CLS, TTFB, FCP) a page view reported — build, route (ids masked), metric, value, rating, device, navigation, signed_in. No person. 30 days; the daily cron prunes. Posture A; the writer is POST /api/page-timings, the reader the admin console.';
 COMMENT ON TABLE public.platform_admins IS 'Platform admin roles (222): owner | moderator. The env allowlist stays OWNER; a moderator row admits the support queue only. Written by owners only (API-enforced).';
 COMMENT ON TABLE public.platform_stats_daily IS 'The Overview''s one table (267): one row per UTC day, metric and dimension, written a group at a time by platform_rollup_day.';
 COMMENT ON COLUMN public.post_comments.mentions IS 'Profile ids @mentioned in content, resolved server-side at POST from the author''s taggable set (public + accepted follows). Render-side, tokens are matched against these profiles'' CURRENT handles — a renamed handle degrades to plain text by design.';
@@ -20158,6 +20251,7 @@ COMMENT ON COLUMN public.tickets.attachment_url IS 'An optional screenshot (Spec
 COMMENT ON COLUMN public.tickets.report_count IS 'Reports merged into this ticket (222): duplicates on the same item within 7 days increment it instead of opening a new ticket (Spec 2).';
 COMMENT ON COLUMN public.tickets.appeal_used_at IS 'The one appeal (222): a user reply on a resolved ticket reopens it once; stamped when used.';
 COMMENT ON COLUMN public.tickets.anonymized_at IS 'Retention (222): two years after close the daily cron nulls the personal columns and stamps this.';
+COMMENT ON TABLE public.training_pins IS 'The bests an athlete pins to the top of Training (306): up to six per profile, in order. kind exercise (ref = workout_exercises.exercise_ref, record_kind = heaviest|e1rm|reps|volume|duration), test (ref = athlete_vitals.metric_key), effort (reserved). The VALUE is never stored here — it is derived on read. RLS on, no policies: service role only; the route applies the training privacy rule.';
 COMMENT ON TABLE public.user_mutes IS 'Support & Reporting (223): a user-level mute — the muted person''s posts, comments and notifications leave the muter''s view. Silent. Posture A: service role only.';
 COMMENT ON TABLE public.video_highlights IS 'A playback cue on a linked video (296): start_ms, optional end_ms, a label, sport metadata in meta (hole, score, note). Ordered by start_ms. Never an access-controlled clip. Posture A.';
 COMMENT ON TABLE public.videos IS 'A linked long video (YouTube) owned by a profile XOR an org, optionally placed on ONE of: a sport event, a contest, a golf round (group_posts), an activity, a workout session (296, 297). The embed is rebuilt from provider_video_id. ONE writer: src/lib/videos/videos-server.ts. Posture A.';
@@ -20168,6 +20262,7 @@ COMMENT ON COLUMN public.workout_exercises.client_id IS 'The STABLE exercise id 
 COMMENT ON COLUMN public.workout_exercises.group_id IS 'A superset or circuit (260): the members share it, consecutive by position; kind and rounds are denormalized on every member.';
 COMMENT ON COLUMN public.workout_exercises.group_kind IS 'superset | circuit (260).';
 COMMENT ON COLUMN public.workout_exercises.group_rounds IS 'Rounds of the group (260), 1..10 — the routines target_sets cap. A member''s sets are its rounds.';
+COMMENT ON COLUMN public.workout_exercises.exercise_ref IS 'The exercise''s identity (306; src/lib/workouts/exercise-identity.ts): a catalog key, a slug the catalog knows, else the name''s slug. An INDEX FILTER written by the route — readers recompute identity from exercise_key and name. NULL = written by a deploy older than 306 (307 heals).';
 COMMENT ON COLUMN public.workout_sessions.share_decided_at IS 'Drafts (253): when the owner chose Share or Keep private for a finished workout. NULL on a completed session = a draft (never reached the decision).';
 COMMENT ON COLUMN public.workout_sessions.timed IS 'The clock runs (260). false: duration_seconds is NULL at finish; Vitals counts the session with no minutes.';
 COMMENT ON COLUMN public.workout_sessions.paused_seconds IS 'Closed pauses so far, seconds (260). The clock = now − started_at − paused_seconds − an open pause.';
@@ -20204,7 +20299,7 @@ COMMENT ON FUNCTION public.public_profile_bundle(p_handle text) IS 'Everything G
 COMMENT ON FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean) IS 'The pulse signal (301, private on every topic since 304): one realtime.send on the given topic, event ''pulse'', the payload plus ''at''. Swallows every error — a signal never fails a write. Called by the pulse_signal_* triggers only.';
 COMMENT ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) IS 'Atomic fixed-window rate-limit check+consume. Service-role only (migration 094).';
 COMMENT ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) IS 'Several rate-limit buckets in one call (286): each key through 094''s rate_limit_hit, in array order; one row per key. Service-role only — src/lib/rate-limit.ts enforceRateLimitMany is the caller.';
-COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds. Service role only; the route validates and heals the payload first.';
+COMMENT ON FUNCTION public.replace_workout_entries(p_session_id uuid, p_profile_id uuid, p_saved_at timestamp with time zone, p_exercises jsonb) IS 'Replace a workout session''s exercises and sets in ONE transaction, serialized per session by FOR UPDATE (256): the stale rule for live sessions runs inside the lock; a completed session is never guarded and its end time never moves. Since 260 it carries the editor''s stable client_id, the group fields and rest_seconds; since 306 the exercise_ref the route computed. Service role only; the route validates and heals the payload first.';
 COMMENT ON FUNCTION public.schema_dump() IS 'Read-only pg_catalog dump of everything a blank project needs to become this one, for npm run build:baseline. Service-role only (migration 227).';
 COMMENT ON FUNCTION public.search_all(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) IS 'Unified entity search over search_documents. Privacy is the CALLER''s job: pass the viewer''s audience via visible_ids/include_public (athletes) and filter post authors route-side. 274: stored title_norm / title_vector, token tsqueries parsed once. 279: at most 1,000 candidates per entity_type before the per-row ranking. 290: the substring arm is title / subtitle at 3+ characters, served by trigram indexes.';
 COMMENT ON FUNCTION public.search_all_decorated(q text, p_types text[], max_per_type integer, visible_ids uuid[], include_public boolean, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision, p_viewer uuid, p_post_sport text, p_post_from timestamp with time zone, p_post_to timestamp with time zone, p_post_limit integer) IS 'search_all plus its decoration in one call (283; 289 adds blocked + hidden): the ranked rows, the raw display rows per entity type in the route''s column order, the post authors'' visibility and the viewer''s accepted follows among the private ones — raw; GET /api/search applies every rule. json (key order kept). service_role only.';
@@ -20669,7 +20764,10 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (300, '300_me_pulse_broadcasts.sql', 'rebuild-000'),
   (301, '301_pulse_broadcast.sql', 'rebuild-000'),
   (302, '302_calendar_series_split.sql', 'rebuild-000'),
-  (303, '303_follows_bounded.sql', 'rebuild-000')
+  (303, '303_follows_bounded.sql', 'rebuild-000'),
+  (304, '304_harden_round.sql', 'rebuild-000'),
+  (305, '305_page_timings.sql', 'rebuild-000'),
+  (306, '306_training_exercise_ref_pins.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -20678,12 +20776,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 142 | 146 | 145 | 304
+-- Expected: 000 REBUILT | 144 | 146 | 145 | 306
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_142,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_144,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_146,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_304;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_306;
 

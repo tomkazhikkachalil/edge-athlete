@@ -1,5 +1,37 @@
 # Development Log
 
+## November 11, 2026 — Training redesign, PR 8 of 8: the close — what shipped, what was left out on purpose, what is Tom's
+
+Tom: "We need to re-design how the information is displayed in training … the way you navigate and the groups, don't really make sense, also, sometimes there are too many personal bests, we need to group and store information, slightly differently. Review some of the best applications for training in the world."
+
+| PR | What | Proof on production |
+| --- | --- | --- |
+| 1 #1465 | Fewer, truer bests: one exercise identity, a real margin, earlier-only, three shown then "+N" | `workout-prs` |
+| 2 #1466 | Migration 306: `exercise_ref` (an index filter) + `training_pins` | 306 on both DBs; `check-exercise-refs` 95 rows, 0 differ |
+| 3 #1467 | Four views — Overview · History · Exercises · Body & tests — the view in the URL | `training`, `training-mobile` |
+| 4 #1468 | History is one keyset-paged list; the week counts a year of workouts | `training-history` |
+| 5 #1469 | One row and one page per exercise; a visitor sees bests folded from the sessions they may open | `training-exercises` |
+| 6 #1470 | One system of bests: a typed max is a tested max; the finish-step confirm is gone | `training`, `training-exercises` |
+| 7 #1471 | The pinned showcase: up to six bests, the value always the viewer's | `training-pins` |
+| 8 | This close: dead code, the baseline at 306, the reference doc | — |
+
+**Before → after, as an athlete meets it:** nine stacked sections → four views with their own addresses. A session in up to three places → one row in History. One lift reachable four ways and named two ways → one row and one page. Two systems of bests that could disagree → one fold of logged sets and tested maxes. Up to five announcements per exercise, uncapped → three shown, then "+N", and a typed "Bench Press" is the catalog's lift. Bests the owner alone could see → a visitor sees them, from sessions they may open, and the athlete chooses six to lead with. "All-time" numbers from the last 50 workouts → a year, and Training opens with two reads where it made three.
+
+**This PR (zero DDL):** `dashboard.ts exerciseProgression` / `progressionKey` and their tests are removed (the chart they fed is gone; it was the third copy of the identity rule). `database/baseline/000_rebuild.sql` rebuilt from production at ledger head 306 (144 tables, 146 functions). `docs/WORKOUTS.md` gains "Training's shape".
+
+**Left out on purpose:**
+- **Migration 307 (`exercise_ref SET NOT NULL`) is not written.** Production has no NULL reference (95 of 95), so there is nothing to heal; and NOT NULL would turn any future gap in a writer into a failed workout save. The column stays nullable and every reader keeps reading a NULL row and recomputing identity. The plan had 307; this is the reason it is not here.
+- **"Only ticked sets count"** (PR 1): nothing stamps a set at Finish or in a manual log.
+- **Pinning an activity's best effort:** no all-time effort best is stored to pin (`training_pins` already admits the kind).
+- **A custom-exercise table:** custom exercises group under "Other" by their name's identity.
+- `sessions.ts mergeSessions` and `derive.ts metricMilestones` have no caller left in the app; their tests still describe the week maths through them. Not removed here.
+
+**A correction made on the way** (PR 4): the plan said the training-posts grid could go because those posts "stay in Media". Convention 50 keeps them OUT of Media, so the grid stays, under History.
+
+**Tom's:** the phone walk — the four views, a workout's finish with more than three records, an exercise's page, Add a tested max (the form was driven on desktop only), pin and unpin, and a visitor's view of the same profile.
+
+**Proof:** `npm run verify` exit 0; `check:schema` and `check:schema:prod` ✓ at ledger head 306.
+
 ## November 11, 2026 — Training redesign, PR 7 of 8: the pinned showcase — up to six bests the athlete chose lead the Overview
 
 Tom's decision 4: "Pinned showcase." None of the apps reviewed lets an athlete choose which bests a visitor sees first.
