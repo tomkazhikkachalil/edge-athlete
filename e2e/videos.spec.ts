@@ -1,6 +1,7 @@
 import { test, expect } from './helpers/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
+import { ownChannelFor, seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
 // Videos program (296): a full game is a YouTube LINK. The QA user links one
 // to their own profile through the API, sees it on the profile's Videos tab,
@@ -9,6 +10,8 @@ import { cleanup } from './helpers/cleanup';
 // remount, no IFrame API). Then the link is deleted (its markers with it).
 // The video: YouTube's own first upload — public, embeddable, never going away.
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
+// Only the connected channel (Nov 11 2026): the link saves because the QA user's connection names that video's channel.
+withOwnChannel(['jNQXAC9IVRw']);
 
 test('link a full game → profile Videos tab → the video page → a highlight seeks the player → delete', async ({ page }) => {
   test.setTimeout(180_000);
@@ -18,9 +21,21 @@ test('link a full game → profile Videos tab → the video page → a highlight
   const api = await apiAs('state.json');
   const title = `QA Full game ${Date.now()}`;
   let videoId: string | null = null;
+  let unseed: (() => Promise<void>) | null = null;
   try {
-    // 1. The link, through the one writer.
+    // 0. Only the connected channel: no channel → 409 with the Connect word; another channel's video → 403; then the owner's own.
+    await admin.from('youtube_connections').delete().eq('profile_id', me.id);
     let res = await api.post('/api/videos', { data: { url: YT, title } });
+    expect(res.status(), await readErrorBody(res)).toBe(409);
+    expect(await res.json()).toMatchObject({ needs_connection: true, channel: 'unconnected' });
+    unseed = await seedOwnChannel(admin, { profileId: me.id }, me.id, 'UCe2eSomeoneElseAbcdefgh');
+    res = await api.post('/api/videos', { data: { url: YT, title } });
+    expect(res.status(), await readErrorBody(res)).toBe(403);
+    expect(await res.json()).toMatchObject({ channel: 'other' });
+    unseed = await seedOwnChannel(admin, { profileId: me.id }, me.id, ownChannelFor());
+
+    // 1. The link, through the one writer.
+    res = await api.post('/api/videos', { data: { url: YT, title } });
     expect(res.status(), await readErrorBody(res)).toBe(201);
     const created = (await res.json()).video as { id: string; provider_video_id: string; highlight_count: number; owner: { kind: string; id: string } };
     videoId = created.id;
@@ -95,6 +110,7 @@ test('link a full game → profile Videos tab → the video page → a highlight
       async () => {
         if (videoId) await api.delete(`/api/videos/${videoId}`);
       },
+      async () => { await unseed?.(); },
       () => api.dispose(),
     ]);
   }

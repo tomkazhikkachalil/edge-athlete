@@ -172,6 +172,8 @@ export interface LiveDetails {
   thumbnail: string | null;
   privacy: string | null;
   embeddable: boolean | null;
+  /** Only the connected channel (Nov 11): the channel YouTube says the video belongs to (`snippet.channelId`). */
+  channelId: string | null;
 }
 export type LiveRead = { ok: true; value: LiveDetails | null } | { ok: false; unauthorized: boolean; quota: boolean };
 
@@ -191,7 +193,7 @@ export async function youtubeLiveDetails(auth: { apiBase: string } & ({ accessTo
   if (!res.ok) return { ok: false, unauthorized: false, quota: false };
   const body = (await res.json().catch(() => null)) as { items?: unknown[] } | null;
   if (!body || !Array.isArray(body.items)) return { ok: false, unauthorized: false, quota: false };
-  const first = body.items[0] as { snippet?: { title?: unknown; description?: unknown; liveBroadcastContent?: unknown; thumbnails?: Record<string, { url?: unknown }> }; contentDetails?: { duration?: unknown }; status?: { privacyStatus?: unknown; embeddable?: unknown }; liveStreamingDetails?: { scheduledStartTime?: unknown; actualStartTime?: unknown; actualEndTime?: unknown } } | undefined;
+  const first = body.items[0] as { snippet?: { channelId?: unknown; title?: unknown; description?: unknown; liveBroadcastContent?: unknown; thumbnails?: Record<string, { url?: unknown }> }; contentDetails?: { duration?: unknown }; status?: { privacyStatus?: unknown; embeddable?: unknown }; liveStreamingDetails?: { scheduledStartTime?: unknown; actualStartTime?: unknown; actualEndTime?: unknown } } | undefined;
   if (!first) return { ok: true, value: null };
   const live = first.liveStreamingDetails ?? {};
   const thumbs = first.snippet?.thumbnails ?? {};
@@ -209,6 +211,7 @@ export async function youtubeLiveDetails(auth: { apiBase: string } & ({ accessTo
       thumbnail: str(thumb),
       privacy: str(first.status?.privacyStatus),
       embeddable: typeof first.status?.embeddable === 'boolean' ? first.status.embeddable : null,
+      channelId: str(first.snippet?.channelId),
     },
   };
 }

@@ -3,6 +3,7 @@ import { createQaOrg, deleteQaOrgs } from './helpers/org';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
 import { publishSite, revisionsSupported } from './helpers/org-site';
+import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
 // Videos program, Phase 1b: the public site's Videos tile. The owner links a
 // full game to the club, places the `video_list` tile on the draft (the
@@ -11,6 +12,8 @@ import { publishSite, revisionsSupported } from './helpers/org-site';
 // CSP untouched). A hidden video never reaches the page; the owner's own
 // profile video never reaches it either (the tile is the org's rows only).
 const YT = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
+// Only the connected channel (Nov 11 2026): the links save because the owner's connection names those videos' channel.
+withOwnChannel(['jNQXAC9IVRw', 'aqz-KE-bpKQ', '9bZkp7q19f0']);
 type Widget = { id: string; key: string; x: number; y: number; w: number; h: number; cv: number; visibility: string; config: Record<string, unknown> };
 
 test('public site Videos tile: the org\'s published linked game on the published home; hidden and profile-owned videos never', async ({ browser }) => {
@@ -35,6 +38,8 @@ test('public site Videos tile: the org\'s published linked game on the published
     expect(res.status(), await readErrorBody(res)).toBe(200);
 
     // Three videos: the club's published one (shows), the club's hidden one (never), the owner's own profile one (never).
+    await seedOwnChannel(admin, { orgId: club.id }, owner.id);
+    await seedOwnChannel(admin, { profileId: owner.id }, owner.id);
     res = await ownerApi.post('/api/videos', { data: { url: YT, title: `QA Site Final ${stamp}`, side: 'club', org_id: club.id } });
     expect(res.status(), await readErrorBody(res)).toBe(201);
     videoIds.push(((await res.json()).video as { id: string }).id);
@@ -76,6 +81,7 @@ test('public site Videos tile: the org\'s published linked game on the published
     for (const id of videoIds) await ownerApi.delete(`/api/videos/${id}`).catch(() => undefined);
     await anon.close();
     await ownerApi.dispose();
+    await admin.from('youtube_connections').delete().eq('profile_id', owner.id);
     await admin.from('org_sites').delete().eq('org_id', club.id);
     await deleteQaOrgs(admin, [club.id]);
   }

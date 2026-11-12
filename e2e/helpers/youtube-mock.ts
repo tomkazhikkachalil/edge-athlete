@@ -15,6 +15,8 @@ export const YOUTUBE_MOCK_BASE = `http://127.0.0.1:${YOUTUBE_MOCK_PORT}`;
 export const YOUTUBE_E2E_CLIENT = { id: 'e2e-youtube-client', secret: 'e2e-youtube-secret' };
 /** The server-only Data API key (Phase 4a): public reads of a video's live state. */
 export const YOUTUBE_E2E_API_KEY = 'e2e-youtube-key';
+/** Only the connected channel (Nov 11): the channel a video belongs to when nothing says otherwise (no account signed in, no entry in `videoChannels`). */
+export const MOCK_DEFAULT_CHANNEL = 'UCe2eDefaultAbcdefghijkl';
 
 /** What the local test server is started with. */
 export const YOUTUBE_E2E_ENV: Record<string, string> = {
@@ -45,6 +47,12 @@ export interface MockChannel {
 }
 
 export interface YouTubeMock {
+  /**
+   * Only the connected channel (Nov 11): `videos.list` says whose a video is (`snippet.channelId`) — this map's answer
+   * first, else the signed-in account's channel, else MOCK_DEFAULT_CHANNEL. An id listed here that is no upload, no
+   * broadcast and no app upload is answered as a plain public video (a spec's pasted link).
+   */
+  videoChannels: Map<string, string>;
   /** The Google account the NEXT consent screen signs in; null = an account with no channel. */
   signInAs(channel: MockChannel | null): void;
   /** The consent screen says no. */
@@ -103,6 +111,7 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
   let expiredThrough = 0;
   let refusingAll = false;
   const live = new Map<string, MockLive>();
+  const videoChannels = new Map<string, string>();
   // Phase 4b: which scopes each token carries (the force-ssl scope gates the live writes).
   const tokenScope = new Map<string, string>();
   const refreshScope = new Map<string, string>();
@@ -110,6 +119,7 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
   const streams = new Map<string, { key: string; title: string }>();
   const mock: YouTubeMock = {
     signInAs: c => { current = c; },
+    videoChannels,
     deny: on => { denying = on; },
     revokeRefresh: on => { refreshRevoked = on; },
     expireAccess: () => { expiredThrough = minted; },
@@ -231,12 +241,13 @@ export async function startYouTubeMock(): Promise<YouTubeMock> {
         const u = chan?.uploads.find(x => x.videoId === id);
         const up = uploaded.get(id);
         const lv = live.get(id);
-        if (!u && !up && !lv) return send(res, 200, { items: [] });
+        if (!u && !up && !lv && !videoChannels.has(id)) return send(res, 200, { items: [] });
+        const channelId = videoChannels.get(id) ?? (u ? chan?.id : current?.id) ?? MOCK_DEFAULT_CHANNEL;
         const details = lv ? { ...(lv.scheduledStartTime ? { scheduledStartTime: lv.scheduledStartTime } : {}), ...(lv.actualStartTime ? { actualStartTime: lv.actualStartTime } : {}), ...(lv.actualEndTime ? { actualEndTime: lv.actualEndTime } : {}) } : null;
         return send(res, 200, { items: [{
           id,
           contentDetails: { duration: lv && lv.content !== 'none' ? 'PT0S' : (lv?.durationIso ?? u?.durationIso ?? 'PT1M30S') },
-          snippet: { title: lv?.title ?? u?.title ?? up?.title ?? 'Broadcast', description: lv?.description ?? '', liveBroadcastContent: lv?.content ?? 'none', thumbnails: { high: { url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` } } },
+          snippet: { channelId, title: lv?.title ?? u?.title ?? up?.title ?? 'Broadcast', description: lv?.description ?? '', liveBroadcastContent: lv?.content ?? 'none', thumbnails: { high: { url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` } } },
           status: { privacyStatus: lv?.privacy ?? up?.privacy ?? 'public', embeddable: lv?.embeddable ?? true },
           ...(details ? { liveStreamingDetails: details } : {}),
         }] });

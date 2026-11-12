@@ -1,5 +1,20 @@
 # Development Log
 
+## November 11, 2026 — Only the connected channel: a full game is saved only from the owner's own YouTube channel; the channel picker loads
+
+Tom, trying the app on production: (1) "Pick from channel" does nothing; (2) *"I can add the YouTube link like I did before, but it doesn't have to be for my video. It could be any YouTube video… people can start stealing other people's YouTube content and post it to get views. I want to ensure that uploads of that length and coming from YouTube come from the creator's channel or club channel."*
+
+**1. The picker (#1474 → `34a2951e`, on production).** `ChannelPicker`'s toggle set the state to `loading`, and the effect that fetches the uploads runs from `idle` alone — so the FIRST open never asked YouTube and sat on "Reading your uploads…" for good. In the code since Phase 3 (Nov 5); every spec read the route through the API and none ever opened the picker. The toggle now only opens; the flow spec opens it, sees the stand-in channel's two uploads, picks one and the link fills (375 px).
+
+**2. Only the connected channel (this PR, zero DDL).** Convention 57 changes: a video is saved only when YouTube says it belongs to the channel connected to that profile or org. `channelVerdict` (pure) → own / other / unconnected / missing / unreadable; `videoChannelCheck` reads `snippet.channelId` with the connection's token (the server's key as the fallback) and `POST /api/videos` — the one door every path uses, an app upload and a scheduled broadcast included — refuses anything but `own`: 409 `needs_connection`, 403 another channel (the sentence names the connected channel), 404 no such video, 503 / 429 when the check cannot be made. **Fail closed.** The lookup returns the verdict with the preview, so the refusal shows under the pasted link before Save.
+
+**Found by the suite while building it:** the owner is chosen at the LAST step, and refusing at the first one stranded someone adding a club's game who has no channel of their own (`youtube-connect.spec` "the flow follows the picked owner" timed out on a disabled Next). So: a person who also manages a club or league passes Link with the sentence as a note, and Where is the refusal. Pinned in `only-connected-channel.test.ts`.
+
+**What it costs:** everyone who adds a full game now connects YouTube first. Until Google's verification passes that means Google's "unverified" page and its 100-account cap — production is gated, so nothing changes today; it is one more reason the public switch waits for Verified.
+
+**Tests.** 210 unit tests in `src/lib/videos` (the new file + the callWithToken pin moved to the check). The stand-in Google answers `snippet.channelId` (`videoChannels`, `MOCK_DEFAULT_CHANNEL`). Eight specs that add a video seed a connection first (`e2e/helpers/own-channel.ts`); all green on staging — `videos`, `org-app-videos`, `videos-live`, `videos-lookup`, `videos-player`, `videos-places`, `org-site-videos`, `youtube-connect` (5), `youtube-upload` on desktop, `videos-mobile` on mobile. Seen once and green alone: `youtube-connect` "self-healing" step 2 read `active` where it had just written `error` (the Videos card's own health check on the still-open page healed the row first — a race in the spec, not the rule).
+
+**Still Tom's:** try the picker on production; after this PR is live, paste someone else's video (refused) and his own (saved); then the one real upload from the app.
 ## November 11, 2026 — Maintenance after the Training redesign: every gate green on 02b50db1; production's iPhone-engine probe was stopped by Vercel's Security Checkpoint, not by the app
 
 Tom: "run maintenance". The checklist, in its order, on main `02b50db1` (the Training redesign's eight PRs, #1465–#1472).

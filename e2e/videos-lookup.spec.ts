@@ -1,6 +1,7 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
 import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket, type QaUser } from './helpers/qa-user';
 import { startYouTubeMock, type YouTubeMock } from './helpers/youtube-mock';
+import { seedOwnChannel } from './helpers/own-channel';
 
 // Paste and go (Nov 6 2026): a pasted link reads itself from YouTube — the
 // title and the duration fill in, a private video is refused before Save,
@@ -31,6 +32,7 @@ test('paste and go: the title and duration fill in, chapters become highlights i
     mock.live.set('e2ePrivat01', { content: 'none', title: 'Private one', durationIso: 'PT1M', privacy: 'private', embeddable: true });
     mock.live.set('e2eNoEmbed1', { content: 'none', title: 'No embed', durationIso: 'PT2M', privacy: 'public', embeddable: false });
     for (const id of ['e2eChapt001', 'e2ePrivat01', 'e2eNoEmbed1']) await admin.from('videos').delete().eq('profile_id', a.id).eq('provider_video_id', id);
+    await seedOwnChannel(admin, { profileId: a.id }, a.id); // only the connected channel (Nov 11): the stand-in's videos are this channel's
 
     // 1. The lookup route itself.
     let res = await api.get('/api/videos/youtube/lookup?id=e2eChapt001');
@@ -39,6 +41,23 @@ test('paste and go: the title and duration fill in, chapters become highlights i
     expect(lookup).toMatchObject({ available: true, title: 'Club Final 2026 — full game', durationMs: 110 * 60_000, embeddable: true });
     expect(lookup.chapters.map(c => c.label)).toEqual(['Warm-up', 'Kick-off', 'Second half', 'Final whistle']);
     expect((await api.get('/api/videos/youtube/lookup?id=nope')).status()).toBe(400);
+
+    // 1b. Only the connected channel (Nov 11 2026): the same read says WHOSE the video is, for the owner asked about.
+    res = await api.get(`/api/videos/youtube/lookup?id=e2eChapt001&owner=profile:${a.id}`);
+    expect((await res.json()).lookup).toMatchObject({ channel: 'own', channelTitle: 'QA Seeded Channel' });
+    mock.videoChannels.set('e2eOther001', 'UCe2eSomeoneElseAbcdefgh');
+    res = await api.get(`/api/videos/youtube/lookup?id=e2eOther001&owner=profile:${a.id}`);
+    expect((await res.json()).lookup).toMatchObject({ channel: 'other' });
+    //     In the form: another channel's link says so under the preview, and the API refuses it (the step rule is unit-pinned).
+    await page.goto('/videos/new');
+    await page.locator('[data-new-video-url]').fill('https://www.youtube.com/watch?v=e2eOther001');
+    await expect(page.locator('[data-new-video-channel="other"]')).toContainText('QA Seeded Channel', { timeout: 20_000 });
+    res = await api.post('/api/videos', { data: { url: 'https://www.youtube.com/watch?v=e2eOther001', title: 'not mine' } });
+    expect(res.status()).toBe(403);
+    expect(await res.json()).toMatchObject({ channel: 'other' });
+    //     A video YouTube does not have: 404, never a row.
+    res = await api.post('/api/videos', { data: { url: 'https://www.youtube.com/watch?v=e2eNoSuch01', title: 'nothing' } });
+    expect(res.status()).toBe(404);
 
     // 2. From the page: the title and the duration fill in; four chapters offer themselves; Save makes the row and the four highlights.
     await page.goto('/videos/new');
@@ -85,6 +104,8 @@ test('paste and go: the title and duration fill in, chapters become highlights i
   } finally {
     for (const id of ids) await api.delete(`/api/videos/${id}`).catch(() => undefined);
     mock.live.clear();
+    mock.videoChannels.clear();
+    await admin.from('youtube_connections').delete().eq('profile_id', a.id);
     await api.dispose();
     await page.context().close();
   }

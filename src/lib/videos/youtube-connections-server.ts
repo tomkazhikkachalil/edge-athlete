@@ -17,11 +17,11 @@ import { isMissingTableError } from '@/lib/orgs/validate';
 import { openSecret, sealSecret, secretBoxReady } from '@/lib/crypto/secret-box-server';
 import { orgVideoAccess, profileManages } from './videos-server';
 import {
-  accessTokenFresh, isYouTubeSecret, ownerColumns, projectConnection, replacedChannel, scopesWithout, secretContextFor, shouldRevokeAtGoogle, storedScopesFor,
+  accessTokenFresh, channelRefusalText, channelVerdict, CALL_REFUSALS, CHANNEL_REFUSALS, isYouTubeSecret, ownerColumns, projectConnection, replacedChannel, scopesWithout, secretContextFor, shouldRevokeAtGoogle, storedScopesFor,
   TOKEN_FAILURES, tokenFailureFor, withOneRetry,
-  type ConnectionOwner, type ScopeKey, type TokenFailure, type YouTubeConnectionRow, type YouTubeConnectionView, type YouTubeSecret,
+  type ChannelVerdict, type ConnectionOwner, type ScopeKey, type TokenFailure, type YouTubeConnectionRow, type YouTubeConnectionView, type YouTubeSecret,
 } from './youtube-connection';
-import { youtubeConfig, youtubeMyChannel, youtubeRefresh, youtubeRevoke, type YouTubeConfig } from './google-youtube-server';
+import { youtubeConfig, youtubeLiveDetails, youtubeMyChannel, youtubeReadConfig, youtubeRefresh, youtubeRevoke, type LiveDetails, type YouTubeConfig } from './google-youtube-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -259,4 +259,53 @@ export async function uploadRight(admin: Admin, owner: ConnectionOwner, userId: 
   if (read.row.connected_by_user_id !== userId) return { ok: false, status: 403, error: 'Only the person who connected this channel can upload to it' };
   if (read.row.status === 'revoked') return { ok: false, status: 409, error: TOKEN_FAILURES.revoked.error, reconnect: true };
   return { ok: true, value: read.row };
+}
+
+/**
+ * Only the connected channel (Nov 11 2026): whose video is this, for this
+ * owner? One `videos.list` read with the connection's own token (it sees the
+ * channel's unlisted and private videos, and heals a 401), and the server's
+ * key when the token cannot answer — the check needs only the video's
+ * channel id and the row's. `enforced: false` = YouTube connections are not
+ * configured on this deployment, so the rule is off with the feature.
+ * `details` is the read itself (the lookup route reuses it — one read).
+ */
+export interface ChannelCheck {
+  enforced: boolean;
+  verdict: ChannelVerdict;
+  channelTitle: string | null;
+  /** The read was refused for YouTube's daily limit. */
+  quota: boolean;
+  details: LiveDetails | null;
+}
+
+export async function videoChannelCheck(admin: Admin, owner: ConnectionOwner, videoId: string): Promise<ChannelCheck> {
+  const cfg = youtubeConfig();
+  if (!cfg || !secretBoxReady()) return { enforced: false, verdict: 'own', channelTitle: null, quota: false, details: null };
+  const { row } = await readConnection(admin, owner);
+  if (!row) return { enforced: true, verdict: 'unconnected', channelTitle: null, quota: false, details: null };
+  let video: LiveDetails | null | undefined;
+  let quota = false;
+  if (row.status !== 'revoked') {
+    const called = await callWithToken(admin, cfg, owner, token => youtubeLiveDetails({ apiBase: cfg.apiBase, accessToken: token }, videoId));
+    if (called.ok && called.value.ok) video = called.value.value;
+    else if (called.ok && !called.value.ok) quota = called.value.quota;
+  }
+  if (video === undefined) {
+    const key = youtubeReadConfig();
+    const viaKey = key ? await youtubeLiveDetails({ apiBase: key.apiBase, apiKey: key.apiKey }, videoId) : null;
+    if (viaKey?.ok) video = viaKey.value;
+    else if (viaKey && !viaKey.ok) quota = quota || viaKey.quota;
+  }
+  return { enforced: true, verdict: channelVerdict(row.channel_id, video), channelTitle: row.channel_title, quota, details: video ?? null };
+}
+
+/** The refusal a route answers for a check that is not `own`: our sentence and the status (the daily limit keeps its own words). */
+export function channelRefusal(check: ChannelCheck): { status: number; body: { error: string; channel: ChannelVerdict; needs_connection?: true } } | null {
+  if (!check.enforced || check.verdict === 'own') return null;
+  if (check.verdict === 'unreadable' && check.quota) return { status: CALL_REFUSALS.quota.status, body: { error: CALL_REFUSALS.quota.error, channel: 'unreadable' } };
+  return {
+    status: CHANNEL_REFUSALS[check.verdict].status,
+    body: { error: channelRefusalText(check.verdict, check.channelTitle), channel: check.verdict, ...(check.verdict === 'unconnected' ? { needs_connection: true as const } : {}) },
+  };
 }
