@@ -1,5 +1,20 @@
 # Development Log
 
+## November 11, 2026 — Training redesign, PR 2 of 8: one exercise, one indexed reference; the pins table (migration 306)
+
+Tom: "we need to group and store information, slightly differently." One exercise's history could only be read by reading every set the athlete ever logged: no index on the exercise, and a typed name had no key to index.
+
+**What changed:**
+- **Migration 306** (`306_training_exercise_ref_pins.sql`): `workout_exercises.exercise_ref` — the identity PR 1's rule gives (a catalog key, a slug the catalog knows, else the name's slug), backfilled in the file, indexed as `(profile_id, exercise_ref)` (the old `(profile_id)` index it prefix-covers is dropped, the 276 rule); `replace_workout_entries` re-declared with the same signature, carrying `exerciseRef`; `training_pins` (up to six per profile; the value is never stored; RLS on, service role only).
+- **The reference is an index filter, never the truth:** readers recompute identity from `exercise_key` and `name`, so a stale reference can miss a row but never mis-group one. Bests stay derived from the sets.
+- **The three writers fill it server-side** (`api/workouts/route.ts`, the entries route's RPC payload and its fallback insert) — never taken from the client (pinned in `exercise-identity.test.ts`).
+- `scripts/check-exercise-refs.mjs` — read-only proof that every stored reference is the one the TypeScript rule gives (staging; `TARGET_ENV=prod` for production).
+- `e2e/workout-summary.spec.ts`: its legacy-workout seed is now decided. The seed was unposted, so the app sent it to its preview step and the editor assertion only passed when it won that race (2 of 6 failed on repeat; 6 of 6 after).
+
+**Order: 306 on production BEFORE this merges** (a direct insert of a missing column fails). Production is Tom's.
+
+**Proof (staging):** 306 APPLIED | 30 rows | 0 NULL refs | new index 1 | old index 0 | RPC carries the ref | pins table 1 | anon false | head 306. `check-exercise-refs`: 30 rows, 0 differ — before and after the specs wrote new rows. `npm run verify` exit 0 (6,060 tests), `check:schema` ✓ (ledger head 306, 144 tables reachable). e2e: `workout-prs`, `workout-groups`, `workout-start`, `workout-summary` ×6 (mobile), `workout-entries-race`, `training` (desktop) — green.
+
 ## November 11, 2026 — Training redesign, PR 1 of 8: fewer, truer personal bests (rules only, zero DDL)
 
 Tom: "We need to re-design how the information is displayed in training. Some of it makes sense, but the way you navigate and the groups, don't really make sense, also, sometimes there are too many personal bests, we need to group and store information, slightly differently. Review some of the best applications for training in the world."

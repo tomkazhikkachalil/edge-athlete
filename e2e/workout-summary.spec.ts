@@ -68,6 +68,12 @@ test('the summary and the post carry rests, active time, volume per exercise and
     expect(oldRead.exercises[0]).toMatchObject({ group_id: null, group_kind: null, group_rounds: null });
     expect(oldRead.exercises[0].client_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(oldRead.exercises[0].sets[0].rest_seconds).toBeNull();
+    // An UNPOSTED finished workout with no step in the URL is sent to its preview step (Training
+    // fixes PR 4), so the editor below was only ever on screen for the moment before that redirect:
+    // the assertion raced it and lost about one run in three (Nov 11 2026). The seed decides (Done),
+    // as training.spec's does — a decided workout opens the editor and stays there.
+    const decided = await api.patch(`/api/workouts/${oldId}`, { data: { decided: true } });
+    expect(decided.ok(), await readErrorBody(decided)).toBe(true);
     await page.goto(`/app/workout/${oldId}`);
     await expect(page.locator('[data-exercise-name]')).toHaveText('Deadlift', { timeout: 20_000 });
     await expect(page.locator('[data-exercise-group]')).toHaveCount(0);
