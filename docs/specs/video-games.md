@@ -69,6 +69,16 @@ A video becomes a **game** when it has a `video_games` row: `sport_key` (the she
 
 **Pinned by** `game-view.test.ts` (7), `e2e/video-spoiler-free.spec.ts` (a real viewer, the real player: nothing → the first basket once its clip has played → everything after the confirm → still unlocked after a reload; the manager sees all; spoilers off shows all).
 
+### The recap (PR 5, zero DDL)
+
+**The page a club or a creator shares after the game is a VIEW of the video page: `/videos/<id>?view=recap`** (`recapPath`; the server page reads the param — `videoPageView` — and hands it to the screen, so no search-params hook). `GameRecap`: who played, the sport, the day, "Watch the game", "Share the recap" (the device's share sheet, else the link copied); then the same `GameStatsPanel` — the final score with the score by period, the box scores, the team stats, the scoring summary in order; then **Top highlights** (`topHighlights`: the plays that moved the board or ended it, then the highlights the tagger named, in time order, six at most — when there are more scoring plays than fit, the named ones lead; a recap is never a second list of every tag).
+
+- **The recap IS the spoiler,** so it obeys the same reveal: a viewer who has not watched sees 0–0, a sentence, and "Show full stats" (the same confirm, the same unlock on the device). A manager, an unlocked viewer and a game with spoilers off read it at once.
+- **The doors lead back to the video:** "Watch the game", any top highlight, any scoring-summary row (the video opens at that moment). The video is hidden under the recap, not unmounted — coming back keeps the player where it was.
+- **Who can open the link** is the video's own rule (the owner's privacy or the org's visibility); a video that is not a game simply shows the video.
+
+**Pinned by** the recap cases in `game-view.test.ts`, `e2e/video-recap.spec.ts` (375 px).
+
 ### What comes next (the sprint's later PRs, each extends this file)
 
-Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the recap; the athlete drill-down; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).
+Picking a real team for a side (and its roster first in the people picker) and the game fields inside the Full game flow; the athlete drill-down; the athlete's profile (clips under Videos, the game's line under Stats, the notification, removal).
