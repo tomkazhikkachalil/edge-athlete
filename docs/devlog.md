@@ -1,5 +1,30 @@
 # Development Log
 
+## November 12, 2026 — Sprint 3 (YouTube game film): the close — eight PRs, what shipped, what was left out on purpose (docs only)
+
+**Tom's brief** (Nov 12): clubs, leagues and sports creators post full games on YouTube, and this is the tool they tag them with. **His decisions:** every sport (baselines like the broadcasters' box scores); tag anyone the tagger may view, or by a typed name; no approval — shown at once, the athlete or a guardian is told and can remove.
+
+| PR | What | Merge |
+| --- | --- | --- |
+| 1 #1478 | The game sheets (all 17 sports, four families) and `deriveGame` — every stat from the tags | `661b6c33` |
+| 2 #1479 | The game on the video — **migration 307** (both databases) | `c65eac3f` |
+| 3 #1480 | Tagging: the event, whose, the period, people by role (a profile or a typed name) | `e05b644f` |
+| 4 #1481 | The spoiler-free view: stats unlock as the video plays; "Show full stats" after a confirm | `2cc06b74` |
+| 5 #1482 | The recap: `/videos/<id>?view=recap` | `fb3557d9` |
+| 6 #1483 | The athlete drill-down: the line beside the clips, narrowed | `b5ecfdaf` |
+| 7 #1484 | On the athlete's profile: told once, Tagged in, removable for good | `7a25fb37` |
+| 8 | This entry and the spec's open list | — |
+
+**The brief, line by line.** Paste a link and it is the game's video, with its sport, teams and date ✓ (the game fields are on the video page, not in the link flow). Pause, tag the moment, a start and an end ✓ ("This moment" makes the clip; nudges; "End here"). Athletes with roles ✓; someone not in the system by name ✓ (claiming it later ✗). Edit, move, delete ✓. Stats by sport, every stat from the tags, no separate entry ✓. Hidden view, stats reveal as the video plays, skipping ahead reveals up to there, back re-hides nothing ✓. Unlock with a confirm, then every tag on the timeline to jump to ✓. The recap: final score, box score, team stats, scoring summary, top highlights, shareable ✓. Drill-down to an athlete, then to scoring plays / a period / a kind of play ✓. On the athlete's profile with a link back, the athlete doing nothing ✓ (on the Videos tab; under Stats ✗).
+
+**Calls that were mine, all in the spec for Tom to overrule:** a highlight stays a marker (never a cut file); stats are computed on read, never stored, never written to official results; a game is fully tagged (a score is shown) or highlights only (no score claimed); a clip reveals at its END; a tagged person's rows survive their account's departure; hidden means not drawn (the read still carries the tags).
+
+**Proof on the final commit (`7a25fb37`), production probes one at a time:** desktop — `videos`, `org-app-videos`, `video-tagging`, `video-spoiler-free` (the real player), `video-recap`, `video-athlete-clips`, `video-tagged-profile` (after its merge), each 1/1; mobile — `videos-mobile`, `video-game`, each 1/1. `/api/health` ok on the commit; `check:schema` and `check:schema:prod` ✓ (146 tables, ledger 307). Unit tests 6,258.
+
+**Traps met:** a spec titled `@mobile` never runs on the `desktop` project; an e2e helper named `use*` trips the hooks lint; the React-compiler lint reads a handler as render-phase when it uses state declared BELOW it; `merge-pr.sh` can print a JSON error in its deploy wait after a successful merge (check the PR's `merged` and `/api/health`); never apply a staging migration while a CI smoke run is going.
+
+**Tom's:** tag a real game on his own channel and say where a sport's event list is wrong; the open list in `docs/specs/video-games.md` (the Stats-tab merge is a decision, the rest is work); the baseline at 307 is not rebuilt yet.
+
 ## November 12, 2026 — Sprint 3 (YouTube game film), PR 7 of 8: on the athlete's profile — told once, the clips and the line, removable for good (zero DDL)
 
 **Before it:** PR 6 (#1483) merged as `b5ecfdaf`; `video-athlete-clips.spec` green on production (desktop 1/1).
