@@ -64,6 +64,23 @@ describe('exercise identity', () => {
     for (const [slug, key] of labelSlugs) expect(EXERCISE_MAP[slug]?.key ?? key).toBe(key);
   });
 
+  it('every writer of workout_exercises stores the reference the SERVER computed (migration 306)', () => {
+    const src = (p: string) => readFileSync(join(process.cwd(), 'src', p), 'utf8');
+    const start = src('app/api/workouts/route.ts');
+    const entries = src('app/api/workouts/[id]/entries/route.ts');
+    expect(start).toContain('exercise_ref: exerciseRefOf(exercise.exerciseKey, exercise.name)');
+    expect(entries).toContain('exerciseRef: exerciseRefOf(exercise.exerciseKey, exercise.name)');
+    expect(entries).toContain('exercise_ref: exerciseRefOf(exercise.exerciseKey, exercise.name)');
+    // One insert per writer of the table, and each one sets the column.
+    const inserts = (s: string) => s.split(".from('workout_exercises')").slice(1).filter(part => /^\s*\.insert\(/.test(part)).length;
+    expect(inserts(start)).toBe(1);
+    expect(inserts(entries)).toBe(1);
+    const sql = readFileSync(join(process.cwd(), 'database/migrations/306_training_exercise_ref_pins.sql'), 'utf8');
+    expect(sql).toContain("left(NULLIF(v_exercise.ex->>'exerciseRef', ''), 80)");
+    // The backfill's catalog is the catalog of the day it was written: every key and every alias of today is in it.
+    for (const e of EXERCISE_CATALOG) expect(sql).toContain(`('${e.key}')`);
+  });
+
   it('the rule file imports nothing, and no reader spells the identity itself', () => {
     const src = (p: string) => readFileSync(join(process.cwd(), 'src', p), 'utf8');
     expect(src('lib/workouts/exercise-identity.ts')).not.toMatch(/^import /m);

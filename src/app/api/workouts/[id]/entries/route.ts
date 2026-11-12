@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEntriesPayload } from '@/lib/workouts/entries';
 import { healEntriesMedia } from '@/lib/workouts/entries-heal-server';
+import { exerciseRefOf } from '@/lib/workout-config';
 import { entriesWriteIsStale, entriesWriteStampsActivity } from '@/lib/workouts/entries-stale';
 import { reportRouteError } from '@/lib/observability/report';
 import { refreshWorkoutPostStats } from '@/lib/workouts/post-stats-server';
@@ -79,7 +80,8 @@ export async function PUT(
       p_session_id: id,
       p_profile_id: user.id,
       p_saved_at: new Date(savedAt).toISOString(),
-      p_exercises: validated.exercises,
+      // 306: each exercise carries the identity the SERVER computed (exercise-identity.ts); a client's own `exerciseRef` never survives validation.
+      p_exercises: validated.exercises.map(exercise => ({ ...exercise, exerciseRef: exerciseRefOf(exercise.exerciseKey, exercise.name) })),
     });
     if (!rpcError) {
       const result = (replaced ?? {}) as { ok?: boolean; stale?: boolean; error?: string };
@@ -123,6 +125,7 @@ export async function PUT(
             profile_id: user.id,
             name: exercise.name,
             exercise_key: exercise.exerciseKey,
+            exercise_ref: exerciseRefOf(exercise.exerciseKey, exercise.name) || null,
             category: exercise.category,
             position: index,
             notes: exercise.notes,
