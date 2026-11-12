@@ -46,7 +46,7 @@ export function setHasData(s: EntryExercise['sets'][number]): boolean {
 }
 
 /** Canonical weight conversion — the ONE source of truth (also used by
- *  pr-detection and the dashboard stats). */
+ *  the dashboard stats). */
 export function toLbs(weight: number, unit: 'lbs' | 'kg' | null): number {
   return unit === 'kg' ? weight * KG_TO_LBS : weight;
 }

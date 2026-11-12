@@ -370,7 +370,9 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
           <div>
             <label className="block text-sm font-semibold text-secondary mb-1.5">Category</label>
             <div className="grid grid-cols-2 gap-2">
-              {BODY_METRIC_CATEGORIES.map(cat => (
+              {/* One system of bests (Training redesign PR 6, Nov 11 2026): a lift's number is a tested max
+                  on its exercise's page (Training → Exercises), never a second record typed in here. */}
+              {BODY_METRIC_CATEGORIES.filter(cat => cat.key !== 'strength').map(cat => (
                 <button
                   key={cat.key}
                   type="button"
@@ -386,6 +388,7 @@ export default function AddBodyMetricModal({ isOpen, onClose, onSaved }: AddBody
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-xs text-muted" data-metric-lifts-note="">Lifting numbers live on each exercise&apos;s page: Training → Exercises → Add a tested max.</p>
           </div>
 
           {/* Metric */}

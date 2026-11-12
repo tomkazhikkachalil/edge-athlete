@@ -2,7 +2,7 @@
  * Derivations for the bubble dashboard — the playful layer's numbers. Pure
  * and node-tested, computed client-side from the payloads the tab already
  * fetches; nothing here changes what is tracked or how PRs are detected
- * (that stays in workouts/dashboard.ts and workouts/pr-detection.ts).
+ * (that stays in workouts/dashboard.ts and workouts/prs.ts).
  */
 
 import { workoutSessions, type BodyMetricEntryLike } from '@/lib/workouts/dashboard';

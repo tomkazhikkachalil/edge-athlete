@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
 import { isUuid } from '@/lib/uuid';
-import { readExerciseSessions } from '@/lib/workouts/bests-server';
+import { readBestsSources } from '@/lib/workouts/bests-server';
 import { bestsOf, foldBests, workoutUnit } from '@/lib/workouts/prs';
 
 /**
@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     // The narrow reader (Training redesign PR 5, Nov 11 2026): the exercise rows with five set
     // columns, never a clip — this route used to read every session with every set's media.
-    const read = await readExerciseSessions(admin, user.id, { visitor: false });
+    // PR 6: a tested max raises the bar a session must beat, exactly as an earlier session does.
+    const read = await readBestsSources(admin, user.id, { visitor: false });
     if (!read.ok) {
       reportRouteError('[workouts/prs] read failed:', new Error('exercise sessions read failed'));
       return NextResponse.json({ error: 'Could not read your records.' }, { status: 500, headers: NO_STORE });
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     // A session with no exercise rows is not in the read: its start is asked for directly.
     let before: number | null = null;
     if (exclude) {
-      const own = read.sessions.find(s => s.id === exclude);
+      const own = read.workouts.find(s => s.id === exclude);
       if (own) before = Date.parse(own.startedAt);
       else {
         const { data } = await admin.from('workout_sessions').select('started_at').eq('id', exclude).eq('profile_id', user.id).maybeSingle();
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     }
     const earlier = read.sessions.filter(s => s.id !== exclude && (before === null || Date.parse(s.startedAt) < before));
     return NextResponse.json(
-      { bests: Object.fromEntries(foldBests(earlier.map(s => bestsOf(s.exercises)))), unit: workoutUnit(earlier.flatMap(s => s.exercises)) },
+      { bests: Object.fromEntries(foldBests(earlier.map(s => bestsOf(s.exercises)))), unit: workoutUnit(earlier.filter(s => !s.tested).flatMap(s => s.exercises)) },
       { headers: NO_STORE }
     );
   } catch (error) {

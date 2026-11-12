@@ -29,9 +29,9 @@
 //     make (BEATS): 100 kg after 220 lbs is the same lift, not three records;
 //   • the list is RANKED (each exercise's strongest kind first) and the
 //     finish summary and the post show PR_SHOWN of them, then "+N";
-//   • a five-lift confirm (pr-detection.ts, until the systems merge) rides
-//     the post only when it beat an earlier value and the sets did not
-//     already say so — the same lift is never announced twice.
+//   • ONE system (PR 6): the five-lift confirm and its copy in athlete_vitals
+//     are gone; a best the athlete TYPES IN is a tested max (tested-max.ts),
+//     folded with the sets — the same lift is never announced twice.
 
 import { toLbs } from './summary';
 import { EXERCISE_MAP, exerciseRefOf } from '@/lib/workout-config';
@@ -189,27 +189,14 @@ export function capPRs<T>(list: readonly T[], shown: number = PR_SHOWN): { shown
   return { shown: list.slice(0, shown), more: Math.max(0, list.length - shown) };
 }
 
-/** A five-lift confirm (pr-detection.ts's candidate, by shape — this file does not import it). */
-export interface ConfirmedBest {
-  metricKey: string;
-  metricLabel: string;
-  valueDisplay: string;
-  /** null = the first entry ever for the metric: a baseline, saved but never announced. */
-  previousBest: number | null;
-}
-
 /**
  * The lines a post carries (stats_data.prs — label and text only, so they are
- * written already ranked). A confirmed five-lift best comes first, but only
- * when it beat an earlier value AND the sets hold no record for the same lift
- * (then the sets' line says it); the exercises' records follow, ranked.
+ * written already ranked): the exercises' records, each exercise's strongest
+ * kind first. ONE list since the systems merged (Training redesign PR 6, Nov
+ * 11 2026): the five-lift confirm and its second store are gone.
  */
-export function prLines(hits: readonly PrHit[], unit: 'lb' | 'kg', confirmed: readonly ConfirmedBest[] = []): Array<{ label: string; display: string }> {
-  const said = new Set(hits.map(h => EXERCISE_MAP[h.exerciseId]?.bodyMetricKey as string | undefined));
-  return [
-    ...confirmed.filter(c => c.previousBest !== null && !said.has(c.metricKey)).map(c => ({ label: c.metricLabel, display: c.valueDisplay })),
-    ...rankPRs(hits).map(h => ({ label: `${h.name} · ${PR_LABELS[h.kind]}`, display: formatPr(h.kind, h.value, unit) })),
-  ];
+export function prLines(hits: readonly PrHit[], unit: 'lb' | 'kg'): Array<{ label: string; display: string }> {
+  return rankPRs(hits).map(h => ({ label: `${h.name} · ${PR_LABELS[h.kind]}`, display: formatPr(h.kind, h.value, unit) }));
 }
 
 /** A hold's time: "2:10", "1:02:03" — the clock's spelling. */

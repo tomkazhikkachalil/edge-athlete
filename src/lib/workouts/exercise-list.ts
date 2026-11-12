@@ -17,6 +17,8 @@ export interface ExerciseSession {
   startedAt: string;
   title: string;
   exercises: EntryExercise[];
+  /** PR 6: a tested max (tested-max.ts) — a best the athlete typed in. It counts in the bests and raises the bar; it is not a workout and is never a record. */
+  tested?: boolean;
 }
 
 export interface ExerciseSummary {
@@ -56,7 +58,8 @@ export function summarizeExercises(sessions: readonly ExerciseSession[]): Exerci
     for (const [ref, b] of bests) {
       const prev = seen.get(ref);
       const later = !prev || Date.parse(s.startedAt) > Date.parse(prev.lastAt);
-      seen.set(ref, { lastAt: later ? s.startedAt : prev!.lastAt, sessions: (prev?.sessions ?? 0) + 1, name: later ? b.name : prev!.name });
+      // "N sessions" counts workouts; a tested max is a number typed in, not a session.
+      seen.set(ref, { lastAt: later ? s.startedAt : prev!.lastAt, sessions: (prev?.sessions ?? 0) + (s.tested ? 0 : 1), name: later ? b.name : prev!.name });
     }
   }
   const out: ExerciseSummary[] = [];
@@ -84,6 +87,8 @@ export interface ExerciseTimelinePoint {
   sets: string[];
   /** The kinds this session set a record in — against every EARLIER session; the first session is the baseline and has none. */
   records: PrKind[];
+  /** A tested max: no sets were logged, nothing opens, never a record. */
+  tested?: boolean;
 }
 
 /**
@@ -108,10 +113,10 @@ export function exerciseTimeline(sessions: readonly ExerciseSession[], ref: stri
       const v = bests[kind];
       if (v === null || v === undefined) continue;
       const p = running[kind];
-      if (!first && p !== null && beats(kind, v, p)) records.push(kind);
+      if (!first && !s.tested && p !== null && beats(kind, v, p)) records.push(kind);
       running[kind] = p === null ? v : Math.max(p, v);
     }
-    out.push({ sessionId: s.id, startedAt: s.startedAt, title: s.title, bests, sets: mine.flatMap(e => e.sets.map(formatSetLine)).filter(line => line.length > 0), records });
+    out.push({ sessionId: s.id, startedAt: s.startedAt, title: s.title, bests, sets: mine.flatMap(e => e.sets.map(formatSetLine)).filter(line => line.length > 0), records, ...(s.tested ? { tested: true } : {}) });
   }
   return out.reverse();
 }

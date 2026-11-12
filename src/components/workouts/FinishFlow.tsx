@@ -13,7 +13,6 @@ import {
   MAX_POST_MEDIA,
   type CollectedMedia,
   type WorkoutSummary, formatElapsed } from '@/lib/workouts/summary';
-import type { PRCandidate } from '@/lib/workouts/pr-detection';
 import { capPRs, formatPr, PR_LABELS, rankPRs, type PrHit } from '@/lib/workouts/prs';
 import EffortChips from '@/components/activities/EffortChips';
 import ExerciseName from './ExerciseName';
@@ -33,15 +32,12 @@ interface FinishSummaryProps {
   /** NULL for an untimed workout (260). */
   durationSeconds: number | null;
   summary: WorkoutSummary;
-  prCandidates: PRCandidate[];
   /** A10: this session's records for every exercise (workouts/prs.ts). */
   exercisePRs?: PrHit[];
   /** The unit the workout was logged in — records and volume read in it. */
   prUnit?: 'lb' | 'kg';
   effort?: number | null;
   onEffort?: (v: number | null) => void;
-  checkedPRs: Set<string>;
-  onTogglePR: (metricKey: string) => void;
   onContinue: () => void;
   /** Training fixes PR 4 (Oct 21 2026): back into the editor to change the sets — the workout is finished, its clock stands. */
   onEditWorkout?: () => void;
@@ -52,21 +48,17 @@ export function FinishSummary({
   title,
   durationSeconds,
   summary,
-  prCandidates,
   exercisePRs = [],
   prUnit = 'lb',
   effort = null,
   onEffort,
-  checkedPRs,
-  onTogglePR,
   onContinue,
   onEditWorkout,
   routineSave,
 }: FinishSummaryProps) {
-  // Training redesign PR 1 (Nov 11 2026): a first-ever entry for a mapped lift is a
-  // baseline to save, not a record to cheer; the records are ranked and three show.
-  const beaten = prCandidates.filter(pr => pr.previousBest !== null).length;
-  const anyPR = beaten > 0 || exercisePRs.length > 0;
+  // The records are ranked and three show (Training redesign PR 1); they are the ONE
+  // list since the systems merged (PR 6, Nov 11 2026) — nothing to confirm, nothing saved twice.
+  const anyPR = exercisePRs.length > 0;
   const rankedPRs = rankPRs(exercisePRs);
   const [allPRs, setAllPRs] = useState(false);
   const cappedPRs = capPRs(rankedPRs);
@@ -96,7 +88,7 @@ export function FinishSummary({
         <h1 className="text-2xl font-bold text-primary">{title || 'Workout Complete'}</h1>
         <p className="text-muted mt-1">
           {anyPR
-            ? `New personal ${beaten + exercisePRs.length === 1 ? 'record' : 'records'} — huge!`
+            ? `New personal ${exercisePRs.length === 1 ? 'record' : 'records'} — huge!`
             : 'Nice work. Here’s the damage:'}
         </p>
       </div>
@@ -208,40 +200,6 @@ export function FinishSummary({
       {onEffort && (
         <div className="tr-card p-4" data-workout-effort="">
           <EffortChips value={effort} onChange={onEffort} />
-        </div>
-      )}
-
-      {/* PR suggest + confirm */}
-      {prCandidates.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Award className="w-5 h-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-            <h2 className="text-base font-bold text-primary">
-              Save {prCandidates.length === 1 ? 'it' : 'them'} to your Personal Bests
-            </h2>
-          </div>
-          <div className="space-y-2">
-            {prCandidates.map(pr => (
-              <label
-                key={pr.metricKey}
-                className="flex items-center gap-3 bg-surface rounded-xl border border-amber-100 dark:border-amber-800 px-3 py-2.5 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={checkedPRs.has(pr.metricKey)}
-                  onChange={() => onTogglePR(pr.metricKey)}
-                  className="w-5 h-5 text-amber-600 rounded focus:ring-amber-500"
-                />
-                <span className="flex-1 text-sm font-semibold text-primary">{pr.metricLabel}</span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/60 px-2.5 py-0.5 text-sm font-bold text-amber-700 dark:text-amber-300">
-                  {pr.valueDisplay}
-                </span>
-                {pr.previousBest !== null && (
-                  <span className="text-xs text-faint">prev {pr.previousBest}</span>
-                )}
-              </label>
-            ))}
-          </div>
         </div>
       )}
 

@@ -50,7 +50,6 @@ import {
   writeDraft,
 } from '@/lib/workouts/draft';
 import { buildWorkoutStatsData, collectWorkoutMedia, computeSummary, formatElapsed, MAX_POST_MEDIA, type CollectedMedia } from '@/lib/workouts/summary';
-import { detectPRs, type PRCandidate } from '@/lib/workouts/pr-detection';
 import { bestsOf, newPRs, prLines, workoutUnit, type ExerciseBests, type PrHit } from '@/lib/workouts/prs';
 import { serverToEntries, type ServerWorkoutSession } from '@/lib/workouts/serialize';
 import { localDayKey } from '@/lib/calendar/grid';
@@ -145,11 +144,10 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
   // The screen stays on while the workout runs (paused included, as the
   // recorder does); Finish, discard or leaving the screen lets it sleep again.
   useWakeLock(effectiveMode === 'live' && phase === 'editing');
-  // What only this screen knew — the step, the caption, the confirmed PRs, the
+  // What only this screen knew — the step, the caption, the
   // clips' order — is kept on the device until Post, Done or Delete, so a tab
   // switch, a reload or a closed app returns to the step as it was.
   const [finishDraft] = useState(() => (isServerSession && session?.status === 'completed' ? readFinishDraft(session.id) : null));
-  const draftCheckedRef = useRef<string[] | null>(finishDraft?.checkedPRs ?? null);
   // NULL = an untimed workout (260): the summary says "Not timed", the post carries no duration.
   const [finishedDuration, setFinishedDuration] = useState<number | null>(session ? (session.timed === false ? null : session.duration_seconds ?? 0) : 0);
   // ── The clock's facts (260) — SERVER facts seeded from the session, applied from every PATCH ──
@@ -198,11 +196,9 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
     };
   }, [liveSessionId]);
   const [clockBusy, setClockBusy] = useState(false);
-  const [prCandidates, setPrCandidates] = useState<PRCandidate[]>([]);
   // A10 (Oct 16 2026): this session's records for EVERY exercise, against all earlier sessions.
   const [exercisePRs, setExercisePRs] = useState<PrHit[]>([]);
   const [effort, setEffort] = useState<number | null>(session?.effort ?? null);
-  const [checkedPRs, setCheckedPRs] = useState<Set<string>>(() => new Set(finishDraft?.checkedPRs ?? []));
   const [caption, setCaption] = useState(() => finishDraft?.caption ?? '');
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState('');
@@ -494,33 +490,15 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
       .catch(() => showError('Effort not saved', 'Check your connection and tap it again.'));
   };
 
-  const loadPRs = async (finalExercises: EntryExercise[]) => {
-    try {
-      const response = await fetch(`/api/vitals?profileId=${currentUserId}`, { credentials: 'include' });
-      const data = response.ok ? await response.json() : { vitals: [] };
-      const candidates = detectPRs(finalExercises, data.vitals || []);
-      setPrCandidates(candidates);
-      const kept = draftCheckedRef.current;
-      draftCheckedRef.current = null;
-      setCheckedPRs(new Set(kept ? candidates.filter(c => kept.includes(c.metricKey)).map(c => c.metricKey) : candidates.map(c => c.metricKey)));
-    } catch {
-      setPrCandidates([]);
-    }
-  };
-
-  // B1 recovery (Sep 2026): PRs are recorded only by Share / Keep private,
-  // so re-entering a finished-but-unshared session (review mode) must
-  // recompute the candidates — without this the share step records
-  // nothing. Training are unchanged until a PR is recorded, so the recompute
-  // matches the one at finish time; once recorded, detectPRs finds no
-  // improvement and the list is empty (self-limiting, no double-record).
+  // Re-entering a finished session (review mode) recomputes its records, so a
+  // later Post carries them (Training fixes PR 4). ONE list since the systems
+  // merged (Training redesign PR 6, Nov 11 2026): the exercises' records,
+  // derived from the sets — nothing is written to a second store.
   useEffect(() => {
     if (!session || session.status !== 'completed') return;
     // setTimeout(0) recipe — the recompute sets state, which the lint
-    // forbids synchronously inside an effect. Both lists (Training fixes
-    // PR 4): a later Post used to leave the exercise records off the post.
+    // forbids synchronously inside an effect.
     const timer = setTimeout(() => {
-      void loadPRs(initial.exercises);
       void loadExercisePRs(initial.exercises, session.id);
     }, 0);
     return () => clearTimeout(timer);
@@ -549,8 +527,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
   // The device draft follows every change of what only this screen knows.
   useEffect(() => {
     if (!isServerSession || !finishedSessionId) return;
-    writeFinishDraft(finishedSessionId, { step: phase, caption, checkedPRs: [...checkedPRs], shareOrder });
-  }, [isServerSession, finishedSessionId, phase, caption, checkedPRs, shareOrder]);
+    writeFinishDraft(finishedSessionId, { step: phase, caption, checkedPRs: [], shareOrder });
+  }, [isServerSession, finishedSessionId, phase, caption, shareOrder]);
 
   const finishLive = async () => {
     if (!session || finishing) return;
@@ -579,7 +557,7 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
       void refreshDrafts();
       setFinishedSessionId(session.id);
       setFinishedDuration(data.session?.duration_seconds ?? (timed ? elapsedNow() : null));
-      await Promise.all([loadPRs(exercises), loadExercisePRs(exercises, session.id)]);
+      await loadExercisePRs(exercises, session.id);
       router.push(`/app/workout/${session.id}?step=summary`);
     } catch (err) {
       showError('Error', err instanceof Error ? err.message : 'Failed to finish workout');
@@ -657,35 +635,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
       showError('Error', err instanceof Error ? err.message : 'Failed to save workout');
     } finally {
       setFinishing(false);
-    }
-  };
-
-  const recordPRs = async (postId: string | null) => {
-    const recordedAt =
-      mode === 'manual' ? manualDate : (session?.started_at ?? new Date().toISOString()).slice(0, 10);
-    for (const pr of prCandidates) {
-      if (!checkedPRs.has(pr.metricKey)) continue;
-      try {
-        await fetch('/api/vitals', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            metric_key: pr.metricKey,
-            metric_category: 'strength',
-            metric_label: pr.metricLabel,
-            value: pr.value,
-            value_display: pr.valueDisplay,
-            unit: pr.unit,
-            recorded_at: recordedAt,
-            source: 'edge_vitals',
-            linked_post_id: postId,
-            notes: title ? `Set during "${title}"` : 'Set during a workout',
-          }),
-        });
-      } catch (err) {
-        console.error('Failed to record PR:', err);
-      }
     }
   };
 
@@ -819,9 +768,8 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
             title,
             durationSeconds: finishedDuration,
             summary,
-            // Only CONFIRMED five-lift bests ride the post (the same gate as recordPRs), and
-            // every exercise's new records (A10) — ranked, a lift said once (prs.ts prLines).
-            prs: prLines(exercisePRs, workoutUnit(exercises), prCandidates.filter(pr => checkedPRs.has(pr.metricKey))),
+            // Every exercise's new records (A10) ride the post — ranked (prs.ts prLines).
+            prs: prLines(exercisePRs, workoutUnit(exercises)),
           }),
         }),
       });
@@ -837,7 +785,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
         credentials: 'include',
         body: JSON.stringify({ postId }),
       });
-      await recordPRs(postId);
       clearFinishDraft(finishedSessionId);
       void refreshDrafts();
       router.replace('/athlete');
@@ -862,7 +809,6 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
         body: JSON.stringify({ decided: true }),
       });
       if (!res.ok) throw new Error('Could not save that — check your connection and try again.');
-      await recordPRs(null);
       clearFinishDraft(finishedSessionId);
       void refreshDrafts();
       router.replace('/athlete?tab=training');
@@ -910,12 +856,12 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
             title,
             durationSeconds: finishedDuration,
             summary,
-            prs: prLines(exercisePRs, workoutUnit(exercises), prCandidates.filter(pr => checkedPRs.has(pr.metricKey))),
+            prs: prLines(exercisePRs, workoutUnit(exercises)),
           })
         : null,
     };
     return base as unknown as PostCardPost;
-  }, [finishedSessionId, caption, currentUserId, ownProfile, shareClips.selected, title, finishedDuration, summary, prCandidates, checkedPRs, exercisePRs, exercises]);
+  }, [finishedSessionId, caption, currentUserId, ownProfile, shareClips.selected, title, finishedDuration, summary, exercisePRs, exercises]);
 
   // 269: the owner's later Hide — a visitor's Training no longer lists it; Show brings it back.
   const [profileHidden, setProfileHidden] = useState<boolean>(!!session?.profile_hidden_at);
@@ -981,20 +927,10 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, step
         title={title}
         durationSeconds={finishedDuration}
         summary={summary}
-        prCandidates={prCandidates}
         exercisePRs={exercisePRs}
         prUnit={workoutUnit(exercises)}
         effort={effort}
         onEffort={saveEffort}
-        checkedPRs={checkedPRs}
-        onTogglePR={key =>
-          setCheckedPRs(prev => {
-            const next = new Set(prev);
-            if (next.has(key)) next.delete(key);
-            else next.add(key);
-            return next;
-          })
-        }
         onContinue={() => goStep('preview')}
         onEditWorkout={() => goStep('editing')}
         routineSave={

@@ -5,6 +5,7 @@ import { filterTrainingRows, aspectHidden } from '@/lib/training-privacy';
 import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
+import { TESTED_MAX_SOURCE, TESTED_MAX_SOURCES } from '@/lib/workouts/tested-max';
 
 /**
  * GET /api/vitals?profileId=xxx
@@ -254,6 +255,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'value must be a valid number' }, { status: 400 });
     }
 
+    // A TESTED MAX (Training redesign PR 6, Nov 11 2026 — tested-max.ts): a best the athlete
+    // types in on an exercise's page. It is folded with the logged sets, so its shape is held
+    // here: a strength row keyed by the exercise's identity, a positive weight or rep count.
+    const isTestedMax = body.source === TESTED_MAX_SOURCE;
+    if (isTestedMax) {
+      const okKey = typeof metric_key === 'string' && /^[\p{L}\p{N}_]{1,80}$/u.test(metric_key);
+      const okUnit = unit === 'lbs' || unit === 'kg' || unit === 'reps';
+      const okDate = recorded_at === undefined || recorded_at === null || (typeof recorded_at === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(recorded_at) && recorded_at <= new Date(Date.now() + 86_400_000).toISOString().slice(0, 10));
+      if (metric_category !== 'strength' || !okKey || !okUnit || !okDate || typeof metric_label !== 'string' || metric_label.trim().length === 0 || metric_label.length > 80 || !(numericValue > 0) || numericValue > 5000) {
+        return NextResponse.json({ error: 'A tested max needs an exercise, a weight or rep count above zero, and a date that is not in the future.' }, { status: 400 });
+      }
+    }
+
     const { data, error } = await supabase
       .from('athlete_vitals')
       .insert({
@@ -266,9 +280,10 @@ export async function POST(request: NextRequest) {
         unit,
         notes: notes || null,
         recorded_at: recorded_at || new Date().toISOString().split('T')[0],
-        // 'edge_vitals' = PRs recorded from a workout session (TrainingTab
-        // renders non-manual sources as a provenance label)
-        source: ['manual', 'edge_vitals'].includes(body.source) ? body.source : 'manual',
+        // 'tested_max' = a best typed in on an exercise's page (PR 6). 'edge_vitals' = the copy the
+        // old finish-step confirm wrote; still accepted from a tab opened before the deploy, and
+        // never read as a best (tested-max.ts).
+        source: ['manual', 'edge_vitals', TESTED_MAX_SOURCE].includes(body.source) ? body.source : 'manual',
         linked_post_id: linked_post_id || null,
       })
       .select()
@@ -286,3 +301,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/vitals?id=<uuid> — remove ONE tested max (Training redesign PR 6).
+ * athlete_vitals is append-only for the Data API (010: no UPDATE or DELETE
+ * policy), and a mistyped tested max would otherwise be the athlete's best
+ * for ever. This is the one door: the signed-in athlete's OWN strength row
+ * that THEY entered (`manual` / `tested_max`) — never a body measurement, a
+ * test result or another athlete's row. The screen names what is lost before
+ * it calls this. 404 for anything else, indistinguishable from not-found.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await requireAuth(request);
+    const id = new URL(request.url).searchParams.get('id');
+    if (!id || !isUuid(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('athlete_vitals')
+      .delete()
+      .eq('id', id)
+      .eq('profile_id', user.id)
+      .eq('metric_category', 'strength')
+      .in('source', [...TESTED_MAX_SOURCES])
+      .select('id');
+    if (error) {
+      reportRouteError('Error deleting tested max:', error);
+      return NextResponse.json({ error: 'Could not remove it' }, { status: 500 });
+    }
+    if (!data || data.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError('DELETE /api/vitals error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
