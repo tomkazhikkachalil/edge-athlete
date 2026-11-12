@@ -132,7 +132,8 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
   await expect(exercisePage.locator('[data-exercise-best="heaviest"]')).toContainText('250 lbs', { timeout: 15_000 });
   await expect(exercisePage.locator('[data-exercise-tested]')).toHaveCount(3);
   await exercisePage.locator('[data-exercise-tested]').first().locator('[data-tested-max-remove]').click();
-  const confirmRemove = page.getByRole('dialog').filter({ hasText: 'Remove this tested max?' });
+  // The confirm opens inside the exercise's window: the innermost dialog is the one that asks.
+  const confirmRemove = page.getByRole('dialog').filter({ hasText: 'Remove this tested max?' }).last();
   await expect(confirmRemove).toContainText('250 lbs');
   await expect(confirmRemove).toContainText('will no longer count toward your Bench Press bests');
   await confirmRemove.getByRole('button', { name: 'Remove' }).click();

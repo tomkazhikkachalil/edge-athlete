@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { isTestedMaxRow, testedMaxRef, testedMaxSession, testedMaxSessions, type TestedMaxRow } from '../workouts/tested-max';
-import { exerciseTimeline, summarizeExercises, type ExerciseSession } from '../workouts/exercise-list';
+import { exerciseTimeline, sessionBests, summarizeExercises, type ExerciseSession } from '../workouts/exercise-list';
 import { bestsOf, foldBests, newPRs } from '../workouts/prs';
 import type { EntryExercise, EntrySet } from '../workouts/entries';
 
@@ -68,8 +68,16 @@ describe('one fold: the logged sets and the tested maxes', () => {
     expect(t.w1.tested).toBeUndefined();
   });
 
+  it('a tested max has NO volume: one typed rep is not a session, and the first workout after it is not a "volume record"', () => {
+    expect(sessionBests(sessions[1]).get('bench_press')).toMatchObject({ heaviest: 225, e1rm: 225, volume: null });
+    expect(sessionBests(sessions[0]).get('bench_press')!.volume).toBe(925);
+    const firstWorkoutAfter = [testedMaxSession(row())!, workout('w9', '2026-08-10', [ex('Bench Press', 'bench_press', [set(5, 185), set(3, 205)])])];
+    expect(exerciseTimeline(firstWorkoutAfter, 'bench_press').find(p => p.sessionId === 'w9')!.records).toEqual([]);
+    expect(newPRs(bestsOf(firstWorkoutAfter[1].exercises), foldBests([sessionBests(firstWorkoutAfter[0])]))).toEqual([]);
+  });
+
   it('the finish summary agrees: against a history that holds the tested max, 205 is no record', () => {
-    const history = foldBests(sessions.slice(0, 2).map(s => bestsOf(s.exercises)));
+    const history = foldBests(sessions.slice(0, 2).map(sessionBests));
     expect(newPRs(bestsOf(sessions[2].exercises), history).map(h => h.kind)).toEqual([]);
     expect(newPRs(bestsOf(sessions[3].exercises), history).map(h => h.kind)).toEqual(['heaviest', 'e1rm']);
   });

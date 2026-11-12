@@ -33,6 +33,18 @@ export interface ExerciseSummary {
   sessions: number;
 }
 
+/**
+ * ONE session's bests, as every fold takes them. A tested max (PR 6) is a
+ * number typed in, not work done: it sets the weight, the estimate and the
+ * reps to beat, and has NO volume — otherwise its single rep would be a
+ * "session volume" of 225 lbs and the first real workout after it a record.
+ */
+export function sessionBests(s: Pick<ExerciseSession, 'exercises' | 'tested'>): Map<string, ExerciseBests> {
+  const bests = bestsOf(s.exercises);
+  if (s.tested) for (const [ref, b] of bests) bests.set(ref, { ...b, volume: null });
+  return bests;
+}
+
 /** The catalog's label and area for an identity; a name the catalog does not know keeps its own and is "Other". */
 export function describeExercise(ref: string, fallbackName: string): { name: string; area: BodyArea } {
   const def = EXERCISE_MAP[ref];
@@ -51,7 +63,7 @@ export function headlineOf(b: ExerciseBests): { kind: PrKind; value: number } | 
 
 /** Every exercise the sessions hold, with its all-time bests — most recently trained first. An exercise with no number at all (an empty card) is not listed. */
 export function summarizeExercises(sessions: readonly ExerciseSession[]): ExerciseSummary[] {
-  const perSession = sessions.map(s => ({ s, bests: bestsOf(s.exercises) }));
+  const perSession = sessions.map(s => ({ s, bests: sessionBests(s) }));
   const all = foldBests(perSession.map(p => p.bests));
   const seen = new Map<string, { lastAt: string; sessions: number; name: string }>();
   for (const { s, bests } of perSession) {
@@ -105,7 +117,7 @@ export function exerciseTimeline(sessions: readonly ExerciseSession[], ref: stri
   for (const s of ordered) {
     const mine = s.exercises.filter(e => exerciseIdOf(e) === ref);
     if (mine.length === 0) continue;
-    const bests = bestsOf(mine).get(ref);
+    const bests = sessionBests({ exercises: mine, tested: s.tested }).get(ref);
     if (!bests || headlineOf(bests) === null) continue;
     const first = out.length === 0;
     const records: PrKind[] = [];

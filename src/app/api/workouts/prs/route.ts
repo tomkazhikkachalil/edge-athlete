@@ -3,7 +3,8 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { reportRouteError } from '@/lib/observability/report';
 import { isUuid } from '@/lib/uuid';
 import { readBestsSources } from '@/lib/workouts/bests-server';
-import { bestsOf, foldBests, workoutUnit } from '@/lib/workouts/prs';
+import { sessionBests } from '@/lib/workouts/exercise-list';
+import { foldBests, workoutUnit } from '@/lib/workouts/prs';
 
 /**
  * GET /api/workouts/prs[?exclude=<sessionId>] — the signed-in athlete's
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
     const earlier = read.sessions.filter(s => s.id !== exclude && (before === null || Date.parse(s.startedAt) < before));
     return NextResponse.json(
-      { bests: Object.fromEntries(foldBests(earlier.map(s => bestsOf(s.exercises)))), unit: workoutUnit(earlier.filter(s => !s.tested).flatMap(s => s.exercises)) },
+      { bests: Object.fromEntries(foldBests(earlier.map(sessionBests))), unit: workoutUnit(earlier.filter(s => !s.tested).flatMap(s => s.exercises)) },
       { headers: NO_STORE }
     );
   } catch (error) {
