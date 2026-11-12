@@ -49,7 +49,7 @@ describe('history: one page out of two sources', () => {
     let cursor: { startedAt: string; id: string } | null = null;
     let pages = 0;
     for (;;) {
-      const { items, more } = mergeHistoryPage([read(workouts, cursor), read(activities, cursor)]);
+      const { items, more }: { items: Array<{ startedAt: string; id: string }>; more: boolean } = mergeHistoryPage([read(workouts, cursor), read(activities, cursor)]);
       seen.push(...items.map(i => i.id));
       pages += 1;
       if (!more) break;
