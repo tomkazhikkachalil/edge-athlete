@@ -1,21 +1,31 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// sharp, put back into the few functions that use it (the function diet
+// below excludes it everywhere). An include is a FILE GLOB: it brings the
+// package's own files, never the packages it depends on — so sharp's hard
+// dependencies are named here too. Without `detect-libc` (imported at load)
+// every one of these functions died at import on Vercel from Nov 7 to Nov 12
+// 2026 while the build stayed green; `scripts/check-traced-deps.mjs` (in
+// `npm run check:weight`) now fails the build if a dependency is missing.
+// (`semver` rides inside sharp's own node_modules, and `@img/colour` under @img — both already matched.)
+const SHARP_FILES = ['./node_modules/sharp/**', './node_modules/@img/**', './node_modules/detect-libc/**'];
+
 const nextConfig: NextConfig = {
   // The media worker (video posters PR 7, Oct 13 2026): ffmpeg-static is a
   // platform BINARY — kept out of the bundler and traced into the two routes
   // that run it (and nowhere else: the function that carries it is ~80 MB).
   serverExternalPackages: ['ffmpeg-static'],
   outputFileTracingIncludes: {
-    '/api/cron/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg', './node_modules/sharp/**', './node_modules/@img/**'],
-    '/api/admin/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg', './node_modules/sharp/**', './node_modules/@img/**'],
+    '/api/cron/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg', ...SHARP_FILES],
+    '/api/admin/media-jobs': ['./node_modules/ffmpeg-static/ffmpeg', ...SHARP_FILES],
     // The org card renderers crop the hero with sharp (the vanity twin
     // re-exports the org route's GET) — the ONLY other users of the library.
     // The keys are picomatch globs against the normalized app path, so the
     // dynamic segment's brackets are escaped (a bare `[slug]` is a character
     // class and matches nothing here).
-    '/org/\\[slug\\]/card.png': ['./node_modules/sharp/**', './node_modules/@img/**'],
-    '/\\[slug\\]/card.png': ['./node_modules/sharp/**', './node_modules/@img/**'],
+    '/org/\\[slug\\]/card.png': [...SHARP_FILES],
+    '/\\[slug\\]/card.png': [...SHARP_FILES],
   },
   // The function diet (performance program, Nov 7 2026). The tracer followed
   // a dynamic `./ffmpeg-bin` import and a `readFile(join(dir, `${id}.png`))`

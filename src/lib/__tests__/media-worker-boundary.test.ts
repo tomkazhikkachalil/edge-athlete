@@ -64,7 +64,9 @@ describe('media worker boundary', () => {
     // The two worker routes still get the binary by name.
     expect(cfg).toMatch(/'\/api\/cron\/media-jobs': \['\.\/node_modules\/ffmpeg-static\/ffmpeg'/);
     // …and the org card renderers get sharp by name, nothing else does.
-    expect(cfg).toMatch(/'\/org\/\\\\\[slug\\\\\]\/card\.png': \['\.\/node_modules\/sharp\/\*\*'/);
+    //   (Nov 12 2026: through SHARP_FILES — sharp's files AND the dependency it imports at load; see traced-deps.test.ts.)
+    expect(cfg).toContain("'/org/\\\\[slug\\\\]/card.png': [...SHARP_FILES],");
+    expect(cfg).toContain("'./node_modules/detect-libc/**'");
   });
 
   it('the snapshots are not tracked and Vercel never uploads them', () => {
