@@ -102,9 +102,13 @@ A video becomes a **game** when it has a `video_games` row: `sport_key` (the she
 
 **Pinned by** `tagged-profile.test.ts`, `e2e/video-tagged-profile.spec.ts` (375 px).
 
+### On the Stats tab (Nov 12 2026, after the sprint; zero DDL — Tom's two decisions)
+
+**"From game film" is a third list on the profile's Stats tab** (`GameFilmLines`, in `StatsHub`: the sport the hub is on, or every sport on All) — the athlete's line in each game someone tagged them in, with the link to the video and who posted it. Tom chose: **a third list, not in the totals** — it sits beside the athlete's own posted games and the Official lines, says so in words, and feeds no total, tile or rollup (it reads `GET /api/videos/tagged` and nothing else; nothing is stored). **When the same game also has an official line, both show, each under its own label** — the official line is the record, the film line is what the tags add up to; a difference between them is visible rather than hidden. The spoiler-free rule holds here too: a stranger sees "the stats show as you watch" instead of the line.
+
 ### Open after the sprint (decisions and work that were named, not built)
 
-- **Video-derived stats and the official record.** A tagged game's numbers show on the game, the recap and the athlete's Tagged-in card; they are NOT written to `contest_stat_lines` / `athlete_performances`, so they are not under the profile's Stats tab. Merging them needs a rule for when a video's tags and a league's official line disagree — Tom's decision.
+- **Game-film stats in the season totals.** They are listed on the Stats tab (below) but not counted: counting them needs a way to tell that a posted game, an official line and a tagged video are the SAME game — the app has none today (self-posted and official lines are not matched either).
 - **Hidden is not withheld.** The spoiler-free view does not DRAW unrevealed tags; the page's one read still carries them. Holding them on the server costs a request per reveal.
 - **A typed name stays a name:** no step links it to a profile once that person joins. **A removal has no undo.**
 - **The game fields inside the Full game flow** (they are on the video page), **a real team for a side** with its roster first in the people picker, **football and tennis** (their sheets exist; the sports are off).

@@ -1,5 +1,17 @@
 # Development Log
 
+## November 12, 2026 — Game film on the Stats tab: a third list, labelled apart, not in the totals (zero DDL)
+
+**Before it:** the sprint's closing docs (#1485) merged as `3874dabb` — a docs-only merge, production stayed on `7a25fb37`.
+
+**Tom:** "go ahead with the Stats tab merge." Two decisions asked and answered: (1) **a third list, not in the totals**; (2) when a tagged video and an official line cover the same game and differ, **both, labelled**.
+
+**What the survey found first** (why it is a list and not a sum): the Stats tab already shows the athlete's own posted games and the Official lines as two lists that are never matched to each other; season tiles come from posted lines, with official tiles replacing same-label ones; the career rollups read `athlete_performances`, which has no video source. Nothing in the app can tell that three entries are one game — so adding a fourth source to the totals would double count.
+
+**What shipped.** `GameFilmLines` in `StatsHub`: each tagged game with the athlete's line in the sport's box-score columns, the day, who posted it and the link to the video; it follows the sport the hub is on, or lists every sport on All; a spoiler-free game says so instead of the line to a stranger. It reads the derived lines from `GET /api/videos/tagged` — no new route, nothing stored, and no path into a total (pinned in `tagged-profile.test.ts`).
+
+**Tests.** The new pin; `e2e/video-tagged-profile.spec.ts` gained the Stats-tab step (375 px) — the row, the link back, the line, the sentence that it is not counted.
+
 ## November 12, 2026 — Sprint 3 (YouTube game film): the close — eight PRs, what shipped, what was left out on purpose (docs only)
 
 **Tom's brief** (Nov 12): clubs, leagues and sports creators post full games on YouTube, and this is the tool they tag them with. **His decisions:** every sport (baselines like the broadcasters' box scores); tag anyone the tagger may view, or by a typed name; no approval — shown at once, the athlete or a guardian is told and can remove.
