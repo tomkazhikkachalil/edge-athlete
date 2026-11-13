@@ -1,5 +1,36 @@
 # Development Log
 
+## November 12, 2026 — Maintenance after Sprint 3: every gate green; the production probe found the org share cards and the media worker dead since the function diet — fixed, with a build gate
+
+Tom: "Without breaking anything, run the full project maintenance checklist… make sure it gets to production to all customer-facing applications — web, large screen, mobile and the downloaded app — without issues."
+
+**Where it started.** `main` and production were already the same commit (`144a946e`): everything built this session was merged and deployed, no open PRs. So the pass was a verification — and it found one real fault.
+
+**The gates on main.** `npm run verify` 0 (671 files, 6,259 tests; the build; the browser floor), `npm audit --omit=dev` 0, guardrails ✓, blocklists ✓, `check:weight` ✓, `check:schema` and `check:schema:prod` ✓ (146 tables, ledger 307 on both).
+
+**Staging, by area, one project at a time.** Large screen: the fourteen video specs, 18 tests — 17 green in their chunks, `videos-places` failed once in a chunk and passed alone (a flake: an attribute read on the round's place link; not chased). Phones — `mobile`, `webkit-mobile`, `android`: videos-mobile, video-game, tab-bar, get-started-mobile, **install-app, sw-static-cache** — 29 passed, 4 skipped by design.
+
+**Production, one probe at a time, health watched between chunks (0.2–0.35 s).** `/api/health`, `/manifest.webmanifest`, `/sw.js` 200.
+
+| Wave | Result |
+| --- | --- |
+| desktop — the seven video probes | 7 / 7 |
+| desktop — the core signed-in set (login, feed post, create, DM, follow request, training, round lifecycle, golf quick entry, capture, upload check, media proxy, health, org site, landing) | 26 passed, 4 failed |
+| mobile — videos-mobile, video-game, tab-bar, get-started, **perf-feed** | 6 passed, 1 failed |
+| webkit-mobile — install-app, sw-static-cache, videos-mobile | 5 passed, 1 skipped |
+| android — the same | 5 passed, 1 skipped |
+| `npm run launch:probe` | every readable row green (19 ✓, sign-ups open by decision, the Resend row unread) |
+
+**The five failures, classified.** Four are the launch gate, by design: `landing` (the coming-soon page), two `org-site` tests waiting on a sitemap the gate 404s, and `tab-bar`'s signed-out step (no "Log in" link behind the gate). **One was real.**
+
+**The fault: `/org/<site>/card.png` → 500 on production.** Tailing the runtime log while the probe re-ran gave the cause in one line: *"Cannot find package 'detect-libc' imported from /var/task/node_modules/sharp/dist/utility.mjs"*. The function diet (Nov 7) excludes `sharp` from every function and puts it back into four routes with `outputFileTracingIncludes` globs — and a glob brings a package's FILES, never its dependencies. sharp imports `detect-libc` at load; nothing else traced it. So both org share-card routes and **both media-worker routes** (`/api/cron/media-jobs`, `/api/admin/media-jobs` — video posters) died at import on Vercel, while the build, 6,259 unit tests, staging and every local run were green, because off Vercel `node_modules` is whole. Since the diet shipped, by the code's history (the start is not confirmed from logs); production is gated, so no member met it.
+
+**The fix (#1487 → `2790a922`).** One list, `SHARP_FILES`, used by all four includes, with `./node_modules/detect-libc/**` in it (`semver` already rides inside sharp's own `node_modules`, `@img/colour` under `@img`). **And so it cannot come back:** `scripts/check-traced-deps.mjs`, in `npm run check:weight` (so in `verify`) — a function whose trace carries a force-included package must carry every dependency that package declares. It fails on the pre-fix build naming all four functions, and passes after; pinned by `traced-deps.test.ts`. Proof on production: the same probe now gets `200 image/png` from the card and runs on to the next assertion (the gated robots.txt).
+
+**Not proven:** the media worker itself was not exercised on production (it needs the cron secret); it has the identical include list, and the gate checks all four. Any video posted between Nov 7 and Nov 12 may have no poster — the worker's own retry is the place to look.
+
+**The rule kept from this:** a gate that only ever runs where `node_modules` is whole cannot see what a function is missing; the trace is the thing to check. **Tom's:** a real install on his own iPhone and Android (the emulated engines stand in here); the posters backlog, if any.
+
 ## November 12, 2026 — Game film on the Stats tab: a third list, labelled apart, not in the totals (zero DDL)
 
 **Before it:** the sprint's closing docs (#1485) merged as `3874dabb` — a docs-only merge, production stayed on `7a25fb37`.
