@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { UNCONFIRMED_LABEL, UNCONFIRMED_TITLE } from '@/lib/sports/provenance-copy';
 import { useEffect, useRef, useState } from 'react';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
+import { onStatGamesChanged, saveDistinctGames } from '@/lib/performance/game-distinct-client';
 import SeasonRollups from './SeasonRollups';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import FaIcon from '@/components/FaIcon';
@@ -30,9 +31,14 @@ interface StatLinesResponse {
     keyStat: string | null;
     /** Nov 14 2026: false when this is the same game as an official line or a club's / league's verified film — that one is in the totals. */
     counted?: boolean;
-    sameAs?: { source: 'official' | 'film'; href: string | null } | null;
+    sameAs?: { source: 'official' | 'film'; href: string | null; key?: string; canSplit?: boolean } | null;
+    /** The game's name in the rule, and — when the athlete said it is a different game from another — that other one's. */
+    key?: string;
+    splitFrom?: string | null;
   }>;
   years: number[];
+  /** The athlete or their guardian: may say two same-date games are different games (309). */
+  canEdit?: boolean;
   /** Phase 4: org-entered lines from public competitions — labeled apart
    *  from the self-posted log. One game is counted once (same-game.ts): the
    *  totals hold every counted game, official or self-posted. */
@@ -80,6 +86,15 @@ export default function StatLineBreakdown({
   const [loading, setLoading] = useState(true);
   const requestSeqRef = useRef(0);
   const schema = getStatSchema(sportKey);
+  // Bumped when a "different games" pair changes — here, or in the game-film list.
+  const [tick, setTick] = useState(0);
+  const [splitError, setSplitError] = useState<string | null>(null);
+  useEffect(() => onStatGamesChanged(() => setTick(t => t + 1)), []);
+  const split = async (a: string, b: string, distinct: boolean) => {
+    setSplitError(null);
+    const saved = await saveDistinctGames(profileId, sportKey, a, b, distinct);
+    if (!saved.ok) setSplitError(saved.error);
+  };
 
   useEffect(() => {
     const run = async () => {
@@ -99,7 +114,7 @@ export default function StatLineBreakdown({
       }
     };
     run();
-  }, [profileId, sportKey, year]);
+  }, [profileId, sportKey, year, tick]);
 
   if (!schema) return null;
   if (loading) {
@@ -228,6 +243,7 @@ export default function StatLineBreakdown({
         </div>
       )}
 
+      {splitError && <p className="mb-2 text-sm text-red-600" role="alert">{splitError}</p>}
       {/* Game / race log. */}
       {data.recentActivity.length > 0 && (
         <div className="overflow-x-auto">
@@ -249,6 +265,17 @@ export default function StatLineBreakdown({
                       <span className="block whitespace-normal text-[11px] text-muted" data-stat-not-counted="">
                         Not counted — the same game as{' '}
                         {row.sameAs?.href ? <a href={row.sameAs.href} className="underline">{SAME_AS_WORD[row.sameAs.source]}</a> : SAME_AS_WORD[row.sameAs?.source ?? 'official']}
+                        {data.canEdit && row.key && row.sameAs?.canSplit && row.sameAs.key && (
+                          <button type="button" onClick={() => split(row.key!, row.sameAs!.key!, true)} className="mt-1 block min-h-[32px] font-semibold underline text-secondary" data-stat-split="">
+                            These are two different games
+                          </button>
+                        )}
+                      </span>
+                    )}
+                    {row.counted !== false && data.canEdit && row.key && row.splitFrom && (
+                      <span className="block whitespace-normal text-[11px] text-muted" data-stat-split-done="">
+                        Counted as its own game.{' '}
+                        <button type="button" onClick={() => split(row.key!, row.splitFrom!, false)} className="min-h-[32px] font-semibold underline text-secondary" data-stat-split-undo="">Undo</button>
                       </span>
                     )}
                   </td>

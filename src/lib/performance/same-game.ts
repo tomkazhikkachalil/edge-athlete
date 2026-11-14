@@ -88,3 +88,23 @@ export function countGames(games: readonly CountableGame[], opts: { matchByDate:
   }
   return out;
 }
+
+/** A game as the rule names it: `official:<contest>`, `film:<video>`, `post:<post>`. */
+export const GAME_KEY_RE = /^(official|film|post):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export const gameKey = { official: (contestId: string) => `official:${contestId}`, film: (videoId: string) => `film:${videoId}`, post: (postId: string) => `post:${postId}` } as const;
+
+export type ParsedDistinct = { ok: true; value: { sport: string; a: string; b: string; distinct: boolean } } | { ok: false; error: string };
+
+/** POST …/stat-lines/distinct {sport, a, b, distinct}: two different games, named as the rule names them, stored in one order. */
+export function parseDistinctBody(body: unknown): ParsedDistinct {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const sport = typeof b.sport === 'string' ? b.sport.trim() : '';
+  if (!sport || sport.length > 40) return { ok: false, error: 'Choose the sport' };
+  const x = typeof b.a === 'string' ? b.a : '';
+  const y = typeof b.b === 'string' ? b.b : '';
+  if (!GAME_KEY_RE.test(x) || !GAME_KEY_RE.test(y)) return { ok: false, error: 'Those are not two games' };
+  if (x === y) return { ok: false, error: 'Those are the same game' };
+  if (typeof b.distinct !== 'boolean') return { ok: false, error: 'Say whether they are different games' };
+  return { ok: true, value: { sport, a: x < y ? x : y, b: x < y ? y : x, distinct: b.distinct } };
+}
+

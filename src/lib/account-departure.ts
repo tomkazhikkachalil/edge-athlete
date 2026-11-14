@@ -259,6 +259,8 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'season_highlights.profile_id': 'goes',
   'sport_settings.profile_id': 'goes',
   'sports.profile_id': 'goes',
+  // Stats (309): what the athlete said about their own games ("these are two different games") leaves with them.
+  'stat_game_distinct.profile_id': 'goes',
   'user_blocks.blocked_id': 'goes',
   'user_blocks.blocker_id': 'goes',
   'user_media_presets.profile_id': 'goes',

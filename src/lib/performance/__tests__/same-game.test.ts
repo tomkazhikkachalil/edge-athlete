@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { countGames, distinctKey, type CountableGame } from '../same-game';
+import { countGames, distinctKey, gameKey, parseDistinctBody, type CountableGame } from '../same-game';
 
 const g = (id: string, source: CountableGame['source'], date: string | null, over: Partial<CountableGame> = {}): CountableGame => ({ id, source, date, ...over });
 const run = (games: CountableGame[], distinct: string[] = [], matchByDate = true) => {
@@ -72,21 +72,59 @@ describe('both Stats readers count through the rule', () => {
   it('the tiles: after the visibility filter, an org\'s contest line is official and everything else the athlete\'s own', () => {
     const src = read('src/lib/performance/rollups-server.ts');
     expect(src).toContain("[...rows.map(rollupGame), ...film.map(f => ({ id: filmId(f.videoId), source: 'film' as const, date: f.date, contestId: f.contestId }))],");
-    expect(src).toContain('{ matchByDate: gameHasSides(sportKey) }');
-    expect(src).toContain('...rows.filter(r => counted.get(r.id)?.counted !== false),');
+    expect(src).toContain('{ matchByDate: gameHasSides(sportKey), distinct }');
+    expect(src).toContain('...rows.filter(r => counted.get(rollupGame(r).id)?.counted !== false),');
     // A counted film game is one more event — the club's record — and film is never stored.
     expect(src).toContain("...film.filter(f => counted.get(filmId(f.videoId))?.counted !== false).map(f => ({ occurred_on: f.date, metrics: f.stats, provenance: 'club_recorded' })),");
     expect(src.indexOf("rows = rows.filter(r => r.source !== 'post' || visible.has(r.source_id));")).toBeLessThan(src.indexOf('...rows.map(rollupGame)'));
-    expect(src).toContain("source: r.source_table === 'contest_stat_lines' ? 'official' : 'post'");
+    expect(src).toContain("const official = r.source_table === 'contest_stat_lines';");
   });
   it('the season totals: a disputed line neither counts nor beats anything; the log row says what beat it', () => {
     const src = read('src/app/api/sports/stat-lines/route.ts');
     expect(src).toContain('const confirmed = officialInYear.filter(l => !l.disputed);');
-    expect(src).toContain('{ matchByDate: gameHasSides(schema.sport_key) }');
+    expect(src).toContain('matchByDate: gameHasSides(schema.sport_key)');
     expect(src).toContain('counted: isCounted(postGameId(l.postId)),');
     expect(src).toContain("...filmInYear.map(f => ({ id: filmGameId(f.videoId), source: 'film' as const, date: f.date, contestId: f.contestId })),");
-    expect(src).toContain('const film = filmInYear.map(f => ({ videoId: f.videoId, counted: isCounted(filmGameId(f.videoId)), sameAs: sameAsOf(filmGameId(f.videoId)) }));');
+    expect(src).toContain('const film = filmInYear.map(f => ({ videoId: f.videoId, key: filmGameId(f.videoId), counted: isCounted(filmGameId(f.videoId)), sameAs: sameAsOf(filmGameId(f.videoId)), splitFrom: splitFromOf(filmGameId(f.videoId)) }));');
     expect(src).toContain("{ headers: { 'Cache-Control': 'private, no-store' } }");
     expect(src).toContain('counted: !l.disputed,');
+  });
+});
+
+describe('"these are two different games" (migration 309)', () => {
+  const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
+  const A = gameKey.post('11111111-1111-4111-8111-111111111111');
+  const B = gameKey.film('22222222-2222-4222-8222-222222222222');
+  it('the body names two different games as the rule names them, stored in one order', () => {
+    expect(parseDistinctBody({ sport: 'basketball', a: A, b: B, distinct: true })).toEqual({ ok: true, value: { sport: 'basketball', a: B, b: A, distinct: true } });
+    expect(parseDistinctBody({ sport: 'basketball', a: B, b: A, distinct: false })).toEqual({ ok: true, value: { sport: 'basketball', a: B, b: A, distinct: false } });
+    expect(parseDistinctBody({ sport: 'basketball', a: A, b: A, distinct: true }).ok).toBe(false);
+    expect(parseDistinctBody({ sport: 'basketball', a: 'post:nope', b: B, distinct: true }).ok).toBe(false);
+    expect(parseDistinctBody({ sport: '', a: A, b: B, distinct: true }).ok).toBe(false);
+    expect(parseDistinctBody({ sport: 'basketball', a: A, b: B }).ok).toBe(false);
+    expect(parseDistinctBody(null).ok).toBe(false);
+  });
+  it('only the athlete or their guardian says it, about their own stats; both readers ask the same pairs under the same names', () => {
+    const route = read('src/app/api/sports/stat-lines/distinct/route.ts');
+    expect(route).toContain("resolveActingProfile(user.id, request.nextUrl.searchParams.get('profileId'), 'Only the athlete or their guardian can say this')");
+    expect(route).toContain('setDistinctPair(getSupabaseAdmin(), acting.actorId, user.id, parsed.value)');
+    expect(route).toContain("getServerAuth(request, { limit: 'settings-write' })");
+    const totals = read('src/app/api/sports/stat-lines/route.ts');
+    expect(totals).toContain('const pairs = await readDistinctPairs(supabase, profileId, schema.sport_key);');
+    expect(totals).toContain('{ matchByDate: gameHasSides(schema.sport_key), distinct: distinctSet(pairs) }');
+    expect(totals).toContain("canSplit: verdict.reason === 'same_date'");
+    expect(totals).toContain('canEdit: isOwner || actsFor,');
+    const tiles = read('src/lib/performance/rollups-server.ts');
+    expect(tiles).toContain('const distinct = distinctSet(await readDistinctPairs(admin, profileId, sportKey));');
+    expect(tiles).toContain("r.source_table === 'posts' ? gameKey.post(r.source_id) : r.id");
+  });
+  it('the table: service role only, the pair in one spelling, gone with the person', () => {
+    const sql = read('database/migrations/309_stat_game_distinct.sql');
+    expect(sql).toContain('CONSTRAINT stat_game_distinct_order_check CHECK (game_a < game_b)');
+    expect(sql).toContain('REVOKE ALL ON TABLE public.stat_game_distinct FROM PUBLIC, anon, authenticated;');
+    expect(sql).toContain('GRANT ALL ON TABLE public.stat_game_distinct TO service_role;');
+    expect(sql).toContain('FOREIGN KEY (profile_id) REFERENCES public.profiles(id) ON DELETE CASCADE');
+    expect(read('src/lib/account-deletion.ts')).toContain("await mustDelete('stat_game_distinct', 'profile_id');");
+    expect(read('src/lib/account-departure.ts')).toContain("'stat_game_distinct.profile_id': 'goes',");
   });
 });
