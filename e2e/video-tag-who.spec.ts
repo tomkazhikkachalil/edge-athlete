@@ -1,5 +1,5 @@
 import { test, expect } from './helpers/test';
-import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { createQaOrg, deleteQaOrgs, rosterSeasonId } from './helpers/org';
 import { adminClient, apiAs, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { fitsViewportWidth } from './helpers/layout';
 import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
@@ -144,6 +144,36 @@ test('a club tags anyone — a private player nobody follows — and the picker 
     expect(await fitsViewportWidth(page)).toBe(true);
     await row.click();
     await expect(page.locator(`[data-tag-person="${player.id}"]`)).toBeVisible();
+
+    // 4. Nov 14: the player is on side 1's team. Picked as the scorer of a SIDE 2 basket, their own side is set — and SHOWN on the chip,
+    //    with the way back. Picked for their own side, nothing is set.
+    const team = await admin.from('teams').insert({ org_id: club.id, name: `QA Hawks ${stamp}` }).select('id').single();
+    expect(team.error?.message ?? null).toBeNull();
+    const teamId = (team.data as { id: string }).id;
+    const onTeam = await admin.from('memberships').insert({ org_id: club.id, profile_id: player.id, role: 'member', kind: 'roster', status: 'active', scope_type: 'team', scope_id: teamId, season_id: await rosterSeasonId(admin, club.id) });
+    expect(onTeam.error?.message ?? null).toBeNull();
+    res = await api.put(`/api/videos/${videoId}/game`, { data: { sport_key: 'basketball', played_on: null, side1: { team_id: teamId }, side2: { name: 'QA Owls' }, coverage: 'highlights', stats_hidden: false } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    await page.reload();
+    await page.locator('[data-highlight-add]').first().click();
+    await page.locator('[data-tag-event]').selectOption('fg2_made');
+    await page.locator('[data-tag-side="2"]').click();
+    await page.locator('[data-tag-add-person="scorer"]').click();
+    const teamRow = page.locator(`[data-tag-picker="org"] [data-tag-pick="${player.id}"][data-tag-pick-group="side1"]`);
+    await expect(teamRow).toBeVisible({ timeout: 20_000 });
+    await teamRow.click();
+    const chip = page.locator(`[data-tag-role="scorer"] [data-tag-person="${player.id}"]`);
+    await expect(chip.locator('[data-tag-person-side="1"]')).toHaveText(`on QA Hawks ${stamp}`);
+    expect(await fitsViewportWidth(page)).toBe(true);
+    await chip.locator('[data-tag-person-side-reset]').click();
+    await expect(chip.locator('[data-tag-person-side]')).toHaveCount(0);
+    //    The same player picked for their OWN side's basket: no side is set at all.
+    await chip.getByRole('button', { name: /^Remove / }).click();
+    await page.locator('[data-tag-side="1"]').click();
+    await page.locator('[data-tag-add-person="scorer"]').click();
+    await teamRow.click();
+    await expect(chip).toBeVisible();
+    await expect(chip.locator('[data-tag-person-side]')).toHaveCount(0);
   } finally {
     if (videoId) await api.delete(`/api/videos/${videoId}`).catch(() => undefined);
     await admin.from('notifications').delete().in('user_id', [outsider.id, player.id]).eq('type', 'tag').gte('created_at', since);
