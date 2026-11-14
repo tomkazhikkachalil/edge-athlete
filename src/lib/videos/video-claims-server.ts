@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isStubEmail } from '@/lib/config/stubs-config';
-import { linkTargets, type ClaimTarget, type LinkTarget } from './tag-claims';
+import { ORG_ID } from '@/lib/orgs/org-ref';
+import { claimRecipients, linkTargets, videoManagersOf, type ClaimTarget, type LinkTarget, type ManagerRow } from './tag-claims';
 import type { HighlightRow } from './types';
 import { linkTagTarget, type TagOwner } from './videos-server';
 
@@ -107,8 +108,18 @@ export async function claimTargets(admin: Admin, highlights: readonly HighlightR
   return linkTargets(people, stubs);
 }
 
-/** The athlete asks. One open request per person per game; asking again while one is open is the same request. The video's uploader is told. */
-export async function requestClaim(admin: Admin, video: { id: string; title: string | null; created_by_user_id: string | null }, requesterId: string, userId: string, askedName: string | null): Promise<ClaimOutcome<{ id: string; status: ClaimStatus }>> {
+/** The people who manage an organization's videos (the `manage_video` right), read from its ladder and staff rows. */
+async function videoManagerIds(admin: Admin, orgId: string): Promise<string[]> {
+  const { data, error } = await admin.from('memberships').select('profile_id, kind, role, sections, scope_type, expires_at').eq(ORG_ID, orgId).in('kind', ['follow', 'staff']).in('role', ['owner', 'manager', 'admin', 'staff']).limit(500);
+  if (error) {
+    console.error(`${TAG} managers read failed:`, error.message);
+    return [];
+  }
+  return videoManagersOf((data ?? []) as ManagerRow[], Date.now());
+}
+
+/** The athlete asks. One open request per person per game; asking again while one is open is the same request. The video's uploader is told — and, on an organization's video, everyone who manages its videos (Nov 14 2026). */
+export async function requestClaim(admin: Admin, video: { id: string; title: string | null; created_by_user_id: string | null; org_id: string | null }, requesterId: string, userId: string, askedName: string | null): Promise<ClaimOutcome<{ id: string; status: ClaimStatus }>> {
   const { data, error } = await admin.from('video_tag_claims').insert({ video_id: video.id, requester_profile_id: requesterId, requested_by_user_id: userId, asked_name: askedName }).select('id, status').single();
   if (error || !data) {
     if (error?.code === '23505') {
@@ -119,17 +130,17 @@ export async function requestClaim(admin: Admin, video: { id: string; title: str
     console.error(`${TAG} request failed:`, error?.message);
     return { ok: false, status: 500, error: 'Could not send the request' };
   }
-  if (video.created_by_user_id && video.created_by_user_id !== userId) {
-    try {
+  try {
+    const told = claimRecipients(video.created_by_user_id, video.org_id ? await videoManagerIds(admin, video.org_id) : [], [userId, requesterId]);
+    if (told.length > 0) {
       const { data: who } = await admin.from('profiles').select('full_name, display_name').eq('id', requesterId).maybeSingle();
       const name = (who as { full_name: string | null; display_name: string | null } | null)?.display_name || (who as { full_name: string | null } | null)?.full_name || 'An athlete';
-      const { error: nError } = await admin.from('notifications').insert({
-        user_id: video.created_by_user_id, type: 'tag', actor_id: userId, title: `${name} asks to be linked in ${(video.title ?? 'a game').slice(0, 120)}`, message: 'They say they are in this game. Open the video to say which name or player they are, or to decline.', action_url: `/videos/${video.id}`, is_read: false, metadata: { video_id: video.id, claim_id: (data as { id: string }).id },
-      });
+      const row = { type: 'tag', actor_id: userId, title: `${name} asks to be linked in ${(video.title ?? 'a game').slice(0, 120)}`, message: 'They say they are in this game. Open the video to say which name or player they are, or to decline.', action_url: `/videos/${video.id}`, is_read: false, metadata: { video_id: video.id, claim_id: (data as { id: string }).id } };
+      const { error: nError } = await admin.from('notifications').insert(told.map(user_id => ({ ...row, user_id })));
       if (nError) console.error(`${TAG} request notification failed:`, nError.message);
-    } catch (e) {
-      console.error(`${TAG} request notification failed:`, e);
     }
+  } catch (e) {
+    console.error(`${TAG} request notification failed:`, e);
   }
   return { ok: true, value: data as { id: string; status: ClaimStatus } };
 }

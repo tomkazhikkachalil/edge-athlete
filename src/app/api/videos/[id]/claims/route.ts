@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!read) return NOT_FOUND();
     const acting = await resolveActingProfile(user.id, request.nextUrl.searchParams.get('profileId'), 'Only the athlete or their guardian can ask this');
     if (!acting.ok) return NextResponse.json({ error: acting.error }, { status: acting.status, headers: PRIVATE });
-    const made = await requestClaim(admin, { id, title: read.row.title ?? null, created_by_user_id: read.row.created_by_user_id ?? null }, acting.actorId, user.id, parsed.value.askedName);
+    const made = await requestClaim(admin, { id, title: read.row.title ?? null, created_by_user_id: read.row.created_by_user_id ?? null, org_id: read.row.org_id ?? null }, acting.actorId, user.id, parsed.value.askedName);
     if (!made.ok) return NextResponse.json({ error: made.error }, { status: made.status, headers: PRIVATE });
     return NextResponse.json({ claim: made.value }, { status: 201, headers: PRIVATE });
   } catch (error) {

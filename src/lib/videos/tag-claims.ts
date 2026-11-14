@@ -139,6 +139,45 @@ export function spareAfterLink(target: { kind: 'name' | 'placeholder'; profile_i
   return { id: target.profile_id, name: target.name };
 }
 
+/** A row of an organization's ladder or staff grants, as read for "who is told". */
+export interface ManagerRow { profile_id: string; kind: string; role: string; sections: readonly string[] | null; scope_type: string | null; expires_at: string | null }
+
+/** The most people one request tells. */
+export const CLAIM_TOLD_MAX = 50;
+
+/**
+ * Who manages an organization's videos, from its rows — the people the
+ * `manage_video` right passes (authz.ts): an owner or manager on the ladder,
+ * an org-wide admin, or org-wide staff granted the `website` section. A grant
+ * scoped to a team or division manages no video; an expired grant, nothing.
+ */
+export function videoManagersOf(rows: readonly ManagerRow[], nowMs: number): string[] {
+  const out = new Set<string>();
+  for (const r of rows) {
+    if ((r.scope_type ?? 'org') !== 'org') continue;
+    if (r.kind === 'follow') {
+      if (r.role === 'owner' || r.role === 'manager') out.add(r.profile_id);
+      continue;
+    }
+    if (r.kind !== 'staff') continue;
+    if (r.expires_at && new Date(r.expires_at).getTime() <= nowMs) continue;
+    if (r.role === 'admin' || (r.role === 'staff' && (r.sections ?? []).includes('website'))) out.add(r.profile_id);
+  }
+  return [...out];
+}
+
+/** Who is told of a request: the uploader first, then the organization's video managers — each once, never whoever asked, bounded. */
+export function claimRecipients(uploaderId: string | null, managerIds: readonly string[], asking: readonly string[]): string[] {
+  const skip = new Set(asking);
+  const out: string[] = [];
+  for (const id of [uploaderId, ...managerIds]) {
+    if (!id || skip.has(id) || out.includes(id)) continue;
+    out.push(id);
+    if (out.length >= CLAIM_TOLD_MAX) break;
+  }
+  return out;
+}
+
 export const CLAIM_COPY = {
   ask: 'Were you in this game?',
   askNote: 'Ask to have your clips and stats from it on your profile. Someone who manages this video checks it is you.',
