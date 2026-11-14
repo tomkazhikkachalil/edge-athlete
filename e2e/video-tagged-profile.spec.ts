@@ -30,6 +30,9 @@ test('tagged by someone else: told once, on the profile with the clips and the l
   const since = new Date().toISOString();
   try {
     await admin.from('profiles').update({ visibility: 'public' }).in('id', [tagger.id, athlete.id]);
+    // Round 2 (Nov 13): on a person's own video only a CONNECTION is tagged — the tagger follows the athlete.
+    await admin.from('follows').delete().eq('follower_id', tagger.id).eq('following_id', athlete.id);
+    await admin.from('follows').insert({ follower_id: tagger.id, following_id: athlete.id, status: 'accepted' });
     await seedOwnChannel(admin, { profileId: tagger.id }, tagger.id);
     await admin.from('videos').delete().eq('profile_id', tagger.id).eq('provider_video_id', 'jNQXAC9IVRw');
     let res = await api.post('/api/videos', { data: { url: YT, title: `QA Tagged-in game ${Date.now()}`, sport_key: 'basketball' } });
@@ -121,6 +124,7 @@ test('tagged by someone else: told once, on the profile with the clips and the l
   } finally {
     if (videoId) await api.delete(`/api/videos/${videoId}`).catch(() => undefined);
     await admin.from('youtube_connections').delete().eq('profile_id', tagger.id);
+    await admin.from('follows').delete().eq('follower_id', tagger.id).eq('following_id', athlete.id);
     await admin.from('notifications').delete().eq('user_id', athlete.id).eq('type', 'tag').gte('created_at', since);
     for (const p of (priors ?? []) as Array<{ id: string; visibility: string }>) await admin.from('profiles').update({ visibility: p.visibility }).eq('id', p.id);
     await api.dispose();

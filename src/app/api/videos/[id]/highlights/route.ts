@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     // Sprint 3: a tag's event and roles are the game sheet's; its people are ones this tagger may name.
     if (parsed.value.tag) {
-      const tag = await prepareTag(admin, id, parsed.value.tag, user.id);
+      const tag = await prepareTag(admin, id, parsed.value.tag, user.id, null, { orgId: read.row.org_id ?? null, profileId: read.row.profile_id ?? null });
       if (!tag.ok) return NextResponse.json({ error: tag.error }, { status: tag.status, headers: PRIVATE });
       parsed.value.tag = tag.value;
     }

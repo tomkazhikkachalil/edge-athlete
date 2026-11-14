@@ -147,7 +147,7 @@ describe('the writer and the form keep what they were given', () => {
   });
   it('someone already on the tag is not checked again, and the edit route says which tag', () => {
     expect(server).toContain('!alreadyOn.has(v)');
-    expect(src('src/app/api/videos/[id]/highlights/[highlightId]/route.ts')).toContain('prepareTag(admin, id, parsed.value.tag, user.id, highlightId)');
+    expect(src('src/app/api/videos/[id]/highlights/[highlightId]/route.ts')).toContain('prepareTag(admin, id, parsed.value.tag, user.id, highlightId, ');
   });
   it('the writer asks who removed themselves before it inserts', () => {
     expect(server).toContain('!(p.profile_id && out.has(p.profile_id))');

@@ -44,6 +44,8 @@ import {
 import type { HighlightPerson, HighlightRow, VideoOwnerView, VideoPlaceView, VideoRow, VideoView } from './types';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { checkTag, removedOut, tagPersonKey, type TagInput, type TagPersonInput } from './tag-rules';
+import { outsideConnections, TAG_WHO_REFUSALS } from './tag-people';
+import { connectionIds } from './tag-people-server';
 import { gameSheetFor } from './game-sheets';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the house Admin alias (schema-agnostic helper)
@@ -384,17 +386,33 @@ async function readTagPeople(admin: Admin, videoId: string, viewer: TagViewer): 
   return out;
 }
 
+/** Whose video the tag is on: the rule for who may be named turns on it. */
+export interface TagOwner { orgId: string | null; profileId: string | null }
+
 /**
- * Who a tagger may name (the photo-tag rule): only profiles the tagger can
- * SEE; anyone with a block in either direction is silently left out (never
- * reveal who blocked whom); a typed name is always allowed.
+ * Who a tagger may name (round 2, Nov 13 2026 — Tom's rule). On a CLUB's or
+ * LEAGUE's video: anyone on Edge Athlete (it does not follow every player and
+ * tags other teams'). On a PERSON's video: only someone connected to the
+ * tagger or to the athlete the video belongs to — a follow, either way.
+ * Always: anyone with a block in either direction is silently left out
+ * (never reveal who blocked whom), a closed account is refused, a typed name
+ * is allowed, and someone ALREADY on the tag is not being named again.
  */
-export async function taggablePeople(admin: Admin, people: readonly TagPersonInput[], taggerId: string, alreadyOn: ReadonlySet<string> = new Set()): Promise<Outcome<TagPersonInput[]>> {
-  // Someone ALREADY on the tag is not being named again: an edit that keeps them is never refused (their account may have gone since).
+export async function taggablePeople(admin: Admin, people: readonly TagPersonInput[], taggerId: string, alreadyOn: ReadonlySet<string> = new Set(), owner: TagOwner = { orgId: null, profileId: null }): Promise<Outcome<TagPersonInput[]>> {
   const ids = [...new Set(people.map(p => p.profile_id).filter((v): v is string => !!v && v !== taggerId && !alreadyOn.has(v)))];
   if (ids.length === 0) return { ok: true, value: [...people] };
-  const checks = await Promise.all(ids.map(id => canViewProfile(id, taggerId)));
-  if (checks.some(c => !c.canView)) return { ok: false, status: 403, error: 'You can only tag people whose profile you can view' };
+  const { data: standing, error } = await admin.from('profiles').select('id, departed_at').in('id', ids);
+  if (error) {
+    console.error(`${TAG} tag people profiles read failed:`, error.message);
+    return { ok: false, status: 500, error: 'Could not check who is in the highlight' };
+  }
+  const here = new Set(((standing ?? []) as Array<{ id: string; departed_at: string | null }>).filter(p => !p.departed_at).map(p => p.id));
+  if (ids.some(id => !here.has(id))) return { ok: false, status: 403, error: TAG_WHO_REFUSALS.gone };
+  if (!owner.orgId) {
+    const always = new Set([taggerId, ...(owner.profileId ? [owner.profileId] : [])]);
+    const connected = await connectionIds(admin, [...always], ids);
+    if (outsideConnections(ids, connected, always).length > 0) return { ok: false, status: 403, error: TAG_WHO_REFUSALS.profile };
+  }
   const { allowed } = await filterBlockedBidirectional(admin, taggerId, ids);
   const ok = new Set(allowed);
   return { ok: true, value: people.filter(p => !p.profile_id || p.profile_id === taggerId || alreadyOn.has(p.profile_id) || ok.has(p.profile_id)) };
@@ -540,7 +558,7 @@ export async function taggedVideoIds(admin: Admin, profileId: string, max = 24):
  * A tag is ready to save: its event and roles are the game's sheet's (no game
  * = no events), and its people are ones this tagger may name.
  */
-export async function prepareTag(admin: Admin, videoId: string, tag: TagInput, taggerId: string, highlightId: string | null = null): Promise<Outcome<TagInput>> {
+export async function prepareTag(admin: Admin, videoId: string, tag: TagInput, taggerId: string, highlightId: string | null = null, owner: TagOwner = { orgId: null, profileId: null }): Promise<Outcome<TagInput>> {
   const { data } = await admin.from('video_games').select('sport_key').eq('video_id', videoId).maybeSingle();
   const checked = checkTag(gameSheetFor((data as { sport_key?: string } | null)?.sport_key ?? null), tag);
   if (!checked.ok) return { ok: false, status: 400, error: checked.error };
@@ -549,7 +567,7 @@ export async function prepareTag(admin: Admin, videoId: string, tag: TagInput, t
     const { data: on } = await admin.from('video_highlight_people').select('profile_id').eq('highlight_id', highlightId).eq('video_id', videoId).eq('status', 'active').not('profile_id', 'is', null);
     for (const r of (on ?? []) as Array<{ profile_id: string }>) alreadyOn.add(r.profile_id);
   }
-  const people = await taggablePeople(admin, tag.people, taggerId, alreadyOn);
+  const people = await taggablePeople(admin, tag.people, taggerId, alreadyOn, owner);
   if (!people.ok) return people;
   return { ok: true, value: { ...tag, people: people.value } };
 }

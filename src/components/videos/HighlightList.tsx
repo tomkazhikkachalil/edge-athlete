@@ -34,6 +34,8 @@ interface Props {
   /** Sprint 3: the video is a game — a highlight may be tagged with the sport's event and the people in it. */
   game?: GameView | null;
   durationMs?: number | null;
+  /** The video being tagged: the form reads who its owner already knows (rosters, connections). */
+  videoId?: string;
 }
 
 interface Draft {
@@ -96,7 +98,7 @@ function inputOf(d: Draft, sheet: GameSheet | null): { ok: true; value: Highligh
   return { ok: true, value: { start_ms: start, end_ms: end, label, meta, tag: tag.value } };
 }
 
-function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null, currentMs, game = null, durationMs = null }: { initial: Draft; onSave: (input: HighlightInput) => Promise<string | null>; onCancel: () => void; saving: boolean; liveStartedAt?: string | null; currentMs?: () => number | null; game?: GameView | null; durationMs?: number | null }) {
+function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null, currentMs, game = null, durationMs = null, videoId }: { initial: Draft; onSave: (input: HighlightInput) => Promise<string | null>; onCancel: () => void; saving: boolean; liveStartedAt?: string | null; currentMs?: () => number | null; game?: GameView | null; durationMs?: number | null; videoId?: string }) {
   const sheet = game ? gameSheetFor(game.sport_key) : null;
   const [d, setD] = useState<Draft>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +181,7 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
           <button type="button" onClick={() => nudge('end', 5000)} className={BTN} data-highlight-nudge-end="5">End +5s</button>
         </div>
       )}
-      {sheet && game && <TagFields sheet={sheet} game={game} value={d.tag} onChange={tag => setD(prev => ({ ...prev, tag }))} />}
+      {sheet && game && <TagFields sheet={sheet} game={game} value={d.tag} onChange={tag => setD(prev => ({ ...prev, tag }))} videoId={videoId} />}
       <label className="block text-sm text-secondary">
         {sheet ? 'Name it (optional — a tagged event names itself)' : 'What happens'}
         <input className={`${FIELD} mt-1`} maxLength={HIGHLIGHT_LABEL_MAX} placeholder={sheet ? (defaultTagLabel(sheet, { event_key: d.tag.eventKey || null }) ?? 'Great play') : 'Eagle on 7'} value={d.label} onChange={set('label')} data-highlight-label="" />
@@ -215,7 +217,7 @@ function HighlightForm({ initial, onSave, onCancel, saving, liveStartedAt = null
  * the player there; a manager adds, edits and removes them. The count is in
  * the heading. A marker is a cue — an end is a note on it, never a cut.
  */
-export default function HighlightList({ highlights, canManage, activeId, onPlay, onAdd, onEdit, onDelete, liveStartedAt = null, currentMs, game = null, durationMs = null }: Props) {
+export default function HighlightList({ highlights, canManage, activeId, onPlay, onAdd, onEdit, onDelete, liveStartedAt = null, currentMs, game = null, durationMs = null, videoId }: Props) {
   const sheet = game ? gameSheetFor(game.sport_key) : null;
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -250,6 +252,7 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
       {adding && (
         <div className="mt-4">
           <HighlightForm
+            videoId={videoId}
             initial={EMPTY}
             liveStartedAt={liveStartedAt}
             currentMs={currentMs}
@@ -278,6 +281,7 @@ export default function HighlightList({ highlights, canManage, activeId, onPlay,
             <li key={h.id} className="py-1" data-video-highlight={h.id}>
               {editing === h.id ? (
                 <HighlightForm
+                  videoId={videoId}
                   initial={draftOf(h, sheet)}
                   currentMs={currentMs}
                   game={game}
