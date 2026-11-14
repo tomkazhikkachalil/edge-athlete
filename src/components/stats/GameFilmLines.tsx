@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import { FILM_COPY } from '@/lib/videos/film-standing';
 import type { TaggedGameView } from '@/lib/videos/video-tagged-server';
 import FaIcon from '@/components/FaIcon';
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
@@ -16,6 +17,10 @@ import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
  * the video's tags on the read). When the same game also has an official
  * line, BOTH show, each under its own label — the official one is the
  * record, this one is what the film's tags add up to.
+ *
+ * Nov 14 2026 (Tom): "only league and club tagged data is the only verified
+ * data for stats". The list is split — VERIFIED (a club's or league's
+ * video) and RECREATIONAL (anyone else's: shown, labelled, never counted).
  *
  * `sportKey` narrows to the sport the hub is on; null = every sport. A game
  * whose stats are still spoiler-free for this viewer says so instead of the
@@ -50,6 +55,8 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
     .filter(g => g.sport_key !== null && (g.line !== null || g.stats_hidden) && (sportKey === null || g.sport_key === sportKey))
     .sort((a, b) => (b.played_on ?? '').localeCompare(a.played_on ?? ''));
   if (rows.length === 0) return null;
+  const verified = rows.filter(g => g.standing === 'verified' || g.standing === 'verified_highlights');
+  const recreational = rows.filter(g => g.standing !== 'verified' && g.standing !== 'verified_highlights');
 
   return (
     <section className="mb-6 rounded-lg border border-border bg-surface p-4" aria-labelledby="game-film-heading" data-game-film-lines={rows.length}>
@@ -57,39 +64,46 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
         <FaIcon icon={faYoutubeBrands} className="mr-2 text-red-600" />From game film
       </h3>
       <p className="mt-1 mb-3 text-xs text-muted">
-        Built from the tags on a full-game video — by the club, league or creator who posted it. Listed apart from posted games and official lines, and not counted in the season totals.
+        Built from the tags on a full-game video. A club&apos;s or league&apos;s game is verified; a game tagged by anyone else is recreational. Listed apart from posted games and official lines, and not counted in the season totals.
       </p>
-      <ul className="divide-y divide-border-subtle">
-        {rows.map(g => (
-          <li key={g.video.id} className="py-3" data-game-film-row={g.video.id}>
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <Link href={`/videos/${g.video.id}`} className="min-w-0 text-sm font-semibold text-primary hover:text-brand-fg break-words" data-game-film-link="">
-                {g.game_title ?? g.video.title}
-              </Link>
-              <span className="text-xs text-muted">
-                {[shortDay(g.played_on), sportKey === null ? SPORT_REGISTRY[g.sport_key as keyof typeof SPORT_REGISTRY]?.display_name : null, g.video.owner.name].filter(Boolean).join(' · ')}
-              </span>
-            </div>
-            {g.line && (
-              <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1" data-game-film-line="">
-                {g.line.map(c => (
-                  <div key={c.label} className="text-center">
-                    <dd className="font-mono text-base font-bold text-primary tabular-nums">{c.value}</dd>
-                    <dt className="text-xs text-muted">{c.label}</dt>
-                  </div>
-                ))}
-              </dl>
-            )}
-            {g.stats_hidden && <p className="mt-1 text-xs text-muted" data-game-film-hidden="">No spoilers — the stats show as you watch the game.</p>}
-            {g.official_href && (
-              <p className="mt-2 text-xs text-secondary" data-game-film-official="">
-                This game also has an official line —{' '}
-                <Link href={g.official_href} className="font-semibold underline">open the game</Link>. The two are counted apart; the official line is the one in the record.
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
+      {([['verified', verified], ['recreational', recreational]] as const).map(([kind, list]) => list.length > 0 && (
+        <div key={kind} className="mt-3 first:mt-0" data-game-film-group={kind}>
+          <h4 className="text-sm font-semibold text-primary">{kind === 'verified' ? FILM_COPY.verifiedHeading : FILM_COPY.recreationalHeading}</h4>
+          {kind === 'recreational' && <p className="text-xs text-muted">{FILM_COPY.recreationalNote}</p>}
+          <ul className="divide-y divide-border-subtle">
+            {list.map(g => (
+              <li key={g.video.id} className="py-3" data-game-film-row={g.video.id} data-game-film-standing={g.standing ?? 'recreational'}>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <Link href={`/videos/${g.video.id}`} className="min-w-0 text-sm font-semibold text-primary hover:text-brand-fg break-words" data-game-film-link="">
+                    {g.game_title ?? g.video.title}
+                  </Link>
+                  <span className="text-xs text-muted">
+                    {[shortDay(g.played_on), sportKey === null ? SPORT_REGISTRY[g.sport_key as keyof typeof SPORT_REGISTRY]?.display_name : null, g.video.owner.name].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+                {g.line && (
+                  <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1" data-game-film-line="">
+                    {g.line.map(c => (
+                      <div key={c.label} className="text-center">
+                        <dd className="font-mono text-base font-bold text-primary tabular-nums">{c.value}</dd>
+                        <dt className="text-xs text-muted">{c.label}</dt>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+                {g.stats_hidden && <p className="mt-1 text-xs text-muted" data-game-film-hidden="">No spoilers — the stats show as you watch the game.</p>}
+                {g.standing === 'verified_highlights' && <p className="mt-1 text-xs text-muted" data-game-film-highlights="">{FILM_COPY.highlightsNote}</p>}
+                {g.official_href && (
+                  <p className="mt-2 text-xs text-secondary" data-game-film-official="">
+                    This game also has an official line —{' '}
+                    <Link href={g.official_href} className="font-semibold underline">open the game</Link>. The two are counted apart; the official line is the one in the record.
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </section>
   );
 }

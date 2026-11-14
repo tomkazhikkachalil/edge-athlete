@@ -70,6 +70,10 @@ test('a tagged game attached to a contest with the athlete\'s official line says
     await page.goto('/athlete?tab=stats');
     const row = page.locator(`[data-game-film-row="${attached}"]`);
     await expect(row).toBeVisible({ timeout: 20_000 });
+    //    Nov 14: a league's fully tagged game is VERIFIED film, under its own heading.
+    await expect(row).toHaveAttribute('data-game-film-standing', 'verified');
+    await expect(page.locator('[data-game-film-group="verified"]').locator(`[data-game-film-row="${attached}"]`)).toHaveCount(1);
+    await expect(page.locator('[data-game-film-group="recreational"]')).toHaveCount(0);
     const marker = row.locator('[data-game-film-official]');
     await expect(marker).toContainText('the official line is the one in the record');
     await expect(marker.getByRole('link', { name: 'open the game' })).toHaveAttribute('href', `/event/${contestId}`);
