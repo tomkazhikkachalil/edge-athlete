@@ -132,4 +132,12 @@ describe('migration 308 and the writers', () => {
     expect(route).toContain('if (!read.canManage) return NextResponse.json({ can_manage: false, mine: await myClaim(admin, id, user.id) }, { headers: PRIVATE });');
     expect(route).toContain('requestClaim(admin, { id, title: read.row.title ?? null, created_by_user_id: read.row.created_by_user_id ?? null }, user.id, user.id, parsed.value.askedName)');
   });
+  it('an organization\'s video managers read the open requests with its videos — a member\'s read never carries them (Nov 14)', () => {
+    const route = read('src/app/api/videos/route.ts');
+    expect(route).toContain("const claims = filter.kind === 'org' && filter.canManage ? await openClaimsFor(admin, videos.map(v => ({ id: v.id, title: v.title }))) : undefined;");
+    expect(route).toContain('...(claims ? { claims } : {})');
+    const claims = read('src/lib/videos/video-claims-server.ts');
+    expect(claims).toContain(".eq('status', 'pending').order('created_at', { ascending: true }).limit(OPEN_CLAIMS_MAX)");
+    expect(read('src/components/orgs/page/OrgVideos.tsx')).toContain('href={`/videos/${c.video_id}`}');
+  });
 });

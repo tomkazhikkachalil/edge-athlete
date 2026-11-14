@@ -47,6 +47,30 @@ export async function pendingClaims(admin: Admin, videoId: string): Promise<Clai
   });
 }
 
+export interface OpenClaim { id: string; video_id: string; video_title: string; requester_name: string; asked_name: string | null }
+export const OPEN_CLAIMS_MAX = 50;
+
+/**
+ * The open requests across a list of videos (leftovers round, Nov 14 2026):
+ * what a manager of an organization's videos sees in its Videos window, so a
+ * request is found by ANY manager, not only the uploader who was notified.
+ * It only lists — the decision is made on the video's page.
+ */
+export async function openClaimsFor(admin: Admin, videos: ReadonlyArray<{ id: string; title: string }>): Promise<OpenClaim[]> {
+  if (videos.length === 0) return [];
+  const { data, error } = await admin.from('video_tag_claims').select(COLUMNS).in('video_id', videos.map(v => v.id)).eq('status', 'pending').order('created_at', { ascending: true }).limit(OPEN_CLAIMS_MAX);
+  if (error) {
+    if (!isMissing(error.code)) console.error(`${TAG} open read failed:`, error.message);
+    return [];
+  }
+  const rows = (data ?? []) as ClaimRow[];
+  if (rows.length === 0) return [];
+  const { data: profiles } = await admin.from('profiles').select('id, full_name, display_name, departed_at').in('id', [...new Set(rows.map(r => r.requester_profile_id))]);
+  const nameOf = new Map(((profiles ?? []) as Array<{ id: string; full_name: string | null; display_name: string | null; departed_at: string | null }>).filter(p => !p.departed_at).map(p => [p.id, p.display_name || p.full_name || 'An athlete']));
+  const titleOf = new Map(videos.map(v => [v.id, v.title]));
+  return rows.flatMap(r => (nameOf.has(r.requester_profile_id) ? [{ id: r.id, video_id: r.video_id, video_title: titleOf.get(r.video_id) ?? 'A video', requester_name: nameOf.get(r.requester_profile_id)!, asked_name: r.asked_name }] : []));
+}
+
 /** What a manager can link on this video: the typed names and the placeholder players in its tags. */
 export async function claimTargets(admin: Admin, highlights: readonly HighlightRow[]): Promise<ClaimTarget[]> {
   const people = highlights.flatMap(h => h.people.map(p => ({ highlight_id: h.id, profile_id: p.profile_id, name: p.name, masked: p.masked })));
