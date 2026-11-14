@@ -131,6 +131,7 @@ export function linkTargets(people: ReadonlyArray<{ highlight_id: string; profil
 export const CLAIM_COPY = {
   ask: 'Were you in this game?',
   askNote: 'Ask to have your clips and stats from it on your profile. Someone who manages this video checks it is you.',
+  askNoteFor: (name: string) => `Ask to have ${name}'s clips and stats from it on their profile. Someone who manages this video checks it is them.`,
   pending: 'Requested. Someone who manages this video will check and link your clips and stats.',
   declined: 'Your request to be linked in this game was not approved.',
   linkConfirm: (target: string, to: string) => `Every tag of “${target}” in this owner's videos becomes ${to}'s: the clips and stats go on their profile, and they are told. They can remove the tags themselves. This is not undone from here.`,

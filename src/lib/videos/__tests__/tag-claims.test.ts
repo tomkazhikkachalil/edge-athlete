@@ -127,9 +127,15 @@ describe('migration 308 and the writers', () => {
     expect(claims).toContain(".eq('status', 'pending')\n    .select('id');");
     expect(claims).toContain("if (claim.status !== 'pending') return { ok: false, status: 409, error: 'That request was already decided' };");
   });
-  it('a request needs only the right to see the video, and a non-manager reads only their own', () => {
+  it('a request needs only the right to see the video; a non-manager reads only their own — and their supervised athletes\' (Nov 14)', () => {
     const route = read('src/app/api/videos/[id]/claims/route.ts');
-    expect(route).toContain('if (!read.canManage) return NextResponse.json({ can_manage: false, mine: await myClaim(admin, id, user.id) }, { headers: PRIVATE });');
-    expect(route).toContain('requestClaim(admin, { id, title: read.row.title ?? null, created_by_user_id: read.row.created_by_user_id ?? null }, user.id, user.id, parsed.value.askedName)');
+    expect(route).toContain('const wards = await guardedAthletes(admin, user.id);');
+    expect(route).toContain('return NextResponse.json({ can_manage: false, mine: await myClaim(admin, id, user.id), athletes }, { headers: PRIVATE });');
+    // A guardian asks FOR a child through the one acting-as gate (role and consent); who pressed the button is kept apart.
+    expect(route).toContain("resolveActingProfile(user.id, request.nextUrl.searchParams.get('profileId'), 'Only the athlete or their guardian can ask this')");
+    expect(route).toContain('requestClaim(admin, { id, title: read.row.title ?? null, created_by_user_id: read.row.created_by_user_id ?? null }, acting.actorId, user.id, parsed.value.askedName)');
+    const claims = read('src/lib/videos/video-claims-server.ts');
+    expect(claims).toContain("if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return [];");
+    expect(claims).toContain(".eq('role', 'guardian')");
   });
 });
