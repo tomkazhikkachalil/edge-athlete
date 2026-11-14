@@ -26,6 +26,7 @@ import { refreshLiveState, refreshLiveViews } from '@/lib/videos/videos-live-ser
 import { parseYouTubeLink } from '@/lib/videos/youtube';
 import type { ConnectionOwner } from '@/lib/videos/youtube-connection';
 import { channelRefusal, videoChannelCheck } from '@/lib/videos/youtube-connections-server';
+import { openClaimsFor } from '@/lib/videos/video-claims-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
@@ -37,7 +38,8 @@ const NOT_FOUND = (what = 'Not found') => NextResponse.json({ error: what }, { s
  * context (Videos program, 296; the three places of 297), newest first,
  * anonymous allowed where the context is: a public profile, a public org, a
  * public event, contest or round. Hidden rows ride only for whoever manages
- * the context. `can_add` says whether THIS viewer may link a video here.
+ * the context. `can_add` says whether THIS viewer may link a video here; an
+ * organization's managers also get `claims` — the open "this is me" requests.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -99,7 +101,9 @@ export async function GET(request: NextRequest) {
     const listed = await listVideos(admin, filter);
     // Phase 4a: a broadcast's state is read when someone looks, never by a clock; a change re-lists.
     const videos = (await refreshLiveViews(admin, listed)) ? await listVideos(admin, filter) : listed;
-    return NextResponse.json({ videos, can_add: filter.canManage }, { headers: PRIVATE });
+    // Leftovers round (Nov 14 2026): whoever manages an organization's videos also reads the open "this is me" requests on them.
+    const claims = filter.kind === 'org' && filter.canManage ? await openClaimsFor(admin, videos.map(v => ({ id: v.id, title: v.title }))) : undefined;
+    return NextResponse.json({ videos, can_add: filter.canManage, ...(claims ? { claims } : {}) }, { headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

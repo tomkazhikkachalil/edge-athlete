@@ -1,6 +1,6 @@
 import { test, expect } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
-import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { adminClient, apiAs, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { openWindow } from './helpers/org-page';
 import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
@@ -65,6 +65,31 @@ test('org videos: owner links → member sees the bubble + window; public → an
     await expect(win.locator(`[data-video-card="${videoId}"]`)).toBeVisible();
     // A member sees no door.
     await expect(win.locator('[data-video-add]')).toHaveCount(0);
+
+    // Leftovers round (Nov 14 2026): a member asks "this is me" on the club's video. Every MANAGER of the club's videos reads the
+    // open request in the Videos window (not only the uploader who was notified); a member's read never carries the list.
+    res = await alphaApi.post(`/api/videos/${videoId}/claims`, { data: { name: 'QA Winger' } });
+    expect(res.status(), await readErrorBody(res)).toBe(201);
+    res = await alphaApi.get(`/api/videos?side=club&orgId=${clubId}`);
+    expect((await res.json()).claims).toBeUndefined();
+    res = await ownerApi.get(`/api/videos?side=club&orgId=${clubId}`);
+    const open = (await res.json()).claims as Array<{ video_id: string; asked_name: string | null; video_title: string }>;
+    expect(open).toHaveLength(1);
+    expect(open[0]).toMatchObject({ video_id: videoId, asked_name: 'QA Winger', video_title: `QA Club final ${stamp}` });
+    const ownerCtx = await browser.newContext({ storageState: await mintStorageState(owner), extraHTTPHeaders: bypassHeaders(), viewport: { width: 375, height: 800 } });
+    try {
+      const ownerPage = await ownerCtx.newPage();
+      await ownerPage.goto(`/club/${clubId}`);
+      await expect(ownerPage.locator('[data-org-videos-claims-hint="1"]')).toBeVisible({ timeout: 20_000 });
+      const ownerWin = await openWindow(ownerPage, 'videos');
+      const row = ownerWin.locator('[data-org-videos-claims="1"] [data-org-videos-claim]');
+      await expect(row).toContainText('QA Winger');
+      await expect(row).toHaveAttribute('href', `/videos/${videoId}`);
+    } finally {
+      await ownerCtx.close();
+    }
+    await expect(win.locator('[data-org-videos-claims]')).toHaveCount(0);
+    await admin.from('video_tag_claims').delete().eq('video_id', videoId);
 
     // Private: the stranger is refused, the member still reads, the owner's hidden video is the managers' only.
     const { error } = await admin.from('organizations').update({ visibility: 'private' }).eq('id', clubId);

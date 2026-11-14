@@ -138,4 +138,12 @@ describe('migration 308 and the writers', () => {
     expect(claims).toContain("if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return [];");
     expect(claims).toContain(".eq('role', 'guardian')");
   });
+  it('an organization\'s video managers read the open requests with its videos — a member\'s read never carries them (Nov 14)', () => {
+    const route = read('src/app/api/videos/route.ts');
+    expect(route).toContain("const claims = filter.kind === 'org' && filter.canManage ? await openClaimsFor(admin, videos.map(v => ({ id: v.id, title: v.title }))) : undefined;");
+    expect(route).toContain('...(claims ? { claims } : {})');
+    const claims = read('src/lib/videos/video-claims-server.ts');
+    expect(claims).toContain(".eq('status', 'pending').order('created_at', { ascending: true }).limit(OPEN_CLAIMS_MAX)");
+    expect(read('src/components/orgs/page/OrgVideos.tsx')).toContain('href={`/videos/${c.video_id}`}');
+  });
 });
