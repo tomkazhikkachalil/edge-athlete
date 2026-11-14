@@ -87,19 +87,21 @@ export async function requestClaim(admin: Admin, video: { id: string; title: str
 }
 
 /** A manager decides. Approve = the tags of `target` become the requester's (across the owner's videos); the request closes either way, once. */
-export async function decideClaim(admin: Admin, videoId: string, claimId: string, decision: { action: 'decline' } | { action: 'approve'; target: LinkTarget }, owner: TagOwner, byUserId: string): Promise<ClaimOutcome<{ status: ClaimStatus; linked: number; videos: number }>> {
+export async function decideClaim(admin: Admin, videoId: string, claimId: string, decision: { action: 'decline' } | { action: 'approve'; target: LinkTarget }, owner: TagOwner, byUserId: string): Promise<ClaimOutcome<{ status: ClaimStatus; linked: number; videos: number; kept: number }>> {
   const { data } = await admin.from('video_tag_claims').select(COLUMNS).eq('id', claimId).eq('video_id', videoId).maybeSingle();
   const claim = data as ClaimRow | null;
   if (!claim) return { ok: false, status: 404, error: 'Request not found' };
   if (claim.status !== 'pending') return { ok: false, status: 409, error: 'That request was already decided' };
   let linked = 0;
   let videos = 0;
+  let kept = 0;
   if (decision.action === 'approve') {
     const done = await linkTagTarget(admin, owner, decision.target, claim.requester_profile_id, byUserId, { checkWho: false });
     if (!done.ok) return { ok: false, status: done.status === 401 ? 403 : done.status, error: done.error };
     if (done.value.linked === 0) return { ok: false, status: 409, error: 'Nothing was linked: there are no tags under that name or player that this person can take.' };
     linked = done.value.linked;
     videos = done.value.videos;
+    kept = done.value.kept;
   }
   const status: ClaimStatus = decision.action === 'approve' ? 'approved' : 'declined';
   const { data: closed, error } = await admin
@@ -117,5 +119,5 @@ export async function decideClaim(admin: Admin, videoId: string, claimId: string
     const { error: nError } = await admin.from('notifications').insert({ user_id: claim.requester_profile_id, type: 'tag', actor_id: byUserId, title: 'Your request to be linked in a game was not approved', message: 'The people who manage the video did not link you. If that is a mistake, ask them directly.', action_url: `/videos/${videoId}`, is_read: false, metadata: { video_id: videoId, claim_id: claimId } });
     if (nError) console.error(`${TAG} decline notification failed:`, nError.message);
   }
-  return { ok: true, value: { status, linked, videos } };
+  return { ok: true, value: { status, linked, videos, kept } };
 }

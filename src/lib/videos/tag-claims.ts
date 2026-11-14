@@ -128,6 +128,17 @@ export function linkTargets(people: ReadonlyArray<{ highlight_id: string; profil
   return [...out.values()].map(e => ({ ...e.target, clips: e.clips.size })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * After a placeholder player is linked to a real profile, may the placeholder's spare roster entry be offered for removal?
+ * Only on an organization's video, only when the link took EVERY tag of the placeholder (nothing was kept back for it),
+ * and only when something was linked at all. It is offered, never done on its own.
+ */
+export function spareAfterLink(target: { kind: 'name' | 'placeholder'; profile_id: string | null; name: string }, result: { linked: number; kept: number }, ownerKind: 'org' | 'profile'): { id: string; name: string } | null {
+  if (ownerKind !== 'org' || target.kind !== 'placeholder' || !target.profile_id) return null;
+  if (result.linked <= 0 || result.kept > 0) return null;
+  return { id: target.profile_id, name: target.name };
+}
+
 export const CLAIM_COPY = {
   ask: 'Were you in this game?',
   askNote: 'Ask to have your clips and stats from it on your profile. Someone who manages this video checks it is you.',

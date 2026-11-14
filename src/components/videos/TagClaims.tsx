@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import { PersonPicker } from '@/components/videos/TagFields';
-import { CLAIM_COPY, CLAIM_NAME_MAX, type ClaimTarget } from '@/lib/videos/tag-claims';
+import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
+import { CLAIM_COPY, CLAIM_NAME_MAX, spareAfterLink, type ClaimTarget } from '@/lib/videos/tag-claims';
+import type { VideoOwnerView } from '@/lib/videos/types';
 import type { TagCandidate, TagOwnerKind } from '@/lib/videos/tag-people';
 
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
@@ -26,7 +28,7 @@ const targetLabel = (t: ClaimTarget): string => `${t.name}${t.kind === 'placehol
  * or link a name to a profile themselves. A request changes nothing until
  * it is approved. Props only; the parent refetches the video after a link.
  */
-export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { videoId: string; canManage: boolean; taggedMe: boolean; onLinked: () => void }) {
+export default function TagClaims({ videoId, canManage, taggedMe, onLinked, owner }: { videoId: string; canManage: boolean; taggedMe: boolean; onLinked: () => void; owner?: VideoOwnerView }) {
   const [data, setData] = useState<Loaded | null>(null);
   const [askedName, setAskedName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,6 +37,8 @@ export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { 
   const [choice, setChoice] = useState<Record<string, string>>({});
   const [linkTarget, setLinkTarget] = useState('');
   const [picking, setPicking] = useState(false);
+  // A placeholder whose every tag was just linked to a real profile: its spare roster entry can be removed (offered, never automatic).
+  const [spare, setSpare] = useState<{ id: string; name: string } | null>(null);
   const [confirm, setConfirm] = useState<{ target: ClaimTarget; to: { id: string; name: string } } | null>(null);
   const [known, setKnown] = useState<{ people: TagCandidate[]; ownerKind: TagOwnerKind }>({ people: [], ownerKind: 'org' });
 
@@ -98,6 +102,7 @@ export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { 
     const r = await send(`/api/videos/${encodeURIComponent(videoId)}/claims/${claim.id}`, 'PATCH', action === 'approve' && target ? { action, target: targetBody(target) } : { action });
     if (!r.ok) return;
     setNote(action === 'approve' ? linkedLine(r.body) : 'Declined.');
+    setSpare(action === 'approve' && target ? spareAfterLink(target, { linked: Number(r.body.linked ?? 0), kept: Number(r.body.kept ?? 0) }, owner?.kind ?? 'profile') : null);
     setData(await load());
     if (action === 'approve') onLinked();
   };
@@ -108,9 +113,31 @@ export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { 
     const r = await send(`/api/videos/${encodeURIComponent(videoId)}/links`, 'POST', { target: targetBody(target), profile_id: to.id });
     if (!r.ok) return;
     setNote(linkedLine(r.body));
+    setSpare(spareAfterLink(target, { linked: Number(r.body.linked ?? 0), kept: Number(r.body.kept ?? 0) }, owner?.kind ?? 'profile'));
     setLinkTarget('');
     setData(await load());
     onLinked();
+  };
+
+  // The existing roster door (DELETE …/roster?profileId=, the right to manage the roster): the placeholder leaves the organization's roster and its teams.
+  const removeSpare = async () => {
+    if (!spare || owner?.kind !== 'org' || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/${ORG_ROUTE_FAMILY[owner.side]}/${encodeURIComponent(owner.id)}/roster?profileId=${encodeURIComponent(spare.id)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? 'Could not remove them from the roster.');
+        return;
+      }
+      setNote(`${spare.name} was removed from the roster.`);
+      setSpare(null);
+    } catch {
+      setError('Could not remove them from the roster. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (!data) return null;
@@ -141,7 +168,7 @@ export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { 
   }
 
   const { claims, targets } = data;
-  if (claims.length === 0 && targets.length === 0 && !note) return null;
+  if (claims.length === 0 && targets.length === 0 && !note && !spare) return null;
   const targetOf = (value: string) => targets.find(t => targetValue(t) === value) ?? null;
   const chosen = targetOf(linkTarget);
   return (
@@ -200,6 +227,12 @@ export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { 
         </div>
       )}
       {note && <p className="text-sm text-secondary" role="status" data-tag-claims-note="">{note}</p>}
+      {spare && (
+        <div className="flex flex-wrap items-center gap-2" data-tag-claims-spare={spare.id}>
+          <p className="min-w-0 flex-1 text-sm text-secondary">“{spare.name}” has no tags left and is still on your roster as a player without an account.</p>
+          <button type="button" onClick={removeSpare} disabled={busy} className={BTN} data-tag-claims-spare-remove="">Remove from the roster</button>
+        </div>
+      )}
       {error && <p className="text-sm text-red-600" role="alert" data-tag-claims-error="">{error}</p>}
       <ConfirmModal
         isOpen={!!confirm}
