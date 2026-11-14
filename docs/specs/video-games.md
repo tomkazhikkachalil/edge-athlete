@@ -113,7 +113,7 @@ A video becomes a **game** when it has a `video_games` row: `sport_key` (the she
 
 - **Game-film stats in the season totals.** They are listed on the Stats tab (below) but not counted: counting them needs a way to tell that a posted game, an official line and a tagged video are the SAME game — the app has none today (self-posted and official lines are not matched either).
 - **Hidden is not withheld.** The spoiler-free view does not DRAW unrevealed tags; the page's one read still carries them. Holding them on the server costs a request per reveal.
-- (A typed name is linked, and a removal can be undone for ten minutes, since Nov 13 2026.) A guardian cannot yet ask on a child's behalf, and requests are listed on the video's page only, not in the org console.
+- (A typed name is linked, and a removal can be undone for ten minutes, since Nov 13 2026.) A guardian asks for a supervised athlete since Nov 14 2026 (`POST …/claims?profileId=` through `resolveActingProfile` — role and approved consent; the claims read lists the athletes they guard, each with its own request). Requests are listed on the video's page only, not in the org console.
 - **Open after round 2's PR 2:** a person on the roster picked for a side does not set the person's own side (the order follows the tag's side instead); **football and tennis** (their sheets exist; the sports are off).
 - **The baselines** were written from the broadcasters' box-score conventions as known, not checked against each site; a sport's event list is one edit in `game-sheets.ts`, pinned by `game-sheets.test.ts`.
 - **Name masking** has its browser spec since Nov 13 2026 (`e2e/video-masking.spec.ts`: the tagger follows a private athlete; a stranger reads "Player 1" in the payload and on the page).

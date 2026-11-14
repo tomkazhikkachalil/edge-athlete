@@ -30,6 +30,30 @@ export async function myClaim(admin: Admin, videoId: string, profileId: string):
   return row ? { id: row.id, status: row.status, asked_name: row.asked_name } : null;
 }
 
+/**
+ * The athletes this user guards (leftovers round, Nov 14 2026): a guardian
+ * asks "this is me" FOR a child. One read; the acting-as gate
+ * (`resolveActingProfile` — role AND consent) still decides at the write.
+ */
+export async function guardedAthletes(admin: Admin, userId: string): Promise<Array<{ id: string; name: string }>> {
+  const { FEATURE_FLAGS } = await import('@/lib/features');
+  if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return [];
+  const { data, error } = await admin
+    .from('profile_access')
+    .select('profile_id, profile:profiles!profile_access_profile_id_fkey(id, display_name, full_name, first_name, departed_at)')
+    .eq('user_id', userId)
+    .eq('role', 'guardian')
+    .neq('profile_id', userId)
+    .order('granted_at', { ascending: true })
+    .limit(20);
+  if (error) {
+    console.error(`${TAG} guarded athletes read failed:`, error.message);
+    return [];
+  }
+  type Row = { profile: { id: string; display_name: string | null; full_name: string | null; first_name: string | null; departed_at: string | null } | null };
+  return ((data ?? []) as unknown as Row[]).flatMap(r => (r.profile && !r.profile.departed_at ? [{ id: r.profile.id, name: r.profile.display_name || r.profile.full_name || r.profile.first_name || 'Your athlete' }] : []));
+}
+
 /** The open requests on a video, with who asks — for its managers. */
 export async function pendingClaims(admin: Admin, videoId: string): Promise<ClaimView[]> {
   const { data, error } = await admin.from('video_tag_claims').select(COLUMNS).eq('video_id', videoId).eq('status', 'pending').order('created_at', { ascending: true }).limit(100);
