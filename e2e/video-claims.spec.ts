@@ -146,6 +146,10 @@ test('an athlete asks, the manager says who they are, the tags become theirs; a 
     expect(await onRoster()).toBe(0);
 
     // 6. A third athlete asks from the page at phone width; the manager declines; it is said, and nothing was linked.
+    //    Nov 14: the club now has a SECOND video manager — every manager is told of the request, once; whoever asked is not.
+    const promoted = await admin.from('memberships').update({ role: 'manager' }).eq('org_id', club.id).eq('profile_id', second.id).eq('kind', 'follow');
+    expect(promoted.error?.message ?? null).toBeNull();
+    const askedAt = new Date().toISOString();
     const viewer = await thirdCtx.newPage();
     await viewer.goto(`/videos/${videoId}`);
     const ask = viewer.locator('[data-tag-claim="none"]');
@@ -156,6 +160,10 @@ test('an athlete asks, the manager says who they are, the tags become theirs; a 
     await expect(viewer.locator('[data-tag-claim-pending]')).toBeVisible({ timeout: 20_000 });
     res = await api.get(`/api/videos/${videoId}/claims`);
     const open = ((await res.json()).claims as Array<{ id: string; requester: { id: string } }>).find(c => c.requester.id === third.id)!;
+    const toldOf = async (userId: string) => ((await admin.from('notifications').select('id').eq('user_id', userId).eq('type', 'tag').gte('created_at', askedAt).contains('metadata', { claim_id: open.id })).data ?? []).length;
+    await expect.poll(() => toldOf(owner.id), { timeout: 15_000 }).toBe(1);
+    expect(await toldOf(second.id)).toBe(1);
+    expect(await toldOf(third.id)).toBe(0);
     res = await api.patch(`/api/videos/${videoId}/claims/${open.id}`, { data: { action: 'decline' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
     expect(await res.json()).toMatchObject({ status: 'declined', linked: 0 });
