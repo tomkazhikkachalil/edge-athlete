@@ -5,6 +5,7 @@ import { parseVideoPatch, placeOf } from '@/lib/videos/rules';
 import { deleteVideo, placeRight, readVideoForViewer, updateVideo } from '@/lib/videos/videos-server';
 import { refreshLiveViews } from '@/lib/videos/videos-live-server';
 import { readGame } from '@/lib/videos/video-games-server';
+import { cutForViewer, parseReveal } from '@/lib/videos/game-view';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
@@ -30,7 +31,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Phase 4a: a broadcast's state is read when someone looks; a change re-reads the one projection.
     if (await refreshLiveViews(admin, [read.view])) read = (await readVideoForViewer(admin, id, user ?? null)) ?? read;
     // Sprint 3 (307): the game on the video, when it is one — the sport whose sheet reads its tags.
-    return NextResponse.json({ video: read.view, highlights: read.highlights, can_manage: read.canManage, game: await readGame(admin, id) }, { headers: PRIVATE });
+    const game = await readGame(admin, id);
+    // Round 2 PR 6: a spoiler-free game's unwatched plays never leave the server. The viewer says how far they have watched
+    // (`?upto=`), or chooses to see everything (`?reveal=all`); a manager always reads it all.
+    const params_ = request.nextUrl.searchParams;
+    const cut = cutForViewer(read.highlights, game, read.canManage, parseReveal(params_.get('upto'), params_.get('reveal')), user?.id ?? null);
+    return NextResponse.json({ video: read.view, highlights: cut.highlights, can_manage: read.canManage, game, reveal: cut.reveal }, { headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos/id] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -68,10 +68,22 @@ test('a viewer watches the stats unlock: nothing at first, the first basket once
     await expect(page.locator('[data-game-summary]')).toHaveCount(0);
     expect(await page.locator('body').innerText()).not.toContain('QA Owl Guard');
     expect(await fitsViewportWidth(page)).toBe(true);
-    //    What the API hands a viewer names the owner (public) and the typed name — the page is what holds them back.
+    //    Round 2 PR 6: the unwatched plays never leave the server. A viewer's read carries none of them — only how many
+    //    are ahead and when the next is due — until they say how far they have watched, or choose to see everything.
     res = await viewerApi.get(`/api/videos/${videoId}`);
     expect(res.status(), await readErrorBody(res)).toBe(200);
-    expect((await res.json()).can_manage).toBe(false);
+    let payload = await res.text();
+    expect(payload).not.toContain('QA Owl Guard');
+    expect(JSON.parse(payload)).toMatchObject({ can_manage: false, highlights: [], reveal: { mode: 'progressive', hidden: 2, ahead: 2, next_reveal_ms: 3000 } });
+    res = await viewerApi.get(`/api/videos/${videoId}?upto=3000`);
+    payload = await res.text();
+    expect(payload).not.toContain('QA Owl Guard');
+    expect(JSON.parse(payload)).toMatchObject({ highlights: [{ label: 'Three' }], reveal: { hidden: 1, ahead: 1, next_reveal_ms: 17000 } });
+    res = await viewerApi.get(`/api/videos/${videoId}?reveal=all`);
+    expect(JSON.parse(await res.text())).toMatchObject({ highlights: [{ label: 'Three' }, { label: 'Two' }], reveal: { mode: 'all', hidden: 0 } });
+    //    The manager reads it all, whatever is asked.
+    res = await api.get(`/api/videos/${videoId}?upto=0`);
+    expect(((await res.json()).highlights as unknown[]).length).toBe(2);
 
     // 3. Play: once the first clip has played, the three is on the board and in the list; the two is still ahead.
     const player = page.locator('[data-video-player="jNQXAC9IVRw"]');

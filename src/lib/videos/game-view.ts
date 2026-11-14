@@ -47,6 +47,49 @@ export function hiddenCount(highlights: readonly HighlightRow[], mode: RevealMod
   return highlights.length - visibleHighlights(highlights, mode, highWaterMs).length;
 }
 
+// ── What the SERVER holds back (round 2 PR 6, Nov 13 2026) ──────────────────
+
+/**
+ * What a spoiler-free read tells the page beside the highlights it may show:
+ * how many are held back (`hidden`), how many of those are tagged plays
+ * (`ahead` — the one thing said about them), when the next one is due
+ * (`next_reveal_ms` — a time, never content: the page asks again once the
+ * video is past it), and whether the viewer is tagged anywhere in the game
+ * (their "remove my tags" door must not wait for the video).
+ */
+export interface RevealInfo { mode: RevealMode; hidden: number; ahead: number; next_reveal_ms: number | null; tagged: boolean }
+
+/** `?upto=<ms>` — the furthest point the viewer says they have watched; anything else is the start. `?reveal=all` is their choice to see everything. */
+export function parseReveal(upto: string | null, reveal: string | null): { all: boolean; uptoMs: number } {
+  if (reveal === 'all') return { all: true, uptoMs: WATCH_MAX_MS };
+  const n = upto !== null && /^\d{1,9}$/.test(upto) ? Number(upto) : 0;
+  return { all: false, uptoMs: Math.min(n, WATCH_MAX_MS) };
+}
+
+/**
+ * The read a viewer gets. A manager, a game without the spoiler switch, a
+ * video that is not a game, or a viewer who chose to see everything: all of
+ * it. Otherwise only the highlights the video has played past — the rest
+ * never leave the server.
+ */
+export function cutForViewer(highlights: readonly HighlightRow[], game: Pick<GameView, 'stats_hidden'> | null, canManage: boolean, ask: { all: boolean; uptoMs: number }, viewerId: string | null): { highlights: HighlightRow[]; reveal: RevealInfo } {
+  const tagged = !!viewerId && highlights.some(h => h.people.some(p => p.profile_id === viewerId));
+  const mode = revealMode(game, canManage, ask.all);
+  if (mode === 'all') return { highlights: [...highlights], reveal: { mode, hidden: 0, ahead: 0, next_reveal_ms: null, tagged } };
+  const due = (h: HighlightRow) => revealMs({ startMs: h.start_ms, endMs: h.end_ms });
+  const shown = highlights.filter(h => due(h) <= ask.uptoMs);
+  const held = highlights.filter(h => due(h) > ask.uptoMs);
+  return {
+    highlights: shown,
+    reveal: { mode, hidden: held.length, ahead: held.filter(h => h.event_key).length, next_reveal_ms: held.length > 0 ? Math.min(...held.map(due)) : null, tagged },
+  };
+}
+
+/** Is it time to ask again? Only once the furthest point watched has passed the next reveal the server named. */
+export function revealDue(reveal: Pick<RevealInfo, 'mode' | 'next_reveal_ms'> | null, highWaterMs: number): boolean {
+  return !!reveal && reveal.mode === 'progressive' && reveal.next_reveal_ms !== null && highWaterMs >= reveal.next_reveal_ms;
+}
+
 // ── What the device remembers per video ─────────────────────────────────────
 
 export interface GameWatch { highWaterMs: number; unlocked: boolean }

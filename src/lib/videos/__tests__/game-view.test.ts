@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { advanceWatch, EMPTY_WATCH, gameTagOf, gameWatchKey, hiddenCount, hiddenNote, parseGameWatch, recapPath, revealMode, serializeGameWatch, topHighlights, videoPageView, visibleHighlights } from '../game-view';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { cutForViewer, parseReveal, revealDue, advanceWatch, EMPTY_WATCH, gameTagOf, gameWatchKey, hiddenCount, hiddenNote, parseGameWatch, recapPath, revealMode, serializeGameWatch, topHighlights, videoPageView, visibleHighlights } from '../game-view';
 import { GAME_SHEETS } from '../game-sheets';
 import type { HighlightRow } from '../types';
 
@@ -83,5 +85,61 @@ describe('the recap', () => {
     const buckets = Array.from({ length: 10 }, (_, i) => h(`b${i}`, i * 10, null, { event_key: 'fg2_made' }));
     const picked = topHighlights(bb, [...buckets, h('dunk', 55), h('buzzer', 95)], 4).map(x => x.id);
     expect(picked).toEqual(['b0', 'b1', 'dunk', 'buzzer']);
+  });
+});
+
+/** Round 2 PR 6 (Nov 13 2026): the unwatched plays of a spoiler-free game never leave the server. */
+describe('what the server holds back', () => {
+  const hidden = { stats_hidden: true };
+  const who = (profile_id: string | null) => ({ id: 'p', profile_id, name: 'x', handle: null, avatar_url: null, role: 'scorer', side: null });
+  const rows = [
+    h('a', 1000, 3000, { event_key: 'fg3_made' }),
+    h('b', 5000, null),
+    h('c', 15_000, 17_000, { event_key: 'fg2_made', people: [who('me')] }),
+  ];
+  it('the viewer says how far they have watched, or chooses everything; anything else is the start', () => {
+    expect(parseReveal('3000', null)).toEqual({ all: false, uptoMs: 3000 });
+    expect(parseReveal(null, null)).toEqual({ all: false, uptoMs: 0 });
+    expect(parseReveal('-5', null).uptoMs).toBe(0);
+    expect(parseReveal('1e9', null).uptoMs).toBe(0);
+    expect(parseReveal('999999999', null).uptoMs).toBe(24 * 3600 * 1000);
+    expect(parseReveal('3000', 'all').all).toBe(true);
+    expect(parseReveal(null, 'yes').all).toBe(false);
+  });
+  it('a viewer of a spoiler-free game gets only what the video has played past — a clip at its END — with the counts and the next time', () => {
+    const at = (uptoMs: number) => cutForViewer(rows, hidden, false, { all: false, uptoMs }, null);
+    expect(at(0)).toEqual({ highlights: [], reveal: { mode: 'progressive', hidden: 3, ahead: 2, next_reveal_ms: 3000, tagged: false } });
+    expect(at(2999).highlights).toHaveLength(0);
+    expect(at(3000).highlights.map(r => r.id)).toEqual(['a']);
+    expect(at(5000)).toMatchObject({ reveal: { hidden: 1, ahead: 1, next_reveal_ms: 17_000 } });
+    expect(at(17_000)).toEqual({ highlights: rows, reveal: { mode: 'progressive', hidden: 0, ahead: 0, next_reveal_ms: null, tagged: false } });
+  });
+  it('a manager, a viewer who chose everything, a game without the switch and a plain video get all of it', () => {
+    const all = { mode: 'all', hidden: 0, ahead: 0, next_reveal_ms: null, tagged: false };
+    expect(cutForViewer(rows, hidden, true, { all: false, uptoMs: 0 }, null)).toEqual({ highlights: rows, reveal: all });
+    expect(cutForViewer(rows, hidden, false, { all: true, uptoMs: 0 }, null)).toEqual({ highlights: rows, reveal: all });
+    expect(cutForViewer(rows, { stats_hidden: false }, false, { all: false, uptoMs: 0 }, null)).toEqual({ highlights: rows, reveal: all });
+    expect(cutForViewer(rows, null, false, { all: false, uptoMs: 0 }, null)).toEqual({ highlights: rows, reveal: all });
+  });
+  it('someone tagged in a play still held back is told they are tagged — their removal does not wait for the video', () => {
+    expect(cutForViewer(rows, hidden, false, { all: false, uptoMs: 0 }, 'me').reveal.tagged).toBe(true);
+    expect(cutForViewer(rows, hidden, false, { all: false, uptoMs: 0 }, 'other').reveal.tagged).toBe(false);
+  });
+  it('the page asks again only once the video is past the next reveal', () => {
+    const r = { mode: 'progressive' as const, next_reveal_ms: 3000 };
+    expect(revealDue(r, 2999)).toBe(false);
+    expect(revealDue(r, 3000)).toBe(true);
+    expect(revealDue({ mode: 'progressive', next_reveal_ms: null }, 99_999)).toBe(false);
+    expect(revealDue({ mode: 'all', next_reveal_ms: 3000 }, 99_999)).toBe(false);
+    expect(revealDue(null, 99_999)).toBe(false);
+  });
+  it('the route cuts with the viewer\'s rights and the page sends its watch point on every read', () => {
+    const read = (f: string) => readFileSync(join(process.cwd(), f), 'utf8');
+    expect(read('src/app/api/videos/[id]/route.ts')).toContain("cutForViewer(read.highlights, game, read.canManage, parseReveal(params_.get('upto'), params_.get('reveal')), user?.id ?? null)");
+    const screen = read('src/components/videos/VideoScreen.tsx');
+    expect(screen).toContain("const query = w.unlocked ? 'reveal=all' : `upto=${Math.max(0, Math.floor(w.highWaterMs))}`;");
+    expect(screen).toContain('revealDue(load.reveal, advanced.highWaterMs)) askReveal(advanced);');
+    // The profile's own read of a tagged game derives from the FULL set on the server (it withholds the line itself).
+    expect(read('src/lib/videos/video-tagged-server.ts')).not.toContain('cutForViewer');
   });
 });

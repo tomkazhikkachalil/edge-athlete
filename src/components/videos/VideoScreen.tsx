@@ -11,7 +11,7 @@ import TagClaims from '@/components/videos/TagClaims';
 import TagTimeline from '@/components/videos/TagTimeline';
 import GameStatsPanel from '@/components/videos/GameStatsPanel';
 import GameRecap from '@/components/videos/GameRecap';
-import { advanceWatch, EMPTY_WATCH, gameWatchKey, parseGameWatch, recapPath, revealMode, serializeGameWatch, visibleHighlights, type GameWatch, type VideoPageView } from '@/lib/videos/game-view';
+import { advanceWatch, EMPTY_WATCH, gameWatchKey, parseGameWatch, recapPath, revealDue, revealMode, serializeGameWatch, visibleHighlights, type GameWatch, type RevealInfo, type VideoPageView } from '@/lib/videos/game-view';
 import type { GameView } from '@/lib/videos/game-rules';
 import { LivePill } from '@/components/videos/VideoCards';
 import { formatLiveWhen, liveBadgeFor, liveRefetchMs } from '@/lib/videos/live-rules';
@@ -36,7 +36,7 @@ type Load =
   | { state: 'loading' }
   | { state: 'missing' }
   | { state: 'error' }
-  | { state: 'ready'; video: VideoView; highlights: HighlightRow[]; canManage: boolean; game: GameView | null };
+  | { state: 'ready'; video: VideoView; highlights: HighlightRow[]; canManage: boolean; game: GameView | null; reveal: RevealInfo | null };
 
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
@@ -114,13 +114,25 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
   const lastSavedRef = useRef(0);
   const [resumeAt, setResumeAt] = useState<number | null>(null);
 
-  const fetchVideo = useCallback(async (): Promise<Load> => {
+  // Round 2 PR 6: a spoiler-free game's unwatched plays stay on the server. Every read says how far THIS device has watched
+  // (or that the viewer chose to see everything); before the stored watch is in state, it is read straight from the device.
+  const watchForFetchRef = useRef<GameWatch | null>(null);
+  const fetchVideo = useCallback(async (as?: GameWatch): Promise<Load> => {
     try {
-      const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}`, { cache: 'no-store' });
+      let w = as ?? watchForFetchRef.current;
+      if (!w) {
+        try {
+          w = parseGameWatch(defaultPlayerStorage()?.getItem(gameWatchKey(videoId)));
+        } catch {
+          w = EMPTY_WATCH;
+        }
+      }
+      const query = w.unlocked ? 'reveal=all' : `upto=${Math.max(0, Math.floor(w.highWaterMs))}`;
+      const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}?${query}`, { cache: 'no-store' });
       if (res.status === 404) return { state: 'missing' };
       if (!res.ok) return { state: 'error' };
-      const body = (await res.json()) as { video: VideoView; highlights: HighlightRow[]; can_manage: boolean; game?: GameView | null };
-      return { state: 'ready', video: body.video, highlights: body.highlights, canManage: body.can_manage, game: body.game ?? null };
+      const body = (await res.json()) as { video: VideoView; highlights: HighlightRow[]; can_manage: boolean; game?: GameView | null; reveal?: RevealInfo | null };
+      return { state: 'ready', video: body.video, highlights: body.highlights, canManage: body.can_manage, game: body.game ?? null, reveal: body.reveal ?? null };
     } catch {
       return { state: 'error' };
     }
@@ -168,7 +180,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
     if (refetchMs === null) return;
     const timer = setInterval(() => {
       void fetchVideo().then(next => {
-        if (next.state === 'ready') setLoad(prev => (prev.state === 'ready' ? { ...prev, video: next.video, highlights: next.highlights, canManage: next.canManage } : next));
+        if (next.state === 'ready') setLoad(prev => (prev.state === 'ready' ? { ...prev, video: next.video, highlights: next.highlights, canManage: next.canManage, reveal: next.reveal } : next));
       });
     }, refetchMs);
     return () => clearInterval(timer);
@@ -179,7 +191,21 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
   const watchRef = useRef(watch);
   useEffect(() => {
     watchRef.current = watch;
+    watchForFetchRef.current = watch;
   }, [watch]);
+  // The next reveal is due: ask the server for what the video has now played past (one read per reveal, never per tick).
+  const revealBusyRef = useRef(false);
+  const askReveal = useCallback((w: GameWatch) => {
+    if (revealBusyRef.current) return;
+    revealBusyRef.current = true;
+    void fetchVideo(w)
+      .then(next => {
+        if (next.state === 'ready') setLoad(prev => (prev.state === 'ready' ? { ...prev, highlights: next.highlights, reveal: next.reveal } : prev));
+      })
+      .finally(() => {
+        revealBusyRef.current = false;
+      });
+  }, [fetchVideo]);
   const saveWatch = useCallback((w: GameWatch) => {
     try {
       defaultPlayerStorage()?.setItem(gameWatchKey(videoId), serializeGameWatch(w));
@@ -201,6 +227,8 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
     const next = { ...watchRef.current, unlocked: true };
     setWatch(next);
     saveWatch(next);
+    // "Show full stats" is the viewer's choice: the rest is asked for now.
+    askReveal(next);
   };
   /** What THIS viewer may be shown right now: everything, or what the video has played past. */
   const shownFor = (w: GameWatch): HighlightRow[] => {
@@ -217,6 +245,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
       setWatch(advanced);
     }
     if (load.state === 'ready') setActiveId(activeHighlightAt(shownFor(advanced), ms));
+    if (load.state === 'ready' && !advanced.unlocked && revealDue(load.reveal, advanced.highWaterMs)) askReveal(advanced);
     // Resume: the position every few seconds (and the furthest point with it).
     if (Date.now() - lastSavedRef.current > RESUME_SAVE_EVERY_MS) {
       lastSavedRef.current = Date.now();
@@ -481,6 +510,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
           videoTitle={video.title}
           game={load.game}
           highlights={allHighlights}
+          heldAhead={load.reveal?.ahead ?? 0}
           mode={mode}
           highWaterMs={watch.highWaterMs}
           onUnlock={unlockStats}
@@ -616,7 +646,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
       )}
 
       {/* One stats panel at a time: under the recap it is the recap's. */}
-      {load.game && view === 'watch' && <GameStatsPanel game={load.game} highlights={allHighlights} mode={mode} highWaterMs={watch.highWaterMs} onUnlock={unlockStats} onSeek={seekTo} onPlayTag={playTag} onPlayTags={playTags} />}
+      {load.game && view === 'watch' && <GameStatsPanel heldAhead={load.reveal?.ahead ?? 0} game={load.game} highlights={allHighlights} mode={mode} highWaterMs={watch.highWaterMs} onUnlock={unlockStats} onSeek={seekTo} onPlayTag={playTag} onPlayTags={playTags} />}
 
       {/* The marks are spoilers: a manager always has the timeline; a viewer of a game gets it once everything is shown. */}
       {(canManage || (load.game && mode === 'all')) && <TagTimeline highlights={highlights} durationMs={video.duration_ms} game={load.game} activeId={activeId} onPlay={play} />}
@@ -641,12 +671,12 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
         <TagClaims
           videoId={video.id}
           canManage={canManage}
-          taggedMe={allHighlights.some(h => h.people.some(p => p.profile_id === user.id))}
+          taggedMe={(load.reveal?.tagged || allHighlights.some(h => h.people.some(p => p.profile_id === user.id)))}
           onLinked={async () => { const next = await fetchVideo(); if (next.state === 'ready') setLoad(next); }}
         />
       )}
 
-      {user && allHighlights.some(h => h.people.some(p => p.profile_id === user.id)) && (
+      {user && (load.reveal?.tagged || allHighlights.some(h => h.people.some(p => p.profile_id === user.id))) && (
         <div className="bg-surface rounded-lg border border-border p-4 flex flex-wrap items-center gap-3" data-video-tagged-me="">
           <p className="min-w-0 flex-1 text-sm text-secondary">You are tagged in this video. The clips and stats show on your profile.</p>
           <button type="button" onClick={() => void untagMe()} className={BTN} data-video-untag-me="">Remove my tags</button>
