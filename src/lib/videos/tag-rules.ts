@@ -74,6 +74,24 @@ export function tagPersonKey(p: Pick<TagPersonInput, 'profile_id' | 'name'>): st
   return p.profile_id ? `p:${p.profile_id}` : `n:${(p.name ?? '').toLowerCase()}`;
 }
 
+/**
+ * Who may not be tagged back in (pure): a person with a removed row on this
+ * tag, or with removed rows in the video and none still active — they took
+ * themselves out, and a different role is not a way round it.
+ */
+export function removedOut(rows: ReadonlyArray<{ profile_id: string; highlight_id: string; status: string }>, highlightId: string): string[] {
+  const removed = new Set<string>();
+  const active = new Set<string>();
+  const here = new Set<string>();
+  for (const r of rows) {
+    if (r.status === 'removed') {
+      removed.add(r.profile_id);
+      if (r.highlight_id === highlightId) here.add(r.profile_id);
+    } else active.add(r.profile_id);
+  }
+  return [...removed].filter(id => here.has(id) || !active.has(id));
+}
+
 /** The tag fields of a highlight body — the shape only. Absent fields are null / nobody. */
 export function parseTagFields(body: Record<string, unknown>): Parsed<TagInput> {
   let event_key: string | null = null;

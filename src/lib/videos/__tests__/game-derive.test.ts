@@ -203,6 +203,17 @@ describe('people and the drill-down', () => {
     expect(personKey({ profileId: null, name: '  Ann Lee ' })).toBe('n:ann lee');
     expect(personKey({ profileId: null, name: '  ' })).toBeNull();
   });
+  it('a masked stand-in is its own person: a typed name "Player 2" never merges into it (Nov 13)', () => {
+    expect(personKey({ profileId: null, name: 'Player 2', masked: true })).toBe('m:player 2');
+    expect(personKey({ profileId: null, name: 'Player 2' })).toBe('n:player 2');
+    // A manager keeps the link of an athlete whose account is gone: the profile is the key.
+    expect(personKey({ profileId: 'x', name: 'Player 1', masked: true })).toBe('p:x');
+    const game = deriveGame(GAME_SHEETS.basketball, [
+      tag(1, 'fg2_made', 1, [{ role: 'scorer', profileId: null, name: 'Player 2', masked: true }]),
+      tag(2, 'fg3_made', 1, [{ role: 'scorer', profileId: null, name: 'Player 2' }]),
+    ]);
+    expect(game.players.map(p => [p.key, p.stats.points])).toEqual([['m:player 2', 2], ['n:player 2', 3]]);
+  });
   it('an athlete\'s tags narrow by event type, by period, and to the scoring plays', () => {
     const sheet = GAME_SHEETS.basketball;
     const tags = [

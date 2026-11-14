@@ -61,6 +61,8 @@ export interface HighlightPerson {
   avatar_url: string | null;
   role: string;
   side: 1 | 2 | null;
+  /** A stand-in name ("Player 2") for a linked athlete this viewer may not read, or whose account is gone. Never set on a typed name. */
+  masked?: boolean;
 }
 
 export type VideoOwnerView =

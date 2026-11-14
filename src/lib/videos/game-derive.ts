@@ -15,6 +15,8 @@ export interface TagPerson {
   role: string;
   /** Set only when the person is NOT where the role puts them; normally derived from the tag's side. */
   side?: Side | null;
+  /** The name is a stand-in for a linked athlete this viewer may not read (never a typed name). */
+  masked?: boolean;
 }
 
 export interface GameTag {
@@ -90,10 +92,12 @@ export interface DerivedGame {
 const other = (s: Side): Side => (s === 1 ? 2 : 1);
 const board = (): Record<Side, number> => ({ 1: 0, 2: 0 });
 
-export function personKey(p: Pick<TagPerson, 'profileId' | 'name'>): string | null {
+/** One key per person: the profile, a masked stand-in (its own space — a typed name "Player 2" is somebody else), or the typed name whatever its case. */
+export function personKey(p: Pick<TagPerson, 'profileId' | 'name' | 'masked'>): string | null {
   if (p.profileId) return `p:${p.profileId}`;
   const n = p.name?.trim().toLowerCase();
-  return n ? `n:${n}` : null;
+  if (!n) return null;
+  return p.masked ? `m:${n}` : `n:${n}`;
 }
 
 function add(into: Stats, key: string, n: number): void {
