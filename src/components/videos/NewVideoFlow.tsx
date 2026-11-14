@@ -20,7 +20,7 @@ import { CONNECT_ERRORS, connectedLine, connectReturnPath, FLOW_DRAFT_KEY, parse
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
 import ChannelPicker from '@/components/videos/ChannelPicker';
-import GameFields from '@/components/videos/GameFields';
+import GameFields, { GameTeamPicks } from '@/components/videos/GameFields';
 import { gameBodyOf, gameDraftOf, parseGameDraft, withoutTeams, type GameDraft, type TeamOption } from '@/lib/videos/game-draft';
 import { gameSheetFor } from '@/lib/videos/game-sheets';
 import YouTubeUploadPanel from '@/components/videos/YouTubeUploadPanel';
@@ -213,6 +213,10 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
 
   // Another owner is another channel: the doors opened for the previous one close.
   const pickOwner = (next: 'me' | { orgId: string }) => {
+    // A team link belongs to the organization it was read for: another owner drops the links (the typed names stay).
+    const nextOrg = next === 'me' ? null : next.orgId;
+    const prevOrg = owner && owner !== 'me' ? owner.orgId : null;
+    if (nextOrg !== prevOrg) setGameDraft(withoutTeams);
     setOwner(next);
     setUploadOpen(false);
     setBroadcastOpen(false);
@@ -556,6 +560,8 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
                 <span className="text-sm font-semibold text-primary">This {sideParam}</span>
               </label>
             )}
+            {/* The organization was chosen HERE, after the game's details: its teams can still be the sides. */}
+            {isGame && ownerOrg && <GameTeamPicks value={gameDraft} onChange={changeGame} teams={teams} />}
             {placeKind && (
               <p className="text-xs text-muted" data-new-video-place={placeKind}>It will also show on the {placeKind} you came from.</p>
             )}
