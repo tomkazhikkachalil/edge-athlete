@@ -1,5 +1,30 @@
 # Development Log
 
+## November 14, 2026 — Game film: the leftovers round, and round 2 closed on production
+
+Round 2 (Nov 13, below) named five gaps on purpose. Tom chose "close round 2, then leftovers". No migration in this round.
+
+**Round 2 closed first.** Tom ran **migration 308 on production** (`308 APPLIED | 1 | 6 | false | 308`; `check:schema:prod`: ledger OK). The window in which account deletion stopped partway there is over; "this is me" is live. #1497 `1dea4274` (the Stats-tab marker and round 2's entry) merged.
+
+| PR | What | Proof on production |
+| --- | --- | --- |
+| #1496 `ab1f25e8` | A guardian asks "this is me" for a supervised athlete: the claims read lists the athletes the viewer guards, the ask goes through the one acting-as gate (role AND approved consent), the request is the child's, pressed by the guardian. Plus the browser test of the manager's link picker. | `video-claims` (desktop) |
+| #1498 `8ff41c0e` | An organization's video managers read the open requests with its videos (`openClaimsFor`, at most 50); the Videos window lists them, each a link to the video where the decision is made. A member's read never carries them. | `org-app-videos` (desktop) |
+| #1499 `4726b0d1` | A placeholder whose every tag was just linked can leave the roster: offered on the result line, never automatic, through the roster's own door (`spareAfterLink`). | `video-claims` (desktop) |
+| #1500 | The Stats-tab marker's browser spec (`video-film-official`): no link until the athlete has a line on THAT contest, then the marker and its link at 375 px. Test only. | `video-film-official` (desktop), run before the merge — the marker shipped in #1497 |
+
+**What went wrong, and the rules.**
+- #1496 and #1498 edited the same sentence of the spec; Tom merged #1496 first and #1498 conflicted. Resolved by merging main in. RULE: two open PRs do not edit the same doc sentence — the second one's doc line waits for the closing PR.
+- I ran a production probe from a branch whose spec already tested an unshipped button; it failed on that step. RULE (again): probe production with MAIN's version of the spec.
+- My check watcher read a PR's old head in the seconds after a push and reported the previous commit's green checks. Caught by reading the commit's own check runs; the watcher now waits before its first read.
+- The first smoke run of #1496 failed on an unrelated spec (`tab-bar`, a network "fetch failed") while my local staging run overlapped it; re-run green.
+
+**The numbers.** `npm run verify` 0 at each PR (6,322 tests); audit 0; guardrails, blocklists green; ledger 308 on BOTH databases.
+
+**Still open, by decision.** Film stats in the season totals; a roster pick does not set the person's own side; the flow's team picker only when the owner is already an organization at Details; a request's notification goes to the uploader only (the org's list covers the other managers).
+
+**Still Tom's.** Tagging one real game and saying which sport sheets are wrong; Google's verification reply; the installed-iPhone connect and upload. (Every merge was Tom's: `merge-pr.sh` is refused for me by the permission classifier.)
+
 ## November 13, 2026 — Game film, round 2: a club tags anyone, players without an account, "this is me", undo, spoilers held on the server
 
 Tom, after Sprint 3: "Let's start planning the next phases." His decisions: who may be tagged turns on WHOSE video it is (a club or league tags anyone — "clubs might not follow everyone, might want to tag other teams"; a person only friends or followers); "not everyone will be an official athlete on the app… they might need placeholders, almost phantom profiles — only clubs and leagues can do that"; "when the player activates an account, they can request to have the stats… reflected in their profile"; spoilers held on the server "but they have options of seeing spoilers"; the game's details inside Details behind a switch. Film stats stay out of the season totals. Spec: `docs/specs/video-games.md` (Convention 60).
