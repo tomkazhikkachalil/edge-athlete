@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getStatSchema, isStatLineData, formatResult, computeProfileTile, type StatLineData } from '@/lib/sports/stat-schemas';
 import { fetchOfficialStatLines } from '@/lib/sports/server/official-stats';
+import { countGames } from '@/lib/performance/same-game';
+import { gameHasSides } from '@/lib/videos/game-rules';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -102,13 +104,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Phase 4: org-entered lines from PUBLIC competitions. The profile gate
+    // above already ran; the reader degrades to [] pre-157.
+    const officialAll = (await fetchOfficialStatLines(supabase, profileId)).filter(
+      l => l.sportKey === sport
+    );
+
     // Years present in the (unfiltered) data — powers the profile-page year
     // selector. Entry date preferred; post date as fallback (string-sliced,
     // never new Date().getFullYear(), to stay timezone-safe).
+    const lineDate = (l: { createdAt: string; line: StatLineData }): string =>
+      (l.line.date || l.createdAt).slice(0, 10);
     const lineYear = (l: { createdAt: string; line: StatLineData }): number =>
-      parseInt((l.line.date || l.createdAt).slice(0, 4), 10);
-    const years = Array.from(new Set(lines.map(lineYear).filter(Number.isFinite)))
-      .sort((a, b) => b - a);
+      parseInt(lineDate(l).slice(0, 4), 10);
+    const years = Array.from(new Set([
+      ...lines.map(lineYear),
+      ...officialAll.map(l => (l.date ? parseInt(l.date.slice(0, 4), 10) : NaN)),
+    ].filter(Number.isFinite))).sort((a, b) => b - a);
 
     // Optional ?year= filter — totals/highlights/activity scope to that year
     const yearParam = searchParams.get('year');
@@ -119,9 +131,34 @@ export async function GET(request: NextRequest) {
       }
       lines = lines.filter(l => lineYear(l) === year);
     }
+    const officialInYear = yearParam
+      ? officialAll.filter(l => l.date && l.date.slice(0, 4) === yearParam)
+      : officialAll;
 
-    const statLines = lines.map(l => l.line);
-    const entryCount = lines.length;
+    // One game, counted once (Nov 14 2026, same-game.ts): an official line
+    // and the athlete's own post of the same game — the same date, in a sport
+    // with two sides — count as ONE game, the official line. The post stays
+    // in the log, marked. A disputed line is unconfirmed: it neither counts
+    // nor beats anything until resolved.
+    const postGameId = (postId: string) => `post:${postId}`;
+    const officialGameId = (contestId: string) => `official:${contestId}`;
+    const confirmed = officialInYear.filter(l => !l.disputed);
+    const counted = countGames(
+      [
+        ...confirmed.map(l => ({ id: officialGameId(l.contestId), source: 'official' as const, date: l.date ? l.date.slice(0, 10) : null, contestId: l.contestId, opponent: l.opponentName })),
+        ...lines.map(l => ({ id: postGameId(l.postId), source: 'post' as const, date: lineDate(l), opponent: l.line.opponent ?? null })),
+      ],
+      { matchByDate: gameHasSides(schema.sport_key) }
+    );
+    const isCounted = (id: string) => counted.get(id)?.counted !== false;
+    const hrefOfOfficial = new Map(confirmed.map(l => [officialGameId(l.contestId), l.href]));
+
+    // The season's lines: every counted game, whichever way it arrived.
+    const statLines: StatLineData[] = [
+      ...lines.filter(l => isCounted(postGameId(l.postId))).map(l => l.line),
+      ...confirmed.filter(l => isCounted(officialGameId(l.contestId))).map(l => ({ type: 'stat_line' as const, sport_key: schema.sport_key, stats: l.stats })),
+    ];
+    const entryCount = statLines.length;
 
     // Aggregate field totals (kept for API consumers / debugging)
     const totals: Record<string, number> = {};
@@ -144,26 +181,24 @@ export async function GET(request: NextRequest) {
           value: computeProfileTile(t, statLines),
         }));
 
-    // Activity rows (newest first) matching the registry's activity_columns
-    const recentActivity = lines.slice(0, 25).map(({ postId, createdAt, line }) => ({
-      id: postId,
-      date: line.date || createdAt.slice(0, 10),
-      opponent: line.opponent || '—',
-      result: formatResult(line) || '—',
-      keyStat: schema.headline(line.stats) || '—',
-    }));
+    // Activity rows (newest first) matching the registry's activity_columns.
+    // A row that is the same game as an official line says so, with the link.
+    const recentActivity = lines.slice(0, 25).map(l => {
+      const verdict = counted.get(postGameId(l.postId));
+      return {
+        id: l.postId,
+        date: lineDate(l),
+        opponent: l.line.opponent || '—',
+        result: formatResult(l.line) || '—',
+        keyStat: schema.headline(l.line.stats) || '—',
+        counted: verdict?.counted !== false,
+        sameAs: verdict && !verdict.counted && verdict.beatenBy ? { source: 'official' as const, href: hrefOfOfficial.get(verdict.beatenBy) ?? null } : null,
+      };
+    });
 
-    // Phase 4: org-entered lines from PUBLIC competitions — a distinct
-    // "official" section, never merged into the self-posted rows (no
-    // cross-source game dedup exists; the two are labeled apart). The
-    // profile gate above already ran; the reader degrades to [] pre-157.
-    const officialAll = (await fetchOfficialStatLines(supabase, profileId)).filter(
-      l => l.sportKey === sport
-    );
-    const official = (yearParam
-      ? officialAll.filter(l => l.date && l.date.slice(0, 4) === yearParam)
-      : officialAll
-    )
+    // The official log: labeled apart from the self-posted rows; each row
+    // says whether it is in the totals (a disputed line is not).
+    const official = officialInYear
       .slice(0, 25)
       .map(l => ({
         contestId: l.contestId,
@@ -176,6 +211,7 @@ export async function GET(request: NextRequest) {
         href: l.href,
         // R5: an open dispute — the log's Unconfirmed marker.
         disputed: l.disputed,
+        counted: !l.disputed,
       }));
 
     return NextResponse.json({
