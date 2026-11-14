@@ -1,5 +1,32 @@
 # Development Log
 
+## November 13, 2026 — Game film, round 2: a club tags anyone, players without an account, "this is me", undo, spoilers held on the server
+
+Tom, after Sprint 3: "Let's start planning the next phases." His decisions: who may be tagged turns on WHOSE video it is (a club or league tags anyone — "clubs might not follow everyone, might want to tag other teams"; a person only friends or followers); "not everyone will be an official athlete on the app… they might need placeholders, almost phantom profiles — only clubs and leagues can do that"; "when the player activates an account, they can request to have the stats… reflected in their profile"; spoilers held on the server "but they have options of seeing spoilers"; the game's details inside Details behind a switch. Film stats stay out of the season totals. Spec: `docs/specs/video-games.md` (Convention 60).
+
+**Eight PRs.**
+
+| PR | What | Proof |
+| --- | --- | --- |
+| #1489 `7a853812` | Four faults in what Sprint 3 shipped: an edit rewrote an athlete whose account was gone as a typed name "Player 1"; a masked "Player 2" merged with a typed "Player 2"; every save wiped a person's side; someone who removed themselves could be tagged back in under another role or into a new clip. Plus the name-masking browser spec that was owed. | prod: `video-masking` |
+| #1490 `32322634` | The game's details inside the Full game flow ("This is a game" in Details; one `GameFields` over a pure `game-draft.ts` for the flow and the card). A side can be one of the organization's own teams; `saveGame` refuses any other team (before: any team id that existed). | prod: `video-game-flow`, desktop + mobile |
+| #1491 `e814e9cf` | Who may be tagged by whose video it is (`taggablePeople`), and the roster first: `GET /api/videos/[id]/people`, read once by the tag form — a club's own rosters (the game's linked teams first) or a person's connections. | prod: `video-tag-who` 2/2 |
+| #1492 `ced33a79` | A player without an account: `POST /api/videos/[id]/people` makes the roster import's own stub (private, claimable) from the tag form; `importRoster` takes no team; its own limit (`tag-placeholder`, 60/h). | prod: `video-placeholder` |
+| #1493 `0a819975` | "This is me" (**migration 308**, `video_tag_claims`): an athlete asks, nothing changes until a manager approves and says which name or placeholder they are; a manager also links directly; one writer (`linkTagTarget`) across the owner's videos. | staging; prod after 308 |
+| #1494 | Undo on removal: the removal answers with the row ids; `POST …/tags/restore` puts exactly those back — by whoever removed them, for ten minutes; the confirm became "removed · Undo". | staging |
+| spoilers | `GET /api/videos/[id]` cuts with the viewer's rights (`cutForViewer`): unwatched plays of a spoiler-free game never leave the server; `reveal` says how many are held and when to ask again; `reveal=all` is the viewer's choice. | staging (real playback) |
+| this PR | The Stats tab marks a film game that ALSO has the athlete's official line (the video is attached to that contest) — counted apart, linked. | unit pin |
+
+**Found by the gates, fixed before merging.** `org-ref.test` refused an organization's route family spelled inline in two components (`ORG_ROUTE_FAMILY` is the one spelling). The placeholder spec caught my own mistake: a player who fell back to the organization's roster was reported as on the side's team. `profile-fk-classification` required the new claims table in the deletion engine by name.
+
+**One thing went out of order.** #1493 merged before migration 308 had run on production. The code holds for a missing table on the read paths (a request answers "not available here yet"; the lists are empty), but the account-deletion engine names the table, so a deletion in that window stops partway until 308 is run. Said to Tom at once. RULE, again: a PR that carries a migration says so in its title AND I say it in the same breath as "ready to merge".
+
+**What did not go to plan.** Picking a roster player does not set the person's own side — the list is ordered by the tag's side instead (a mis-tap would have moved stats to the other team silently). In the flow the team picker shows only when the owner is already an organization at Details. A guardian cannot yet ask "this is me" for a child; requests are listed on the video's page, not in the org console; a placeholder linked to a real profile stays on the roster until removed by hand. The manager's direct-link picker and the Stats-tab marker have no browser spec (their routes and readers are pinned).
+
+**The numbers.** `npm run verify` 0 at every PR (6,271 → 6,319 tests); audit 0; guardrails, blocklists green; ledger 308 on staging. New specs: `video-masking`, `video-game-flow`, `video-tag-who`, `video-placeholder`, `video-claims`; `video-tagged-profile` and `video-spoiler-free` extended.
+
+**Still Tom's.** Migration 308 on production; the merges I cannot run from here (`merge-pr.sh` is refused by the permission classifier this session); tagging one real game and saying which sport sheets are wrong; Google's verification reply.
+
 ## November 12, 2026 — Maintenance after Sprint 3: every gate green; the production probe found the org share cards and the media worker dead since the function diet — fixed, with a build gate
 
 Tom: "Without breaking anything, run the full project maintenance checklist… make sure it gets to production to all customer-facing applications — web, large screen, mobile and the downloaded app — without issues."
