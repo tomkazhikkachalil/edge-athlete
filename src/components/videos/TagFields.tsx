@@ -6,7 +6,7 @@ import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
 import { periodLabel, sheetEvent, type EventGroup, type GameSheet, type SheetEvent } from '@/lib/videos/game-sheets';
 import { sideLabel, type GameView } from '@/lib/videos/game-rules';
 import { formatTimestamp, parseTypedTimestamp } from '@/lib/videos/rules';
-import { narrowCandidates, type TagCandidate, type TagGroup, type TagOwnerKind } from '@/lib/videos/tag-people';
+import { narrowCandidates, sideFromPick, type TagCandidate, type TagGroup, type TagOwnerKind } from '@/lib/videos/tag-people';
 import { ROLE_IN_CLIP, TAG_NAME_MAX, TAG_PEOPLE_MAX, tagPersonKey, type TagInput } from '@/lib/videos/tag-rules';
 import type { HighlightRow } from '@/lib/videos/types';
 import FaIcon from '@/components/FaIcon';
@@ -81,7 +81,7 @@ const GROUP_NOTE: Record<TagGroup, string> = { side1: 'Roster', side2: 'Roster',
  * everyone public on Edge Athlete; a person may not (they tag connections).
  * A typed name is always there for someone who is not here yet.
  */
-export function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind, firstSide, sideNames, videoId, onCreated, linking = false }: { roleLabel: string; taken: Set<string>; onPick: (p: { profile_id: string | null; name: string }) => void; onClose: () => void; candidates: readonly TagCandidate[]; ownerKind: TagOwnerKind; firstSide: 1 | 2 | null; sideNames: Record<1 | 2, string>; videoId?: string; onCreated: (p: TagCandidate) => void; /** Choosing a PROFILE to link a name to: no typed name, no new placeholder. */ linking?: boolean }) {
+export function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind, firstSide, sideNames, videoId, onCreated, linking = false }: { roleLabel: string; taken: Set<string>; onPick: (p: { profile_id: string | null; name: string; group?: TagCandidate['group'] }) => void; onClose: () => void; candidates: readonly TagCandidate[]; ownerKind: TagOwnerKind; firstSide: 1 | 2 | null; sideNames: Record<1 | 2, string>; videoId?: string; onCreated: (p: TagCandidate) => void; /** Choosing a PROFILE to link a name to: no typed name, no new placeholder. */ linking?: boolean }) {
   const searches = ownerKind === 'org';
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -95,7 +95,7 @@ export function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ow
       const body = (await res.json().catch(() => ({}))) as { person?: TagCandidate; error?: string };
       if (!res.ok || !body.person) { setCreateError(body.error ?? 'Could not add the player.'); return; }
       onCreated(body.person);
-      onPick({ profile_id: body.person.id, name: body.person.name });
+      onPick({ profile_id: body.person.id, name: body.person.name, group: body.person.group });
     } catch {
       setCreateError('Could not add the player. Check your connection and try again.');
     } finally {
@@ -126,7 +126,7 @@ export function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ow
         <ul className="divide-y divide-border-subtle max-h-64 overflow-y-auto" data-tag-known={known.length}>
           {known.map(p => (
             <li key={p.id}>
-              <button type="button" onClick={() => onPick({ profile_id: p.id, name: p.name })} className="ea-interactive flex w-full items-center gap-2 px-2 min-h-[44px] text-left" data-tag-pick={p.id} data-tag-pick-group={p.group}>
+              <button type="button" onClick={() => onPick({ profile_id: p.id, name: p.name, group: p.group })} className="ea-interactive flex w-full items-center gap-2 px-2 min-h-[44px] text-left" data-tag-pick={p.id} data-tag-pick-group={p.group}>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-primary truncate">{p.name}</span>
                   <span className="block text-xs text-muted truncate">{noteOf(p.group)}{p.handle ? ` · @${p.handle}` : ''}</span>
@@ -251,6 +251,8 @@ export default function TagFields({ sheet, game, value, onChange, videoId }: { s
           const holders = value.people.filter(p => p.role === r.key);
           const taken = new Set(holders.map(p => tagPersonKey({ profile_id: p.profile_id, name: p.name })));
           const full = holders.length >= r.max || value.people.length >= TAG_PEOPLE_MAX;
+          // Where the role puts its holder: the tag's side, or the OTHER side (the goalie beaten by a goal).
+          const roleSide: 1 | 2 | null = value.side ? (event?.roles.find(x => x.key === r.key)?.other ? (value.side === '1' ? 2 : 1) : (Number(value.side) as 1 | 2)) : null;
           return (
             <div key={r.key} data-tag-role={r.key}>
               <div className="flex flex-wrap items-center gap-2">
@@ -260,6 +262,12 @@ export default function TagFields({ sheet, game, value, onChange, videoId }: { s
                     <span className="max-w-[11rem] truncate">{p.name}</span>
                     {!p.profile_id && !p.masked && <span className="text-xs text-muted">(name)</span>}
                     {p.masked && <span className="text-xs text-muted">(account closed)</span>}
+                    {p.side && roleSide && p.side !== roleSide && (
+                      <>
+                        <span className="text-xs text-muted" data-tag-person-side={p.side}>on {sideLabel(game, p.side)}</span>
+                        <button type="button" onClick={() => set({ people: value.people.map(x => (x === p ? { ...x, side: null } : x)) })} className="text-xs font-semibold underline text-secondary min-h-[32px] px-1" data-tag-person-side-reset="">Use {sideLabel(game, roleSide)}</button>
+                      </>
+                    )}
                     <button type="button" onClick={() => set({ people: value.people.filter(x => x !== p) })} className="ea-icon-btn text-secondary !min-h-[32px] !min-w-[32px]" aria-label={`Remove ${p.name}`}><FaIcon icon={faXmark} className="text-xs" /></button>
                   </span>
                 ))}
@@ -273,12 +281,12 @@ export default function TagFields({ sheet, game, value, onChange, videoId }: { s
                     roleLabel={r.label}
                     taken={taken}
                     onClose={() => setPicking(null)}
-                    onPick={p => { set({ people: [...value.people, { ...p, role: r.key }] }); setPicking(null); }}
+                    onPick={({ group, ...p }) => { const side = sideFromPick(group, roleSide); set({ people: [...value.people, { ...p, role: r.key, ...(side ? { side } : {}) }] }); setPicking(null); }}
                     candidates={known.people}
                     videoId={videoId}
                     onCreated={p => setKnown(prev => ({ ...prev, people: [...prev.people, p] }))}
                     ownerKind={known.ownerKind}
-                    firstSide={value.side ? (event?.roles.find(x => x.key === r.key)?.other ? (value.side === '1' ? 2 : 1) : (Number(value.side) as 1 | 2)) : null}
+                    firstSide={roleSide}
                     sideNames={{ 1: sideLabel(game, 1), 2: sideLabel(game, 2) }}
                   />
                 </div>
