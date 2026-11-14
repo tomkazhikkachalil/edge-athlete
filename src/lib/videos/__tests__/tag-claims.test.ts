@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { claimKey, linkTargets, parseClaimDecision, parseClaimRequest, parseLinkBody, parseLinkTarget, planLink, spareAfterLink } from '../tag-claims';
+import { CLAIM_TOLD_MAX, claimKey, claimRecipients, linkTargets, parseClaimDecision, parseClaimRequest, parseLinkBody, parseLinkTarget, planLink, spareAfterLink, videoManagersOf, type ManagerRow } from '../tag-claims';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const P1 = '11111111-1111-4111-8111-111111111111';
@@ -133,7 +133,7 @@ describe('migration 308 and the writers', () => {
     expect(route).toContain('return NextResponse.json({ can_manage: false, mine: await myClaim(admin, id, user.id), athletes }, { headers: PRIVATE });');
     // A guardian asks FOR a child through the one acting-as gate (role and consent); who pressed the button is kept apart.
     expect(route).toContain("resolveActingProfile(user.id, request.nextUrl.searchParams.get('profileId'), 'Only the athlete or their guardian can ask this')");
-    expect(route).toContain('requestClaim(admin, { id, title: read.row.title ?? null, created_by_user_id: read.row.created_by_user_id ?? null }, acting.actorId, user.id, parsed.value.askedName)');
+    expect(route).toContain('requestClaim(admin, { id, title: read.row.title ?? null, created_by_user_id: read.row.created_by_user_id ?? null, org_id: read.row.org_id ?? null }, acting.actorId, user.id, parsed.value.askedName)');
     const claims = read('src/lib/videos/video-claims-server.ts');
     expect(claims).toContain("if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return [];");
     expect(claims).toContain(".eq('role', 'guardian')");
@@ -163,5 +163,39 @@ describe('spareAfterLink', () => {
     expect(ui).toContain("fetch(`/api/${ORG_ROUTE_FAMILY[owner.side]}/${encodeURIComponent(owner.id)}/roster?profileId=${encodeURIComponent(spare.id)}`, { method: 'DELETE' })");
     expect(ui).toContain('data-tag-claims-spare-remove=""');
     expect(read('src/lib/videos/video-claims-server.ts')).toContain('return { ok: true, value: { status, linked, videos, kept } };');
+  });
+});
+
+describe('who is told of a request (Nov 14 2026)', () => {
+  const row = (profile_id: string, over: Partial<ManagerRow> = {}): ManagerRow => ({ profile_id, kind: 'follow', role: 'member', sections: null, scope_type: 'org', expires_at: null, ...over });
+  const NOW = Date.parse('2026-11-14T12:00:00Z');
+  it('video managers are the people manage_video passes: ladder owner / manager, org-wide admin, org-wide staff with the website section', () => {
+    const rows = [
+      row('owner', { role: 'owner' }),
+      row('manager', { role: 'manager' }),
+      row('member'),
+      row('admin', { kind: 'staff', role: 'admin' }),
+      row('web', { kind: 'staff', role: 'staff', sections: ['website'] }),
+      row('roster-staff', { kind: 'staff', role: 'staff', sections: ['roster'] }),
+      row('team-admin', { kind: 'staff', role: 'admin', scope_type: 'team' }),
+      row('team-web', { kind: 'staff', role: 'staff', sections: ['website'], scope_type: 'division' }),
+      row('expired', { kind: 'staff', role: 'admin', expires_at: '2026-11-01T00:00:00Z' }),
+      row('later', { kind: 'staff', role: 'admin', expires_at: '2027-01-01T00:00:00Z' }),
+      row('player', { kind: 'roster', role: 'owner' }),
+      row('owner', { kind: 'staff', role: 'admin' }),
+    ];
+    expect(videoManagersOf(rows, NOW)).toEqual(['owner', 'manager', 'admin', 'web', 'later']);
+  });
+  it('the uploader first, each person once, never whoever asked, bounded', () => {
+    expect(claimRecipients('up', ['m1', 'up', 'm2', 'm1'], [])).toEqual(['up', 'm1', 'm2']);
+    expect(claimRecipients('up', ['m1', 'asker'], ['asker', 'child'])).toEqual(['up', 'm1']);
+    expect(claimRecipients('asker', [], ['asker'])).toEqual([]);
+    expect(claimRecipients(null, ['m1'], [])).toEqual(['m1']);
+    expect(claimRecipients('up', Array.from({ length: 200 }, (_, i) => `m${i}`), [])).toHaveLength(CLAIM_TOLD_MAX);
+  });
+  it('the writer tells them in one insert, and reads managers only for an organization\'s video', () => {
+    const claims = read('src/lib/videos/video-claims-server.ts');
+    expect(claims).toContain('claimRecipients(video.created_by_user_id, video.org_id ? await videoManagerIds(admin, video.org_id) : [], [userId, requesterId])');
+    expect(claims).toContain("admin.from('notifications').insert(told.map(user_id => ({ ...row, user_id })))");
   });
 });
