@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { claimKey, linkTargets, parseClaimDecision, parseClaimRequest, parseLinkBody, parseLinkTarget, planLink } from '../tag-claims';
+import { claimKey, linkTargets, parseClaimDecision, parseClaimRequest, parseLinkBody, parseLinkTarget, planLink, spareAfterLink } from '../tag-claims';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const P1 = '11111111-1111-4111-8111-111111111111';
@@ -145,5 +145,23 @@ describe('migration 308 and the writers', () => {
     const claims = read('src/lib/videos/video-claims-server.ts');
     expect(claims).toContain(".eq('status', 'pending').order('created_at', { ascending: true }).limit(OPEN_CLAIMS_MAX)");
     expect(read('src/components/orgs/page/OrgVideos.tsx')).toContain('href={`/videos/${c.video_id}`}');
+  });
+});
+
+/** Leftovers round (Nov 14 2026): a placeholder whose every tag was linked can leave the roster — offered, never automatic. */
+describe('spareAfterLink', () => {
+  const stub = { kind: 'placeholder' as const, profile_id: P1, name: 'Stub Player' };
+  it('only a placeholder, only on an organization\'s video, only when EVERY tag moved', () => {
+    expect(spareAfterLink(stub, { linked: 3, kept: 0 }, 'org')).toEqual({ id: P1, name: 'Stub Player' });
+    expect(spareAfterLink(stub, { linked: 3, kept: 1 }, 'org')).toBeNull();
+    expect(spareAfterLink(stub, { linked: 0, kept: 0 }, 'org')).toBeNull();
+    expect(spareAfterLink(stub, { linked: 3, kept: 0 }, 'profile')).toBeNull();
+    expect(spareAfterLink({ kind: 'name', profile_id: null, name: 'Ann' }, { linked: 3, kept: 0 }, 'org')).toBeNull();
+  });
+  it('the removal is the roster\'s own door (its right, its rules), and an approval answers how many tags were kept back', () => {
+    const ui = read('src/components/videos/TagClaims.tsx');
+    expect(ui).toContain("fetch(`/api/${ORG_ROUTE_FAMILY[owner.side]}/${encodeURIComponent(owner.id)}/roster?profileId=${encodeURIComponent(spare.id)}`, { method: 'DELETE' })");
+    expect(ui).toContain('data-tag-claims-spare-remove=""');
+    expect(read('src/lib/videos/video-claims-server.ts')).toContain('return { ok: true, value: { status, linked, videos, kept } };');
   });
 });

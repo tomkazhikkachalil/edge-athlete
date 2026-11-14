@@ -671,6 +671,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
         <TagClaims
           videoId={video.id}
           canManage={canManage}
+          owner={video.owner}
           taggedMe={(load.reveal?.tagged || allHighlights.some(h => h.people.some(p => p.profile_id === user.id)))}
           onLinked={async () => { const next = await fetchVideo(); if (next.state === 'ready') setLoad(next); }}
         />
