@@ -111,6 +111,6 @@ describe('the placeholder writer and route', () => {
     expect(roster).toContain("if (input.teamId && !seasonId) return { ok: false, reason: 'no_season' };");
   });
   it('the picker offers it only on an organization\'s video', () => {
-    expect(read('src/components/videos/TagFields.tsx')).toContain('{searches && videoId && typed.length > 0 && (');
+    expect(read('src/components/videos/TagFields.tsx')).toContain('{searches && videoId && !linking && typed.length > 0 && (');
   });
 });
