@@ -63,3 +63,26 @@ export function narrowCandidates(list: readonly TagCandidate[], typed: string, f
   const ordered = first ? [...matched.filter(p => p.group === first), ...matched.filter(p => p.group !== first)] : matched;
   return ordered.slice(0, limit);
 }
+
+export const PLACEHOLDER_NAME_MAX = 80;
+
+export const PLACEHOLDER_REFUSALS = {
+  not_org: 'Only a club or league can add a player without an account. Type the name instead.',
+  no_roster_right: 'Adding a player needs the right to manage this organization\'s roster. Type the name instead, or ask an owner.',
+  name: 'Type the player\'s name.',
+  failed: 'Could not add the player. Type the name instead and try again later.',
+} as const;
+
+/**
+ * A player without an account (round 2, Nov 13 2026 — clubs and leagues
+ * only): the name as typed, trimmed and single-spaced; no commas (the roster
+ * import's line format splits on one). First word = first name, the rest =
+ * last name.
+ */
+export function parsePlaceholderName(raw: unknown): { ok: true; firstName: string; lastName: string | null; name: string } | { ok: false; error: string } {
+  if (typeof raw !== 'string') return { ok: false, error: PLACEHOLDER_REFUSALS.name };
+  const name = raw.replace(/,/g, ' ').trim().replace(/\s+/g, ' ');
+  if (!name || name.length > PLACEHOLDER_NAME_MAX) return { ok: false, error: PLACEHOLDER_REFUSALS.name };
+  const [first, ...rest] = name.split(' ');
+  return { ok: true, firstName: first, lastName: rest.length > 0 ? rest.join(' ') : null, name };
+}

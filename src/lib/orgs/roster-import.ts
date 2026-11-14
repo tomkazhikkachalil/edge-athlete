@@ -91,7 +91,9 @@ export const ROSTER_IMPORT_CONCURRENCY = 5;
 /** The pause before a row's one retry of its Auth call. */
 const RETRY_PAUSE_MS = 400;
 
-/** Import a pasted roster into ONE team: per row, a stub profile (shadow
+/** Import a pasted roster into ONE team — or, with `teamId: null` (game film
+ *  round 2, Nov 13 2026: a player added from a video's tag form whose side
+ *  names no team), onto the organization's roster alone: per row, a stub profile (shadow
  *  auth user + create_stub_profile RPC) + THREE membership rows (org
  *  follow, org roster active, TEAM roster active — the first sub-org
  *  membership writer) + a claim invite (+ optional email). Per-row
@@ -105,7 +107,7 @@ export async function importRoster(
     side: OrgKind;
     orgId: string;
     orgName: string;
-    teamId: string;
+    teamId: string | null;
     rows: RosterImportRow[];
     createdBy: string;
     appUrl: string;
@@ -114,20 +116,24 @@ export async function importRoster(
   // Scope pin ONCE: the team must be this org's and active (a foreign or
   // archived team is indistinguishable from missing — structure-server
   // convention).
-  const { data: team } = await admin
-    .from('teams')
-    .select('id, name, status')
-    .eq('id', input.teamId)
-    .eq(ORG_ID, input.orgId)
-    .maybeSingle();
-  if (!team || team.status !== 'active') return { ok: false, reason: 'team_not_found' };
+  let team: { id: string; name: string; status: string } | null = null;
+  if (input.teamId) {
+    const { data } = await admin
+      .from('teams')
+      .select('id, name, status')
+      .eq('id', input.teamId)
+      .eq(ORG_ID, input.orgId)
+      .maybeSingle();
+    team = data as { id: string; name: string; status: string } | null;
+    if (!team || team.status !== 'active') return { ok: false, reason: 'team_not_found' };
+  }
 
   // Migration 242: a team roster row names its SEASON (the CHECK refuses one
   // without — every import onto a team failed from the moment 242 ran until
   // this). The team's newest live entered season, else the org's newest live
   // one; none → refused BEFORE any stub account is made.
-  const seasonId = await resolveTeamSeason(admin, input.orgId, input.teamId);
-  if (!seasonId) return { ok: false, reason: 'no_season' };
+  const seasonId = input.teamId ? await resolveTeamSeason(admin, input.orgId, input.teamId) : null;
+  if (input.teamId && !seasonId) return { ok: false, reason: 'no_season' };
 
   const importRow = async (row: RosterImportRow): Promise<ImportReportRow> => {
     const name = [row.firstName, row.lastName].filter(Boolean).join(' ');
@@ -184,7 +190,8 @@ export async function importRoster(
       const { error: memberError } = await admin.from('memberships').insert([
         { ...pairFor(input), profile_id: profileId, kind: 'follow', role: 'member', status: 'active', scope_type: 'org', scope_id: null, season_id: null },
         { ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null, season_id: null },
-        { ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: input.teamId, season_id: seasonId },
+        // No team = the organization's roster alone (two rows).
+        ...(input.teamId ? [{ ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: input.teamId, season_id: seasonId }] : []),
       ]);
       if (memberError) {
         console.error('[ROSTER IMPORT] membership insert failed:', memberError);
@@ -209,7 +216,7 @@ export async function importRoster(
           row.email,
           name,
           input.orgName,
-          team.name as string,
+          team?.name ?? input.orgName,
           claimUrl
         );
       }
