@@ -8,10 +8,18 @@
  * the origin is re-checked in ≤ 200-id chunks (the scout search's rule).
  * Org-entered and live-round rows are the org's / the round's record and
  * stay. Pre-194 (no table) answers `supported: false`.
+ *
+ * One game is counted once (Nov 14 2026, `same-game.ts`): a self-posted game
+ * that is the same game as an official line — the same contest, or the same
+ * date in a sport with two sides — leaves the rollups; the official line is
+ * the one that counts. Applied AFTER the visibility filter, so what a viewer
+ * may not see never decides what they are shown.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
+import { gameHasSides } from '@/lib/videos/game-rules';
 import { computeRollups, ROLLUP_ROW_CAP, type RollupRow, type Rollups } from './rollups';
+import { countGames, type CountableGame } from './same-game';
 
 const IN_CHUNK = 200;
 
@@ -26,7 +34,7 @@ export async function readRollups(
 
   const { data, error } = await admin
     .from('athlete_performances')
-    .select('occurred_on, metrics, provenance, source, source_id')
+    .select('id, occurred_on, metrics, provenance, source, source_id, source_table, contest_id')
     .eq('profile_id', profileId)
     .eq('sport_key', sportKey)
     .neq('dispute_status', 'disputed')
@@ -36,7 +44,7 @@ export async function readRollups(
     if (error.code === '42P01' || error.code === 'PGRST205') return { supported: false, rollups: null };
     throw new Error(`rollups read failed: ${error.message}`);
   }
-  let rows = (data ?? []) as Array<RollupRow & { source: string; source_id: string }>;
+  let rows = (data ?? []) as Array<RollupRow & { id: string; source: string; source_id: string; source_table: string; contest_id: string | null }>;
   const truncated = rows.length > ROLLUP_ROW_CAP;
   if (truncated) rows = rows.slice(0, ROLLUP_ROW_CAP);
 
@@ -55,5 +63,13 @@ export async function readRollups(
     rows = rows.filter(r => r.source !== 'post' || visible.has(r.source_id));
   }
 
+  const counted = countGames(rows.map(rollupGame), { matchByDate: gameHasSides(sportKey) });
+  rows = rows.filter(r => counted.get(r.id)?.counted !== false);
+
   return { supported: true, rollups: computeRollups(schema, rows, { truncated, trendLength: opts.trendLength }) };
+}
+
+/** A fact row as the same-game rule reads it: an org's contest line is official, everything else is the athlete's own. */
+export function rollupGame(r: { id: string; occurred_on: string; source_table: string; contest_id: string | null }): CountableGame {
+  return { id: r.id, source: r.source_table === 'contest_stat_lines' ? 'official' : 'post', date: r.occurred_on ? r.occurred_on.slice(0, 10) : null, contestId: r.contest_id };
 }

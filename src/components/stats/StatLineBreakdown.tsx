@@ -28,10 +28,14 @@ interface StatLinesResponse {
     opponent: string | null;
     result: string | null;
     keyStat: string | null;
+    /** Nov 14 2026: false when this is the same game as an official line — the official line is the one in the totals. */
+    counted?: boolean;
+    sameAs?: { source: 'official'; href: string | null } | null;
   }>;
   years: number[];
   /** Phase 4: org-entered lines from public competitions — labeled apart
-   *  from the self-posted log, never merged (no cross-source dedup). */
+   *  from the self-posted log. One game is counted once (same-game.ts): the
+   *  totals hold every counted game, official or self-posted. */
   official?: Array<{
     contestId: string;
     date: string | null;
@@ -235,9 +239,15 @@ export default function StatLineBreakdown({
             </thead>
             <tbody>
               {data.recentActivity.map(row => (
-                <tr key={row.id} className="border-b border-border-subtle/60 last:border-0">
+                <tr key={row.id} className="border-b border-border-subtle/60 last:border-0" data-stat-log-row={row.id} data-stat-counted={row.counted === false ? 'no' : 'yes'}>
                   <td className="py-2 pr-4 text-secondary whitespace-nowrap">
                     {row.date ? shortDate(row.date) : '—'}
+                    {row.counted === false && (
+                      <span className="block whitespace-normal text-[11px] text-muted" data-stat-not-counted="">
+                        Not counted — the same game as{' '}
+                        {row.sameAs?.href ? <a href={row.sameAs.href} className="underline">the official line</a> : 'the official line'}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-4 text-secondary">{row.opponent ?? '—'}</td>
                   <td className="py-2 pr-4 text-secondary">{row.result ?? '—'}</td>
