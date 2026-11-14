@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { User } from '@supabase/supabase-js';
 import { getProfileRole, getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { readRollups } from '@/lib/performance/rollups-server';
+import { verifiedFilmGames } from '@/lib/videos/video-tagged-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -22,12 +24,13 @@ export async function GET(request: NextRequest) {
     if (!profileId) return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     if (!sport || !getStatSchema(sport)) return NextResponse.json({ error: 'Unknown or unsupported sport' }, { status: 400 });
 
-    let viewerId: string | null = null;
+    let viewer: User | null = null;
     try {
-      viewerId = (await requireAuth(request)).id;
+      viewer = await requireAuth(request);
     } catch {
-      viewerId = null;
+      viewer = null;
     }
+    const viewerId: string | null = viewer?.id ?? null;
     const admin = getSupabaseAdmin();
     // Self or guardian — the skill-cards route's rule, so the two readers
     // of the Stats tab agree (gaps round, Sep 26 2026).
@@ -51,7 +54,9 @@ export async function GET(request: NextRequest) {
     // ?trend=<n>: the trends page wants the whole series; the tab wants ten.
     const trendParam = Number(searchParams.get('trend') ?? '');
     const trendLength = Number.isInteger(trendParam) && trendParam > 0 ? Math.min(trendParam, 2000) : undefined;
-    const { supported, rollups } = await readRollups(admin, profileId, sport, { viewerIsOwner: isOwner, trendLength });
+    // Verified film this viewer may open (Nov 14 2026) — read here, counted through the one same-game rule.
+    const film = await verifiedFilmGames(admin, profileId, sport, viewer, isOwner);
+    const { supported, rollups } = await readRollups(admin, profileId, sport, { viewerIsOwner: isOwner, trendLength, film });
     return NextResponse.json({ supported, rollups }, { headers: { 'Cache-Control': 'private, max-age=60' } });
   } catch (error) {
     if (error instanceof Response) return error;

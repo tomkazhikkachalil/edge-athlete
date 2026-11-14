@@ -28,9 +28,9 @@ interface StatLinesResponse {
     opponent: string | null;
     result: string | null;
     keyStat: string | null;
-    /** Nov 14 2026: false when this is the same game as an official line — the official line is the one in the totals. */
+    /** Nov 14 2026: false when this is the same game as an official line or a club's / league's verified film — that one is in the totals. */
     counted?: boolean;
-    sameAs?: { source: 'official'; href: string | null } | null;
+    sameAs?: { source: 'official' | 'film'; href: string | null } | null;
   }>;
   years: number[];
   /** Phase 4: org-entered lines from public competitions — labeled apart
@@ -49,6 +49,9 @@ interface StatLinesResponse {
     disputed?: boolean;
   }>;
 }
+
+/** What took a game's place in the totals. */
+const SAME_AS_WORD: Record<'official' | 'film', string> = { official: 'the official line', film: 'the club\'s game film' };
 
 const OFFICIAL_PROVENANCE_LABELS: Record<string, string> = {
   sanctioned: 'Sanctioned',
@@ -245,7 +248,7 @@ export default function StatLineBreakdown({
                     {row.counted === false && (
                       <span className="block whitespace-normal text-[11px] text-muted" data-stat-not-counted="">
                         Not counted — the same game as{' '}
-                        {row.sameAs?.href ? <a href={row.sameAs.href} className="underline">the official line</a> : 'the official line'}
+                        {row.sameAs?.href ? <a href={row.sameAs.href} className="underline">{SAME_AS_WORD[row.sameAs.source]}</a> : SAME_AS_WORD[row.sameAs?.source ?? 'official']}
                       </span>
                     )}
                   </td>

@@ -11,7 +11,7 @@
  * page must not be the spoiler).
  */
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { filmStanding, type FilmStanding } from './film-standing';
+import { filmCountable, filmStanding, type FilmStanding } from './film-standing';
 import { cellText, deriveGame } from './game-derive';
 import { gameTitleLine } from './game-rules';
 import { gameSheetFor } from './game-sheets';
@@ -41,7 +41,7 @@ export interface TaggedGameView {
   standing: FilmStanding | null;
 }
 
-/** A tagged game with the athlete's RAW stats (the sheet's keys) — what a total is built from. Null stats: not a game, nothing counted, or held back from this viewer. */
+/** A tagged game with the athlete's RAW stats (the sheet's keys) — what a total is built from. Null stats: not a game, or nothing counted. Kept even while the LINE is held back as a spoiler. */
 export interface TaggedGameStats { view: TaggedGameView; stats: Record<string, number> | null }
 
 export async function listTaggedGames(admin: Admin, profileId: string, viewer: User | null, actsForProfile: boolean): Promise<TaggedGameView[]> {
@@ -49,8 +49,12 @@ export async function listTaggedGames(admin: Admin, profileId: string, viewer: U
 }
 
 /** The one read behind the list and the totals: each game this viewer may see, the athlete's line as cells AND as raw stats. */
-export async function taggedGamesWithStats(admin: Admin, profileId: string, viewer: User | null, actsForProfile: boolean, max?: number): Promise<TaggedGameStats[]> {
-  const tagged = await taggedVideoIds(admin, profileId, max);
+export async function taggedGamesWithStats(admin: Admin, profileId: string, viewer: User | null, actsForProfile: boolean, max?: number, only?: (videoIds: string[]) => Promise<Set<string>>): Promise<TaggedGameStats[]> {
+  let tagged = await taggedVideoIds(admin, profileId, max);
+  if (only && tagged.length > 0) {
+    const keep = await only(tagged.map(t => t.videoId));
+    tagged = tagged.filter(t => keep.has(t.videoId));
+  }
   const out: TaggedGameView[] = [];
   const statsOf = new Map<string, Record<string, number>>();
   for (const t of tagged) {
@@ -72,11 +76,10 @@ export async function taggedGamesWithStats(admin: Admin, profileId: string, view
         .filter(c => (typeof c.key === 'string' ? [c.key] : [...c.key]).some(k => (stats[k] ?? 0) > 0))
         .map(c => ({ label: c.label, value: cellText(stats, c.key) }));
       if (cells.length > 0) {
+        // The raw stats are kept either way: a season total is not a play-by-play (Tom: a club's game is open, "like a pro sports team website").
+        statsOf.set(read.view.id, stats);
         if (game.stats_hidden && !read.canManage && !actsForProfile) hidden = true;
-        else {
-          line = cells;
-          statsOf.set(read.view.id, stats);
-        }
+        else line = cells;
       }
     }
     out.push({ video: read.view, game_title: game ? gameTitleLine(game) : null, sport_key: game?.sport_key ?? null, played_on: game?.played_on ?? null, clips: mine.length, line, stats_hidden: hidden, official_href: null, standing: game ? filmStanding(read.view.owner.kind, game.coverage) : null });
@@ -92,4 +95,33 @@ export async function taggedGamesWithStats(admin: Admin, profileId: string, view
     }
   }
   return out.map(view => ({ view, stats: statsOf.get(view.video.id) ?? null }));
+}
+
+/** The most tagged videos one season's totals look at. */
+export const FILM_TOTALS_MAX = 80;
+
+/** A verified film game as the totals take it. */
+export interface VerifiedFilmGame { videoId: string; title: string; date: string; contestId: string | null; stats: Record<string, number> }
+
+/**
+ * The film that COUNTS for one athlete in one sport (Nov 14 2026): games on a
+ * club's or league's video, fully tagged, with the date played, that THIS
+ * viewer may open. Only those videos are read in full: the owner and the
+ * sport are checked first, in two small reads.
+ */
+export async function verifiedFilmGames(admin: Admin, profileId: string, sportKey: string, viewer: User | null, actsForProfile: boolean): Promise<VerifiedFilmGame[]> {
+  const only = async (ids: string[]): Promise<Set<string>> => {
+    const [{ data: owned }, { data: games }] = await Promise.all([
+      admin.from('videos').select('id').in('id', ids).not('org_id', 'is', null),
+      admin.from('video_games').select('video_id').in('video_id', ids).eq('sport_key', sportKey).eq('coverage', 'full').not('played_on', 'is', null),
+    ]);
+    const org = new Set(((owned ?? []) as Array<{ id: string }>).map(r => r.id));
+    return new Set(((games ?? []) as Array<{ video_id: string }>).map(r => r.video_id).filter(id => org.has(id)));
+  };
+  const out: VerifiedFilmGame[] = [];
+  for (const g of await taggedGamesWithStats(admin, profileId, viewer, actsForProfile, FILM_TOTALS_MAX, only)) {
+    if (!filmCountable(g.view.standing) || !g.stats || !g.view.played_on || g.view.sport_key !== sportKey) continue;
+    out.push({ videoId: g.view.video.id, title: g.view.game_title ?? g.view.video.title, date: g.view.played_on, contestId: g.view.video.place?.kind === 'contest' ? g.view.video.place.id : null, stats: g.stats });
+  }
+  return out;
 }

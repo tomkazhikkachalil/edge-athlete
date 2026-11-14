@@ -9,23 +9,27 @@ import FaIcon from '@/components/FaIcon';
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 
 /**
- * "From game film" on the profile's Stats tab (Nov 12 2026; Tom's two
- * decisions): the athlete's line in each game a club, a league or a creator
- * tagged them in — a THIRD list, labelled apart from the athlete's own
- * posted games and from the Official lines, and **never in the season
- * totals or the tiles** (nothing here is stored; the line is derived from
- * the video's tags on the read). When the same game also has an official
- * line, BOTH show, each under its own label — the official one is the
- * record, this one is what the film's tags add up to.
+ * "From game film" on the profile's Stats tab (Nov 12 2026): the athlete's
+ * line in each game a club, a league or a creator tagged them in — a THIRD
+ * list, labelled apart from the athlete's own posted games and from the
+ * Official lines. Nothing here is stored; the line is derived from the
+ * video's tags on the read.
  *
  * Nov 14 2026 (Tom): "only league and club tagged data is the only verified
  * data for stats". The list is split — VERIFIED (a club's or league's
  * video) and RECREATIONAL (anyone else's: shown, labelled, never counted).
+ * A verified game that is fully tagged and dated COUNTS in the season totals
+ * and the tiles — once: the one same-game rule (same-game.ts) decides, on
+ * the server, and each row here says what it decided (`film` in the
+ * stat-lines answer). When the same game has an official line BOTH show; the
+ * official line is the one that counts.
  *
  * `sportKey` narrows to the sport the hub is on; null = every sport. A game
  * whose stats are still spoiler-free for this viewer says so instead of the
  * line. Renders nothing when there is nothing.
  */
+interface FilmVerdict { videoId: string; counted: boolean; sameAs: { source: 'official' | 'film'; href: string } | null }
+
 function shortDay(day: string | null): string {
   if (!day) return '—';
   const d = new Date(`${day}T12:00:00`);
@@ -34,6 +38,8 @@ function shortDay(day: string | null): string {
 
 export default function GameFilmLines({ profileId, sportKey }: { profileId: string; sportKey: string | null }) {
   const [games, setGames] = useState<TaggedGameView[]>([]);
+  // The totals' verdict per verified game, by video id — asked per sport, from the route that counts.
+  const [verdicts, setVerdicts] = useState<Record<string, FilmVerdict>>({});
 
   useEffect(() => {
     let live = true;
@@ -46,7 +52,22 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
         return [];
       }
     };
-    void read().then(next => { if (live) setGames(next); });
+    void read().then(async next => {
+      if (!live) return;
+      setGames(next);
+      const sports = [...new Set(next.filter(g => g.standing === 'verified' && g.sport_key && g.played_on).map(g => g.sport_key as string))];
+      const found: Record<string, FilmVerdict> = {};
+      await Promise.all(sports.map(async sport => {
+        try {
+          const res = await fetch(`/api/sports/stat-lines?profileId=${encodeURIComponent(profileId)}&sport=${encodeURIComponent(sport)}`, { cache: 'no-store' });
+          if (!res.ok) return;
+          for (const f of ((await res.json()) as { film?: FilmVerdict[] }).film ?? []) found[f.videoId] = f;
+        } catch {
+          /* the rows stay unlabelled */
+        }
+      }));
+      if (live) setVerdicts(found);
+    });
     return () => { live = false; };
   }, [profileId]);
 
@@ -64,7 +85,7 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
         <FaIcon icon={faYoutubeBrands} className="mr-2 text-red-600" />From game film
       </h3>
       <p className="mt-1 mb-3 text-xs text-muted">
-        Built from the tags on a full-game video. A club&apos;s or league&apos;s game is verified; a game tagged by anyone else is recreational. Listed apart from posted games and official lines, and not counted in the season totals.
+        {FILM_COPY.intro}
       </p>
       {([['verified', verified], ['recreational', recreational]] as const).map(([kind, list]) => list.length > 0 && (
         <div key={kind} className="mt-3 first:mt-0" data-game-film-group={kind}>
@@ -93,10 +114,18 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
                 )}
                 {g.stats_hidden && <p className="mt-1 text-xs text-muted" data-game-film-hidden="">No spoilers — the stats show as you watch the game.</p>}
                 {g.standing === 'verified_highlights' && <p className="mt-1 text-xs text-muted" data-game-film-highlights="">{FILM_COPY.highlightsNote}</p>}
+                {g.standing === 'verified' && !g.played_on && <p className="mt-1 text-xs text-muted" data-game-film-no-date="">{FILM_COPY.noDateNote}</p>}
+                {g.standing === 'verified' && verdicts[g.video.id]?.counted === true && <p className="mt-1 text-xs font-semibold text-brand-fg" data-game-film-counted="yes">{FILM_COPY.countedNote}</p>}
+                {g.standing === 'verified' && verdicts[g.video.id]?.counted === false && (
+                  <p className="mt-1 text-xs text-muted" data-game-film-counted="no">
+                    Not counted — the same game as{' '}
+                    {verdicts[g.video.id].sameAs ? <Link href={verdicts[g.video.id].sameAs!.href} className="underline">{verdicts[g.video.id].sameAs!.source === 'official' ? 'the official line' : 'another game film'}</Link> : 'another record'}.
+                  </p>
+                )}
                 {g.official_href && (
                   <p className="mt-2 text-xs text-secondary" data-game-film-official="">
                     This game also has an official line —{' '}
-                    <Link href={g.official_href} className="font-semibold underline">open the game</Link>. The two are counted apart; the official line is the one in the record.
+                    <Link href={g.official_href} className="font-semibold underline">open the game</Link>. The official line is the one that counts.
                   </p>
                 )}
               </li>

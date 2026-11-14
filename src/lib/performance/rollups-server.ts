@@ -14,6 +14,11 @@
  * date in a sport with two sides — leaves the rollups; the official line is
  * the one that counts. Applied AFTER the visibility filter, so what a viewer
  * may not see never decides what they are shown.
+ *
+ * Verified film (a club's or league's fully tagged, dated game) is not in
+ * the table — nothing about film is stored. The route reads it for this
+ * viewer and hands it in (`film`); it joins the rule between the official
+ * line and the post, and a counted film game is one more event.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
@@ -27,7 +32,7 @@ export async function readRollups(
   admin: SupabaseClient,
   profileId: string,
   sportKey: string,
-  opts: { viewerIsOwner: boolean; trendLength?: number }
+  opts: { viewerIsOwner: boolean; trendLength?: number; film?: ReadonlyArray<{ videoId: string; date: string; contestId: string | null; stats: Record<string, number> }> }
 ): Promise<{ supported: boolean; rollups: Rollups | null }> {
   const schema = getStatSchema(sportKey);
   if (!schema) return { supported: true, rollups: null };
@@ -63,10 +68,19 @@ export async function readRollups(
     rows = rows.filter(r => r.source !== 'post' || visible.has(r.source_id));
   }
 
-  const counted = countGames(rows.map(rollupGame), { matchByDate: gameHasSides(sportKey) });
-  rows = rows.filter(r => counted.get(r.id)?.counted !== false);
+  const film = opts.film ?? [];
+  const filmId = (videoId: string) => `film:${videoId}`;
+  const counted = countGames(
+    [...rows.map(rollupGame), ...film.map(f => ({ id: filmId(f.videoId), source: 'film' as const, date: f.date, contestId: f.contestId }))],
+    { matchByDate: gameHasSides(sportKey) }
+  );
+  const events: RollupRow[] = [
+    ...rows.filter(r => counted.get(r.id)?.counted !== false),
+    // A club's or league's film is the club's record of the game.
+    ...film.filter(f => counted.get(filmId(f.videoId))?.counted !== false).map(f => ({ occurred_on: f.date, metrics: f.stats, provenance: 'club_recorded' })),
+  ];
 
-  return { supported: true, rollups: computeRollups(schema, rows, { truncated, trendLength: opts.trendLength }) };
+  return { supported: true, rollups: computeRollups(schema, events, { truncated, trendLength: opts.trendLength }) };
 }
 
 /** A fact row as the same-game rule reads it: an org's contest line is official, everything else is the athlete's own. */

@@ -20,7 +20,9 @@
  * official line and three posts still counts three games. Two film games of
  * one game (a club and a league both filmed it) count once. Posts are never
  * matched against each other, nor official lines (one per contest by the
- * table's own key). A game with no date is matched only by its contest.
+ * table's own key). A game with no date is matched only by its contest —
+ * but a beaten game still speaks for its winner: the film of a contest
+ * carries its date to the official line that beat it.
  * The loser is never hidden: it comes back with who beat it and why.
  */
 export type GameSource = 'official' | 'film' | 'post';
@@ -58,21 +60,30 @@ export function countGames(games: readonly CountableGame[], opts: { matchByDate:
   // Two games tied to two DIFFERENT contests are two games, whatever the date.
   const sameDate = (w: CountableGame, l: CountableGame) => opts.matchByDate && !!w.date && w.date === l.date && !(w.contestId && l.contestId && w.contestId !== l.contestId) && !opts.distinct?.has(distinctKey(w.id, l.id));
 
+  // What each COUNTED game has already taken, per source — the one-to-one bound.
+  const taken = new Map<string, Set<GameSource>>();
   for (const w of order) {
-    if (!out.get(w.id)!.counted) continue;
-    // What this game can take with it: every lower source, and — for film only — its own.
-    const sources: GameSource[] = (['film', 'post'] as const).filter(s => SOURCE_RANK[s] < SOURCE_RANK[w.source] || (s === 'film' && w.source === 'film'));
+    // A beaten game still speaks for its winner: a film game that lost to the official line of its contest carries the
+    // date the line may lack, so the athlete's own post of that day is the same game too — once per winner.
+    const verdict = out.get(w.id)!;
+    const winner = verdict.counted ? w : order.find(g => g.id === verdict.beatenBy) ?? w;
+    const has = taken.get(winner.id) ?? new Set<GameSource>();
+    taken.set(winner.id, has);
+    // What this game can take with it: every lower source, and — for a counted film game only — its own.
+    const sources: GameSource[] = (['film', 'post'] as const).filter(s => SOURCE_RANK[s] < SOURCE_RANK[w.source] || (s === 'film' && w.source === 'film' && verdict.counted));
     for (const s of sources) {
       const open = order.filter(l => l.source === s && l.id !== w.id && out.get(l.id)!.counted);
       const exact = w.contestId ? open.filter(l => l.contestId === w.contestId) : [];
       // Every game of the same contest is that game, however many there are.
-      for (const l of exact) beat(l, w, 'same_contest');
-      if (exact.length > 0) continue;
-      const dated = open.filter(l => sameDate(w, l));
+      for (const l of exact) beat(l, winner, 'same_contest');
+      if (exact.length > 0) { has.add(s); continue; }
+      if (has.has(s)) continue;
+      const dated = open.filter(l => sameDate(w, l) && !opts.distinct?.has(distinctKey(winner.id, l.id)));
       if (dated.length === 0) continue;
-      const wo = norm(w.opponent);
+      const wo = norm(w.opponent) || norm(winner.opponent);
       const pick = (wo && dated.find(l => norm(l.opponent) === wo)) || dated[0];
-      beat(pick, w, 'same_date');
+      beat(pick, winner, 'same_date');
+      has.add(s);
     }
   }
   return out;
