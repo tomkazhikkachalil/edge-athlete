@@ -527,6 +527,8 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   // tokens and the upload link's hash leave with the person.
   await mustDelete('activity_connections', 'profile_id');
   // Videos (296): the person's own linked games (their markers cascade); an org's videos are the org's.
+  // Game film (308): the person's own "this is me" requests (before their videos: a request on their own video cascades anyway).
+  await mustDelete('video_tag_claims', 'requester_profile_id');
   await mustDelete('videos', 'profile_id');
   // The YouTube connection (298): the person's own channel grant, and any org connection their Google account made.
   await mustDelete('youtube_connections', 'profile_id');

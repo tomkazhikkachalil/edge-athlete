@@ -45,6 +45,8 @@ import type { HighlightPerson, HighlightRow, VideoOwnerView, VideoPlaceView, Vid
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { checkTag, removedOut, tagPersonKey, type TagInput, type TagPersonInput } from './tag-rules';
 import { outsideConnections, TAG_WHO_REFUSALS } from './tag-people';
+import { claimKey, planLink, type LinkRow, type LinkTarget, type OwnRow } from './tag-claims';
+import { isStubEmail } from '@/lib/config/stubs-config';
 import { connectionIds } from './tag-people-server';
 import { gameSheetFor } from './game-sheets';
 
@@ -518,6 +520,89 @@ async function notifyNewlyTagged(admin: Admin, videoId: string, profileIds: read
     }
   } catch (e) {
     console.error(`${TAG} tag notification failed:`, e);
+  }
+}
+
+/** How many of an owner's videos one link reads (a club's whole library, bounded). */
+export const LINK_VIDEOS_MAX = 500;
+
+/**
+ * A typed name, or a placeholder player, becomes a real profile's tags
+ * (round 2 PR 4, Nov 13 2026) — across EVERY video of the owner, in one
+ * decision. `checkWho` applies the owner's who-may-be-tagged rule (a manager
+ * linking directly); an approved request skips it (the athlete asked). The
+ * profile must stand; a block with the actor refuses; a placeholder target
+ * must really be an unclaimed roster stub — a real athlete's tags are never
+ * moved to someone else. The profile is not tagged back into anything it
+ * removed itself from (`planLink`). They are told once.
+ */
+export async function linkTagTarget(admin: Admin, owner: TagOwner, target: LinkTarget, toProfileId: string, byUserId: string, opts: { checkWho: boolean }): Promise<Outcome<{ linked: number; videos: number; kept: number }>> {
+  const { data: to } = await admin.from('profiles').select('id, email, departed_at').eq('id', toProfileId).maybeSingle();
+  const toRow = to as { id: string; email: string | null; departed_at: string | null } | null;
+  if (!toRow || toRow.departed_at) return { ok: false, status: 404, error: 'That person is not on Edge Athlete' };
+  if (isStubEmail(toRow.email)) return { ok: false, status: 400, error: 'That is a player without an account. Link to the athlete\'s own profile.' };
+  if (opts.checkWho) {
+    const who = await taggablePeople(admin, [{ profile_id: toProfileId, name: null, role: 'in_clip', side: null }], byUserId, new Set(), owner);
+    if (!who.ok) return who;
+    if (who.value.length === 0) return { ok: false, status: 403, error: 'That person cannot be linked' };
+  } else if (toProfileId !== byUserId) {
+    const { allowed } = await filterBlockedBidirectional(admin, byUserId, [toProfileId]);
+    if (allowed.length === 0) return { ok: false, status: 403, error: 'That person cannot be linked' };
+  }
+  if (target.kind === 'placeholder') {
+    const { data: stub } = await admin.from('profiles').select('id, email').eq('id', target.profileId).maybeSingle();
+    if (!stub || !isStubEmail((stub as { email: string | null }).email)) return { ok: false, status: 400, error: 'Only a player without an account can be linked to a profile' };
+  }
+  const videosQuery = admin.from('videos').select('id').order('created_at', { ascending: false }).limit(LINK_VIDEOS_MAX);
+  const { data: vids, error: vidsError } = owner.orgId ? await videosQuery.eq('org_id', owner.orgId) : owner.profileId ? await videosQuery.eq('profile_id', owner.profileId) : { data: [], error: null };
+  if (vidsError) { console.error(`${TAG} link videos read failed:`, vidsError.message); return { ok: false, status: 500, error: 'Could not link the tags' }; }
+  const videoIds = ((vids ?? []) as Array<{ id: string }>).map(v => v.id);
+  if (videoIds.length === 0) return { ok: true, value: { linked: 0, videos: 0, kept: 0 } };
+  const base = admin.from('video_highlight_people').select('id, highlight_id, video_id, role, name').in('video_id', videoIds).eq('status', 'active').limit(HIGHLIGHT_READ_MAX * 4);
+  const { data: found, error: foundError } = target.kind === 'name' ? await base.not('name', 'is', null) : await base.eq('profile_id', target.profileId);
+  if (foundError) { console.error(`${TAG} link rows read failed:`, foundError.message); return { ok: false, status: 500, error: 'Could not link the tags' }; }
+  const key = target.kind === 'name' ? claimKey(target.name) : null;
+  const rows = ((found ?? []) as Array<LinkRow & { name: string | null }>).filter(r => key === null || claimKey(r.name) === key);
+  if (rows.length === 0) return { ok: true, value: { linked: 0, videos: 0, kept: 0 } };
+  const { data: own, error: ownError } = await admin.from('video_highlight_people').select('highlight_id, video_id, role, status').eq('profile_id', toProfileId).in('video_id', videoIds).limit(HIGHLIGHT_READ_MAX * 4);
+  if (ownError) { console.error(`${TAG} link own rows read failed:`, ownError.message); return { ok: false, status: 500, error: 'Could not link the tags' }; }
+  const plan = planLink(rows, (own ?? []) as OwnRow[]);
+  if (plan.drop.length > 0) {
+    const { error } = await admin.from('video_highlight_people').delete().in('id', plan.drop);
+    if (error) { console.error(`${TAG} link drop failed:`, error.message); return { ok: false, status: 500, error: 'Could not link the tags' }; }
+  }
+  if (plan.move.length > 0) {
+    const { error } = await admin.from('video_highlight_people').update({ profile_id: toProfileId, name: null }).in('id', plan.move);
+    if (error) { console.error(`${TAG} link move failed:`, error.message); return { ok: false, status: 500, error: 'Could not link the tags' }; }
+  }
+  const moved = new Set(plan.move);
+  const linkedVideos = [...new Set(rows.filter(r => moved.has(r.id)).map(r => r.video_id))];
+  if (linkedVideos.length > 0) await notifyLinked(admin, linkedVideos, toProfileId, byUserId);
+  return { ok: true, value: { linked: plan.move.length, videos: linkedVideos.length, kept: plan.kept } };
+}
+
+/** The linked athlete is told ONCE for the whole link (their guardians too) — never per tag or per game. */
+async function notifyLinked(admin: Admin, videoIds: readonly string[], profileId: string, actorId: string): Promise<void> {
+  if (profileId === actorId) return;
+  try {
+    const [{ data: video }, { data: profile }] = await Promise.all([
+      admin.from('videos').select('title').eq('id', videoIds[0]).maybeSingle(),
+      admin.from('profiles').select('first_name, supervision_state').eq('id', profileId).maybeSingle(),
+    ]);
+    const first = ((video as { title?: string } | null)?.title ?? 'a game').slice(0, 120);
+    const where = videoIds.length > 1 ? `${first} and ${videoIds.length - 1} more` : first;
+    const actionUrl = `/videos/${videoIds[0]}`;
+    const { error } = await admin.from('notifications').insert({
+      user_id: profileId, type: 'tag', actor_id: actorId, title: `You were tagged in ${where}`, message: 'Your clips and stats from these tags are on your profile. You can remove the tags from the video.', action_url: actionUrl, is_read: false, metadata: { video_id: videoIds[0], linked_videos: videoIds.length },
+    });
+    if (error) console.error(`${TAG} link notification failed:`, error.message);
+    const p = profile as { first_name: string | null; supervision_state: string | null } | null;
+    if (p?.supervision_state === 'supervised') {
+      const { notifyGuardians } = await import('@/lib/guardian-notify');
+      await notifyGuardians(admin, profileId, { type: 'tag_alert', title: `${p.first_name || 'Your athlete'} was tagged in ${where}`, actionUrl, actorId, metadata: { video_id: videoIds[0] } }, actorId);
+    }
+  } catch (e) {
+    console.error(`${TAG} link notification failed:`, e);
   }
 }
 

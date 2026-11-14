@@ -266,6 +266,8 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'user_mutes.muter_id': 'goes',
   // Game film (307): who was in a tag is the GAME's record — it outlives the person, as a contest's stat line and media tag do.
   'video_highlight_people.profile_id': 'survives',
+  // Game film (308): a "this is me" request is the person's own; the tags it moved are the game's record (307, above) and stay.
+  'video_tag_claims.requester_profile_id': 'goes',
   // Videos (296): a linked game on the person's own profile leaves with them; an org's videos stay with the org.
   'videos.profile_id': 'goes',
   // The YouTube connection (298): the owner's channel grant leaves with the owner; a connection someone

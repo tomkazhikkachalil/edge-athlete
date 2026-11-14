@@ -81,7 +81,7 @@ const GROUP_NOTE: Record<TagGroup, string> = { side1: 'Roster', side2: 'Roster',
  * everyone public on Edge Athlete; a person may not (they tag connections).
  * A typed name is always there for someone who is not here yet.
  */
-function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind, firstSide, sideNames, videoId, onCreated }: { roleLabel: string; taken: Set<string>; onPick: (p: { profile_id: string | null; name: string }) => void; onClose: () => void; candidates: readonly TagCandidate[]; ownerKind: TagOwnerKind; firstSide: 1 | 2 | null; sideNames: Record<1 | 2, string>; videoId?: string; onCreated: (p: TagCandidate) => void }) {
+export function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind, firstSide, sideNames, videoId, onCreated, linking = false }: { roleLabel: string; taken: Set<string>; onPick: (p: { profile_id: string | null; name: string }) => void; onClose: () => void; candidates: readonly TagCandidate[]; ownerKind: TagOwnerKind; firstSide: 1 | 2 | null; sideNames: Record<1 | 2, string>; videoId?: string; onCreated: (p: TagCandidate) => void; /** Choosing a PROFILE to link a name to: no typed name, no new placeholder. */ linking?: boolean }) {
   const searches = ownerKind === 'org';
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -152,13 +152,13 @@ function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind
         </ul>
       )}
       {!searches && <p className="text-xs text-muted" data-tag-picker-rule="">On your own video you can tag people you follow or who follow you. Anyone else goes in by name.</p>}
-      {searches && videoId && typed.length > 0 && (
+      {searches && videoId && !linking && typed.length > 0 && (
         <button type="button" onClick={() => createPlayer(typed)} disabled={creating} className={`${BTN} w-full text-left`} data-tag-add-player="">
           {creating ? 'Adding…' : <>Add “{typed}” as a player <span className="font-normal text-muted">— no account yet; their stats carry across your games and are theirs when they join</span></>}
         </button>
       )}
       {createError && <p className="text-sm text-red-600" role="alert" data-tag-add-player-error="">{createError}</p>}
-      {typed.length > 0 && !nameTaken && (
+      {typed.length > 0 && !nameTaken && !linking && (
         <button type="button" onClick={() => onPick({ profile_id: null, name: typed })} className={`${BTN} w-full text-left`} data-tag-pick-name="">
           Use “{typed}” as a name <span className="font-normal text-muted">— {searches ? 'this game only' : 'not on Edge Athlete yet'}</span>
         </button>

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
 import HighlightList from '@/components/videos/HighlightList';
 import GameDetailsCard from '@/components/videos/GameDetailsCard';
+import TagClaims from '@/components/videos/TagClaims';
 import TagTimeline from '@/components/videos/TagTimeline';
 import GameStatsPanel from '@/components/videos/GameStatsPanel';
 import GameRecap from '@/components/videos/GameRecap';
@@ -618,6 +619,15 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
         videoId={video.id}
       />
       </div>
+
+      {user && load.game && (
+        <TagClaims
+          videoId={video.id}
+          canManage={canManage}
+          taggedMe={allHighlights.some(h => h.people.some(p => p.profile_id === user.id))}
+          onLinked={async () => { const next = await fetchVideo(); if (next.state === 'ready') setLoad(next); }}
+        />
+      )}
 
       {user && allHighlights.some(h => h.people.some(p => p.profile_id === user.id)) && (
         <div className="bg-surface rounded-lg border border-border p-4 flex flex-wrap items-center gap-3" data-video-tagged-me="">
