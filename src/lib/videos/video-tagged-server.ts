@@ -11,6 +11,7 @@
  * page must not be the spoiler).
  */
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { filmStanding, type FilmStanding } from './film-standing';
 import { cellText, deriveGame } from './game-derive';
 import { gameTitleLine } from './game-rules';
 import { gameSheetFor } from './game-sheets';
@@ -36,11 +37,22 @@ export interface TaggedGameView {
   stats_hidden: boolean;
   /** Round 2 PR 7: the video is attached to a contest that ALSO has this athlete's official stat line — the link to it, so the two are read together. Null otherwise. */
   official_href: string | null;
+  /** Nov 14 2026: a club's or league's game is verified film (counted only when fully tagged); anyone else's is recreational. Null when the video is not a game. */
+  standing: FilmStanding | null;
 }
 
+/** A tagged game with the athlete's RAW stats (the sheet's keys) — what a total is built from. Null stats: not a game, nothing counted, or held back from this viewer. */
+export interface TaggedGameStats { view: TaggedGameView; stats: Record<string, number> | null }
+
 export async function listTaggedGames(admin: Admin, profileId: string, viewer: User | null, actsForProfile: boolean): Promise<TaggedGameView[]> {
-  const tagged = await taggedVideoIds(admin, profileId);
+  return (await taggedGamesWithStats(admin, profileId, viewer, actsForProfile)).map(g => g.view);
+}
+
+/** The one read behind the list and the totals: each game this viewer may see, the athlete's line as cells AND as raw stats. */
+export async function taggedGamesWithStats(admin: Admin, profileId: string, viewer: User | null, actsForProfile: boolean, max?: number): Promise<TaggedGameStats[]> {
+  const tagged = await taggedVideoIds(admin, profileId, max);
   const out: TaggedGameView[] = [];
+  const statsOf = new Map<string, Record<string, number>>();
   for (const t of tagged) {
     const read = await readVideoForViewer(admin, t.videoId, viewer);
     if (!read) continue; // hidden, private, or gone for this viewer
@@ -61,10 +73,13 @@ export async function listTaggedGames(admin: Admin, profileId: string, viewer: U
         .map(c => ({ label: c.label, value: cellText(stats, c.key) }));
       if (cells.length > 0) {
         if (game.stats_hidden && !read.canManage && !actsForProfile) hidden = true;
-        else line = cells;
+        else {
+          line = cells;
+          statsOf.set(read.view.id, stats);
+        }
       }
     }
-    out.push({ video: read.view, game_title: game ? gameTitleLine(game) : null, sport_key: game?.sport_key ?? null, played_on: game?.played_on ?? null, clips: mine.length, line, stats_hidden: hidden, official_href: null });
+    out.push({ video: read.view, game_title: game ? gameTitleLine(game) : null, sport_key: game?.sport_key ?? null, played_on: game?.played_on ?? null, clips: mine.length, line, stats_hidden: hidden, official_href: null, standing: game ? filmStanding(read.view.owner.kind, game.coverage) : null });
   }
   // Which of these games ALSO have an official line for this athlete? Exact only: the video is attached to the contest. One read.
   const contestOf = new Map(out.filter(g => g.video.place?.kind === 'contest').map(g => [g.video.place!.id, g]));
@@ -76,5 +91,5 @@ export async function listTaggedGames(admin: Admin, profileId: string, viewer: U
       if (g) g.official_href = `/event/${r.contest_id}`;
     }
   }
-  return out;
+  return out.map(view => ({ view, stats: statsOf.get(view.video.id) ?? null }));
 }

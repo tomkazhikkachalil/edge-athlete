@@ -95,6 +95,11 @@ test('tagged by someone else: told once, on the profile with the clips and the l
     await page.goto('/athlete?tab=stats');
     const film = page.locator(`[data-game-film-row="${videoId}"]`);
     await expect(film).toBeVisible({ timeout: 20_000 });
+    //     Nov 14: tagged on a PERSON's video — recreational, under its own heading, said never to be counted.
+    await expect(film).toHaveAttribute('data-game-film-standing', 'recreational');
+    const recreational = page.locator('[data-game-film-group="recreational"]');
+    await expect(recreational.locator(`[data-game-film-row="${videoId}"]`)).toHaveCount(1);
+    await expect(recreational).toContainText('never counted');
     await expect(film.locator('[data-game-film-link]')).toHaveAttribute('href', `/videos/${videoId}`);
     await expect(film.locator('[data-game-film-line]')).toContainText('PTS');
     await expect(page.locator('[data-game-film-lines]')).toContainText('not counted in the season totals');
