@@ -223,6 +223,10 @@ export const RATE_LIMITS = {
   // (auth user + profile + 3 membership rows + invite each); 10/h clears a
   // real club evening while capping a runaway client.
   'roster-import': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  // A player without an account, added from a video's tag form (game film
+  // round 2, Nov 13 2026): ONE stub per request — a whole game's two rosters
+  // in an evening, never a runaway client.
+  'tag-placeholder': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Athlete claim (phase 1 R3): peek IP-keyed (token-guess cost); the
   // claim itself is IP-keyed too — the adult path is ACCOUNTLESS by
   // design (no merge machinery; the stub becomes your account), so there

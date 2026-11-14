@@ -3,7 +3,9 @@ import { filterBlockedBidirectional } from '@/lib/blocks';
 import { ORG_ID } from '@/lib/orgs/org-ref';
 import { currentTeamRosterRows } from '@/lib/teams/roster-server';
 import { readGame } from './video-games-server';
-import { orderCandidates, type TagCandidate, type TagGroup } from './tag-people';
+import { importRoster } from '@/lib/orgs/roster-import';
+import type { OrgKind } from '@/lib/orgs/org-ref';
+import { orderCandidates, PLACEHOLDER_REFUSALS, type TagCandidate, type TagGroup } from './tag-people';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- schema-agnostic helper, as in videos-server.ts
 type Admin = SupabaseClient<any, 'public', any>;
@@ -76,4 +78,33 @@ export async function tagCandidates(admin: Admin, video: { id: string; org_id: s
   };
   const group = (g: TagGroup) => (ids[g] ?? []).map(person).filter((v): v is NonNullable<ReturnType<typeof person>> => !!v);
   return orderCandidates({ side1: group('side1'), side2: group('side2'), roster: group('roster'), connections: group('connections') });
+}
+
+/**
+ * A player without an account, added from a club's or league's own video
+ * (round 2, Nov 13 2026). It is a roster STUB — the same private profile a
+ * roster import makes, with its claim invite — so its tags and stats carry
+ * across every game the organization tags, and are already the player's the
+ * day they activate the account. It joins the roster of the team the tag's
+ * side is linked to (when that team has a live season), else the
+ * organization's roster alone. The caller holds the gates (a manager of the
+ * video AND of the organization's roster).
+ */
+export async function addPlaceholderPlayer(
+  admin: Admin,
+  input: { videoId: string; org: { id: string; side: OrgKind; name: string }; firstName: string; lastName: string | null; side: 1 | 2 | null; createdBy: string; appUrl: string },
+): Promise<{ ok: true; person: TagCandidate } | { ok: false; error: string }> {
+  const game = input.side ? await readGame(admin, input.videoId) : null;
+  const teamId = input.side === 1 ? (game?.side1.team_id ?? null) : input.side === 2 ? (game?.side2.team_id ?? null) : null;
+  const base = { side: input.org.side, orgId: input.org.id, orgName: input.org.name, rows: [{ firstName: input.firstName, lastName: input.lastName, email: null }], createdBy: input.createdBy, appUrl: input.appUrl };
+  let made = teamId ? await importRoster(admin, { ...base, teamId }) : null;
+  const onTeam = !!made && made.ok;
+  // A team that is gone or has no live season does not stop the player being added: the organization's roster takes them.
+  if (!made || !made.ok) made = await importRoster(admin, { ...base, teamId: null });
+  const row = made.ok ? made.report[0] : null;
+  if (!row || !row.profileId || row.error) {
+    console.error(`${TAG} placeholder failed:`, row?.error ?? 'no row');
+    return { ok: false, error: PLACEHOLDER_REFUSALS.failed };
+  }
+  return { ok: true, person: { id: row.profileId, name: row.name, handle: null, avatar_url: null, group: onTeam && input.side ? (input.side === 1 ? 'side1' : 'side2') : 'roster' } };
 }

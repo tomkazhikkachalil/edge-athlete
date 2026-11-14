@@ -81,8 +81,27 @@ const GROUP_NOTE: Record<TagGroup, string> = { side1: 'Roster', side2: 'Roster',
  * everyone public on Edge Athlete; a person may not (they tag connections).
  * A typed name is always there for someone who is not here yet.
  */
-function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind, firstSide, sideNames }: { roleLabel: string; taken: Set<string>; onPick: (p: { profile_id: string | null; name: string }) => void; onClose: () => void; candidates: readonly TagCandidate[]; ownerKind: TagOwnerKind; firstSide: 1 | 2 | null; sideNames: Record<1 | 2, string> }) {
+function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind, firstSide, sideNames, videoId, onCreated }: { roleLabel: string; taken: Set<string>; onPick: (p: { profile_id: string | null; name: string }) => void; onClose: () => void; candidates: readonly TagCandidate[]; ownerKind: TagOwnerKind; firstSide: 1 | 2 | null; sideNames: Record<1 | 2, string>; videoId?: string; onCreated: (p: TagCandidate) => void }) {
   const searches = ownerKind === 'org';
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  // A player without an account (clubs and leagues only): a roster placeholder whose stats carry across games and are theirs when they join.
+  const createPlayer = async (name: string) => {
+    if (!videoId || creating) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/people`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, side: firstSide }) });
+      const body = (await res.json().catch(() => ({}))) as { person?: TagCandidate; error?: string };
+      if (!res.ok || !body.person) { setCreateError(body.error ?? 'Could not add the player.'); return; }
+      onCreated(body.person);
+      onPick({ profile_id: body.person.id, name: body.person.name });
+    } catch {
+      setCreateError('Could not add the player. Check your connection and try again.');
+    } finally {
+      setCreating(false);
+    }
+  };
   const fetcher = useCallback(async (q: string, signal: AbortSignal) => {
     if (!searches) return [] as PersonSuggestion[];
     const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`, { signal });
@@ -133,9 +152,15 @@ function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind
         </ul>
       )}
       {!searches && <p className="text-xs text-muted" data-tag-picker-rule="">On your own video you can tag people you follow or who follow you. Anyone else goes in by name.</p>}
+      {searches && videoId && typed.length > 0 && (
+        <button type="button" onClick={() => createPlayer(typed)} disabled={creating} className={`${BTN} w-full text-left`} data-tag-add-player="">
+          {creating ? 'Adding…' : <>Add “{typed}” as a player <span className="font-normal text-muted">— no account yet; their stats carry across your games and are theirs when they join</span></>}
+        </button>
+      )}
+      {createError && <p className="text-sm text-red-600" role="alert" data-tag-add-player-error="">{createError}</p>}
       {typed.length > 0 && !nameTaken && (
         <button type="button" onClick={() => onPick({ profile_id: null, name: typed })} className={`${BTN} w-full text-left`} data-tag-pick-name="">
-          Use “{typed}” as a name <span className="font-normal text-muted">— not on Edge Athlete yet</span>
+          Use “{typed}” as a name <span className="font-normal text-muted">— {searches ? 'this game only' : 'not on Edge Athlete yet'}</span>
         </button>
       )}
     </div>
@@ -250,6 +275,8 @@ export default function TagFields({ sheet, game, value, onChange, videoId }: { s
                     onClose={() => setPicking(null)}
                     onPick={p => { set({ people: [...value.people, { ...p, role: r.key }] }); setPicking(null); }}
                     candidates={known.people}
+                    videoId={videoId}
+                    onCreated={p => setKnown(prev => ({ ...prev, people: [...prev.people, p] }))}
                     ownerKind={known.ownerKind}
                     firstSide={value.side ? (event?.roles.find(x => x.key === r.key)?.other ? (value.side === '1' ? 2 : 1) : (Number(value.side) as 1 | 2)) : null}
                     sideNames={{ 1: sideLabel(game, 1), 2: sideLabel(game, 2) }}

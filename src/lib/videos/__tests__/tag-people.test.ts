@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { narrowCandidates, orderCandidates, outsideConnections, TAG_CANDIDATES_MAX, TAG_WHO_REFUSALS, type TagCandidate } from '../tag-people';
+import { narrowCandidates, orderCandidates, outsideConnections, parsePlaceholderName, PLACEHOLDER_NAME_MAX, TAG_CANDIDATES_MAX, TAG_WHO_REFUSALS, type TagCandidate } from '../tag-people';
 
 /** Who may be tagged, and who the picker offers first (round 2, Nov 13 2026). */
 const p = (id: string, name: string, handle: string | null = null) => ({ id, name, handle, avatar_url: null });
@@ -73,5 +73,44 @@ describe('the writer and the route', () => {
     const fields = read('src/components/videos/TagFields.tsx');
     expect(fields).toContain('}, [videoId]);');
     expect(fields).toContain("if (!searches) return [] as PersonSuggestion[];");
+  });
+});
+
+/** A player without an account — clubs and leagues only (round 2 PR 3). */
+describe('parsePlaceholderName', () => {
+  it('trims, single-spaces, drops commas; first word = first name, the rest = last name', () => {
+    expect(parsePlaceholderName('  Ann   Lee ')).toEqual({ ok: true, firstName: 'Ann', lastName: 'Lee', name: 'Ann Lee' });
+    expect(parsePlaceholderName('Lee, Ann')).toEqual({ ok: true, firstName: 'Lee', lastName: 'Ann', name: 'Lee Ann' });
+    expect(parsePlaceholderName('Pelé')).toEqual({ ok: true, firstName: 'Pelé', lastName: null, name: 'Pelé' });
+    expect(parsePlaceholderName('Mary Jo van der Berg')).toMatchObject({ firstName: 'Mary', lastName: 'Jo van der Berg' });
+  });
+  it('nothing, not text, or too long is refused', () => {
+    expect(parsePlaceholderName('  ').ok).toBe(false);
+    expect(parsePlaceholderName(7).ok).toBe(false);
+    expect(parsePlaceholderName('x'.repeat(PLACEHOLDER_NAME_MAX + 1)).ok).toBe(false);
+  });
+});
+
+describe('the placeholder writer and route', () => {
+  const read = (f: string) => readFileSync(join(process.cwd(), f), 'utf8');
+  it('only a club or league, only a manager of the video AND of the roster, one stub per request under its own limit', () => {
+    const route = read('src/app/api/videos/[id]/people/route.ts');
+    expect(route).toContain("getServerAuth(request, { limit: 'tag-placeholder' })");
+    expect(route).toContain("if (owner.kind !== 'org') return NextResponse.json({ error: PLACEHOLDER_REFUSALS.not_org }, { status: 403, headers: PRIVATE });");
+    expect(route).toContain("requireOrgManager(admin, user, owner.side, owner.id, { intent: 'manage_members' })");
+    expect(route.indexOf('if (!read.canManage)', route.indexOf('export async function POST'))).toBeLessThan(route.indexOf('requireOrgManager(admin'));
+    expect(read('src/lib/rate-limit-core.ts')).toContain("'tag-placeholder': { max: 60, windowSeconds: 3600, keyBy: 'user' },");
+  });
+  it('it is the roster import\'s own stub (private, claimable) — on the side\'s team when it has a season, else the organization\'s roster', () => {
+    const writer = read('src/lib/videos/tag-people-server.ts');
+    expect(writer).toContain('let made = teamId ? await importRoster(admin, { ...base, teamId }) : null;');
+    expect(writer).toContain('if (!made || !made.ok) made = await importRoster(admin, { ...base, teamId: null });');
+    const roster = read('src/lib/orgs/roster-import.ts');
+    expect(roster).toContain('teamId: string | null;');
+    expect(roster).toContain("...(input.teamId ? [{ ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: input.teamId, season_id: seasonId }] : []),");
+    expect(roster).toContain("if (input.teamId && !seasonId) return { ok: false, reason: 'no_season' };");
+  });
+  it('the picker offers it only on an organization\'s video', () => {
+    expect(read('src/components/videos/TagFields.tsx')).toContain('{searches && videoId && typed.length > 0 && (');
   });
 });
