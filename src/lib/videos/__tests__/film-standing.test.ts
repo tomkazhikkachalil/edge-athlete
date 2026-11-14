@@ -22,8 +22,9 @@ describe('filmStanding (Tom, Nov 14 2026: only club and league tagged data is ve
   it('the reader stamps every game with its standing from the video\'s OWNER, and keeps the raw stats only where the line is shown', () => {
     const reader = read('src/lib/videos/video-tagged-server.ts');
     expect(reader).toContain('standing: game ? filmStanding(read.view.owner.kind, game.coverage) : null');
-    expect(reader).toContain("if (game.stats_hidden && !read.canManage && !actsForProfile) hidden = true;");
-    expect(reader).toContain('statsOf.set(read.view.id, stats);');
+    // The LINE is held back as a spoiler; the raw stats are kept for the totals either way.
+    expect(reader.indexOf('statsOf.set(read.view.id, stats);')).toBeLessThan(reader.indexOf("if (game.stats_hidden && !read.canManage && !actsForProfile) hidden = true;"));
+    expect(reader).toContain('else line = cells;');
     expect(reader).toContain('return (await taggedGamesWithStats(admin, profileId, viewer, actsForProfile)).map(g => g.view);');
   });
   it('the list is split in two and a highlights-only game says why it is not counted', () => {

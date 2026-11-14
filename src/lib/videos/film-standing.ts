@@ -23,4 +23,7 @@ export const FILM_COPY = {
   recreationalHeading: 'Recreational — not verified',
   recreationalNote: 'Tagged on a video that is not a club\'s or league\'s. Shown here, never counted.',
   highlightsNote: 'Highlights only — not every play is tagged, so this game is not counted.',
+  noDateNote: 'No date played on this game yet, so it is not counted.',
+  countedNote: 'Counted in the season totals.',
+  intro: 'Built from the tags on a full-game video. A club\'s or league\'s fully tagged game is verified and counts in the season totals — once: an official line for the same game takes its place. A game tagged by anyone else is recreational: shown, never counted.',
 } as const;

@@ -102,7 +102,7 @@ test('tagged by someone else: told once, on the profile with the clips and the l
     await expect(recreational).toContainText('never counted');
     await expect(film.locator('[data-game-film-link]')).toHaveAttribute('href', `/videos/${videoId}`);
     await expect(film.locator('[data-game-film-line]')).toContainText('PTS');
-    await expect(page.locator('[data-game-film-lines]')).toContainText('not counted in the season totals');
+    await expect(page.locator('[data-game-film-lines]')).toContainText('A game tagged by anyone else is recreational: shown, never counted.');
     expect(await fitsViewportWidth(page)).toBe(true);
 
     // 4. One highlight's tag removed through the API: one clip left, three points gone.

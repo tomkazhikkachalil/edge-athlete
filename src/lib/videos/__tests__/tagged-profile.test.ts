@@ -61,27 +61,35 @@ describe('tagged by someone else', () => {
     expect(screen).toContain('data-video-untag-me=""');
   });
 
-  it('the Stats tab lists game-film lines as a THIRD list — labelled apart, never in the totals, both shown when an official line exists (Tom, Nov 12)', () => {
+  it('the Stats tab lists game-film lines as a THIRD list, labelled apart; since Nov 14 2026 only VERIFIED film counts, through the one rule on the server', () => {
     const film = read('src/components/stats/GameFilmLines.tsx');
     expect(film).toContain('/api/videos/tagged?profileId=');
-    expect(film).toContain('not counted in the season totals');
     expect(film).toContain('data-game-film-hidden=""');
-    // It reads the derived lines only: it never touches the stat-line or rollup routes, so nothing it shows can reach a total or a tile.
-    expect(film).not.toMatch(/api\/sports\/stat-lines|api\/performance\/rollups/);
+    // The list never adds anything up itself: it asks the route that counts what it decided, per verified game.
+    expect(film).toContain("next.filter(g => g.standing === 'verified' && g.sport_key && g.played_on)");
+    expect(film).toContain('/api/sports/stat-lines?profileId=');
+    expect(film).not.toMatch(/api\/performance\/rollups/);
+    expect(film).toContain('data-game-film-counted="yes"');
+    expect(film).toContain('data-game-film-counted="no"');
     expect(read('src/components/stats/StatsHub.tsx')).toContain('<GameFilmLines profileId={profileId} sportKey={selectedSport ?? null} />');
-    // And the totals' own sources are untouched: no video source feeds the route or the performance table.
-    expect(read('src/app/api/sports/stat-lines/route.ts')).not.toMatch(/video_highlight|listTaggedGames/);
+    // The totals take film ONLY through verifiedFilmGames (a club's or league's, fully tagged, dated) — never the plain tagged list, never stored.
+    const route = read('src/app/api/sports/stat-lines/route.ts');
+    expect(route).not.toMatch(/video_highlight|listTaggedGames/);
+    expect(route).toContain('verifiedFilmGames(supabase, profileId, schema.sport_key, viewer,');
     expect(read('src/lib/performance/map.ts')).not.toMatch(/video/i);
+    const reader = read('src/lib/videos/video-tagged-server.ts');
+    expect(reader).toContain("admin.from('videos').select('id').in('id', ids).not('org_id', 'is', null)");
+    expect(reader).toContain(".eq('sport_key', sportKey).eq('coverage', 'full').not('played_on', 'is', null)");
+    expect(reader).toContain('if (!filmCountable(g.view.standing) || !g.stats || !g.view.played_on || g.view.sport_key !== sportKey) continue;');
   });
 
-  it('a film game attached to a contest that also has the athlete\'s official line is MARKED (round 2 PR 7) — exact match only, never counted together', () => {
+  it('a film game attached to a contest that also has the athlete\'s official line is MARKED (round 2 PR 7) — and the official line is the one that counts', () => {
     const reader = read('src/lib/videos/video-tagged-server.ts');
     expect(reader).toContain("out.filter(g => g.video.place?.kind === 'contest')");
     expect(reader).toContain(".from('contest_stat_lines').select('contest_id').eq('profile_id', profileId).in('contest_id', [...contestOf.keys()])");
     expect(reader).toContain('g.official_href = `/event/${r.contest_id}`;');
     const list = read('src/components/stats/GameFilmLines.tsx');
     expect(list).toContain('data-game-film-official=""');
-    expect(list).toContain('The two are counted apart');
-    expect(list).toContain('not counted in the season totals');
+    expect(list).toContain('The official line is the one that counts.');
   });
 });

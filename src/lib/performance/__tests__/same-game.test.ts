@@ -53,6 +53,14 @@ describe('countGames — one game, counted once', () => {
     expect(run([g('p', 'post', '2026-11-01'), g('o', 'official', '2026-11-01')], [], false)).toEqual({ o: 'counted', p: 'counted' });
     expect(run([g('f', 'film', '2026-11-01', { contestId: 'c1' }), g('o', 'official', '2026-11-01', { contestId: 'c1' })], [], false)).toEqual({ o: 'counted', f: 'same_contest<o' });
   });
+  it('a beaten game speaks for its winner: the film of a contest carries its date to the undated official line, and the post of that day is the same game', () => {
+    expect(run([g('o', 'official', null, { contestId: 'c1' }), g('f', 'film', '2026-11-01', { contestId: 'c1' }), g('p', 'post', '2026-11-01')])).toEqual({ o: 'counted', f: 'same_contest<o', p: 'same_date<o' });
+    // …but still one to one per winner: the line and its film together take ONE post of the day, not two.
+    const out = run([g('o', 'official', '2026-11-01'), g('f', 'film', '2026-11-01'), g('p1', 'post', '2026-11-01'), g('p2', 'post', '2026-11-01')]);
+    expect(out).toEqual({ o: 'counted', f: 'same_date<o', p1: 'same_date<o', p2: 'counted' });
+    // And "different games" is asked of the winner: the athlete said the post is not the official game.
+    expect(run([g('o', 'official', null, { contestId: 'c1' }), g('f', 'film', '2026-11-01', { contestId: 'c1' }), g('p', 'post', '2026-11-01')], [distinctKey('o', 'p')])).toEqual({ o: 'counted', f: 'same_contest<o', p: 'counted' });
+  });
   it('the same id twice is one game; nothing in, nothing out', () => {
     expect(run([g('p', 'post', '2026-11-01'), g('p', 'post', '2026-11-01')])).toEqual({ p: 'counted' });
     expect(run([])).toEqual({});
@@ -63,16 +71,22 @@ describe('both Stats readers count through the rule', () => {
   const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
   it('the tiles: after the visibility filter, an org\'s contest line is official and everything else the athlete\'s own', () => {
     const src = read('src/lib/performance/rollups-server.ts');
-    expect(src).toContain('const counted = countGames(rows.map(rollupGame), { matchByDate: gameHasSides(sportKey) });');
-    expect(src).toContain('rows = rows.filter(r => counted.get(r.id)?.counted !== false);');
-    expect(src.indexOf("rows = rows.filter(r => r.source !== 'post' || visible.has(r.source_id));")).toBeLessThan(src.indexOf('countGames(rows.map(rollupGame)'));
+    expect(src).toContain("[...rows.map(rollupGame), ...film.map(f => ({ id: filmId(f.videoId), source: 'film' as const, date: f.date, contestId: f.contestId }))],");
+    expect(src).toContain('{ matchByDate: gameHasSides(sportKey) }');
+    expect(src).toContain('...rows.filter(r => counted.get(r.id)?.counted !== false),');
+    // A counted film game is one more event — the club's record — and film is never stored.
+    expect(src).toContain("...film.filter(f => counted.get(filmId(f.videoId))?.counted !== false).map(f => ({ occurred_on: f.date, metrics: f.stats, provenance: 'club_recorded' })),");
+    expect(src.indexOf("rows = rows.filter(r => r.source !== 'post' || visible.has(r.source_id));")).toBeLessThan(src.indexOf('...rows.map(rollupGame)'));
     expect(src).toContain("source: r.source_table === 'contest_stat_lines' ? 'official' : 'post'");
   });
   it('the season totals: a disputed line neither counts nor beats anything; the log row says what beat it', () => {
     const src = read('src/app/api/sports/stat-lines/route.ts');
     expect(src).toContain('const confirmed = officialInYear.filter(l => !l.disputed);');
     expect(src).toContain('{ matchByDate: gameHasSides(schema.sport_key) }');
-    expect(src).toContain('counted: verdict?.counted !== false,');
+    expect(src).toContain('counted: isCounted(postGameId(l.postId)),');
+    expect(src).toContain("...filmInYear.map(f => ({ id: filmGameId(f.videoId), source: 'film' as const, date: f.date, contestId: f.contestId })),");
+    expect(src).toContain('const film = filmInYear.map(f => ({ videoId: f.videoId, counted: isCounted(filmGameId(f.videoId)), sameAs: sameAsOf(filmGameId(f.videoId)) }));');
+    expect(src).toContain("{ headers: { 'Cache-Control': 'private, no-store' } }");
     expect(src).toContain('counted: !l.disputed,');
   });
 });
