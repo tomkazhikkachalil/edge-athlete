@@ -375,6 +375,10 @@ describe('the flow round', () => {
     expect(parseFlowDraft('{not json', now)).toBeNull();
     expect(parseFlowDraft('[]', now)).toBeNull();
     expect(parseFlowDraft(null, now)).toBeNull();
+    // Round 2 (Nov 13): the game fields ride along as written; anything that is not a small object is dropped.
+    expect(parseFlowDraft(JSON.stringify({ ...good, game: { sport_key: 'basketball' } }), now)?.game).toEqual({ sport_key: 'basketball' });
+    expect(parseFlowDraft(JSON.stringify({ ...good, game: 'x' }), now)?.game).toBeUndefined();
+    expect(parseFlowDraft(JSON.stringify({ ...good, game: { big: 'x'.repeat(2000) } }), now)?.game).toBeUndefined();
   });
   it('both routes land through the one rule; the callback checks the cookie again and clears it', () => {
     const read = (f: string) => readFileSync(join(process.cwd(), f), 'utf8');

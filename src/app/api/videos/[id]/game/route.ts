@@ -48,7 +48,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const read = await readVideoForViewer(admin, id, user);
     if (!read) return NOT_FOUND();
     if (!read.canManage) return NextResponse.json({ error: 'Only a manager can edit this video.' }, { status: 403 });
-    const saved = await saveGame(admin, id, parsed.value, user.id);
+    const saved = await saveGame(admin, id, parsed.value, user.id, read.row.org_id ?? null);
     if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: saved.status });
     return NextResponse.json({ game: saved.value }, { headers: PRIVATE });
   } catch (error) {
