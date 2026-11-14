@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
+import { useToast } from '@/components/Toast';
 import HighlightList from '@/components/videos/HighlightList';
 import GameDetailsCard from '@/components/videos/GameDetailsCard';
 import TagClaims from '@/components/videos/TagClaims';
@@ -284,14 +285,30 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
     setPlayKey(k => k + 1);
   };
   // PR 7: the signed-in viewer is tagged in this video — they may remove the tags of themselves (no right over the video needed).
-  const [confirmUntag, setConfirmUntag] = useState(false);
+  // Round 2 PR 5: reversible for ten minutes, so it is done at once and offers Undo — no confirm for a reversible act.
+  const { showUndo } = useToast();
   const untagMe = async () => {
-    setConfirmUntag(false);
     try {
-      const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/tags`, { method: 'DELETE' });
+      const path = `/api/videos/${encodeURIComponent(videoId)}/tags`;
+      const res = await fetch(path, { method: 'DELETE' });
       if (!res.ok) { setNote('Could not remove the tags. Try again.'); return; }
+      const body = (await res.json().catch(() => ({}))) as { ids?: string[] };
       const next = await fetchVideo();
       if (next.state === 'ready') setLoad(next);
+      const ids = body.ids ?? [];
+      if (ids.length === 0) return;
+      showUndo('Your tags were removed', () => {
+        void (async () => {
+          try {
+            const back = await fetch(`${path}/restore`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+            if (!back.ok) { setNote('Could not put the tags back. Try again.'); return; }
+            const again = await fetchVideo();
+            if (again.state === 'ready') setLoad(again);
+          } catch {
+            setNote('Could not put the tags back. Check your connection and try again.');
+          }
+        })();
+      }, 'The clips and stats from this video left your profile.');
     } catch {
       setNote('Could not remove the tags. Check your connection and try again.');
     }
@@ -632,19 +649,9 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
       {user && allHighlights.some(h => h.people.some(p => p.profile_id === user.id)) && (
         <div className="bg-surface rounded-lg border border-border p-4 flex flex-wrap items-center gap-3" data-video-tagged-me="">
           <p className="min-w-0 flex-1 text-sm text-secondary">You are tagged in this video. The clips and stats show on your profile.</p>
-          <button type="button" onClick={() => setConfirmUntag(true)} className={BTN} data-video-untag-me="">Remove my tags</button>
+          <button type="button" onClick={() => void untagMe()} className={BTN} data-video-untag-me="">Remove my tags</button>
         </div>
       )}
-
-      <ConfirmModal
-        isOpen={confirmUntag}
-        title="Remove your tags?"
-        message="Every tag of you in this video is removed: the clips leave your profile and the stats from them are no longer counted. The video itself is not changed, and the tags cannot be put back by the people who made them."
-        confirmText="Remove"
-        confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
-        onCancel={() => setConfirmUntag(false)}
-        onConfirm={untagMe}
-      />
 
       <ConfirmModal
         isOpen={confirmDelete}

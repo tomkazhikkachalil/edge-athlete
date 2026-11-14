@@ -84,6 +84,13 @@ test('tagged by someone else: told once, on the profile with the clips and the l
     await expect(card.locator('[data-tagged-game-open]')).toHaveAttribute('href', `/videos/${videoId}`);
     expect(await fitsViewportWidth(page)).toBe(true);
 
+    //    "Remove me" on the card (round 2 PR 5): done at once, the card leaves, Undo brings it back with both clips.
+    await card.locator('[data-tagged-game-remove]').click();
+    await expect(card).toHaveCount(0, { timeout: 20_000 });
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(card.locator('[data-tagged-game-clips="2"]')).toBeVisible();
+
     // 3b. The Stats tab (Tom, Nov 12): "From game film" — a third list, labelled apart, the line with the link back, and said NOT to be in the totals.
     await page.goto('/athlete?tab=stats');
     const film = page.locator(`[data-game-film-row="${videoId}"]`);
@@ -105,9 +112,21 @@ test('tagged by someone else: told once, on the profile with the clips and the l
     // 5. On the video page the athlete sees they are tagged and removes the rest; the confirm names what is lost.
     await page.goto(`/videos/${videoId}`);
     await expect(page.locator('[data-video-tagged-me]')).toBeVisible({ timeout: 20_000 });
+    //    Round 2 PR 5: it is done at once and offers Undo. Undo puts the tag — and the stat — back; a second removal is let stand.
     await page.locator('[data-video-untag-me]').click();
-    await expect(page.getByText('cannot be put back by the people who made them')).toBeVisible();
-    await page.getByRole('button', { name: 'Remove', exact: true }).click();
+    await expect(page.locator('[data-video-tagged-me]')).toHaveCount(0, { timeout: 20_000 });
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.locator('[data-video-tagged-me]')).toBeVisible({ timeout: 20_000 });
+    res = await athleteApi.get(`/api/videos/tagged?profileId=${athlete.id}`);
+    mine = ((await res.json()).games as Array<{ video: { id: string }; game_title: string; clips: number; line: Array<{ label: string; value: string }> | null; stats_hidden: boolean }>).find(g => g.video.id === videoId)!;
+    expect(mine.clips).toBe(1);
+    //    Someone else cannot restore the athlete's tags, and ids that are not theirs restore nothing.
+    const { data: live } = await admin.from('video_highlight_people').select('id').eq('video_id', videoId).eq('profile_id', athlete.id).eq('status', 'active');
+    const liveIds = ((live ?? []) as Array<{ id: string }>).map(r => r.id);
+    expect((await strangerApi.post(`/api/videos/${videoId}/tags/restore?profileId=${athlete.id}`, { data: { ids: liveIds } })).ok()).toBe(false);
+    res = await strangerApi.post(`/api/videos/${videoId}/tags/restore`, { data: { ids: liveIds } });
+    expect(await res.json()).toMatchObject({ restored: 0 });
+    await page.locator('[data-video-untag-me]').click();
     await expect(page.locator('[data-video-tagged-me]')).toHaveCount(0, { timeout: 20_000 });
     res = await athleteApi.get(`/api/videos/tagged?profileId=${athlete.id}`);
     expect(((await res.json()).games as Array<{ video: { id: string } }>).some(g => g.video.id === videoId)).toBe(false);

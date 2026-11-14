@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import ConfirmModal from '@/components/ConfirmModal';
+import { useToast } from '@/components/Toast';
 import type { TaggedGameView } from '@/lib/videos/video-tagged-server';
 
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
@@ -24,7 +24,7 @@ function dayText(day: string | null): string | null {
 export default function TaggedGames({ profileId }: { profileId: string }) {
   const [games, setGames] = useState<TaggedGameView[] | null>(null);
   const [canRemove, setCanRemove] = useState(false);
-  const [removing, setRemoving] = useState<TaggedGameView | null>(null);
+  const { showUndo } = useToast();
   const [error, setError] = useState<string | null>(null);
 
   const fetchGames = useCallback(async (): Promise<{ games: TaggedGameView[]; canRemove: boolean }> => {
@@ -44,15 +44,30 @@ export default function TaggedGames({ profileId }: { profileId: string }) {
     return () => { live = false; };
   }, [fetchGames]);
 
-  const remove = async () => {
-    const target = removing;
-    setRemoving(null);
-    if (!target) return;
+  // Round 2 PR 5: a removal is reversible for ten minutes, so it is done at once and offers Undo — no confirm for a reversible act.
+  const remove = async (target: TaggedGameView) => {
     setError(null);
     try {
-      const res = await fetch(`/api/videos/${encodeURIComponent(target.video.id)}/tags?profileId=${encodeURIComponent(profileId)}`, { method: 'DELETE' });
+      const path = `/api/videos/${encodeURIComponent(target.video.id)}/tags`;
+      const res = await fetch(`${path}?profileId=${encodeURIComponent(profileId)}`, { method: 'DELETE' });
       if (!res.ok) { setError('Could not remove the tags. Try again.'); return; }
+      const body = (await res.json().catch(() => ({}))) as { ids?: string[] };
       setGames(prev => (prev ?? []).filter(g => g.video.id !== target.video.id));
+      const ids = body.ids ?? [];
+      if (ids.length === 0) return;
+      showUndo('Tags removed', () => {
+        void (async () => {
+          try {
+            const back = await fetch(`${path}/restore?profileId=${encodeURIComponent(profileId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+            if (!back.ok) { setError('Could not put the tags back. Try again.'); return; }
+            const next = await fetchGames();
+            setGames(next.games);
+            setCanRemove(next.canRemove);
+          } catch {
+            setError('Could not put the tags back. Check your connection and try again.');
+          }
+        })();
+      }, `The clips and stats from "${target.game_title ?? target.video.title}" left this profile.`);
     } catch {
       setError('Could not remove the tags. Check your connection and try again.');
     }
@@ -92,20 +107,11 @@ export default function TaggedGames({ profileId }: { profileId: string }) {
             {g.stats_hidden && <p className="mt-2 text-xs text-muted" data-tagged-game-hidden="">No spoilers — the stats show as you watch the game.</p>}
             <div className="mt-3 flex flex-wrap gap-2">
               <Link href={`/videos/${g.video.id}`} className={`${BTN} inline-flex items-center`} data-tagged-game-open="">Watch the full game</Link>
-              {canRemove && <button type="button" onClick={() => setRemoving(g)} className={BTN} data-tagged-game-remove="">Remove me</button>}
+              {canRemove && <button type="button" onClick={() => void remove(g)} className={BTN} data-tagged-game-remove="">Remove me</button>}
             </div>
           </li>
         ))}
       </ul>
-      <ConfirmModal
-        isOpen={removing !== null}
-        title="Remove the tags?"
-        message={removing ? `The tags of ${canRemove ? 'you' : 'this athlete'} in "${removing.game_title ?? removing.video.title}" are removed: the clips leave this profile and the stats from them are no longer counted. The video itself is not changed, and the tags cannot be put back by the people who made them.` : ''}
-        confirmText="Remove"
-        confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
-        onCancel={() => setRemoving(null)}
-        onConfirm={remove}
-      />
     </section>
   );
 }
