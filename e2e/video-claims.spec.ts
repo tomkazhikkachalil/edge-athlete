@@ -1,6 +1,6 @@
 import { test, expect } from './helpers/test';
 import { createQaOrg, deleteQaOrgs } from './helpers/org';
-import { adminClient, apiAs, bypassHeaders, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { adminClient, apiAs, bypassHeaders, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { fitsViewportWidth } from './helpers/layout';
 import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
@@ -37,7 +37,12 @@ test('an athlete asks, the manager says who they are, the tags become theirs; a 
   let videoId: string | null = null;
   const since = new Date().toISOString();
   try {
-    const seeded = await admin.from('memberships').insert([{ org_id: club.id, profile_id: owner.id, role: 'owner', kind: 'follow', status: 'active' }]);
+    // The second athlete is on the club's roster (private, like any imported player): the link picker lists them before a letter is typed.
+    const seeded = await admin.from('memberships').insert([
+      { org_id: club.id, profile_id: owner.id, role: 'owner', kind: 'follow', status: 'active' },
+      { org_id: club.id, profile_id: second.id, role: 'member', kind: 'follow', status: 'active' },
+      { org_id: club.id, profile_id: second.id, role: 'member', kind: 'roster', status: 'active' },
+    ]);
     expect(seeded.error?.message ?? null).toBeNull();
     await seedOwnChannel(admin, { orgId: club.id }, owner.id);
     let res = await api.post('/api/videos', { data: { url: YT, title: `QA Claim game ${stamp}`, side: 'club', org_id: club.id, sport_key: 'basketball' } });
@@ -112,9 +117,21 @@ test('an athlete asks, the manager says who they are, the tags become theirs; a 
     expect(res.status()).toBe(400);
     res = await api.post(`/api/videos/${videoId}/links`, { data: { target: { name: 'QA Ghost' }, profile_id: stub.id } });
     expect(res.status()).toBe(400);
-    res = await api.post(`/api/videos/${videoId}/links`, { data: { target: { profile_id: stub.id }, profile_id: second.id } });
-    expect(res.status(), await readErrorBody(res)).toBe(200);
-    expect(await res.json()).toMatchObject({ linked: 1, videos: 1, kept: 0 });
+    //    On the page (leftovers round): choose the placeholder, pick the roster athlete, read what will happen, confirm.
+    const linker = page.locator('[data-tag-link]');
+    await linker.locator('[data-tag-link-target]').selectOption(`p:${stub.id}`);
+    const pick = linker.locator(`[data-tag-picker="org"] [data-tag-pick="${second.id}"]`);
+    await expect(pick).toBeVisible({ timeout: 20_000 });
+    //    Linking chooses a PROFILE: no typed name, no new placeholder.
+    await linker.locator('[data-tag-picker-input]').fill('Somebody New');
+    await expect(linker.locator('[data-tag-pick-name]')).toHaveCount(0);
+    await expect(linker.locator('[data-tag-add-player]')).toHaveCount(0);
+    await linker.locator('[data-tag-picker-input]').fill('');
+    await pick.click();
+    await expect(page.getByText('This is not undone from here')).toBeVisible();
+    expect(await fitsViewportWidth(page)).toBe(true);
+    await page.getByRole('button', { name: 'Link', exact: true }).click();
+    await expect(page.locator('[data-tag-claims-note]')).toHaveText('Linked 1 tag in 1 game.', { timeout: 20_000 });
     const { data: moved } = await admin.from('video_highlight_people').select('profile_id').eq('video_id', videoId).in('profile_id', [stub.id, second.id]);
     expect((moved ?? []).map(r => (r as { profile_id: string }).profile_id)).toEqual([second.id]);
 
@@ -136,6 +153,31 @@ test('an athlete asks, the manager says who they are, the tags become theirs; a 
     expect((await res.json()).mine).toMatchObject({ status: 'declined' });
     const { data: none } = await admin.from('video_highlight_people').select('id').eq('video_id', videoId).eq('profile_id', third.id);
     expect(none ?? []).toHaveLength(0);
+
+    // 7. A guardian asks for a child (leftovers round, Nov 14): refused until the child's consent is approved, then the request is the
+    //    CHILD's — pressed by the guardian — and someone who does not guard them cannot ask in their name.
+    if (guardianFlagOn()) {
+      const childId = await createQaChild(third.id, { firstName: 'Junior', lastName: `Claim${stamp.slice(-5)}`, handle: `qa-claim-kid-${stamp}` });
+      stubIds.push(childId);
+      res = await thirdApi.post(`/api/videos/${videoId}/claims?profileId=${childId}`, { data: { name: 'Junior' } });
+      expect(res.status()).toBe(403);
+      const consent = await admin.from('consent_records').insert({ profile_id: childId, subject_dob_year: new Date().getUTCFullYear() - 10, guardian_user_id: third.id, guardian_email_snapshot: 'qa@edgeathlete.ca', method: 'typed_signature', action: 'review_approved', policy_version: 'qa', jurisdiction: 'CA-ON', threshold_age: 18 });
+      expect(consent.error?.message ?? null).toBeNull();
+      expect((await secondApi.post(`/api/videos/${videoId}/claims?profileId=${childId}`, { data: {} })).status()).toBe(403);
+      res = await thirdApi.get(`/api/videos/${videoId}/claims`);
+      expect(((await res.json()).athletes as Array<{ id: string; mine: unknown; tagged: boolean }>).find(a => a.id === childId)).toMatchObject({ mine: null, tagged: false });
+      // On the page the guardian picks the child and asks.
+      await viewer.reload();
+      const forChild = viewer.locator('[data-tag-claim-for-select]');
+      await expect(forChild).toBeVisible({ timeout: 20_000 });
+      await forChild.selectOption(childId);
+      await expect(viewer.locator(`[data-tag-claim-for="${childId}"]`)).toContainText('Was Junior');
+      expect(await fitsViewportWidth(viewer)).toBe(true);
+      await viewer.locator('[data-tag-claim-ask]').click();
+      await expect(viewer.locator(`[data-tag-claim-for="${childId}"] [data-tag-claim-pending]`)).toBeVisible({ timeout: 20_000 });
+      const { data: row } = await admin.from('video_tag_claims').select('requester_profile_id, requested_by_user_id, status').eq('video_id', videoId).eq('requester_profile_id', childId).single();
+      expect(row).toMatchObject({ requester_profile_id: childId, requested_by_user_id: third.id, status: 'pending' });
+    }
   } finally {
     if (videoId) await api.delete(`/api/videos/${videoId}`).catch(() => undefined);
     await admin.from('notifications').delete().in('user_id', [owner.id, athlete.id, second.id, third.id]).eq('type', 'tag').gte('created_at', since);
