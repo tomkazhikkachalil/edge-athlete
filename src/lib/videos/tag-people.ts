@@ -86,3 +86,14 @@ export function parsePlaceholderName(raw: unknown): { ok: true; firstName: strin
   const [first, ...rest] = name.split(' ');
   return { ok: true, firstName: first, lastName: rest.length > 0 ? rest.join(' ') : null, name };
 }
+
+/**
+ * A roster pick can say which side the person is on (Nov 14 2026). The side
+ * is set on the person ONLY when their team is not where the role puts them
+ * (a home player picked as the scorer of an away basket) — and the form then
+ * SHOWS it, with a way back: a mis-tap must never move stats unseen.
+ */
+export function sideFromPick(group: TagCandidate['group'] | null | undefined, roleSide: 1 | 2 | null): 1 | 2 | null {
+  const own = group === 'side1' ? 1 : group === 'side2' ? 2 : null;
+  return own !== null && roleSide !== null && own !== roleSide ? own : null;
+}

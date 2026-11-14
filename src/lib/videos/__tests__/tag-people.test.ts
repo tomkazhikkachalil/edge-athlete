@@ -1,7 +1,9 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { narrowCandidates, orderCandidates, outsideConnections, parsePlaceholderName, PLACEHOLDER_NAME_MAX, TAG_CANDIDATES_MAX, TAG_WHO_REFUSALS, type TagCandidate } from '../tag-people';
+import { narrowCandidates, orderCandidates, outsideConnections, parsePlaceholderName, PLACEHOLDER_NAME_MAX, TAG_CANDIDATES_MAX, TAG_WHO_REFUSALS, type TagCandidate, sideFromPick } from '../tag-people';
 
 /** Who may be tagged, and who the picker offers first (round 2, Nov 13 2026). */
 const p = (id: string, name: string, handle: string | null = null) => ({ id, name, handle, avatar_url: null });
@@ -112,5 +114,27 @@ describe('the placeholder writer and route', () => {
   });
   it('the picker offers it only on an organization\'s video', () => {
     expect(read('src/components/videos/TagFields.tsx')).toContain('{searches && videoId && !linking && typed.length > 0 && (');
+  });
+});
+
+describe('sideFromPick (Nov 14 2026)', () => {
+  it('sets a side only when the picked player\'s team is NOT where the role puts them', () => {
+    expect(sideFromPick('side1', 1)).toBeNull();
+    expect(sideFromPick('side2', 2)).toBeNull();
+    expect(sideFromPick('side2', 1)).toBe(2);
+    expect(sideFromPick('side1', 2)).toBe(1);
+  });
+  it('never guesses: no tag side, or a pick that is on neither team (the org roster, a connection, a search hit, a typed name)', () => {
+    expect(sideFromPick('side1', null)).toBeNull();
+    expect(sideFromPick('roster', 1)).toBeNull();
+    expect(sideFromPick('connections', 2)).toBeNull();
+    expect(sideFromPick(undefined, 1)).toBeNull();
+    expect(sideFromPick(null, 1)).toBeNull();
+  });
+  it('the form shows the side it set and offers the way back', () => {
+    const ui = fs.readFileSync(path.join(process.cwd(), 'src/components/videos/TagFields.tsx'), 'utf8');
+    expect(ui).toContain('const side = sideFromPick(group, roleSide);');
+    expect(ui).toContain('data-tag-person-side={p.side}');
+    expect(ui).toContain('data-tag-person-side-reset=""');
   });
 });
