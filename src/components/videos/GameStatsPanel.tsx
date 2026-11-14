@@ -91,7 +91,7 @@ function BoxScore({ sheet, title, players, selected, onSelect }: { sheet: GameSh
   );
 }
 
-export default function GameStatsPanel({ game, highlights, mode, highWaterMs, onUnlock, onSeek, onPlayTag, onPlayTags }: { game: GameView; highlights: HighlightRow[]; mode: RevealMode; highWaterMs: number; onUnlock: () => void; onSeek: (ms: number) => void; /** PR 6: play one of an athlete's clips, or walk a list of them. */ onPlayTag?: (tagId: string) => void; onPlayTags?: (tagIds: string[]) => void }) {
+export default function GameStatsPanel({ game, highlights, mode, highWaterMs, onUnlock, onSeek, onPlayTag, onPlayTags, heldAhead = 0 }: { game: GameView; highlights: HighlightRow[]; mode: RevealMode; highWaterMs: number; /** Tagged plays the server still holds back (not in `highlights`). */ heldAhead?: number; onUnlock: () => void; onSeek: (ms: number) => void; /** PR 6: play one of an athlete's clips, or walk a list of them. */ onPlayTag?: (tagId: string) => void; onPlayTags?: (tagIds: string[]) => void }) {
   const [confirming, setConfirming] = useState(false);
   // PR 6 — the athlete drill-down: whose clips are open (one person on one side).
   const [openPlayer, setOpenPlayer] = useState<string | null>(null);
@@ -102,7 +102,8 @@ export default function GameStatsPanel({ game, highlights, mode, highWaterMs, on
 
   const total = tags.filter(t => t.eventKey).length;
   const shown = derived.tagIds.length;
-  const ahead = total - shown;
+  // Round 2 PR 6: the plays the SERVER still holds are counted there (they are not in `highlights`); the rest is what this page holds but has not reached.
+  const ahead = total - shown + heldAhead;
   const sides = gameHasSides(game.sport_key);
   const showScore = gameShowsScore(game);
   const bySide = (s: Side | null) => derived.players.filter(p => p.side === s && Object.keys(p.stats).length > 0);

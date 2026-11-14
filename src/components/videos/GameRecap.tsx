@@ -26,7 +26,8 @@ function dayText(day: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export default function GameRecap({ videoId, videoTitle, game, highlights, mode, highWaterMs, onUnlock, onWatch, onPlay, onPlayTag, onPlayTags }: {
+export default function GameRecap({ videoId, videoTitle, game, highlights, mode, highWaterMs, onUnlock, onWatch, onPlay, onPlayTag, onPlayTags, heldAhead = 0 }: {
+  heldAhead?: number;
   videoId: string;
   videoTitle: string;
   game: GameView;
@@ -81,7 +82,7 @@ export default function GameRecap({ videoId, videoTitle, game, highlights, mode,
         )}
       </div>
 
-      <GameStatsPanel game={game} highlights={highlights} mode={mode} highWaterMs={highWaterMs} onUnlock={onUnlock} onSeek={ms => onWatch(ms)} onPlayTag={onPlayTag} onPlayTags={onPlayTags} />
+      <GameStatsPanel heldAhead={heldAhead} game={game} highlights={highlights} mode={mode} highWaterMs={highWaterMs} onUnlock={onUnlock} onSeek={ms => onWatch(ms)} onPlayTag={onPlayTag} onPlayTags={onPlayTags} />
 
       {top.length > 0 && (
         <section className="bg-surface rounded-lg border border-border p-4 sm:p-6" aria-labelledby="recap-top-heading" data-game-recap-top={top.length}>
