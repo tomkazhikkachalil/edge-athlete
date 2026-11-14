@@ -1,5 +1,35 @@
 # Development Log
 
+## November 14, 2026 (evening) — GitHub merges when green; three game-film finish-ups; verified film in the season totals
+
+Tom: "can we look to auto merge" and, for film, "only league and club tagged data is the only verified data for stats… the info needs to be there" for the rest; the club's film beats the athlete's own post; what a club or league posts is open "like a pro sports team website". Spec: `docs/specs/video-games.md` ("One game, counted once").
+
+**Merging.** `main` now requires `verify`, `smoke` and `guardrails` (branch protection; admins not enforced). `scripts/automerge-pr.sh <N>` turns on GitHub's auto-merge and refuses a PR that touches `database/migrations/`. #1502 was the first PR GitHub merged by itself; every PR below except the one with a migration merged the same way.
+
+| PR | What | Proof on production |
+| --- | --- | --- |
+| #1502 `96ac879d` | The auto-merge script and the docs line. | merged by GitHub on green |
+| #1503 `148528a7` | A "this is me" request tells every video manager of the club or league (the people `manage_video` passes), each once, never whoever asked. | `video-claims` |
+| #1504 `8d9d7412` | A roster pick sets the player's own side when their team is not where the role puts them — shown on the chip with a way back. | `video-tag-who` 2/2 |
+| #1505 `e9bc87a4` | The team picker at the Where step of the Full game flow; another owner drops the links. | `video-game-flow` |
+| #1506 `a528b050` | C1 — one game is counted once (`same-game.ts`): official vs self-posted, in the season totals AND the career tiles (the tiles were adding both). | `stats-same-game` |
+| #1507 `36ec06af` | C2 — game film split into Verified (club or league) and Recreational (never counted). | `video-film-official`, `video-tagged-profile` |
+| #1508 `df4c5c0d` | C3 — verified film (fully tagged, dated) counts in the totals and the tiles through the rule; each row says what was decided. | `stats-same-game`, `video-film-official`, `video-tagged-profile` 3/3 |
+| #1509 | C4 — "these are two different games" (**migration 309**): the athlete or a guardian splits a same-date pair; Undo. | C4_PROOF |
+
+**What the build changed in the rule.** Date matching is only for sports with two sides, and one to one (a tournament day with one official line and three posts counts three games). Found by the browser test: an official line on an undated contest, its film, and the athlete's post of that day counted twice — a beaten game now speaks for its winner.
+
+**What went wrong, and the rules.**
+- B1 and B2 each edited an adjacent line of the spec; B2 conflicted. Since then a round's spec lines wait for its closing PR (this one).
+- My first same-game browser test asserted an exact row count and failed when another spec's row was on the same QA account. RULE: assert against what the account already has (a baseline), never an absolute.
+- Right after a staging migration `check:schema` reported the new table as not live; a second run was clean (the API's schema cache).
+
+**The numbers.** `npm run verify` 0 at each PR (6,326 → 6,350 tests); audit 0; guardrails, blocklists green; ledger 309 on staging.
+
+**Known limits.** A post with no date uses the day it was posted. The skill card's summary line still uses its own older rule and can show a different game count than the Stats tab. The read cost of film in the totals is one full read per verified game (bounded at 80 videos); not measured under load.
+
+**Still Tom's.** C4_TOM Tagging one real game and saying which sport sheets are wrong; Google's verification reply; the installed-iPhone connect and upload.
+
 ## November 14, 2026 — Game film: the leftovers round, and round 2 closed on production
 
 Round 2 (Nov 13, below) named five gaps on purpose. Tom chose "close round 2, then leftovers". No migration in this round.
