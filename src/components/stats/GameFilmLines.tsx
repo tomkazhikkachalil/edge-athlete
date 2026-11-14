@@ -81,6 +81,12 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
               </dl>
             )}
             {g.stats_hidden && <p className="mt-1 text-xs text-muted" data-game-film-hidden="">No spoilers — the stats show as you watch the game.</p>}
+            {g.official_href && (
+              <p className="mt-2 text-xs text-secondary" data-game-film-official="">
+                This game also has an official line —{' '}
+                <Link href={g.official_href} className="font-semibold underline">open the game</Link>. The two are counted apart; the official line is the one in the record.
+              </p>
+            )}
           </li>
         ))}
       </ul>

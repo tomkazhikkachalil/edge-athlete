@@ -73,4 +73,15 @@ describe('tagged by someone else', () => {
     expect(read('src/app/api/sports/stat-lines/route.ts')).not.toMatch(/video_highlight|listTaggedGames/);
     expect(read('src/lib/performance/map.ts')).not.toMatch(/video/i);
   });
+
+  it('a film game attached to a contest that also has the athlete\'s official line is MARKED (round 2 PR 7) — exact match only, never counted together', () => {
+    const reader = read('src/lib/videos/video-tagged-server.ts');
+    expect(reader).toContain("out.filter(g => g.video.place?.kind === 'contest')");
+    expect(reader).toContain(".from('contest_stat_lines').select('contest_id').eq('profile_id', profileId).in('contest_id', [...contestOf.keys()])");
+    expect(reader).toContain('g.official_href = `/event/${r.contest_id}`;');
+    const list = read('src/components/stats/GameFilmLines.tsx');
+    expect(list).toContain('data-game-film-official=""');
+    expect(list).toContain('The two are counted apart');
+    expect(list).toContain('not counted in the season totals');
+  });
 });

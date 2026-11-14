@@ -34,6 +34,8 @@ export interface TaggedGameView {
   line: Array<{ label: string; value: string }> | null;
   /** The line exists but is not shown to THIS viewer — the game unlocks as it is watched. */
   stats_hidden: boolean;
+  /** Round 2 PR 7: the video is attached to a contest that ALSO has this athlete's official stat line — the link to it, so the two are read together. Null otherwise. */
+  official_href: string | null;
 }
 
 export async function listTaggedGames(admin: Admin, profileId: string, viewer: User | null, actsForProfile: boolean): Promise<TaggedGameView[]> {
@@ -62,7 +64,17 @@ export async function listTaggedGames(admin: Admin, profileId: string, viewer: U
         else line = cells;
       }
     }
-    out.push({ video: read.view, game_title: game ? gameTitleLine(game) : null, sport_key: game?.sport_key ?? null, played_on: game?.played_on ?? null, clips: mine.length, line, stats_hidden: hidden });
+    out.push({ video: read.view, game_title: game ? gameTitleLine(game) : null, sport_key: game?.sport_key ?? null, played_on: game?.played_on ?? null, clips: mine.length, line, stats_hidden: hidden, official_href: null });
+  }
+  // Which of these games ALSO have an official line for this athlete? Exact only: the video is attached to the contest. One read.
+  const contestOf = new Map(out.filter(g => g.video.place?.kind === 'contest').map(g => [g.video.place!.id, g]));
+  if (contestOf.size > 0) {
+    const { data, error } = await admin.from('contest_stat_lines').select('contest_id').eq('profile_id', profileId).in('contest_id', [...contestOf.keys()]);
+    if (error) console.error('[VIDEOS tagged] official lines read failed:', error.message);
+    for (const r of (data ?? []) as Array<{ contest_id: string }>) {
+      const g = contestOf.get(r.contest_id);
+      if (g) g.official_href = `/event/${r.contest_id}`;
+    }
   }
   return out;
 }
