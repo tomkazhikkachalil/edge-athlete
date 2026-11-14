@@ -9,7 +9,7 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { backOr } from '@/lib/nav-back';
 import { COPY } from '@/lib/copy';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
-import { isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
+import { isOrgKind, ORG_ROUTE_FAMILY, type OrgKind } from '@/lib/orgs/org-ref';
 import { UUID_RE } from '@/lib/uuid';
 import { formatTimestamp, VIDEO_DESCRIPTION_MAX, VIDEO_TITLE_MAX } from '@/lib/videos/rules';
 import { formatLiveWhen } from '@/lib/videos/live-rules';
@@ -20,6 +20,9 @@ import { CONNECT_ERRORS, connectedLine, connectReturnPath, FLOW_DRAFT_KEY, parse
 import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
 import YouTubeReconnectLink from '@/components/videos/YouTubeReconnectLink';
 import ChannelPicker from '@/components/videos/ChannelPicker';
+import GameFields from '@/components/videos/GameFields';
+import { gameBodyOf, gameDraftOf, parseGameDraft, withoutTeams, type GameDraft, type TeamOption } from '@/lib/videos/game-draft';
+import { gameSheetFor } from '@/lib/videos/game-sheets';
 import YouTubeUploadPanel from '@/components/videos/YouTubeUploadPanel';
 import YouTubeBroadcastPanel from '@/components/videos/YouTubeBroadcastPanel';
 import FaIcon from '@/components/FaIcon';
@@ -90,6 +93,11 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
   const [description, setDescription] = useState(draft?.description ?? '');
   const [sportKey, setSportKey] = useState(draft?.sportKey ?? '');
   const [owner, setOwner] = useState<'me' | { orgId: string } | null>(draft?.owner ?? (prefillOrg && UUID_RE.test(prefillOrg) ? { orgId: prefillOrg } : prefillProfile || groupPostId || activityId || workoutSessionId ? 'me' : null));
+  // Round 2 (Nov 13 2026): the game's details ride with the video — "This is a game" opens the same fields the video page's card has.
+  const [restoredGame] = useState<GameDraft | null>(() => parseGameDraft(draft?.game ?? null));
+  const [isGame, setIsGame] = useState(restoredGame !== null);
+  const [gameDraft, setGameDraft] = useState<GameDraft>(() => restoredGame ?? gameDraftOf(null, draft?.sportKey ?? null));
+  const [teamsRead, setTeamsRead] = useState<{ orgId: string; teams: TeamOption[] } | null>(null);
   const [existingId, setExistingId] = useState<string | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -128,12 +136,12 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
   const startHref = (scope: ScopeKey) => `/api/videos/youtube/start?owner=${encodeURIComponent(activeOwnerRef)}&scope=${scope}&return=${encodeURIComponent(returnTo)}`;
   const saveDraft = useCallback(() => {
     try {
-      const d: FlowDraft = { url, title, description, sportKey, owner, index, at: Date.now() };
+      const d: FlowDraft = { url, title, description, sportKey, owner, index, at: Date.now(), ...(isGame ? { game: { ...gameDraft } } : {}) };
       window.sessionStorage.setItem(FLOW_DRAFT_KEY, JSON.stringify(d));
     } catch {
       /* without storage the person comes back to an empty form — the connect still works */
     }
-  }, [url, title, description, sportKey, owner, index]);
+  }, [url, title, description, sportKey, owner, index, isGame, gameDraft]);
   // The result has been read: its words leave the address and the draft leaves the device.
   useEffect(() => {
     if (!landed.connected && !landed.errorWord) return;
@@ -257,13 +265,44 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
     };
   }, [userId]);
 
+  // A club's or league's own game: its teams, so a side can be one of them. Known only once the owner is an org (a door from the org, or one picked at Where and come back from).
+  const ownerOrg = owner && owner !== 'me' ? owner.orgId : null;
+  const ownerOrgSide = ownerOrg ? ((orgs ?? []).find(o => o.id === ownerOrg)?.side ?? (ownerOrg === prefillOrg && (sideParam === 'league' || sideParam === 'club') ? sideParam : null)) : null;
+  useEffect(() => {
+    if (!isGame || !ownerOrg || !ownerOrgSide) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/${ORG_ROUTE_FAMILY[ownerOrgSide]}/${encodeURIComponent(ownerOrg)}/teams`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const body = (await res.json()) as { teams?: Array<{ id: string; name: string }> };
+        if (!cancelled) setTeamsRead({ orgId: ownerOrg, teams: (body.teams ?? []).map(t => ({ id: t.id, name: t.name })) });
+      } catch {
+        /* the sides stay typed names */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isGame, ownerOrg, ownerOrgSide]);
+  const teams = teamsRead && teamsRead.orgId === ownerOrg ? teamsRead.teams : [];
+  const toggleGame = (on: boolean) => {
+    setIsGame(on);
+    // The sport already chosen for the video is the game's, when that sport has a sheet.
+    if (on && !gameDraft.sport_key && gameSheetFor(sportKey)) setGameDraft(d => ({ ...d, sport_key: sportKey }));
+  };
+  const changeGame = (next: GameDraft) => {
+    setGameDraft(next);
+    if (next.sport_key) setSportKey(next.sport_key);
+  };
+
   // Someone who also manages a club or league can still pick it at Where — the Link step warns, Where refuses.
   const canChangeOwner = (orgs ?? []).length > 0;
   const dirty = () => url.trim().length > 0 || title.trim().length > 0 || description.trim().length > 0;
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(dirty, () => backOr(router, '/feed'));
 
   const step = VIDEO_STEPS[index];
-  const advance = canAdvanceVideoStep(step.id, { videoId: link?.id ?? null, linkTyped: url.trim().length > 0, title, owner, blocked: refusal === 'private' ? LOOKUP_NOTES.private : null, channelBlocked, canChangeOwner });
+  const advance = canAdvanceVideoStep(step.id, { videoId: link?.id ?? null, linkTyped: url.trim().length > 0, title, owner, blocked: refusal === 'private' ? LOOKUP_NOTES.private : null, channelBlocked, canChangeOwner, gameNeedsSport: isGame && !gameDraft.sport_key });
 
   const finish = async () => {
     if (!advance.ok || !link || saving) return;
@@ -302,6 +341,23 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
           await fetch(`/api/videos/${encodeURIComponent(data.video.id)}/highlights/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ highlights: chaptersToHighlights(looked.chapters, looked.durationMs).map(h => ({ ...h, meta: {} })) }) });
         } catch {
           /* the video is saved; the chapters can be added from its page */
+        }
+      }
+      // The game's details in the same breath (a team link only for the organization the teams were read for). The video is saved either way.
+      if (isGame && gameDraft.sport_key) {
+        const game = ownerOrg && teamsRead?.orgId === ownerOrg ? gameDraft : withoutTeams(gameDraft);
+        let saved = false;
+        try {
+          const put = await fetch(`/api/videos/${encodeURIComponent(data.video.id)}/game`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(gameBodyOf(game)) });
+          saved = put.ok;
+        } catch {
+          saved = false;
+        }
+        if (!saved) {
+          setError('The video is saved, but the game details were not. Add them on the video\'s page.');
+          setExistingId(data.video.id);
+          setSaving(false);
+          return;
         }
       }
       router.replace(`/videos/${data.video.id}`);
@@ -459,15 +515,22 @@ export default function NewVideoFlow({ userId }: { userId: string }) {
               Description (optional)
               <textarea className={`${FIELD} mt-1 py-2 min-h-[88px]`} maxLength={VIDEO_DESCRIPTION_MAX} value={description} onChange={e => setDescription(e.target.value)} />
             </label>
-            <label className="block text-sm text-secondary">
-              Sport (optional)
-              <select className={`${FIELD} mt-1`} value={sportKey} onChange={e => setSportKey(e.target.value)}>
-                <option value="">No sport</option>
-                {sports.map(s => (
-                  <option key={s.sport_key} value={s.sport_key}>{s.display_name}</option>
-                ))}
-              </select>
+            {!isGame && (
+              <label className="block text-sm text-secondary">
+                Sport (optional)
+                <select className={`${FIELD} mt-1`} value={sportKey} onChange={e => setSportKey(e.target.value)} data-new-video-sport="">
+                  <option value="">No sport</option>
+                  {sports.map(s => (
+                    <option key={s.sport_key} value={s.sport_key}>{s.display_name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="flex items-start gap-2 text-sm text-primary min-h-[44px] py-1">
+              <input type="checkbox" checked={isGame} onChange={e => toggleGame(e.target.checked)} className="h-4 w-4 mt-1" data-new-video-is-game="" />
+              <span><span className="font-semibold">This is a game</span><span className="block text-xs text-muted">Say the sport, who played and when. Highlights can then be tagged with what happened and who was in them, and the stats build themselves.</span></span>
             </label>
+            {isGame && <GameFields value={gameDraft} onChange={changeGame} teams={teams} name="new-video-game" />}
           </div>
         )}
         {step.id === 'where' && (

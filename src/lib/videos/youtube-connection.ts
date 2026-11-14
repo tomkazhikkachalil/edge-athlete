@@ -325,6 +325,8 @@ export interface FlowDraft {
   owner: 'me' | { orgId: string } | null;
   index: number;
   at: number;
+  /** Round 2 (Nov 13 2026): the game fields when "This is a game" is on — kept as written; the flow reads it through `parseGameDraft`. */
+  game?: Record<string, unknown> | null;
 }
 
 export const FLOW_DRAFT_KEY = 'ea-new-video-draft';
@@ -354,7 +356,8 @@ export function parseFlowDraft(raw: string | null | undefined, now: number): Flo
     const id = (d.owner as { orgId?: unknown }).orgId;
     if (typeof id === 'string' && UUID_RE.test(id)) owner = { orgId: id };
   }
-  return { url, title, description, sportKey, owner, index, at: d.at };
+  const game = d.game && typeof d.game === 'object' && !Array.isArray(d.game) && JSON.stringify(d.game).length <= 1000 ? (d.game as Record<string, unknown>) : null;
+  return { url, title, description, sportKey, owner, index, at: d.at, ...(game ? { game } : {}) };
 }
 
 // ── Self-healing (Nov 10 2026) ───────────────────────────────────────────────

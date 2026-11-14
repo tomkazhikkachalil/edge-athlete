@@ -587,6 +587,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
         game={load.game}
         canManage={canManage}
         videoSportKey={video.sport_key}
+        owner={video.owner}
         onChange={game => setLoad(prev => (prev.state === 'ready' ? { ...prev, game } : prev))}
       />
 

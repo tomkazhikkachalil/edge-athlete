@@ -24,6 +24,8 @@ export interface VideoStepState {
   channelBlocked?: string | null;
   /** The person manages a club or league too, so the owner can still change at Where: Link lets them through (the sentence shows as a note) and Where is the refusal. Never a dead end for someone adding a club's game without a channel of their own. */
   canChangeOwner?: boolean;
+  /** Round 2 (Nov 13 2026): "This is a game" is on and no sport is chosen — the game cannot be saved without one. */
+  gameNeedsSport?: boolean;
 }
 
 export function canAdvanceVideoStep(step: VideoStepId, s: VideoStepState): { ok: true } | { ok: false; refusal: string } {
@@ -33,7 +35,7 @@ export function canAdvanceVideoStep(step: VideoStepId, s: VideoStepState): { ok:
     if (s.videoId) return { ok: true };
     return { ok: false, refusal: s.linkTyped ? 'That is not a YouTube video link we can play.' : 'Paste a YouTube link to continue.' };
   }
-  if (step === 'details') return { ok: true };
+  if (step === 'details') return s.gameNeedsSport ? { ok: false, refusal: 'Choose the sport of the game, or turn "This is a game" off.' } : { ok: true };
   if (s.owner === null) return { ok: false, refusal: 'Choose where the video goes.' };
   if (s.channelBlocked) return { ok: false, refusal: s.channelBlocked };
   return { ok: true };

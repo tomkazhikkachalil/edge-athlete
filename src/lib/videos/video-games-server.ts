@@ -51,11 +51,17 @@ export async function readGame(admin: Admin, videoId: string): Promise<GameView 
   return data ? projectGame(data as unknown as GameRow) : null;
 }
 
-/** A side that names a team takes the team's name when none was typed; a team that does not exist is refused. */
-async function resolveSides(admin: Admin, input: GameInput): Promise<GameOutcome<GameInput>> {
+/**
+ * A side that names a team takes the team's name when none was typed. The
+ * team must be one of the video's OWN organization's (round 2, Nov 13 2026:
+ * the link is what the people picker reads a roster through) — a profile's
+ * video names its sides by text only.
+ */
+async function resolveSides(admin: Admin, input: GameInput, orgId: string | null): Promise<GameOutcome<GameInput>> {
   const ids = [input.side1.team_id, input.side2.team_id].filter((v): v is string => !!v);
   if (ids.length === 0) return { ok: true, value: input };
-  const { data, error } = await admin.from('teams').select('id, name, display_name').in('id', ids);
+  if (!orgId) return { ok: false, status: 400, error: NOT_OWN_TEAM };
+  const { data, error } = await admin.from('teams').select('id, name, display_name').eq('org_id', orgId).in('id', ids);
   if (error) {
     console.error(`${TAG} team read failed:`, error.message);
     return { ok: false, status: 500, error: 'Could not read the team' };
@@ -69,12 +75,14 @@ async function resolveSides(admin: Admin, input: GameInput): Promise<GameOutcome
   };
   const side1 = fill(input.side1);
   const side2 = fill(input.side2);
-  if (!side1 || !side2) return { ok: false, status: 400, error: 'That team does not exist' };
+  if (!side1 || !side2) return { ok: false, status: 400, error: NOT_OWN_TEAM };
   return { ok: true, value: { ...input, side1, side2 } };
 }
 
-export async function saveGame(admin: Admin, videoId: string, input: GameInput, userId: string): Promise<GameOutcome<GameView>> {
-  const resolved = await resolveSides(admin, input);
+export const NOT_OWN_TEAM = 'A side can be linked only to one of this organization\'s own teams. Type the name instead.';
+
+export async function saveGame(admin: Admin, videoId: string, input: GameInput, userId: string, orgId: string | null = null): Promise<GameOutcome<GameView>> {
+  const resolved = await resolveSides(admin, input, orgId);
   if (!resolved.ok) return resolved;
   const g = resolved.value;
   const { data, error } = await admin
