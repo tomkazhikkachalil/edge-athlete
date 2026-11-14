@@ -43,7 +43,7 @@ import {
 } from './rules';
 import type { HighlightPerson, HighlightRow, VideoOwnerView, VideoPlaceView, VideoRow, VideoView } from './types';
 import { filterBlockedBidirectional } from '@/lib/blocks';
-import { checkTag, removedOut, tagPersonKey, type TagInput, type TagPersonInput } from './tag-rules';
+import { checkTag, removedOut, restoreSince, tagPersonKey, type TagInput, type TagPersonInput } from './tag-rules';
 import { outsideConnections, TAG_WHO_REFUSALS } from './tag-people';
 import { claimKey, planLink, type LinkRow, type LinkTarget, type OwnRow } from './tag-claims';
 import { isStubEmail } from '@/lib/config/stubs-config';
@@ -612,7 +612,7 @@ async function notifyLinked(admin: Admin, videoIds: readonly string[], profileId
  * `removed` — the mark that it was refused, so a manager's later save never
  * tags them back in — and the stat drops with them (reads count `active`).
  */
-export async function removeTagsOf(admin: Admin, videoId: string, profileId: string, byUserId: string, highlightId: string | null = null): Promise<Outcome<{ removed: number }>> {
+export async function removeTagsOf(admin: Admin, videoId: string, profileId: string, byUserId: string, highlightId: string | null = null): Promise<Outcome<{ removed: number; ids: string[] }>> {
   let q = admin.from('video_highlight_people').update({ status: 'removed', removed_by_user_id: byUserId, removed_at: new Date().toISOString() }).eq('video_id', videoId).eq('profile_id', profileId).eq('status', 'active');
   if (highlightId) q = q.eq('highlight_id', highlightId);
   const { data, error } = await q.select('id');
@@ -620,7 +620,32 @@ export async function removeTagsOf(admin: Admin, videoId: string, profileId: str
     console.error(`${TAG} tag removal failed:`, error.message);
     return { ok: false, status: 500, error: 'Could not remove the tags' };
   }
-  return { ok: true, value: { removed: data?.length ?? 0 } };
+  const ids = ((data ?? []) as Array<{ id: string }>).map(r => r.id);
+  return { ok: true, value: { removed: ids.length, ids } };
+}
+
+/**
+ * Undo (round 2 PR 5, Nov 13 2026): the rows a removal just answered with are
+ * active again — only rows of THIS profile on THIS video that THIS user
+ * removed, within the window. A highlight deleted meanwhile took its rows
+ * with it; nothing else is touched. The stat comes back with the rows.
+ */
+export async function restoreTagsOf(admin: Admin, videoId: string, profileId: string, byUserId: string, ids: readonly string[]): Promise<Outcome<{ restored: number }>> {
+  const { data, error } = await admin
+    .from('video_highlight_people')
+    .update({ status: 'active', removed_by_user_id: null, removed_at: null })
+    .in('id', [...ids])
+    .eq('video_id', videoId)
+    .eq('profile_id', profileId)
+    .eq('status', 'removed')
+    .eq('removed_by_user_id', byUserId)
+    .gte('removed_at', restoreSince(Date.now()))
+    .select('id');
+  if (error) {
+    console.error(`${TAG} tag restore failed:`, error.message);
+    return { ok: false, status: 500, error: 'Could not put the tags back' };
+  }
+  return { ok: true, value: { restored: data?.length ?? 0 } };
 }
 
 /** The videos a profile is tagged in (active tags), newest tag first, with how many clips each. */

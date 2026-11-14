@@ -92,6 +92,24 @@ export function removedOut(rows: ReadonlyArray<{ profile_id: string; highlight_i
   return [...removed].filter(id => here.has(id) || !active.has(id));
 }
 
+/** How long a removal can be undone by whoever made it (round 2 PR 5, Nov 13 2026): long enough to notice a mis-tap, short enough that "removed" means removed. */
+export const RESTORE_WINDOW_MS = 10 * 60_000;
+export const RESTORE_IDS_MAX = 500;
+
+/** POST /api/videos/[id]/tags/restore {ids} — exactly the rows the removal answered with. */
+export function parseRestoreBody(body: unknown): Parsed<{ ids: string[] }> {
+  if (!isObject(body)) return { ok: false, error: 'ids are required' };
+  for (const k of Object.keys(body)) if (k !== 'ids') return { ok: false, error: `Unknown field ${k}` };
+  if (!Array.isArray(body.ids) || body.ids.length === 0 || body.ids.length > RESTORE_IDS_MAX) return { ok: false, error: `ids must be 1 to ${RESTORE_IDS_MAX} tag ids` };
+  if (!body.ids.every(v => typeof v === 'string' && UUID.test(v))) return { ok: false, error: 'ids must be tag ids' };
+  return { ok: true, value: { ids: [...new Set((body.ids as string[]).map(v => v.toLowerCase()))] } };
+}
+
+/** The oldest removal that can still be undone, as an ISO time. */
+export function restoreSince(nowMs: number): string {
+  return new Date(nowMs - RESTORE_WINDOW_MS).toISOString();
+}
+
 /** The tag fields of a highlight body — the shape only. Absent fields are null / nobody. */
 export function parseTagFields(body: Record<string, unknown>): Parsed<TagInput> {
   let event_key: string | null = null;

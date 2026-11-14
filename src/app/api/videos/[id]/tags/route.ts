@@ -29,7 +29,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!acting.ok) return NextResponse.json({ error: acting.error }, { status: acting.status });
     const gone = await removeTagsOf(getSupabaseAdmin(), id, acting.actorId, user.id, highlightId);
     if (!gone.ok) return NextResponse.json({ error: gone.error }, { status: gone.status });
-    return NextResponse.json({ removed: gone.value.removed }, { headers: PRIVATE });
+    // The ids are the handle for Undo (POST …/tags/restore): exactly these rows, by whoever removed them, for ten minutes.
+    return NextResponse.json({ removed: gone.value.removed, ids: gone.value.ids }, { headers: PRIVATE });
   } catch (error) {
     reportRouteError('[api/videos/id/tags] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

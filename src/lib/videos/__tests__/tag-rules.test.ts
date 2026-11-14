@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { GAME_SHEETS } from '../game-sheets';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { checkTag, clipAround, defaultTagLabel, EMPTY_TAG, nudgeMs, parseTagFields, parseTagPerson, removedOut, ROLE_IN_CLIP, TAG_PEOPLE_MAX, tagPersonKey, type TagInput } from '../tag-rules';
+import { checkTag, clipAround, defaultTagLabel, EMPTY_TAG, nudgeMs, parseTagFields, parseTagPerson, parseRestoreBody, removedOut, RESTORE_IDS_MAX, RESTORE_WINDOW_MS, restoreSince, ROLE_IN_CLIP, TAG_PEOPLE_MAX, tagPersonKey, type TagInput } from '../tag-rules';
 import { parseHighlightBody, parseHighlightPatch } from '../rules';
 
 /** A tag on a highlight (Sprint 3 PR 3): the event, its period / side / value, the people by role. */
@@ -156,5 +156,40 @@ describe('the writer and the form keep what they were given', () => {
     expect(fields).toContain('side: p.side ?? null');
     expect(fields).not.toContain('role: p.role, side: null }');
     expect(fields).toContain('.filter(p => !(p.masked && !p.profile_id))');
+  });
+});
+
+/** Undo of a removal (round 2 PR 5, Nov 13 2026). */
+describe('a removal can be undone by whoever made it, for ten minutes', () => {
+  const src = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
+  it('the body is exactly the ids the removal answered with', () => {
+    expect(parseRestoreBody({ ids: [P1.toUpperCase(), P1, P2] })).toEqual({ ok: true, value: { ids: [P1, P2] } });
+    expect(parseRestoreBody({ ids: [] }).ok).toBe(false);
+    expect(parseRestoreBody({ ids: ['x'] }).ok).toBe(false);
+    expect(parseRestoreBody({ ids: [P1], all: true }).ok).toBe(false);
+    expect(parseRestoreBody(null).ok).toBe(false);
+    expect(parseRestoreBody({ ids: Array.from({ length: RESTORE_IDS_MAX + 1 }, () => P1) }).ok).toBe(false);
+  });
+  it('the window is ten minutes back from now', () => {
+    expect(RESTORE_WINDOW_MS).toBe(600_000);
+    expect(restoreSince(Date.parse('2026-11-13T12:10:00.000Z'))).toBe('2026-11-13T12:00:00.000Z');
+  });
+  it('only this profile\'s rows on this video, removed by this user, inside the window — and the removal hands back the ids', () => {
+    const server = src('src/lib/videos/videos-server.ts');
+    for (const part of [".update({ status: 'active', removed_by_user_id: null, removed_at: null })", ".eq('video_id', videoId)", ".eq('status', 'removed')", ".eq('removed_by_user_id', byUserId)", ".gte('removed_at', restoreSince(Date.now()))"]) expect(server).toContain(part);
+    expect(server).toContain('return { ok: true, value: { removed: ids.length, ids } };');
+    const route = src('src/app/api/videos/[id]/tags/restore/route.ts');
+    expect(route).toContain("getServerAuth(request, { limit: 'video-write' })");
+    expect(route).toContain("resolveActingProfile(user.id, request.nextUrl.searchParams.get('profileId')");
+    expect(route).toContain('restoreTagsOf(getSupabaseAdmin(), id, acting.actorId, user.id, parsed.value.ids)');
+    expect(route).not.toContain('readVideoForViewer');
+  });
+  it('both doors remove at once and offer Undo — no confirm for a reversible act', () => {
+    for (const f of ['src/components/videos/TaggedGames.tsx', 'src/components/videos/VideoScreen.tsx']) {
+      const ui = src(f);
+      expect(ui).toContain('showUndo(');
+      expect(ui).toContain('/restore');
+      expect(ui).not.toContain('cannot be put back by the people who made them');
+    }
   });
 });
