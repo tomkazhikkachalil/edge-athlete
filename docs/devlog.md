@@ -12,9 +12,9 @@ Tom, after Sprint 3: "Let's start planning the next phases." His decisions: who 
 | #1490 `32322634` | The game's details inside the Full game flow ("This is a game" in Details; one `GameFields` over a pure `game-draft.ts` for the flow and the card). A side can be one of the organization's own teams; `saveGame` refuses any other team (before: any team id that existed). | prod: `video-game-flow`, desktop + mobile |
 | #1491 `e814e9cf` | Who may be tagged by whose video it is (`taggablePeople`), and the roster first: `GET /api/videos/[id]/people`, read once by the tag form — a club's own rosters (the game's linked teams first) or a person's connections. | prod: `video-tag-who` 2/2 |
 | #1492 `ced33a79` | A player without an account: `POST /api/videos/[id]/people` makes the roster import's own stub (private, claimable) from the tag form; `importRoster` takes no team; its own limit (`tag-placeholder`, 60/h). | prod: `video-placeholder` |
-| #1493 `0a819975` | "This is me" (**migration 308**, `video_tag_claims`): an athlete asks, nothing changes until a manager approves and says which name or placeholder they are; a manager also links directly; one writer (`linkTagTarget`) across the owner's videos. | staging; prod after 308 |
-| #1494 | Undo on removal: the removal answers with the row ids; `POST …/tags/restore` puts exactly those back — by whoever removed them, for ten minutes; the confirm became "removed · Undo". | staging |
-| spoilers | `GET /api/videos/[id]` cuts with the viewer's rights (`cutForViewer`): unwatched plays of a spoiler-free game never leave the server; `reveal` says how many are held and when to ask again; `reveal=all` is the viewer's choice. | staging (real playback) |
+| #1493 `0a819975` | "This is me" (**migration 308**, `video_tag_claims`): an athlete asks, nothing changes until a manager approves and says which name or placeholder they are; a manager also links directly; one writer (`linkTagTarget`) across the owner's videos. | staging `video-claims`; **not usable on production until 308 runs there** (not run when this was written) |
+| #1494 `5f44b5d2` | Undo on removal: the removal answers with the row ids; `POST …/tags/restore` puts exactly those back — by whoever removed them, for ten minutes; the confirm became "removed · Undo". | prod: `video-tagged-profile` (Undo on both doors; a stranger restores nothing) |
+| #1495 `a3b66d1d` | `GET /api/videos/[id]` cuts with the viewer's rights (`cutForViewer`): unwatched plays of a spoiler-free game never leave the server; `reveal` says how many are held and when to ask again; `reveal=all` is the viewer's choice. | prod: `video-spoiler-free` (real playback), `video-game` on mobile |
 | this PR | The Stats tab marks a film game that ALSO has the athlete's official line (the video is attached to that contest) — counted apart, linked. | unit pin |
 
 **Found by the gates, fixed before merging.** `org-ref.test` refused an organization's route family spelled inline in two components (`ORG_ROUTE_FAMILY` is the one spelling). The placeholder spec caught my own mistake: a player who fell back to the organization's roster was reported as on the side's team. `profile-fk-classification` required the new claims table in the deletion engine by name.
@@ -25,7 +25,9 @@ Tom, after Sprint 3: "Let's start planning the next phases." His decisions: who 
 
 **The numbers.** `npm run verify` 0 at every PR (6,271 → 6,319 tests); audit 0; guardrails, blocklists green; ledger 308 on staging. New specs: `video-masking`, `video-game-flow`, `video-tag-who`, `video-placeholder`, `video-claims`; `video-tagged-profile` and `video-spoiler-free` extended.
 
-**Still Tom's.** Migration 308 on production; the merges I cannot run from here (`merge-pr.sh` is refused by the permission classifier this session); tagging one real game and saying which sport sheets are wrong; Google's verification reply.
+**Still Tom's.** **Migration 308 on production** — until it runs, account deletion there stops partway and "this is me" answers "not available here yet"; then the production probe `video-claims` is mine. Tagging one real game and saying which sport sheets are wrong; Google's verification reply. (Every merge this round was Tom's: `merge-pr.sh` is refused for me by the permission classifier.)
+
+**Next: the leftovers round** — a guardian asking for a child (#1496, open), requests in the org console, a linked placeholder leaving the roster, the Stats-marker browser test.
 
 ## November 12, 2026 — Maintenance after Sprint 3: every gate green; the production probe found the org share cards and the media worker dead since the function diet — fixed, with a build gate
 
