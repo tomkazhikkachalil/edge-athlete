@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (!read) return NOT_FOUND();
     if (!read.canManage) return NextResponse.json({ error: 'Only a manager can edit highlights.' }, { status: 403 });
     if (parsed.value.tag) {
-      const tag = await prepareTag(admin, id, parsed.value.tag, user.id, highlightId);
+      const tag = await prepareTag(admin, id, parsed.value.tag, user.id, highlightId, { orgId: read.row.org_id ?? null, profileId: read.row.profile_id ?? null });
       if (!tag.ok) return NextResponse.json({ error: tag.error }, { status: tag.status, headers: PRIVATE });
       parsed.value.tag = tag.value;
     }

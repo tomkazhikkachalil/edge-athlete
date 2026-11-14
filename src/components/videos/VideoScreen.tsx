@@ -615,6 +615,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
         currentMs={playerMode === 'api' ? () => playerRef.current?.currentMs() ?? null : undefined}
         game={load.game}
         durationMs={video.duration_ms}
+        videoId={video.id}
       />
       </div>
 

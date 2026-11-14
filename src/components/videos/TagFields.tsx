@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTypeahead } from '@/hooks/useTypeahead';
 import { rankPeople, type PersonSuggestion } from '@/lib/search/people';
 import { periodLabel, sheetEvent, type EventGroup, type GameSheet, type SheetEvent } from '@/lib/videos/game-sheets';
 import { sideLabel, type GameView } from '@/lib/videos/game-rules';
 import { formatTimestamp, parseTypedTimestamp } from '@/lib/videos/rules';
+import { narrowCandidates, type TagCandidate, type TagGroup, type TagOwnerKind } from '@/lib/videos/tag-people';
 import { ROLE_IN_CLIP, TAG_NAME_MAX, TAG_PEOPLE_MAX, tagPersonKey, type TagInput } from '@/lib/videos/tag-rules';
 import type { HighlightRow } from '@/lib/videos/types';
 import FaIcon from '@/components/FaIcon';
@@ -70,35 +71,68 @@ function suggestionName(p: PersonSuggestion): string {
   return p.full_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || (p.handle ? `@${p.handle}` : 'Athlete');
 }
 
-function PersonPicker({ roleLabel, taken, onPick, onClose }: { roleLabel: string; taken: Set<string>; onPick: (p: { profile_id: string | null; name: string }) => void; onClose: () => void }) {
+const GROUP_NOTE: Record<TagGroup, string> = { side1: 'Roster', side2: 'Roster', roster: 'Your organization', connections: 'Connection' };
+
+/**
+ * Round 2 (Nov 13 2026): the roster first. Before anything is typed the
+ * picker lists who the video's owner already knows — a club's or league's
+ * rosters (the tag's own side on top), or a person's connections — and
+ * typing narrows that list on the device. A club or league may also search
+ * everyone public on Edge Athlete; a person may not (they tag connections).
+ * A typed name is always there for someone who is not here yet.
+ */
+function PersonPicker({ roleLabel, taken, onPick, onClose, candidates, ownerKind, firstSide, sideNames }: { roleLabel: string; taken: Set<string>; onPick: (p: { profile_id: string | null; name: string }) => void; onClose: () => void; candidates: readonly TagCandidate[]; ownerKind: TagOwnerKind; firstSide: 1 | 2 | null; sideNames: Record<1 | 2, string> }) {
+  const searches = ownerKind === 'org';
   const fetcher = useCallback(async (q: string, signal: AbortSignal) => {
+    if (!searches) return [] as PersonSuggestion[];
     const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=athletes`, { signal });
     if (!res.ok) throw new Error(`Search failed: ${res.status}`);
     const data = await res.json();
     return (data.results?.athletes ?? []) as PersonSuggestion[];
-  }, []);
-  const { query, setQuery, items, loading } = useTypeahead<PersonSuggestion>({ scope: 'people:public', fetcher, narrow: rankPeople, limit: 6 });
+  }, [searches]);
+  const { query, setQuery, items, loading } = useTypeahead<PersonSuggestion>({ scope: searches ? 'people:public' : 'people:none', fetcher, narrow: rankPeople, limit: 6 });
   const typed = query.trim().replace(/\s+/g, ' ');
   const nameTaken = taken.has(`n:${typed.toLowerCase()}`);
+  const known = narrowCandidates(candidates.filter(p => !taken.has(`p:${p.id}`)), typed, firstSide, typed ? 8 : 12);
+  const knownIds = new Set(candidates.map(p => p.id));
+  const found = searches ? items.filter(p => !taken.has(`p:${p.id}`) && !knownIds.has(p.id)) : [];
+  const noteOf = (g: TagGroup) => (g === 'side1' ? sideNames[1] : g === 'side2' ? sideNames[2] : GROUP_NOTE[g]);
   return (
-    <div className="rounded-lg border border-border bg-surface p-2 space-y-2" data-tag-picker="">
+    <div className="rounded-lg border border-border bg-surface p-2 space-y-2" data-tag-picker={ownerKind}>
       <div className="flex gap-2">
         <input className={FIELD} autoComplete="off" maxLength={TAG_NAME_MAX} placeholder={`Search or type a name — ${roleLabel.toLowerCase()}`} value={query} onChange={e => setQuery(e.target.value)} aria-label={`${roleLabel}: search or type a name`} data-tag-picker-input="" />
         <button type="button" onClick={onClose} className="ea-icon-btn text-secondary shrink-0" aria-label="Close"><FaIcon icon={faXmark} /></button>
       </div>
-      {loading && <p className="text-xs text-muted" role="status">Searching…</p>}
-      <ul className="divide-y divide-border-subtle">
-        {items.filter(p => !taken.has(`p:${p.id}`)).map(p => (
-          <li key={p.id}>
-            <button type="button" onClick={() => onPick({ profile_id: p.id, name: suggestionName(p) })} className="ea-interactive flex w-full items-center gap-2 px-2 min-h-[44px] text-left" data-tag-pick={p.id}>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-primary truncate">{suggestionName(p)}</span>
-                {p.handle && <span className="block text-xs text-muted truncate">@{p.handle}</span>}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      {known.length > 0 && (
+        <ul className="divide-y divide-border-subtle max-h-64 overflow-y-auto" data-tag-known={known.length}>
+          {known.map(p => (
+            <li key={p.id}>
+              <button type="button" onClick={() => onPick({ profile_id: p.id, name: p.name })} className="ea-interactive flex w-full items-center gap-2 px-2 min-h-[44px] text-left" data-tag-pick={p.id} data-tag-pick-group={p.group}>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-primary truncate">{p.name}</span>
+                  <span className="block text-xs text-muted truncate">{noteOf(p.group)}{p.handle ? ` · @${p.handle}` : ''}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {loading && searches && <p className="text-xs text-muted" role="status">Searching…</p>}
+      {found.length > 0 && (
+        <ul className="divide-y divide-border-subtle" data-tag-found={found.length}>
+          {found.map(p => (
+            <li key={p.id}>
+              <button type="button" onClick={() => onPick({ profile_id: p.id, name: suggestionName(p) })} className="ea-interactive flex w-full items-center gap-2 px-2 min-h-[44px] text-left" data-tag-pick={p.id} data-tag-pick-group="search">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-primary truncate">{suggestionName(p)}</span>
+                  {p.handle && <span className="block text-xs text-muted truncate">@{p.handle}</span>}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!searches && <p className="text-xs text-muted" data-tag-picker-rule="">On your own video you can tag people you follow or who follow you. Anyone else goes in by name.</p>}
       {typed.length > 0 && !nameTaken && (
         <button type="button" onClick={() => onPick({ profile_id: null, name: typed })} className={`${BTN} w-full text-left`} data-tag-pick-name="">
           Use “{typed}” as a name <span className="font-normal text-muted">— not on Edge Athlete yet</span>
@@ -108,8 +142,27 @@ function PersonPicker({ roleLabel, taken, onPick, onClose }: { roleLabel: string
   );
 }
 
-export default function TagFields({ sheet, game, value, onChange }: { sheet: GameSheet; game: GameView; value: TagDraft; onChange: (next: TagDraft) => void }) {
+export default function TagFields({ sheet, game, value, onChange, videoId }: { sheet: GameSheet; game: GameView; value: TagDraft; onChange: (next: TagDraft) => void; videoId?: string }) {
   const [picking, setPicking] = useState<string | null>(null);
+  // Who the owner already knows, read ONCE when the form opens (never per keystroke). Until it answers — or if it is refused — the picker is the search and the typed name.
+  const [known, setKnown] = useState<{ people: TagCandidate[]; ownerKind: TagOwnerKind }>({ people: [], ownerKind: 'org' });
+  useEffect(() => {
+    if (!videoId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/videos/${encodeURIComponent(videoId)}/people`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const body = (await res.json()) as { people?: TagCandidate[]; owner_kind?: TagOwnerKind };
+        if (!cancelled) setKnown({ people: body.people ?? [], ownerKind: body.owner_kind === 'profile' ? 'profile' : 'org' });
+      } catch {
+        /* the search and the typed name still work */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
   const event: SheetEvent | null = sheetEvent(sheet, value.eventKey);
   const twoSided = sheet.family === 'team' || sheet.family === 'combat';
   const periods = Array.from({ length: sheet.period.regulation + (sheet.period.extra ? 2 : 0) }, (_, i) => i + 1);
@@ -196,6 +249,10 @@ export default function TagFields({ sheet, game, value, onChange }: { sheet: Gam
                     taken={taken}
                     onClose={() => setPicking(null)}
                     onPick={p => { set({ people: [...value.people, { ...p, role: r.key }] }); setPicking(null); }}
+                    candidates={known.people}
+                    ownerKind={known.ownerKind}
+                    firstSide={value.side ? (event?.roles.find(x => x.key === r.key)?.other ? (value.side === '1' ? 2 : 1) : (Number(value.side) as 1 | 2)) : null}
+                    sideNames={{ 1: sideLabel(game, 1), 2: sideLabel(game, 2) }}
                   />
                 </div>
               )}
