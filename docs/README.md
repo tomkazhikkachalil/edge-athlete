@@ -64,6 +64,13 @@ addition below as a promise to keep it true.
 - `docs/HARDENING.md` — the security & efficiency **stage gate**: re-run before
   each stage. Pairs with `scripts/hardening-guardrails.sh` (the `guardrails` CI
   job) and carries the Tier-2 backlog from the Aug 2026 pre-scale audit.
+- **Merging** (Nov 14 2026): `main` requires the `verify`, `smoke` and
+  `guardrails` checks (branch protection; admins are not enforced, for
+  emergencies). `scripts/automerge-pr.sh <N>` turns on GitHub's auto-merge for
+  a PR — GitHub merges it when the three are green — and refuses a PR that
+  touches `database/migrations/` (run the migration on production first, then
+  `scripts/merge-pr.sh <N>` by hand). A cancelled `smoke` run blocks the merge
+  until its job is re-run.
 - `docs/RUNBOOK_BACKUP.md` — backup & restore: what Supabase's tiers give,
   the two decisions Tom owes (tier, Storage), RPO/RTO, the restore steps, the
   quarterly drill into staging (Round 1 PR 9, Sep 2026).
