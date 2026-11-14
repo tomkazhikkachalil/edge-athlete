@@ -11,9 +11,10 @@ const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-
 const CTA = 'ea-cta px-4 min-h-[44px] rounded-lg text-sm font-semibold text-white disabled:opacity-60';
 
 interface Claim { id: string; asked_name: string | null; requester: { id: string; name: string; handle: string | null } }
+interface Mine { id: string; status: 'pending' | 'approved' | 'declined'; asked_name: string | null }
 type Loaded =
   | { can_manage: true; claims: Claim[]; targets: ClaimTarget[] }
-  | { can_manage: false; mine: { id: string; status: 'pending' | 'approved' | 'declined'; asked_name: string | null } | null };
+  | { can_manage: false; mine: Mine | null; athletes?: Array<{ id: string; name: string; mine: Mine | null; tagged: boolean }> };
 
 const targetValue = (t: ClaimTarget): string => (t.kind === 'placeholder' ? `p:${t.profile_id}` : `n:${t.name}`);
 const targetBody = (t: ClaimTarget) => (t.kind === 'placeholder' ? { profile_id: t.profile_id } : { name: t.name });
@@ -29,6 +30,8 @@ const targetLabel = (t: ClaimTarget): string => `${t.name}${t.kind === 'placehol
 export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { videoId: string; canManage: boolean; taggedMe: boolean; onLinked: () => void }) {
   const [data, setData] = useState<Loaded | null>(null);
   const [askedName, setAskedName] = useState('');
+  // A guardian asks for a child: who the request is for ('' = me).
+  const [forId, setForId] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,8 +93,8 @@ export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { 
     return linked === 0 ? 'Nothing was linked: there were no tags to move.' : `Linked ${linked} ${linked === 1 ? 'tag' : 'tags'} in ${videos} ${videos === 1 ? 'game' : 'games'}.`;
   };
 
-  const ask = async () => {
-    const r = await send(`/api/videos/${encodeURIComponent(videoId)}/claims`, 'POST', askedName.trim() ? { name: askedName.trim() } : {});
+  const ask = async (profileId: string | null) => {
+    const r = await send(`/api/videos/${encodeURIComponent(videoId)}/claims${profileId ? `?profileId=${encodeURIComponent(profileId)}` : ''}`, 'POST', askedName.trim() ? { name: askedName.trim() } : {});
     if (r.ok) setData(await load());
   };
   const decide = async (claim: Claim, action: 'approve' | 'decline', target?: ClaimTarget) => {
@@ -116,23 +119,36 @@ export default function TagClaims({ videoId, canManage, taggedMe, onLinked }: { 
   if (!data) return null;
 
   if (!data.can_manage) {
-    if (taggedMe || data.mine?.status === 'approved') return null;
+    // Me, and each athlete I guard — whoever is not already in this game's tags.
+    const people = [{ id: null as string | null, label: 'Me', mine: data.mine, tagged: taggedMe }, ...(data.athletes ?? []).map(a => ({ id: a.id as string | null, label: a.name, mine: a.mine, tagged: a.tagged }))];
+    const open = people.filter(p => !p.tagged && p.mine?.status !== 'approved');
+    if (open.length === 0) return null;
+    const who = open.find(p => (p.id ?? '') === forId) ?? open[0];
+    const forChild = who.id !== null;
     return (
-      <div className="bg-surface rounded-lg border border-border p-4 space-y-3" data-tag-claim={data.mine?.status ?? 'none'}>
-        {data.mine?.status === 'pending' ? (
+      <div className="bg-surface rounded-lg border border-border p-4 space-y-3" data-tag-claim={who.mine?.status ?? 'none'} data-tag-claim-for={who.id ?? 'me'}>
+        {open.length > 1 && (
+          <label className="block text-sm text-secondary">
+            For
+            <select className={`${FIELD} mt-1`} value={who.id ?? ''} onChange={e => { setForId(e.target.value); setAskedName(''); setError(null); }} data-tag-claim-for-select="">
+              {open.map(p => <option key={p.id ?? 'me'} value={p.id ?? ''}>{p.label}</option>)}
+            </select>
+          </label>
+        )}
+        {who.mine?.status === 'pending' ? (
           <p className="text-sm text-secondary" role="status" data-tag-claim-pending="">{CLAIM_COPY.pending}</p>
         ) : (
           <>
             <div>
-              <p className="text-sm font-semibold text-primary">{CLAIM_COPY.ask}</p>
-              <p className="text-sm text-secondary">{CLAIM_COPY.askNote}</p>
-              {data.mine?.status === 'declined' && <p className="text-xs text-muted mt-1" data-tag-claim-declined="">{CLAIM_COPY.declined}</p>}
+              <p className="text-sm font-semibold text-primary">{forChild ? `Was ${who.label} in this game?` : CLAIM_COPY.ask}</p>
+              <p className="text-sm text-secondary">{forChild ? CLAIM_COPY.askNoteFor(who.label) : CLAIM_COPY.askNote}</p>
+              {who.mine?.status === 'declined' && <p className="text-xs text-muted mt-1" data-tag-claim-declined="">{CLAIM_COPY.declined}</p>}
             </div>
             <label className="block text-sm text-secondary">
-              The name you are under in this game (optional)
+              {forChild ? 'The name they are under in this game (optional)' : 'The name you are under in this game (optional)'}
               <input className={`${FIELD} mt-1`} maxLength={CLAIM_NAME_MAX} value={askedName} onChange={e => setAskedName(e.target.value)} autoComplete="off" data-tag-claim-name="" />
             </label>
-            <button type="button" onClick={ask} disabled={busy} className={CTA} data-tag-claim-ask="">{busy ? 'Sending…' : 'Ask to be linked'}</button>
+            <button type="button" onClick={() => ask(who.id)} disabled={busy} className={CTA} data-tag-claim-ask="">{busy ? 'Sending…' : 'Ask to be linked'}</button>
           </>
         )}
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
