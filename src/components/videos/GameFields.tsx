@@ -8,6 +8,37 @@ import { pickSideTeam, typeSideName, type GameDraft, type TeamOption } from '@/l
 const FIELD = 'w-full border border-border-strong rounded-lg px-3 min-h-[44px] text-base bg-surface text-primary';
 
 /**
+ * Only the team links (Nov 14 2026): the Where step of the Full game flow,
+ * where the organization is chosen AFTER the game's details were typed. The
+ * same rule as the fields below (`pickSideTeam`): a team's name fills its
+ * side, and one team is never both sides. Nothing for a sport without sides.
+ */
+export function GameTeamPicks({ value, onChange, teams }: { value: GameDraft; onChange: (next: GameDraft) => void; teams: readonly TeamOption[] }) {
+  if (teams.length === 0 || !value.sport_key || !gameHasSides(value.sport_key)) return null;
+  const sideNoun = gameSheetFor(value.sport_key)?.sideNoun ?? 'Side';
+  return (
+    <div className="space-y-2" data-video-game-team-picks="">
+      <p className="text-sm font-semibold text-primary">Which of your teams played? <span className="font-normal text-muted">(optional)</span></p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {([1, 2] as const).map(n => {
+          const teamId = n === 1 ? value.side1_team_id : value.side2_team_id;
+          const text = n === 1 ? value.side1 : value.side2;
+          return (
+            <label key={n} className="block text-xs text-muted">
+              {sideNoun} {n}{text.trim() ? ` — ${text.trim()}` : ''}
+              <select className={`${FIELD} mt-1`} value={teamId && teams.some(t => t.id === teamId) ? teamId : ''} onChange={e => onChange(pickSideTeam(value, n, teams.find(t => t.id === e.target.value) ?? null))} data-video-game-team-pick={n}>
+                <option value="">Not one of your teams</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The game's fields (round 2, Nov 13 2026): the sport, the two sides, the
  * day, how much is tagged, no spoilers. ONE field set for the video page's
  * card and the Details step of the Full game flow. Controlled — the parent

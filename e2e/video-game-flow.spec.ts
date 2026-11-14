@@ -130,6 +130,49 @@ test('a club\'s own game: a side is one of ITS teams (the name fills in); anothe
     // Editing again keeps the link.
     await page.locator('[data-video-game-edit]').click();
     await expect(page.locator('[data-video-game-team="1"]')).toHaveValue(hawks.id);
+
+    // Nov 14: in the flow the organization is chosen at WHERE, after the game's details — its teams are offered there too.
+    res = await api.delete(`/api/videos/${videoId}`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    videoId = null;
+    for (const bucket of ['video-write', 'video-lookup'] as const) await resetRateBucket(admin, bucket, owner.id);
+    await page.goto('/videos/new');
+    await page.locator('[data-new-video-url]').fill(YT);
+    await expect(page.locator('[data-step-next]')).toBeEnabled({ timeout: 20_000 });
+    await page.locator('[data-step-next]').click();
+    await page.locator('[data-new-video-title]').fill(`QA Where game ${stamp}`);
+    await page.locator('[data-new-video-is-game]').check();
+    await page.locator('[data-video-game-sport]').selectOption('basketball');
+    await page.locator('[data-video-game-side="2"]').fill('Visitors');
+    await expect(page.locator('[data-video-game-team]')).toHaveCount(0);
+    await page.locator('[data-step-next]').click();
+    const where = page.locator('[data-new-video-where]');
+    const ownerRadio = (name: string) => where.locator('label', { hasText: name }).locator('input[name="owner"]');
+    //    My own profile has no teams: nothing is offered.
+    await where.locator('input[name="owner"]').first().check();
+    await expect(where.locator('[data-video-game-team-picks]')).toHaveCount(0);
+    //    The club: its two teams, nobody else's; picking one names the side.
+    await ownerRadio(`QA Game Club ${stamp}`).check();
+    const wherePick = where.locator('[data-video-game-team-pick="1"]');
+    await expect(wherePick).toBeVisible({ timeout: 20_000 });
+    await expect(wherePick.locator('option')).toHaveCount(3);
+    await expect(wherePick).not.toContainText('QA Strangers');
+    await wherePick.selectOption(hawks.id);
+    expect(await fitsViewportWidth(page)).toBe(true);
+    //    Another organization: the link is dropped at once (the name stays), and coming back does not bring it back.
+    await ownerRadio(`QA Other Club ${stamp}`).check();
+    await expect(where.locator('[data-video-game-team-pick="1"]')).toContainText('QA Strangers', { timeout: 20_000 });
+    await expect(where.locator('[data-video-game-team-pick="1"]')).toHaveValue('');
+    await ownerRadio(`QA Game Club ${stamp}`).check();
+    await expect(wherePick).not.toContainText('QA Strangers', { timeout: 20_000 });
+    await expect(wherePick).toHaveValue('');
+    await wherePick.selectOption(hawks.id);
+    await page.locator('[data-step-finish]').click();
+    await expect.poll(() => page.url(), { timeout: 30_000 }).toMatch(/\/videos\/[0-9a-f-]{36}$/);
+    videoId = page.url().split('/').pop()!;
+    res = await api.get(`/api/videos/${videoId}/game`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    expect((await res.json()).game).toMatchObject({ side1: { name: hawks.name, team_id: hawks.id }, side2: { name: 'Visitors', team_id: null } });
   } finally {
     if (videoId) await api.delete(`/api/videos/${videoId}`).catch(() => undefined);
     await api.dispose();

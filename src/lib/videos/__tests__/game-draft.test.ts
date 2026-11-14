@@ -75,6 +75,9 @@ describe('the flow and the writer', () => {
     expect(flow).toContain('body: JSON.stringify(gameBodyOf(game))');
     expect(flow).toContain("ownerOrg && teamsRead?.orgId === ownerOrg ? gameDraft : withoutTeams(gameDraft)");
     expect(flow).toContain('setExistingId(data.video.id);');
+    // Nov 14: the team picker also at Where (the organization is chosen there), and another owner drops the links.
+    expect(flow).toContain('{isGame && ownerOrg && <GameTeamPicks value={gameDraft} onChange={changeGame} teams={teams} />}');
+    expect(flow).toContain('if (nextOrg !== prevOrg) setGameDraft(withoutTeams);');
     expect(flow.indexOf("fetch('/api/videos'")).toBeLessThan(flow.indexOf('gameBodyOf(game)'));
     expect(read('src/components/videos/GameDetailsCard.tsx')).toContain('body: JSON.stringify(gameBodyOf(draft)),');
   });
