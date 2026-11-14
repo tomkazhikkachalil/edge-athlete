@@ -134,6 +134,16 @@ test('an athlete asks, the manager says who they are, the tags become theirs; a 
     await expect(page.locator('[data-tag-claims-note]')).toHaveText('Linked 1 tag in 1 game.', { timeout: 20_000 });
     const { data: moved } = await admin.from('video_highlight_people').select('profile_id').eq('video_id', videoId).in('profile_id', [stub.id, second.id]);
     expect((moved ?? []).map(r => (r as { profile_id: string }).profile_id)).toEqual([second.id]);
+    //    The placeholder has no tags left and is still on the roster: removing it is OFFERED (never done for them), through the roster's own door.
+    const onRoster = async () => ((await admin.from('memberships').select('id').eq('org_id', club.id).eq('profile_id', stub.id).eq('kind', 'roster').eq('status', 'active')).data ?? []).length;
+    expect(await onRoster()).toBeGreaterThan(0);
+    const spare = page.locator(`[data-tag-claims-spare="${stub.id}"]`);
+    await expect(spare).toContainText(stub.name);
+    expect(await fitsViewportWidth(page)).toBe(true);
+    await spare.locator('[data-tag-claims-spare-remove]').click();
+    await expect(page.locator('[data-tag-claims-note]')).toHaveText(`${stub.name} was removed from the roster.`, { timeout: 20_000 });
+    await expect(spare).toHaveCount(0);
+    expect(await onRoster()).toBe(0);
 
     // 6. A third athlete asks from the page at phone width; the manager declines; it is said, and nothing was linked.
     const viewer = await thirdCtx.newPage();
