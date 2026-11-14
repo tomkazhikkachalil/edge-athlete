@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { GAME_SHEETS } from '../game-sheets';
-import { checkTag, clipAround, defaultTagLabel, EMPTY_TAG, nudgeMs, parseTagFields, parseTagPerson, ROLE_IN_CLIP, TAG_PEOPLE_MAX, tagPersonKey, type TagInput } from '../tag-rules';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { checkTag, clipAround, defaultTagLabel, EMPTY_TAG, nudgeMs, parseTagFields, parseTagPerson, removedOut, ROLE_IN_CLIP, TAG_PEOPLE_MAX, tagPersonKey, type TagInput } from '../tag-rules';
 import { parseHighlightBody, parseHighlightPatch } from '../rules';
 
 /** A tag on a highlight (Sprint 3 PR 3): the event, its period / side / value, the people by role. */
@@ -119,5 +121,40 @@ describe('the helpers', () => {
     expect(clipAround(30_000, 600_000)).toEqual({ start_ms: 22_000, end_ms: 34_000 });
     expect(clipAround(2_000, 600_000)).toEqual({ start_ms: 0, end_ms: 6_000 });
     expect(clipAround(600_000, 600_000)).toEqual({ start_ms: 592_000, end_ms: 600_000 });
+  });
+});
+
+/** The four faults found after Sprint 3 (Nov 13 2026). */
+describe('a removal is not undone by a manager', () => {
+  const row = (profile_id: string, highlight_id: string, status: string) => ({ profile_id, highlight_id, status });
+  it('a removed row on THIS tag keeps the person off it, whatever the role', () => {
+    expect(removedOut([row(P1, 'h1', 'removed'), row(P1, 'h2', 'active')], 'h1')).toEqual([P1]);
+    expect(removedOut([row(P1, 'h1', 'removed'), row(P1, 'h2', 'active')], 'h2')).toEqual([]);
+  });
+  it('someone who took themselves out of the game is not tagged into a new clip of it', () => {
+    expect(removedOut([row(P1, 'h1', 'removed'), row(P1, 'h2', 'removed')], 'h3')).toEqual([P1]);
+    expect(removedOut([row(P2, 'h1', 'active')], 'h3')).toEqual([]);
+    expect(removedOut([], 'h1')).toEqual([]);
+  });
+});
+
+describe('the writer and the form keep what they were given', () => {
+  const src = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
+  const server = src('src/lib/videos/videos-server.ts');
+  const fields = src('src/components/videos/TagFields.tsx');
+  it('a manager reads the LINK of an athlete whose account is gone; nobody else gets the id', () => {
+    expect(server).toContain("profile_id: viewer.canManage ? r.profile_id : null, name: maskedName(r.profile_id), handle: null, avatar_url: null, role: r.role, side: r.side, masked: true");
+  });
+  it('someone already on the tag is not checked again, and the edit route says which tag', () => {
+    expect(server).toContain('!alreadyOn.has(v)');
+    expect(src('src/app/api/videos/[id]/highlights/[highlightId]/route.ts')).toContain('prepareTag(admin, id, parsed.value.tag, user.id, highlightId)');
+  });
+  it('the writer asks who removed themselves before it inserts', () => {
+    expect(server).toContain('!(p.profile_id && out.has(p.profile_id))');
+  });
+  it('the form sends the stored side back and never a stand-in as a typed name', () => {
+    expect(fields).toContain('side: p.side ?? null');
+    expect(fields).not.toContain('role: p.role, side: null }');
+    expect(fields).toContain('.filter(p => !(p.masked && !p.profile_id))');
   });
 });

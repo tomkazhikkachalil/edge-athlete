@@ -43,7 +43,7 @@ import {
 } from './rules';
 import type { HighlightPerson, HighlightRow, VideoOwnerView, VideoPlaceView, VideoRow, VideoView } from './types';
 import { filterBlockedBidirectional } from '@/lib/blocks';
-import { checkTag, tagPersonKey, type TagInput, type TagPersonInput } from './tag-rules';
+import { checkTag, removedOut, tagPersonKey, type TagInput, type TagPersonInput } from './tag-rules';
 import { gameSheetFor } from './game-sheets';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the house Admin alias (schema-agnostic helper)
@@ -370,9 +370,13 @@ async function readTagPeople(admin: Admin, videoId: string, viewer: TagViewer): 
   for (const r of rows) {
     // A typed name is always shown; a linked athlete only while their profile stands AND this viewer may see it.
     const shown = !r.profile_id || (!!r.profile && !r.profile.departed_at && (viewer.canManage || visible.get(r.profile_id) === true));
+    // A manager keeps the LINK of an athlete whose account is gone (the name is a stand-in): their form sends the same
+    // person back, so an edit never turns the athlete into a typed name "Player 1". Nobody else gets the id.
     const person: HighlightPerson = r.profile_id && r.profile && shown
       ? { id: r.id, profile_id: r.profile_id, name: r.profile.display_name || r.profile.full_name || MASKED_PERSON_NAME, handle: r.profile.handle, avatar_url: r.profile.avatar_url, role: r.role, side: r.side }
-      : { id: r.id, profile_id: null, name: r.profile_id ? maskedName(r.profile_id) : (r.name ?? MASKED_PERSON_NAME), handle: null, avatar_url: null, role: r.role, side: r.side };
+      : r.profile_id
+        ? { id: r.id, profile_id: viewer.canManage ? r.profile_id : null, name: maskedName(r.profile_id), handle: null, avatar_url: null, role: r.role, side: r.side, masked: true }
+        : { id: r.id, profile_id: null, name: r.name ?? MASKED_PERSON_NAME, handle: null, avatar_url: null, role: r.role, side: r.side };
     const list = out.get(r.highlight_id);
     if (list) list.push(person);
     else out.set(r.highlight_id, [person]);
@@ -385,14 +389,15 @@ async function readTagPeople(admin: Admin, videoId: string, viewer: TagViewer): 
  * SEE; anyone with a block in either direction is silently left out (never
  * reveal who blocked whom); a typed name is always allowed.
  */
-export async function taggablePeople(admin: Admin, people: readonly TagPersonInput[], taggerId: string): Promise<Outcome<TagPersonInput[]>> {
-  const ids = [...new Set(people.map(p => p.profile_id).filter((v): v is string => !!v && v !== taggerId))];
+export async function taggablePeople(admin: Admin, people: readonly TagPersonInput[], taggerId: string, alreadyOn: ReadonlySet<string> = new Set()): Promise<Outcome<TagPersonInput[]>> {
+  // Someone ALREADY on the tag is not being named again: an edit that keeps them is never refused (their account may have gone since).
+  const ids = [...new Set(people.map(p => p.profile_id).filter((v): v is string => !!v && v !== taggerId && !alreadyOn.has(v)))];
   if (ids.length === 0) return { ok: true, value: [...people] };
   const checks = await Promise.all(ids.map(id => canViewProfile(id, taggerId)));
   if (checks.some(c => !c.canView)) return { ok: false, status: 403, error: 'You can only tag people whose profile you can view' };
   const { allowed } = await filterBlockedBidirectional(admin, taggerId, ids);
   const ok = new Set(allowed);
-  return { ok: true, value: people.filter(p => !p.profile_id || p.profile_id === taggerId || ok.has(p.profile_id)) };
+  return { ok: true, value: people.filter(p => !p.profile_id || p.profile_id === taggerId || alreadyOn.has(p.profile_id) || ok.has(p.profile_id)) };
 }
 
 /**
@@ -406,6 +411,20 @@ async function writeTagPeople(admin: Admin, videoId: string, highlightId: string
   // PR 7: the athlete is told ONCE per game — when they first appear in it — never per tag.
   if (added.length > 0) await notifyNewlyTagged(admin, videoId, added, userId);
   return true;
+}
+
+/**
+ * Who took their own name off and so is NOT tagged back in, whatever role a
+ * later save puts them in: anyone with a removed row on THIS tag, and anyone
+ * who removed themselves from the game (removed rows, none still active).
+ */
+async function removedThemselves(admin: Admin, videoId: string, highlightId: string, profileIds: readonly string[]): Promise<Set<string> | null> {
+  const out = new Set<string>();
+  if (profileIds.length === 0) return out;
+  const { data, error } = await admin.from('video_highlight_people').select('profile_id, highlight_id, status').eq('video_id', videoId).in('profile_id', [...new Set(profileIds)]).limit(HIGHLIGHT_READ_MAX * 4);
+  if (error) { console.error(`${TAG} removed tags read failed:`, error.message); return null; }
+  const rows = (data ?? []) as Array<{ profile_id: string; highlight_id: string; status: string }>;
+  return new Set(removedOut(rows, highlightId));
 }
 
 /** The rows of one tag become `people`. Returns the profiles this write ADDED to the tag (null = the write failed). */
@@ -423,7 +442,9 @@ async function writeTagPeopleRows(admin: Admin, videoId: string, highlightId: st
     const { error } = await admin.from('video_highlight_people').delete().in('id', gone);
     if (error) { console.error(`${TAG} tag people delete failed:`, error.message); return null; }
   }
-  const fresh = [...want.entries()].filter(([k]) => !have.has(k)).map(([, p]) => ({ highlight_id: highlightId, video_id: videoId, profile_id: p.profile_id, name: p.name, role: p.role, side: p.side, created_by_user_id: userId }));
+  const out = await removedThemselves(admin, videoId, highlightId, [...want.entries()].filter(([k]) => !have.has(k)).map(([, p]) => p.profile_id).filter((v): v is string => !!v));
+  if (out === null) return null;
+  const fresh = [...want.entries()].filter(([k, p]) => !have.has(k) && !(p.profile_id && out.has(p.profile_id))).map(([, p]) => ({ highlight_id: highlightId, video_id: videoId, profile_id: p.profile_id, name: p.name, role: p.role, side: p.side, created_by_user_id: userId }));
   if (fresh.length > 0) {
     const { error } = await admin.from('video_highlight_people').insert(fresh);
     if (error) { console.error(`${TAG} tag people insert failed:`, error.message); return null; }
@@ -519,11 +540,16 @@ export async function taggedVideoIds(admin: Admin, profileId: string, max = 24):
  * A tag is ready to save: its event and roles are the game's sheet's (no game
  * = no events), and its people are ones this tagger may name.
  */
-export async function prepareTag(admin: Admin, videoId: string, tag: TagInput, taggerId: string): Promise<Outcome<TagInput>> {
+export async function prepareTag(admin: Admin, videoId: string, tag: TagInput, taggerId: string, highlightId: string | null = null): Promise<Outcome<TagInput>> {
   const { data } = await admin.from('video_games').select('sport_key').eq('video_id', videoId).maybeSingle();
   const checked = checkTag(gameSheetFor((data as { sport_key?: string } | null)?.sport_key ?? null), tag);
   if (!checked.ok) return { ok: false, status: 400, error: checked.error };
-  const people = await taggablePeople(admin, tag.people, taggerId);
+  const alreadyOn = new Set<string>();
+  if (highlightId && tag.people.some(p => p.profile_id)) {
+    const { data: on } = await admin.from('video_highlight_people').select('profile_id').eq('highlight_id', highlightId).eq('video_id', videoId).eq('status', 'active').not('profile_id', 'is', null);
+    for (const r of (on ?? []) as Array<{ profile_id: string }>) alreadyOn.add(r.profile_id);
+  }
+  const people = await taggablePeople(admin, tag.people, taggerId, alreadyOn);
   if (!people.ok) return people;
   return { ok: true, value: { ...tag, people: people.value } };
 }

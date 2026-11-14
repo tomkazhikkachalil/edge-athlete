@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { cellText, tagsForPerson, type DrillFilter, type GameTag, type PlayerLine } from '@/lib/videos/game-derive';
+import { cellText, personKey, tagsForPerson, type DrillFilter, type GameTag, type PlayerLine } from '@/lib/videos/game-derive';
 import { periodLabel, sheetEvent, type GameSheet } from '@/lib/videos/game-sheets';
 import { formatTimestamp } from '@/lib/videos/rules';
 import FaIcon from '@/components/FaIcon';
@@ -81,7 +81,7 @@ export default function AthleteClips({ sheet, line, tags, onPlay, onPlayAll, onC
         <ol className="divide-y divide-border-subtle rounded-lg bg-surface">
           {shown.map(t => {
             const event = sheetEvent(sheet, t.eventKey);
-            const role = t.people.find(p => (p.profileId ? `p:${p.profileId}` : `n:${(p.name ?? '').trim().toLowerCase()}`) === line.key)?.role;
+            const role = t.people.find(p => personKey(p) === line.key)?.role;
             const roleLabel = event?.roles.find(r => r.key === role)?.label ?? null;
             return (
               <li key={t.id}>

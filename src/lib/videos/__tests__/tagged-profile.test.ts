@@ -30,7 +30,8 @@ describe('tagged by someone else', () => {
     expect(server).toContain("update({ status: 'removed', removed_by_user_id: byUserId, removed_at: new Date().toISOString() })");
     expect(server).toContain(".eq('profile_id', profileId).eq('status', 'active')");
     // `have` holds every row of the tag, removed ones included, so a removed person is not "fresh".
-    expect(server).toContain("const fresh = [...want.entries()].filter(([k]) => !have.has(k))");
+    // …and in ANY role (Nov 13): who removed themselves is read before the insert.
+    expect(server).toContain("const fresh = [...want.entries()].filter(([k, p]) => !have.has(k) && !(p.profile_id && out.has(p.profile_id)))");
     expect(server).toContain(".select('id, profile_id, name, role, status').eq('highlight_id', highlightId)");
   });
 

@@ -21,7 +21,7 @@ const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-
  * not on Edge Athlete yet. Controlled: the form owns the draft. The stats
  * are derived from exactly these fields; nothing else is typed.
  */
-export interface TagPersonDraft { profile_id: string | null; name: string; role: string }
+export interface TagPersonDraft { profile_id: string | null; name: string; role: string; side?: 1 | 2 | null; masked?: boolean }
 export interface TagDraft { eventKey: string; side: '' | '1' | '2'; period: string; value: string; people: TagPersonDraft[] }
 export const EMPTY_TAG_DRAFT: TagDraft = { eventKey: '', side: '', period: '', value: '', people: [] };
 
@@ -32,8 +32,8 @@ export function tagDraftOf(h: HighlightRow, sheet: GameSheet | null): TagDraft {
     side: h.side ? (String(h.side) as '1' | '2') : '',
     period: h.period ? String(h.period) : '',
     value: h.value === null ? '' : event?.takesValue?.kind === 'time_ms' ? formatTimestamp(h.value) : String(h.value),
-    // A masked person (a profile this viewer may not see) never reaches a manager's form; a typed name has no profile.
-    people: h.people.map(p => ({ profile_id: p.profile_id, name: p.name, role: p.role })),
+    // A manager's read keeps every link (an athlete whose account is gone comes with a stand-in name and `masked`); the stored side rides along.
+    people: h.people.map(p => ({ profile_id: p.profile_id, name: p.name, role: p.role, side: p.side, ...(p.masked ? { masked: true } : {}) })),
   };
 }
 
@@ -56,7 +56,9 @@ export function tagInputOf(d: TagDraft, sheet: GameSheet | null): { ok: true; va
       value,
       people: d.people
         .filter(p => p.role === ROLE_IN_CLIP || !!event?.roles.some(r => r.key === p.role))
-        .map(p => ({ profile_id: p.profile_id, name: p.profile_id ? null : p.name, role: p.role, side: null })),
+        // A stand-in name with no link is nobody the API can name: it is never sent as a typed name.
+        .filter(p => !(p.masked && !p.profile_id))
+        .map(p => ({ profile_id: p.profile_id, name: p.profile_id ? null : p.name, role: p.role, side: p.side ?? null })),
     },
   };
 }
@@ -178,7 +180,8 @@ export default function TagFields({ sheet, game, value, onChange }: { sheet: Gam
                 {holders.map(p => (
                   <span key={tagPersonKey({ profile_id: p.profile_id, name: p.name })} className="inline-flex items-center gap-1 rounded-full border border-border-strong bg-surface pl-3 pr-1 min-h-[36px] text-sm text-primary" data-tag-person={p.profile_id ?? 'name'}>
                     <span className="max-w-[11rem] truncate">{p.name}</span>
-                    {!p.profile_id && <span className="text-xs text-muted">(name)</span>}
+                    {!p.profile_id && !p.masked && <span className="text-xs text-muted">(name)</span>}
+                    {p.masked && <span className="text-xs text-muted">(account closed)</span>}
                     <button type="button" onClick={() => set({ people: value.people.filter(x => x !== p) })} className="ea-icon-btn text-secondary !min-h-[32px] !min-w-[32px]" aria-label={`Remove ${p.name}`}><FaIcon icon={faXmark} className="text-xs" /></button>
                   </span>
                 ))}

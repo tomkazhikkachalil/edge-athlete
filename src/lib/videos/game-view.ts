@@ -24,7 +24,7 @@ export function gameTagOf(h: HighlightRow): GameTag {
     side: h.side,
     value: h.value,
     label: h.label,
-    people: h.people.map(p => ({ profileId: p.profile_id, name: p.name, role: p.role, side: p.side })),
+    people: h.people.map(p => ({ profileId: p.profile_id, name: p.name, role: p.role, side: p.side, ...(p.masked ? { masked: true } : {}) })),
   };
 }
 
