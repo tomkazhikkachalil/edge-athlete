@@ -15,7 +15,7 @@ Tom: "can we look to auto merge" and, for film, "only league and club tagged dat
 | #1506 `a528b050` | C1 — one game is counted once (`same-game.ts`): official vs self-posted, in the season totals AND the career tiles (the tiles were adding both). | `stats-same-game` |
 | #1507 `36ec06af` | C2 — game film split into Verified (club or league) and Recreational (never counted). | `video-film-official`, `video-tagged-profile` |
 | #1508 `df4c5c0d` | C3 — verified film (fully tagged, dated) counts in the totals and the tiles through the rule; each row says what was decided. | `stats-same-game`, `video-film-official`, `video-tagged-profile` 3/3 |
-| #1509 | C4 — "these are two different games" (**migration 309**): the athlete or a guardian splits a same-date pair; Undo. | C4_PROOF |
+| #1509 `9b80b7fd` | C4 — "these are two different games" (**migration 309**): the athlete or a guardian splits a same-date pair; Undo. | `stats-same-game` (split → three games, Undo → two), `video-film-official`; 309 on production first |
 
 **What the build changed in the rule.** Date matching is only for sports with two sides, and one to one (a tournament day with one official line and three posts counts three games). Found by the browser test: an official line on an undated contest, its film, and the athlete's post of that day counted twice — a beaten game now speaks for its winner.
 
@@ -24,11 +24,11 @@ Tom: "can we look to auto merge" and, for film, "only league and club tagged dat
 - My first same-game browser test asserted an exact row count and failed when another spec's row was on the same QA account. RULE: assert against what the account already has (a baseline), never an absolute.
 - Right after a staging migration `check:schema` reported the new table as not live; a second run was clean (the API's schema cache).
 
-**The numbers.** `npm run verify` 0 at each PR (6,326 → 6,350 tests); audit 0; guardrails, blocklists green; ledger 309 on staging.
+**The numbers.** `npm run verify` 0 at each PR (6,326 → 6,350 tests); audit 0; guardrails, blocklists green; ledger 309 on BOTH databases (Tom ran production before #1509 merged).
 
 **Known limits.** A post with no date uses the day it was posted. The skill card's summary line still uses its own older rule and can show a different game count than the Stats tab. The read cost of film in the totals is one full read per verified game (bounded at 80 videos); not measured under load.
 
-**Still Tom's.** C4_TOM Tagging one real game and saying which sport sheets are wrong; Google's verification reply; the installed-iPhone connect and upload.
+**Still Tom's.** Tagging one real game and saying which sport sheets are wrong; Google's verification reply; the installed-iPhone connect and upload.
 
 ## November 14, 2026 — Game film: the leftovers round, and round 2 closed on production
 
