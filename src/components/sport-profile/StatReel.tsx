@@ -13,11 +13,12 @@ interface Props {
   basePath: string;
   showHeld: boolean;
   eventLabel: (eventKey: string | null) => string | null;
+  rev: number;
 }
 
 /** The clips behind a number at the career or a season: "every goal that season, in order, without leaving the page". */
-export default function StatReel({ data, profileId, season, stat, basePath, showHeld, eventLabel }: Props) {
-  const reel = useClips({ profileId, sport: data.sport, season, stat, showHeld }, true);
+export default function StatReel({ data, profileId, season, stat, basePath, showHeld, eventLabel, rev }: Props) {
+  const reel = useClips({ profileId, sport: data.sport, season, stat, showHeld, rev }, true);
   const column = data.columns.find(c => c.key === stat);
   const heading = `${column?.label ?? 'Clips'} — ${season ? seasonTitle(season) : 'career'}`;
   return (

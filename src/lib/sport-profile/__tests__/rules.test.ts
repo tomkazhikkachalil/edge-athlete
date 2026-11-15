@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
+  careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, forViewer, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
   type ProfileClip, type ProfileGame,
 } from '../rules';
 
@@ -138,6 +138,34 @@ describe('what a viewer has not chosen to see', () => {
   });
 });
 
+describe('what the athlete hid from their page (311; Tom: the stat still counts)', () => {
+  const hiddenGame = { ...filmA, hidden: true };
+  const clipHidden = { ...filmB, clips: [{ ...filmB.clips[0], hidden: true }] };
+  const mine = [hiddenGame, officialB, clipHidden, post];
+  it('the athlete and their guardian are sent everything, marked', () => {
+    const own = forViewer(mine, true);
+    expect(own.find(g => g.key === 'film:a')).toMatchObject({ hidden: true, clips: filmA.clips });
+    expect(own.some(g => g.concealed)).toBe(false);
+    expect(reelOf(own, { stat: 'goals' }).map(c => c.id)).toEqual(['a1', 'a2', 'b1']);
+  });
+  it('a visitor: the hidden game keeps only what a total needs, the hidden clip is gone, and the totals are the same', () => {
+    const theirs = forViewer(mine, false);
+    expect(theirs.find(g => g.key === 'film:a')).toMatchObject({ concealed: true, clips: [], byPeriod: {}, stats: filmA.stats, counted: true });
+    expect(theirs.find(g => g.key === 'film:b')!.clips).toEqual([]);
+    expect(careerOf(theirs, KEYS)).toEqual(careerOf(mine, KEYS));
+    expect(reelOf(theirs, { stat: 'goals' })).toEqual([]);
+    expect(reelOf(theirs, { everyFilm: true })).toEqual([]);
+    expect(clipCounts(theirs)).toEqual({});
+  });
+  it('a hidden game is never under its opponent, and is no film to open', () => {
+    const theirs = forViewer(mine, false);
+    expect(splitByOpponent(theirs, KEYS).rows.find(r => r.label.toLowerCase() === 'owls')!.games).toBe(1);
+    expect(splitByOpponent(theirs, KEYS).rest).toEqual({ games: 1, totals: { goals: 2, shots: 5 } });
+    expect(filmOfGame(theirs, 'film:a')).toBeNull();
+    expect(clipCountsOfGame(theirs, 'film:a')).toEqual({});
+  });
+});
+
 describe('paging a reel', () => {
   const items = Array.from({ length: 150 }, (_, i) => i);
   it('sixty at a time, the cursor is how many were taken', () => {
@@ -153,6 +181,25 @@ describe('paging a reel', () => {
 
 describe('the module and its doors', () => {
   const read = (f: string) => fs.readFileSync(path.join(process.cwd(), f), 'utf8');
+  it('migration 311: one table, posture A, the grants in the file, a game or a clip hidden once, the ledger row', () => {
+    const sql = read('database/migrations/311_profile_film_hidden.sql');
+    expect(sql).toContain("IF n < 310 THEN RAISE EXCEPTION '311 pre-flight: ledger head is %, expected 310', n; END IF;");
+    expect(sql).toContain('REVOKE ALL ON TABLE public.profile_film_hidden FROM PUBLIC, anon, authenticated;');
+    expect(sql).toContain('GRANT ALL ON TABLE public.profile_film_hidden TO service_role;');
+    expect(sql).toMatch(/profile_film_hidden_game_uidx ON public\.profile_film_hidden \(profile_id, video_id\) WHERE highlight_id IS NULL/);
+    expect(sql).toMatch(/profile_film_hidden_clip_uidx ON public\.profile_film_hidden \(profile_id, highlight_id\) WHERE highlight_id IS NOT NULL/);
+    expect(sql).toContain("VALUES (311, '311_profile_film_hidden.sql') ON CONFLICT (number) DO NOTHING;");
+    expect(read('src/lib/account-departure.ts')).toContain("'profile_film_hidden.profile_id': 'goes',");
+    expect(read('src/lib/account-deletion.ts')).toContain("await mustDelete('profile_film_hidden', 'profile_id');");
+  });
+  it('hiding is the athlete\'s or their guardian\'s, and only of something they are tagged in', () => {
+    const route = read('src/app/api/profile/[profileId]/film-hidden/route.ts');
+    expect(route).toMatch(/resolveActingProfile\(user\.id, profileId, /);
+    expect(route).toContain("'Cache-Control': 'private, no-store'");
+    const writer = read('src/lib/sport-profile/film-hide-server.ts');
+    expect(writer).toMatch(/from\('video_highlight_people'\)\.select\('id'\)\.eq\('profile_id', profileId\)\.eq\('video_id', target\.videoId\)\.eq\('status', 'active'\)/);
+    expect(writer).toContain("return { ok: false, status: 404, error: 'That is not on this profile' };");
+  });
   it('the rules import nothing', () => {
     expect(read('src/lib/sport-profile/rules.ts')).not.toMatch(/^import /m);
   });

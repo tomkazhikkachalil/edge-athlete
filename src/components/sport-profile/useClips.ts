@@ -14,6 +14,8 @@ export interface ClipsQuery {
   /** The Clips browser: every film game, recreational included. */
   everyFilm?: boolean;
   showHeld?: boolean;
+  /** Bumped when something on the page changed (a hide): the reel is read again. */
+  rev?: number;
 }
 
 interface State { key: string; clips: ReelClip[]; total: number; next: number | null; state: 'loading' | 'ready' | 'error' }
@@ -26,6 +28,7 @@ const queryOf = (q: ClipsQuery, cursor: number): string => {
   if (q.event) p.set('event', q.event);
   if (q.everyFilm) p.set('scope', 'all');
   if (q.showHeld) p.set('spoilers', 'show');
+  if (q.rev) p.set('rev', String(q.rev));
   if (cursor > 0) p.set('cursor', String(cursor));
   return `/api/profile/${q.profileId}/sport-clips?${p.toString()}`;
 };

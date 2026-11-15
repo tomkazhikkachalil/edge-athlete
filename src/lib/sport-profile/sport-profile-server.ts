@@ -29,7 +29,8 @@ import { GAME_COLUMNS, projectGame } from '@/lib/videos/video-games-server';
 import { anonymousProfileCanView, profileManages, VIDEO_COLUMNS, videoFactsFor, type OrgAccessMemo } from '@/lib/videos/videos-server';
 import { canViewProfile } from '@/lib/privacy';
 import { filterBlockedBidirectional } from '@/lib/blocks';
-import { careerOf, clipCounts, clipCountsOfGame, cutHeld, filmOfGame, seasonsOf, type ProfileClip, type ProfileGame, type Stats } from './rules';
+import { readFilmHidden } from './film-hide-server';
+import { careerOf, clipCounts, clipCountsOfGame, cutHeld, filmOfGame, forViewer, seasonsOf, type ProfileClip, type ProfileGame, type Stats } from './rules';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the admin client is untyped across the app
 type Admin = SupabaseClient<any, 'public', any>;
@@ -217,6 +218,8 @@ export interface SportProfileRead {
   /** The sport's stat fields — the only keys a total sums. */
   statKeys: string[];
   seasonKeyOf: (date: string) => string;
+  /** The viewer is the athlete or their guardian: what was hidden from the page is sent to them, marked. */
+  seesHidden: boolean;
 }
 
 /** The whole sport, judged, for one viewer — or null when the sport has no stat sheet here (golf keeps its own tables). */
@@ -234,11 +237,12 @@ export async function readSportProfile(admin: Admin, profileId: string, sportKey
   // The Stats tab's own rule: a viewer sees the profile's PUBLIC stat-line posts only.
   if (!opts.isOwner) postsQuery = postsQuery.eq('visibility', 'public');
 
-  const [officialAll, film, postsRes, pairs] = await Promise.all([
+  const [officialAll, film, postsRes, pairs, hid] = await Promise.all([
     fetchOfficialStatLines(admin, profileId),
     readAthleteFilm(admin, profileId, sportKey, viewer, opts.actsForProfile),
     postsQuery,
     readDistinctPairs(admin, profileId, sportKey),
+    readFilmHidden(admin, profileId),
   ]);
   if (postsRes.error) console.error(`${TAG} posts read failed:`, postsRes.error.message);
   const posts: Array<{ id: string; date: string; line: StatLineData }> = [];
@@ -273,7 +277,9 @@ export async function readSportProfile(admin: Admin, profileId: string, sportKey
     })),
     ...film.map(f => ({
       key: gameKey.film(f.videoId), source: 'film' as const, date: f.date, title: f.title, opponent: f.opponent, stats: f.stats,
-      href: `/videos/${f.videoId}`, standing: f.standing, videoId: f.videoId, held: f.held, clips: f.clips, byPeriod: f.byPeriod,
+      href: `/videos/${f.videoId}`, standing: f.standing, videoId: f.videoId, held: f.held, byPeriod: f.byPeriod,
+      // 311: what the athlete hid from their page — marked here, cut for visitors by forViewer; the totals never change.
+      hidden: hid.games.has(f.videoId), clips: f.clips.map(c => (hid.clips.has(c.id) ? { ...c, hidden: true } : c)),
       ...verdictOf(gameKey.film(f.videoId), countable.includes(f)),
     })),
     ...posts.map(p => ({
@@ -282,7 +288,7 @@ export async function readSportProfile(admin: Admin, profileId: string, sportKey
       ...verdictOf(gameKey.post(p.id), true),
     })),
   ];
-  return { sportKey, games, statKeys: schema.fields.map(f => f.key), seasonKeyOf: (date: string) => seasonKey(date, sportKey) };
+  return { sportKey, games, statKeys: schema.fields.map(f => f.key), seasonKeyOf: (date: string) => seasonKey(date, sportKey), seesHidden: opts.actsForProfile };
 }
 
 export interface SportProfileGameRow {
@@ -305,6 +311,8 @@ export interface SportProfileGameRow {
   statClips: Stats;
   /** The film of this game: itself, or the film that is the same game as this official line or post. Null: no film. */
   film: string | null;
+  /** The athlete hid this game from their page (311) — only ever true for the athlete or their guardian. */
+  hidden: boolean;
   byPeriod: Record<number, Stats>;
 }
 
@@ -324,7 +332,8 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
   const schema = getStatSchema(read.sportKey)!;
   const sheet = gameSheetFor(read.sportKey);
   // The totals are built from everything; what the viewer has not chosen to see is cut from the ROWS and the reels only.
-  const shown = read.games.map(g => (showHeld ? { ...g, held: false } : g));
+  // …and what the athlete hid from their page: its clips are gone for a visitor, and its row with them.
+  const shown = forViewer(read.games, read.seesHidden).map(g => (showHeld ? { ...g, held: false } : g));
   const linesOf = (list: readonly ProfileGame[]): StatLineData[] => list.filter(g => g.counted).map(g => ({ type: 'stat_line' as const, sport_key: schema.sport_key, stats: g.stats }));
   const tilesOf = (list: readonly ProfileGame[]) => {
     const lines = linesOf(list);
@@ -342,10 +351,10 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
       const inSeason = (g: ProfileGame) => (seasonOf(g) ?? 'undated') === s.key;
       return { ...s, tiles: tilesOf(read.games.filter(inSeason)), clips: clipCounts(shown.filter(inSeason)) };
     }),
-    games: shown.map(cutHeld).map((g, i) => ({
+    games: shown.map(cutHeld).map((g, i) => ({ g, i })).filter(({ g }) => !g.concealed).map(({ g, i }) => ({
       key: g.key, source: g.source, date: g.date, season: seasonOf(g), title: g.title, opponent: g.opponent, stats: g.stats, counted: g.counted,
       sameAs: g.sameAs, standing: g.standing, videoId: g.videoId, href: g.href, held: shown[i].held, clips: g.clips.length, byPeriod: g.byPeriod,
-      statClips: clipCountsOfGame(shown, g.key), film: filmOfGame(shown, g.key)?.key ?? null,
+      statClips: clipCountsOfGame(shown, g.key), film: filmOfGame(shown, g.key)?.key ?? null, hidden: g.hidden === true,
     })),
     held: shown.filter(g => g.held && g.counted).length,
   };

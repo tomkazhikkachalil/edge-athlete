@@ -8,6 +8,7 @@ import { formatDateShort } from './format';
 import StatTable from './StatTable';
 import type { SportGameRow, SportProfileData } from './types';
 import { useClips } from './useClips';
+import { useFilmHide } from './useFilmHide';
 
 interface Props {
   data: SportProfileData;
@@ -21,15 +22,19 @@ interface Props {
   showHeld: boolean;
   onShowHeld: () => void;
   eventLabel: (eventKey: string | null) => string | null;
+  /** Bumped after a hide; and the way to say something changed. */
+  rev: number;
+  onChanged: () => void;
 }
 
 const SOURCE: Record<SportGameRow['source'], string> = { official: 'Official line', film: 'Game film', post: 'Posted by the athlete' };
 
 /** Level 3: one game — the athlete's line (every number a door), by period, their clips, and the way to the full game. */
-export default function GameView({ data, profileId, season, gameKey, stat, basePath, sportLabel, showHeld, onShowHeld, eventLabel }: Props) {
+export default function GameView({ data, profileId, season, gameKey, stat, basePath, sportLabel, showHeld, onShowHeld, eventLabel, rev, onChanged }: Props) {
   const game = data.games.find(g => g.key === gameKey) ?? null;
   const film = game?.film ? data.games.find(g => g.key === game.film) ?? null : null;
-  const reel = useClips({ profileId, sport: data.sport, game: gameKey, stat, showHeld }, !!game && !!film && !film.held);
+  const reel = useClips({ profileId, sport: data.sport, game: gameKey, stat, showHeld, rev }, !!game && !!film && !film.held);
+  const hide = useFilmHide(profileId, onChanged);
   const up = `${basePath}${sportViewSearch({ season })}`;
   const here = (s: string | null) => `${basePath}${sportViewSearch({ season, game: gameKey, stat: s })}`;
 
@@ -100,12 +105,27 @@ export default function GameView({ data, profileId, season, gameKey, stat, baseP
                 onLoadMore={reel.more}
                 closeHref={stat ? here(null) : undefined}
                 eventLabel={eventLabel}
+                manage={data.can_edit ? { busy: hide.busy, setHidden: (c, hidden) => void hide.setHidden({ videoId: c.videoId, highlightId: c.id, hidden }) } : undefined}
               />
             )}
           </div>
         ) : (
           <p className="text-secondary" data-game-no-film="">{film ? 'The film of this game is spoiler-free.' : 'There is no game film of this game, so there are no clips.'}</p>
         )
+      )}
+
+      {/* The athlete's own page (311): the whole game off it — the stat still counts; "Remove me" on the game's page is the stronger door. */}
+      {data.can_edit && film?.videoId && (
+        <div className="space-y-2 rounded-lg border border-border-subtle p-3" data-game-hide="">
+          <p className="text-sm text-secondary" data-game-hidden={film.hidden ? 'yes' : 'no'}>
+            {film.hidden
+              ? 'This game is hidden from your page: visitors do not see it in your game log or your clips. Its stats still count in your totals.'
+              : 'You can hide this game from your page. Visitors will not see it in your game log or your clips; its stats still count in your totals.'}
+          </p>
+          <button type="button" disabled={hide.busy} onClick={() => void hide.setHidden({ videoId: film.videoId!, hidden: !film.hidden })} className="ea-interactive min-h-[44px] rounded-lg border border-border bg-surface px-4 text-sm font-medium text-primary disabled:opacity-60" data-game-hide-toggle="">
+            {film.hidden ? 'Show this game on my page' : 'Hide this game from my page'}
+          </button>
+        </div>
       )}
 
       <div className="flex flex-wrap gap-3">

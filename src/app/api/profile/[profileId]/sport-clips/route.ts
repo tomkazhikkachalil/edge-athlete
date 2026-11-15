@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GAME_KEY_RE } from '@/lib/performance/same-game';
-import { gamesOfSeason, pageOf, reelOf } from '@/lib/sport-profile/rules';
+import { forViewer, gamesOfSeason, pageOf, reelOf } from '@/lib/sport-profile/rules';
 import { readSportProfile, sportProfileViewer } from '@/lib/sport-profile/sport-profile-server';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -44,7 +44,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const read = await readSportProfile(admin, profileId, sport, who.user, who);
     if (!read) return NextResponse.json({ supported: false, clips: [], next: null, total: 0 }, { headers: PRIVATE });
     const showHeld = q.get('spoilers') === 'show';
-    const all = showHeld ? read.games.map(g => ({ ...g, held: false })) : read.games;
+    // What the athlete hid from their page is cut for everyone else, before anything is listed.
+    const visible = forViewer(read.games, read.seesHidden);
+    const all = showHeld ? visible.map(g => ({ ...g, held: false })) : visible;
     const scoped = season ? gamesOfSeason(all, season, read.seasonKeyOf) : all;
     const reel = reelOf(scoped, { game, stat, event, period, everyFilm: q.get('scope') === 'all' });
     const page = pageOf(reel, Number(q.get('cursor') ?? 0), Number(q.get('limit') ?? 0));

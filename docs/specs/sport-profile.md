@@ -61,9 +61,18 @@ Tom's brief: the athlete's page is a bundle of connected views per sport, "the w
 - **Filters are the address:** season, game, play type (`?view=clips&season=…&game=…&event=…`). The play types are the sport's sheet events (a plain marker is not a play type). The filters are held in the component and mirrored to the address, so two changes in a row each start from the last one made (the overlapping-saves rule — found by the spec: the second change was built from an address the first had not reached).
 - **Every clip links back** (`data-clip-origin`): to its game's level on the Stats side, to each stat it made (that game, that stat), and to its moment on the game's own page.
 
+## Hide — the athlete's own page (PR 6a, Nov 16 2026; migration 311)
+
+Tom, Nov 15 2026: an athlete can hide a game or a single clip from their page; **the stat still counts**. "Remove me" (the tag is removed and the stat drops for everyone) stays, on the game's own page, as the stronger door.
+
+- **`profile_film_hidden`** (311; posture A, service role only): `profile_id`, `video_id`, `highlight_id` (NULL = the whole game), `created_by_user_id`. A game is hidden once, a clip once (two partial unique indexes). The profile, the video and the clip all CASCADE; `profile_id` is `goes` in `PROFILE_FK_POLICY` and is deleted with the account.
+- **One writer** (`src/lib/sport-profile/film-hide-server.ts`): `POST /api/profile/[profileId]/film-hidden {video_id, highlight_id?, hidden}` — the athlete or their guardian (`resolveActingProfile`), and only something the athlete is actually tagged in (anything else is a 404, never a row). Hiding twice is hiding once.
+- **What a visitor gets** (`forViewer` in `rules.ts`): a hidden **game** keeps only what a total needs — its row is not sent, it has no clips, no periods, it is never under its opponent in a split, and it is no film to open from an official line; a hidden **clip** is gone from every reel, the Clips browser and the door counts. **Every total is unchanged.** The athlete and their guardian are sent everything, marked (`games[].hidden`, a clip's `hidden`).
+- **On the page:** the game level has "Hide this game from my page" / "Show this game on my page" with what it does said in words; the reel has the same for the playing clip; the game log marks a hidden row for the athlete. No toast — the result is on the screen.
+- It is about the athlete's page only: the club's video, its box score and the other players are untouched. An official result is not hidden by this (that is the results rule, Convention 27).
+
 ## Decided, not yet built (Tom, Nov 15 2026 — the later PRs of the sprint)
 
-- **Hide.** The athlete (or a guardian) can hide a game or a single clip from their page: it leaves the lists and the reels for visitors, **the stat still counts**; "Remove me" stays as the stronger door.
 - **Unclaimed.** A tagged player who has not claimed their profile gets a public page marked *Unclaimed*; claiming is a request the person starts from that page.
 - **The default sport** is the athlete's own order — pins, then the primary (`orderProfileSports`).
 - The Stats tab's per-sport breakdown becomes a door into this.
