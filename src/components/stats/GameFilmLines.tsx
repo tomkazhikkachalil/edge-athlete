@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import { onStatGamesChanged, saveDistinctGames } from '@/lib/performance/game-distinct-client';
 import { FILM_COPY } from '@/lib/videos/film-standing';
 import type { TaggedGameView } from '@/lib/videos/video-tagged-server';
 import FaIcon from '@/components/FaIcon';
@@ -28,7 +29,7 @@ import { faYoutubeBrands } from '@/lib/icons/fa/youtube-brands';
  * whose stats are still spoiler-free for this viewer says so instead of the
  * line. Renders nothing when there is nothing.
  */
-interface FilmVerdict { videoId: string; counted: boolean; sameAs: { source: 'official' | 'film'; href: string } | null }
+interface FilmVerdict { videoId: string; key?: string; counted: boolean; sameAs: { source: 'official' | 'film'; href: string; key?: string; canSplit?: boolean } | null; splitFrom?: string | null; canEdit?: boolean }
 
 function shortDay(day: string | null): string {
   if (!day) return '—';
@@ -40,6 +41,9 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
   const [games, setGames] = useState<TaggedGameView[]>([]);
   // The totals' verdict per verified game, by video id — asked per sport, from the route that counts.
   const [verdicts, setVerdicts] = useState<Record<string, FilmVerdict>>({});
+  // Bumped when a "different games" pair changes — here, or in the game log.
+  const [tick, setTick] = useState(0);
+  useEffect(() => onStatGamesChanged(() => setTick(t => t + 1)), []);
 
   useEffect(() => {
     let live = true;
@@ -61,7 +65,8 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
         try {
           const res = await fetch(`/api/sports/stat-lines?profileId=${encodeURIComponent(profileId)}&sport=${encodeURIComponent(sport)}`, { cache: 'no-store' });
           if (!res.ok) return;
-          for (const f of ((await res.json()) as { film?: FilmVerdict[] }).film ?? []) found[f.videoId] = f;
+          const body = (await res.json()) as { film?: FilmVerdict[]; canEdit?: boolean };
+          for (const f of body.film ?? []) found[f.videoId] = { ...f, canEdit: !!body.canEdit };
         } catch {
           /* the rows stay unlabelled */
         }
@@ -69,7 +74,7 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
       if (live) setVerdicts(found);
     });
     return () => { live = false; };
-  }, [profileId]);
+  }, [profileId, tick]);
 
   // Only games (a plain tagged video has no line to list), in this sport when one is chosen, newest first.
   const rows = games
@@ -120,6 +125,15 @@ export default function GameFilmLines({ profileId, sportKey }: { profileId: stri
                   <p className="mt-1 text-xs text-muted" data-game-film-counted="no">
                     Not counted — the same game as{' '}
                     {verdicts[g.video.id].sameAs ? <Link href={verdicts[g.video.id].sameAs!.href} className="underline">{verdicts[g.video.id].sameAs!.source === 'official' ? 'the official line' : 'another game film'}</Link> : 'another record'}.
+                    {verdicts[g.video.id].canEdit && g.sport_key && verdicts[g.video.id].key && verdicts[g.video.id].sameAs?.canSplit && verdicts[g.video.id].sameAs?.key && (
+                      <button type="button" onClick={() => void saveDistinctGames(profileId, g.sport_key!, verdicts[g.video.id].key!, verdicts[g.video.id].sameAs!.key!, true)} className="ml-1 min-h-[32px] font-semibold underline text-secondary" data-game-film-split="">These are two different games</button>
+                    )}
+                  </p>
+                )}
+                {g.standing === 'verified' && verdicts[g.video.id]?.counted === true && verdicts[g.video.id].canEdit && g.sport_key && verdicts[g.video.id].key && verdicts[g.video.id].splitFrom && (
+                  <p className="mt-1 text-xs text-muted" data-game-film-split-done="">
+                    Counted as its own game.{' '}
+                    <button type="button" onClick={() => void saveDistinctGames(profileId, g.sport_key!, verdicts[g.video.id].key!, verdicts[g.video.id].splitFrom!, false)} className="min-h-[32px] font-semibold underline text-secondary" data-game-film-split-undo="">Undo</button>
                   </p>
                 )}
                 {g.official_href && (
