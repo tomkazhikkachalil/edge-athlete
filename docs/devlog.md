@@ -10,6 +10,8 @@ Tom: "let's retire the old Stats breakdown." It was the one planned step of Spri
 
 Proof on staging: `stats-same-game` and `performance-rollups` now stand on the sport profile (the marked row with its link, the rung, the help link, the split and Undo; the door, the career goals, the career bests); `sport-profile`, `sport-profile-split`, `stats-hub-mobile`, `skill-cards-mobile` at phone width; `video-film-official`, `video-tagged-profile`, `contest-stat-lines`, `play-rivals`, `profile-buckets` on desktop — all green.
 
+Production (`7d31f4a3`, #1528), one spec at a time: `stats-same-game` on desktop, `performance-rollups` and `sport-profile` at phone width — 3 / 3.
+
 Seen and not changed: the sport profile sums a race sport's times in its totals the way the old breakdown did for every sport but track (swimming, running, cycling, rowing). Its own small round.
 
 ## November 17, 2026 (later) — Sprint 4 closed: the athlete's sport profile is on production
