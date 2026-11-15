@@ -480,3 +480,49 @@ from it.*
 ## Real-user page timings (migration 305, Nov 2026)
 
 `/admin` → "Page timings by build": p75 LCP / INP / CLS / TTFB per deploy, phones and desktops, the last ten builds. Migration 305 ran on production on Nov 10 2026 (the SQL editor; `check:schema:prod` OK at 305) — the card has been live since; its first rows named the feed's layout shift (CLS 0.441). After a merge, the new sha's row fills with the first opens; a build whose phone LCP p75 is red where the previous was green is the regression this card exists to catch — read it beside the prod probe in the maintenance checklist.
+
+## 7. YouTube go-live — three sittings for Tom (Nov 14 2026)
+
+Each block is one sitting. Nothing here is needed before another; do them as they come up. Tick as you go.
+
+### 7a. When Google's verification reply arrives
+
+Google answers in the e-mail thread of the submission (Nov 11). The status is also in Google Cloud → the `edge-athlete` project → **APIs & Services → OAuth consent screen → Verification Center**.
+
+**If it reads Verified:**
+- [ ] [Tom] Vercel → the project → Settings → Environment Variables → add `YOUTUBE_APP_VERIFIED` = `1`, **Production** only.
+- [ ] [Tom] Redeploy production (Deployments → the latest → Redeploy). The value is read at run time by `src/lib/videos/youtube-connections-server.ts`; all it does is remove the sentence "Until Google finishes reviewing Edge Athlete… choose Advanced" from the connect doors. Set it BEFORE Verified and people meet Google's warning with no hint.
+- [ ] [Claude] The connect-door probe on production: the sentence is gone and the consent URL still carries the three scopes.
+- [ ] [Tom] Remove the reviewer's account `google-review@edgeathlete.ca` through the app's own doors (its password was given to Tom once and is written nowhere):
+  1. Sign in as that account at `https://edgeathlete.ca/?signin=1`.
+  2. Settings → Account → **Danger Zone → Delete my account** and confirm. The account is now parked.
+  3. Sign in as yourself → Admin console → **Purge a parked account now** → paste the account's profile id (Claude gives it) → run the dry run, read what it will do, then **Purge now**.
+- [ ] [Tom] If the password is lost: tell Claude; the account can be parked from the admin side instead — it is never deleted by a raw database command.
+
+**If Google asks for changes:** forward the e-mail's text to Claude before replying. The usual asks are a clearer demo video of each scope in use, a scope they think is not needed, or a privacy-policy sentence. `YOUTUBE_APP_VERIFIED` stays unset; nothing breaks meanwhile (new connections are capped at 100 Google accounts while unverified).
+
+### 7b. The installed-iPhone test (5 minutes)
+
+On the iPhone with Edge Athlete added to the Home Screen, signed in as yourself.
+
+| # | Do | You should see |
+| --- | --- | --- |
+| 1 | Open the app from the Home Screen icon (not Safari) | The feed, no browser bar |
+| 2 | Create → **Full game** | The Link step with a **Connect YouTube** door (or your channel's name if already connected) |
+| 3 | Tap Connect, choose your Google account | Google's page. Until 7a is done it says "Google hasn't verified this app" — tap **Advanced**, then continue to Edge Athlete |
+| 4 | Approve | You are back **inside the installed app** on the same step, and it names your channel |
+| 5 | Choose **Upload a video**, pick a short clip (under a minute), give it a title, finish | A progress bar that reaches the end; the app stays usable while it uploads |
+| 6 | Open your profile → Videos | The new video's row, with its thumbnail once YouTube has processed it |
+
+If any row differs: a screenshot of what you see and the row number is all Claude needs. The two known weak points are row 4 (iOS may return to Safari instead of the installed app) and row 5 (a locked phone pauses an upload).
+
+### 7c. Tag one real game (10 minutes)
+
+The game sheets were written from broadcast box-score conventions and have not met a real game yet.
+
+1. On a club or league you manage: Videos → add a **full game** from the connected channel → in Details turn on **This is a game**, set the sport, both sides, the date, and **Every scoring play is tagged**.
+2. On the video's page tag ten plays across both sides — at least one of each scoring kind the sport has, one foul or penalty, and one with two people (a scorer and an assist).
+3. Compare the box score on the page with the real one for those ten plays.
+
+**What to report, per thing that is wrong:** the sport · the event you wanted and what the app called it (or that it was missing) · what the real box score calls the stat · which column it landed in. One line each is enough; a sport's sheet is one file (`src/lib/videos/game-sheets.ts`).
+
