@@ -36,11 +36,20 @@ Tom's brief: the athlete's page is a bundle of connected views per sport, "the w
 - **A spoiler-free game** (`stats_hidden`) **counts in every total** — a season total is not a play-by-play — but its own line, its periods and its clips stay on the server (`cutHeld`) until the viewer asks (`spoilers=show`), unless the viewer is the athlete, their guardian or a manager of the video. Such a game is never listed under its opponent in a split (one row would be its line). `held` says how many counted games the viewer has not opened.
 - **Names:** only the athlete's own line is read, so nobody else is named.
 
+## The page (PR 3, Nov 15 2026)
+
+- **Two routes, one component.** `/athlete/[id]/sport/[sport]` (a signed-in viewer; the athlete's own id stays here — the same page for everyone) and `/u/[username]/sport/[sport]` (by handle, from the public bundle; a private profile hands a signed-in viewer to the id route, which knows whether they follow). Both are thin shells over `src/components/sport-profile/SportProfile.tsx`. They are their own routes on purpose: they are measured apart from the profile page and add nothing to it, and there is **no shared `layout.tsx`** (it would weigh on the profile).
+- **The sport is picked at the top** (`data-sport-switcher`): the athlete's sports with a stats door, in their own order (`switcherSports`); the whole page is that sport. A link naming a sport the athlete does not have opens the first in their order (`landingSport` — Tom's decision 4). The header says the sport's own facts (position, team — the skill card's `entered` chips).
+- **The level is the address** (`src/lib/sport-profile/view.ts`, pure): no query is the career, `?season=2025-26` a season (`&game=` and `&stat=` are the next levels). Each step down is a `Link` — a history entry — so **Back walks up a level**, and every level can be sent to someone. A malformed part is dropped, never an error.
+- **Career** (`CareerView`): the sport's tiles over the counted games, one row per season, the career line under it; a season is the door. **Season** (`SeasonView`): tiles, totals, by opponent, by period (only when the film says more than one), and the game log — every row a game, saying what it is (Official · Game film · Posted), whether it is recreational or not counted and why, with the link to the game. A spoiler-free game's row says so; "Show the results" is the viewer's choice.
+- **One table** (`StatTable`): the repo's idiom, a horizontal scroller with the first column pinned on a phone. The levels are `next/dynamic` chunks.
+- **The door in:** the Stats tab's sport layer (`data-sport-profile-door`), for a sport with a stat sheet.
+
 ## Decided, not yet built (Tom, Nov 15 2026 — the later PRs of the sprint)
 
 - **Hide.** The athlete (or a guardian) can hide a game or a single clip from their page: it leaves the lists and the reels for visitors, **the stat still counts**; "Remove me" stays as the stronger door.
 - **Unclaimed.** A tagged player who has not claimed their profile gets a public page marked *Unclaimed*; claiming is a request the person starts from that page.
 - **The default sport** is the athlete's own order — pins, then the primary (`orderProfileSports`).
-- The pages: `/athlete/[id]/sport/[sport]` and `/u/[username]/sport/[sport]`, the drill state in the URL; the cross-video reel player; `/videos/[id]?tag=`; the Clips browser; the Stats tab's per-sport breakdown becomes a door into this.
+- The game level and the play level on the page (every number a door), the cross-video reel player, `/videos/[id]?tag=`, the Clips browser; the Stats tab's per-sport breakdown becomes a door into this.
 
-**Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.
+**Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.

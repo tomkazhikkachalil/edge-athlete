@@ -1,5 +1,25 @@
 # Development Log
 
+## November 16, 2026 — Sprint 4 PR 3: the sport profile's page — pick the sport, Career → Season
+
+The first two levels on screen (`docs/specs/sport-profile.md`, "The page").
+
+- **Two routes, one component:** `/athlete/[id]/sport/[sport]` and `/u/[username]/sport/[sport]`, thin shells over `SportProfile`. Their own routes, no shared layout — the profile page's weight is untouched.
+- **The sport is picked at the top**, in the athlete's own order; a link to a sport they do not have opens the first in that order (Tom's decision 4).
+- **The level is the address:** no query is the career, `?season=2025-26` a season. Each step down is a history entry, so Back walks up, and every level can be sent to someone.
+- **Career:** tiles, one row per season, the career line. **Season:** tiles, totals, by opponent, by period, and the game log — every row a game, saying what it is and whether it counts and why, with the link to the game; a spoiler-free game says so, and "Show the results" is the viewer's choice.
+- **The door in** is on the Stats tab's sport layer.
+
+| Route (first load, gzip) | |
+| --- | ---: |
+| `/athlete/[id]/sport/[sport]` | 282 KB |
+| `/u/[username]/sport/[sport]` | 279 KB |
+| `/athlete/[id]` · `/athlete` · `/u/[username]` | 465 · 467 · 358 KB (unchanged) |
+
+Proof: `e2e/sport-profile.spec.ts` on staging at 375 px (the athlete's career → a season → Back → the season's own address → up; a sport they do not have; the Stats tab's door; a follower by id and by handle), 28 unit tests for the rules and the address. PR 2 (#1521) merged; PR 1 proven on production (3 / 3 on `5627d5a1`).
+
+Next: the game and the play — every number a door, the reel across videos (PR 4).
+
 ## November 15, 2026 (late night) — Sprint 4 PR 2: the sport profile's rules, its reader and its two routes
 
 No page yet — the reads the pages will stand on (`docs/specs/sport-profile.md`, Convention 61).

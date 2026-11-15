@@ -1,0 +1,54 @@
+'use client';
+
+import Link from 'next/link';
+import { Trophy } from 'lucide-react';
+import SectionEmptyState from '@/components/SectionEmptyState';
+import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
+import StatTable from './StatTable';
+import Tiles from './Tiles';
+import type { SportProfileData } from './types';
+
+interface Props {
+  data: SportProfileData;
+  /** The sport profile's own path (no query). */
+  basePath: string;
+  sportLabel: string;
+}
+
+/** Level 1: the career — its tiles, and one row per season. A season is the door to level 2. */
+export default function CareerView({ data, basePath, sportLabel }: Props) {
+  if (data.seasons.length === 0) {
+    return (
+      <SectionEmptyState
+        icon={Trophy}
+        title={`No ${sportLabel.toLowerCase()} games yet`}
+        body="This fills in on its own: every game a club or league tags, and every game posted, adds its stats and its clips here."
+      />
+    );
+  }
+  return (
+    <section className="space-y-6" data-sport-level="career">
+      <Tiles tiles={data.career.tiles} />
+      <div>
+        <h2 className="mb-3 text-lg font-bold text-primary">Career</h2>
+        <StatTable
+          caption={`${sportLabel} career, by season`}
+          leadLabel="Season"
+          countLabel="GP"
+          columns={data.columns}
+          rows={data.seasons.map(s => ({
+            id: s.key,
+            lead: (
+              <Link href={`${basePath}${sportViewSearch({ season: s.key })}`} className="ea-interactive rounded underline decoration-border underline-offset-4" data-season-link={s.key}>
+                {seasonTitle(s.key)}
+              </Link>
+            ),
+            count: s.games,
+            stats: s.totals,
+          }))}
+          foot={{ id: 'career', lead: 'Career', count: data.career.games, stats: data.career.totals }}
+        />
+      </div>
+    </section>
+  );
+}
