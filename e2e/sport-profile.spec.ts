@@ -4,7 +4,7 @@ import { adminClient, apiAs, bypassHeaders, loadQaUser, mintStorageState, readEr
 import { fitsViewportWidth } from './helpers/layout';
 import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
-// Sprint 4 PRs 3–4 (Nov 2026) — the athlete's sport profile, the page: pick the
+// Sprint 4 PRs 3–5 (Nov 2026) — the athlete's sport profile, the page: pick the
 // sport, Career → Season → Game → Play, every number a door to its clips, Back
 // walks up, every level is an address, the same page by id and by handle, at
 // phone width.
@@ -123,6 +123,26 @@ test('the sport profile: career → season → game → play, the doors and the 
     await page.goto(`/athlete/${athlete.id}/sport/soccer?season=2026`);
     await expect(page.locator('[data-sport-level="season"]')).toBeVisible({ timeout: 30_000 });
     await page.locator('[data-level-up="career"]').click();
+    await expect(page.locator('[data-sport-level="career"]')).toBeVisible();
+
+    // 3a. Media on its own (PR 5): the Clips tab — every clip, narrowed by play type, each one linked back to its game and its stat.
+    await page.locator('[data-sport-tab="clips"]').click();
+    await expect(page).toHaveURL(/\/sport\/soccer\?view=clips$/);
+    const browser = page.locator('[data-sport-clips]');
+    await expect(browser.locator('[data-clip-reel]')).toHaveAttribute('data-clip-reel-count', '2', { timeout: 20_000 });
+    await browser.locator('[data-clips-filter="event"]').selectOption('shot_off_target');
+    await expect(page).toHaveURL(/view=clips&event=shot_off_target$/);
+    await expect(browser.locator('[data-clips-empty]')).toContainText('No clips match these filters.');
+    await browser.locator('[data-clips-filter="event"]').selectOption('goal');
+    await expect(browser.locator('[data-clip-reel]')).toHaveAttribute('data-clip-reel-count', '2', { timeout: 20_000 });
+    await browser.locator('[data-clips-filter="season"]').selectOption('2026');
+    await browser.locator('[data-clips-filter="game"]').selectOption(`film:${videoId}`);
+    await expect(page).toHaveURL(new RegExp(`view=clips&season=2026&game=film%3A${videoId}&event=goal$`));
+    await expect(browser.locator('[data-clip-origin-game]')).toHaveAttribute('href', new RegExp(`season=2026&game=film%3A${videoId}$`));
+    await expect(browser.locator('[data-clip-origin-stat="goals"]')).toHaveAttribute('href', new RegExp(`game=film%3A${videoId}&stat=goals$`));
+    expect(await fitsViewportWidth(page)).toBe(true);
+    //     Back to the numbers.
+    await page.locator('[data-sport-tab="stats"]').click();
     await expect(page.locator('[data-sport-level="career"]')).toBeVisible();
 
     // 4. A sport the athlete does not have opens the first in their own order; a season that is not there says so.

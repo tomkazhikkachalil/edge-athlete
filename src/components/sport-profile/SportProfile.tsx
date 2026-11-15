@@ -27,6 +27,7 @@ const CareerView = dynamic(() => import('./CareerView'), { ssr: false, loading: 
 const SeasonView = dynamic(() => import('./SeasonView'), { ssr: false, loading: LevelLoading });
 const GameView = dynamic(() => import('./GameView'), { ssr: false, loading: LevelLoading });
 const StatReel = dynamic(() => import('./StatReel'), { ssr: false, loading: LevelLoading });
+const ClipsBrowser = dynamic(() => import('./ClipsBrowser'), { ssr: false, loading: LevelLoading });
 
 export interface SportProfileProps {
   profileId: string;
@@ -119,6 +120,20 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
             ))}
           </dl>
         )}
+        {/* Stats and media are one thing seen two ways: the numbers (each a door to its clips), or the clips on their own. */}
+        <nav aria-label="View" className="flex gap-2 border-b border-border-subtle" data-sport-tabs="">
+          {([['stats', 'Stats', basePath], ['clips', 'Clips', `${basePath}?view=clips`]] as const).map(([key, text, href]) => (
+            <Link
+              key={key}
+              href={href}
+              aria-current={view.tab === key ? 'page' : undefined}
+              data-sport-tab={key}
+              className={`ea-interactive -mb-px inline-flex min-h-[44px] items-center border-b-2 px-4 text-sm font-medium ${view.tab === key ? 'border-brand text-primary' : 'border-transparent text-secondary'}`}
+            >
+              {text}
+            </Link>
+          ))}
+        </nav>
       </header>
 
       <main className="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
@@ -132,14 +147,17 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
           </p>
         )}
         {/* A number's clips, at the career or a season: the reel sits above the level it was opened from. */}
-        {data && level !== 'game' && view.stat && (
+        {data && view.tab === 'clips' && (
+          <ClipsBrowser data={data} profileId={profileId} view={view} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} />
+        )}
+        {data && view.tab === 'stats' && level !== 'game' && view.stat && (
           <StatReel data={data} profileId={profileId} season={view.season} stat={view.stat} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} />
         )}
-        {data && level === 'career' && <CareerView data={data} basePath={basePath} sportLabel={label} />}
-        {data && level === 'season' && view.season && (
+        {data && view.tab === 'stats' && level === 'career' && <CareerView data={data} basePath={basePath} sportLabel={label} />}
+        {data && view.tab === 'stats' && level === 'season' && view.season && (
           <SeasonView data={data} season={view.season} basePath={basePath} sportLabel={label} onShowHeld={() => setShowHeld(true)} />
         )}
-        {data && level === 'game' && view.game && (
+        {data && view.tab === 'stats' && level === 'game' && view.game && (
           <GameView data={data} profileId={profileId} season={view.season} gameKey={view.game} stat={view.stat} basePath={basePath} sportLabel={label} showHeld={showHeld} onShowHeld={() => setShowHeld(true)} eventLabel={eventLabel} />
         )}
       </main>

@@ -1,5 +1,18 @@
 # Development Log
 
+## November 16, 2026 (evening) — Sprint 4 PR 5: media on its own — the Clips browser
+
+Tom's brief: "there still needs to be a place to just browse the athlete's clips without going through stats."
+
+- **Stats and Clips are two tabs of the sport profile.** Clips lists every clip in every film game the viewer may watch — recreational film included, marked — oldest game first, in the same reel player.
+- **Filters are the address:** season, game, play type (the sport's own sheet events).
+- **Every clip links back:** to its game's level, to each stat it made, and to its moment on the game's page.
+- **Found by the spec and fixed:** two filters changed in a row lost the first — the second change was built from an address the first had not reached. The filters are now held in the component and mirrored to the address.
+
+Proof: `e2e/sport-profile.spec.ts` on staging at 375 px (the tab, a play type with no clips, back to goals, season + game together in the address, the links back to the game and the stat). PR 4 (#1523) merged; PR 3 proven on production (the page spec on `07face80`).
+
+Next: hide, and the unclaimed page with its claim request (PR 6 — two migrations, Tom runs production).
+
 ## November 16, 2026 (later) — Sprint 4 PR 4: the game and the play — every number a door, one reel across videos
 
 The bottom two levels (`docs/specs/sport-profile.md`, "The game and the play").
