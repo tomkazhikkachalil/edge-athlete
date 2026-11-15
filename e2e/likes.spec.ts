@@ -82,7 +82,9 @@ async function likes(browser: Browser) {
       const tile = page.locator(`[data-post-id="${postId}"]`).first();
       await expect(tile).toBeVisible({ timeout: 30_000 });
       // The grid's heart is a count, never state — an outline.
-      expect(await tile.locator('i.far.fa-heart').count()).toBe(1);
+      // (Icons are symbols on one SVG sprite since Nov 8 2026: the OUTLINE heart is the `heart-regular` symbol.)
+      expect(await tile.locator('svg[data-fa="heart"] use[href$="#heart-regular"]').count()).toBe(1);
+      expect(await tile.locator('svg[data-fa="heart"] use[href$="#heart"]').count()).toBe(0);
       await tile.click();
       const modal = page.locator('[data-post-detail]');
       const modalLike = modal.locator('[data-post-like]');

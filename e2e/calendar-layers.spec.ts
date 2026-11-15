@@ -45,7 +45,10 @@ test('setup: child + co-guardian B; B organizes the child game; A schedules thei
     });
     expect(error, JSON.stringify(error)).toBeNull();
 
+    // Noon, two days out: an event that crosses midnight is drawn on BOTH days (correctly), and the month's
+    // one-chip-per-event assertions then see two — this file failed in the hour before midnight (Nov 14 2026).
     const start = new Date(Date.now() + 2 * 86_400_000);
+    start.setHours(12, 0, 0, 0);
     const game = await apiB.post('/api/calendar/events', {
       data: {
         title: CHILD_GAME,
@@ -152,7 +155,10 @@ test('chip row wraps and toggles at phone width @mobile', async ({ page }) => {
       granted_by: loadQaUser('user.json').id,
     });
     expect(error, JSON.stringify(error)).toBeNull();
+    // Noon, two days out: an event that crosses midnight is drawn on BOTH days (correctly), and the month's
+    // one-chip-per-event assertions then see two — this file failed in the hour before midnight (Nov 14 2026).
     const start = new Date(Date.now() + 2 * 86_400_000);
+    start.setHours(12, 0, 0, 0);
     const game = await apiB.post('/api/calendar/events', {
       data: {
         title: mTitle,
