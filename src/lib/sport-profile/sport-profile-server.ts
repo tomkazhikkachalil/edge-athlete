@@ -262,10 +262,16 @@ export async function readSportProfile(admin: Admin, profileId: string, sportKey
     ],
     { matchByDate: gameHasSides(sportKey), distinct: distinctSet(pairs) }
   );
-  const verdictOf = (key: string, canCount: boolean): { counted: boolean; sameAs: string | null } => {
+  // "These are two different games" (309): the other game of a pair the athlete split, so the row can take it back.
+  const splitFromOf = (key: string): string | null => {
+    const pair = pairs.find(p => p.a === key || p.b === key);
+    return pair ? (pair.a === key ? pair.b : pair.a) : null;
+  };
+  const verdictOf = (key: string, canCount: boolean): { counted: boolean; sameAs: string | null; canSplit: boolean; splitFrom: string | null } => {
     const v = verdicts.get(key);
-    if (!canCount || !v) return { counted: false, sameAs: null };
-    return { counted: v.counted, sameAs: v.counted ? null : v.beatenBy };
+    if (!canCount || !v) return { counted: false, sameAs: null, canSplit: false, splitFrom: null };
+    // Joined by the DATE alone → the athlete may say they are two games; a contest link is never split.
+    return { counted: v.counted, sameAs: v.counted ? null : v.beatenBy, canSplit: !v.counted && v.reason === 'same_date' && !!v.beatenBy, splitFrom: splitFromOf(key) };
   };
   const empty = { clips: [] as ProfileClip[], byPeriod: {} as Record<number, Stats>, held: false, standing: null, videoId: null };
 
@@ -313,6 +319,10 @@ export interface SportProfileGameRow {
   film: string | null;
   /** The athlete hid this game from their page (311) — only ever true for the athlete or their guardian. */
   hidden: boolean;
+  /** Joined to `sameAs` by the date alone: the athlete may say they are two different games (309). */
+  canSplit: boolean;
+  /** The other game of a pair the athlete said are two games (309). */
+  splitFrom: string | null;
   byPeriod: Record<number, Stats>;
 }
 
@@ -355,6 +365,7 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
       key: g.key, source: g.source, date: g.date, season: seasonOf(g), title: g.title, opponent: g.opponent, stats: g.stats, counted: g.counted,
       sameAs: g.sameAs, standing: g.standing, videoId: g.videoId, href: g.href, held: shown[i].held, clips: g.clips.length, byPeriod: g.byPeriod,
       statClips: clipCountsOfGame(shown, g.key), film: filmOfGame(shown, g.key)?.key ?? null, hidden: g.hidden === true,
+      canSplit: g.canSplit === true, splitFrom: g.splitFrom ?? null,
     })),
     held: shown.filter(g => g.held && g.counted).length,
   };

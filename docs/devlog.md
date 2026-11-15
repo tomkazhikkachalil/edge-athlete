@@ -1,5 +1,14 @@
 # Development Log
 
+## November 16, 2026 (late night) — Sprint 4 PR 7a: "these are two different games" in the sport profile; what is NOT retired
+
+- **The split control is on the sport profile's game log.** A row not counted because of the date alone offers "These are two different games"; a split row says so, with Undo. The Stats tab's own writer and helper — one fact, two surfaces.
+- **The Stats tab's breakdown stays for now.** The plan's last step was to remove it in favour of a door. Not done: the new game log does not yet show an official line's provenance label or a disputed result's "Unconfirmed" mark, and six specs stand on the old breakdown. Both surfaces read the same sources through the same rule, so they cannot disagree; the door from the Stats tab is in. Retiring it is a round of its own, after those marks are carried over and Tom has walked the page.
+
+Proof: `e2e/sport-profile-split.spec.ts` on staging at 375 px (film + the athlete's own post of one date = one game; split → two games, four goals; Undo → one game). PR 5 proven on production (the Clips browser steps on `f24ad84a`).
+
+Waiting on Tom: migration 311 on production, then #1525 (hide). This PR sits on top of it.
+
 ## November 16, 2026 (night) — Sprint 4 PR 6a: the athlete hides a game or a clip from their page (migration 311)
 
 Tom's decision 1: an athlete can hide a game or a single clip from their page; the stat still counts; "Remove me" stays as the stronger door.

@@ -71,10 +71,17 @@ Tom, Nov 15 2026: an athlete can hide a game or a single clip from their page; *
 - **On the page:** the game level has "Hide this game from my page" / "Show this game on my page" with what it does said in words; the reel has the same for the playing clip; the game log marks a hidden row for the athlete. No toast — the result is on the screen.
 - It is about the athlete's page only: the club's video, its box score and the other players are untouched. An official result is not hidden by this (that is the results rule, Convention 27).
 
+## "These are two different games" in the game log (PR 7a, Nov 16 2026)
+
+- The same-game rule joins two games of one date; the athlete — or a guardian — may say they are two (309, `video-games.md`). The sport profile's game log now carries that control: a row not counted **because of the date alone** (`games[].canSplit`) offers "These are two different games"; a row the athlete split (`games[].splitFrom`) says "Counted as its own game" with Undo. A pair tied by a contest is never offered. It is the Stats tab's own writer (`POST /api/sports/stat-lines/distinct`) and its own client helper, so the two surfaces stay one fact.
+
+## Not retired yet — the Stats tab's breakdown
+
+The plan's last step was to make the Stats tab's per-sport breakdown and its "From game film" list a door into the sport profile and remove them. **Not done, on purpose:** the sport profile's game log does not yet carry an official line's provenance label or the "Unconfirmed" mark of a disputed result, and six specs stand on the old breakdown. Until those two marks are carried over and Tom has walked the new page, both surfaces stay; the Stats tab's sport layer has the door (`data-sport-profile-door`). The numbers cannot disagree — both read the same sources through the same rule.
+
 ## Decided, not yet built (Tom, Nov 15 2026 — the later PRs of the sprint)
 
 - **Unclaimed.** A tagged player who has not claimed their profile gets a public page marked *Unclaimed*; claiming is a request the person starts from that page.
 - **The default sport** is the athlete's own order — pins, then the primary (`orderProfileSports`).
-- The Stats tab's per-sport breakdown becomes a door into this.
 
-**Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.
+**Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `e2e/sport-profile-split.spec.ts`, `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.
