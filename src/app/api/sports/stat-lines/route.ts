@@ -108,15 +108,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Phase 4: org-entered lines from PUBLIC competitions. The profile gate
-    // above already ran; the reader degrades to [] pre-157.
-    const officialAll = (await fetchOfficialStatLines(supabase, profileId)).filter(
-      l => l.sportKey === sport
-    );
-
-    // Verified film (Nov 14 2026): a club's or league's fully tagged, dated
-    // game this viewer may open. Nothing is stored — the line is the tags'.
-    const actsFor = viewer ? await profileManages(viewer.id, profileId) : false;
+    // Phase 4: org-entered lines from PUBLIC competitions (the profile gate
+    // above already ran; the reader degrades to [] pre-157) — and verified
+    // film (Nov 14 2026): a club's or league's fully tagged, dated game this
+    // viewer may open. Nothing about film is stored. The two reads do not
+    // wait on each other.
+    const [officialRows, actsFor] = await Promise.all([
+      fetchOfficialStatLines(supabase, profileId),
+      viewer ? profileManages(viewer.id, profileId) : Promise.resolve(false),
+    ]);
+    const officialAll = officialRows.filter(l => l.sportKey === sport);
     const filmAll = await verifiedFilmGames(supabase, profileId, schema.sport_key, viewer, actsFor);
 
     // Years present in the (unfiltered) data — powers the profile-page year
