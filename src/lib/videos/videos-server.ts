@@ -172,7 +172,8 @@ async function orgAccessOf(admin: Admin, orgId: string, viewerId: string | null)
   return orgVideoAccess(admin, side, orgId, viewerId);
 }
 
-async function factsFor(admin: Admin, row: VideoRow, user: User | null, memo?: OrgAccessMemo): Promise<VideoRightFacts> {
+/** The facts the rights are judged on, for one video and one viewer (exported for the sport profile's set-based read, Sprint 4). */
+export async function videoFactsFor(admin: Admin, row: VideoRow, user: User | null, memo?: OrgAccessMemo): Promise<VideoRightFacts> {
   const viewerId = user?.id ?? null;
   if (row.org_id) {
     let asked = memo?.get(row.org_id);
@@ -299,7 +300,7 @@ export async function readVideoForViewer(admin: Admin, id: string, user: User | 
   }
   if (!data) return null;
   const raw = data as unknown as ReadRow;
-  const facts = await factsFor(admin, raw, user, memo);
+  const facts = await videoFactsFor(admin, raw, user, memo);
   const view = viewRight(facts);
   if (!view.allowed) return null;
   const canManage = manageRight(facts).allowed;

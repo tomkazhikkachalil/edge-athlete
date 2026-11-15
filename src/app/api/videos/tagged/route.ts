@@ -4,6 +4,7 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { listTaggedGames } from '@/lib/videos/video-tagged-server';
 import { anonymousProfileCanView, profileManages } from '@/lib/videos/videos-server';
+import { blockedFromProfile } from '@/lib/sport-profile/sport-profile-server';
 import { reportRouteError } from '@/lib/observability/report';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
@@ -25,6 +26,8 @@ export async function GET(request: NextRequest) {
     const acts = user ? await profileManages(user.id, profileId) : false;
     const canView = acts || (user ? (await canViewProfile(profileId, user.id)).canView : await anonymousProfileCanView(admin, profileId));
     if (!canView) return NOT_FOUND();
+    // A block in either direction closes the athlete's film to this viewer (Sprint 4 PR 2); the answer is the same 404.
+    if (!acts && await blockedFromProfile(admin, user?.id ?? null, profileId)) return NOT_FOUND();
     const games = await listTaggedGames(admin, profileId, user ?? null, acts);
     return NextResponse.json({ games, can_remove: acts }, { headers: PRIVATE });
   } catch (error) {

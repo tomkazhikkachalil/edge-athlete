@@ -115,6 +115,10 @@ const PUBLIC_ROUTES: Record<string, string> = {
  * resolveActingProfile and remove it from this list.
  */
 const REVIEWED_SELF_SCOPED: Record<string, string> = {
+  'profile/[profileId]/sport-profile':
+    'Sprint 4 (Nov 2026): the gate is sportProfileViewer (src/lib/sport-profile/sport-profile-server.ts) — profileManages (resolveActingProfile) for the athlete or a guardian, else canViewProfile / a public present profile for a stranger, then a block check; a refusal is a 404. Pinned by sport-profile rules.test.ts and e2e/sport-profile-api.spec.ts',
+  'profile/[profileId]/sport-clips':
+    'Sprint 4 (Nov 2026): the same one gate as sport-profile (sportProfileViewer); each clip is from a video this viewer may open (viewRight per owner) and a spoiler-free game gives none until asked',
   'invites/[token]/claim': 'atomic single-use token redemption',
   'calendar/feed-token': 'mints for the session user only; supervised 403 inside',
   'clubs/[id]/members': 'org-role system (club managers), not profile roles',

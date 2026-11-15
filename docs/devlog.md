@@ -1,5 +1,25 @@
 # Development Log
 
+## November 15, 2026 (late night) — Sprint 4 PR 2: the sport profile's rules, its reader and its two routes
+
+No page yet — the reads the pages will stand on (`docs/specs/sport-profile.md`, Convention 61).
+
+- **The rules** (`src/lib/sport-profile/rules.ts`, pure, no imports): career and one row per season by the sport's own season; the season's splits by opponent and by period; the game; the reel — the clips behind a stat, oldest game first and in game order, across videos. `statTagsForPerson` (in `game-derive.ts`) names the tags that put each stat on an athlete's line, by the same holder rule as the box score.
+- **The reader is set-based.** Today's film read opens every video in full (the video, its rights, every tag, every person, the game). The new one reads the athlete's tag rows, then the games, the videos, those tags and the people on them — one query each — and asks who may open a video once per owner, through the same rights every video read uses. It reads all standings, so recreational film is there, marked, and never in a total.
+- **The numbers are the Stats tab's.** The same three sources judged by the same-game rule; the API spec compares the two key for key.
+- **Spoilers and blocks.** A spoiler-free game counts in the totals and keeps its line and its clips on the server until the viewer asks. A block in either direction closes the sport profile, its clips and — new — the "Tagged in" list, with the same 404.
+
+Measured on staging (p50 of five warm reads; 30 tags a game, the athlete on 6):
+
+| film games | Stats tab totals | Tagged in | **sport-profile** | sport-clips |
+| ---: | ---: | ---: | ---: | ---: |
+| 10 | 1,387 ms | 1,267 ms | **953 ms** | 957 ms |
+| 40 | 2,321 ms | 1,689 ms (first 24 only) | **1,046 ms** | 1,062 ms |
+
+Proof: 48 unit tests for the rules and the stat → tags function; `e2e/sport-profile-api.spec.ts` on staging (a league tags two games; career, season, game, play; the reel crosses the two videos; a follower sees the held game only after asking; the block's three 404s). PR 1 (#1520) merged and is what production serves (`5627d5a1`).
+
+Found, not changed: `canViewProfile` does not look at blocks, so the Stats tab's older routes still answer a blocked viewer of a public profile. Named in the spec for its own round.
+
 ## November 15, 2026 (night) — Sprint 4 begins: the plan, and room on the profile page (PR 1)
 
 Tom's brief: the athlete's page becomes a connected set of views per sport — pick a sport, then Career → Season → Game → Play, every number a door to the clips behind it, plus a clip browser on its own; all of it built from Sprint 3's tags. His four decisions: an athlete can **hide** a game or a clip (the stat still counts; "Remove me" stays); a tagged, unclaimed player gets a **public page marked Unclaimed**, claimed by a request the person starts from that page; non-club film is **shown, marked Recreational, never counted**; the default sport is **the athlete's own order** (pins, then primary). Seven PRs; the spec arrives with PR 2 (`docs/specs/sport-profile.md`).
