@@ -1,5 +1,17 @@
 # Development Log
 
+## November 15, 2026 (later) — Maintenance checklist: main and production in step, every device class probed
+
+Tom: "run the full project maintenance checklist… make sure it gets to production… web, large screen, mobile, and downloaded app." Run on main `e50d2094`, right after the pass above; nothing was uncommitted in either checkout.
+
+- **In step.** Production serves `09399217`, the last merge that changed app code. `main` is ahead of it only by test files, docs and the rebuild baseline (5 `e2e/`, 1 `docs/`, 2 `database/` files) — by design those merges do not redeploy (the Ignored Build Step). No app code is waiting.
+- **Gates.** `npm run verify` 0 — typecheck, lint with zero warnings, 677 files / 6,355 tests, the build, 303 client chunks at the iOS 15 / Chrome 100 floor; `npm audit --omit=dev` 0; guardrails ✓; blocklists ✓; `check:schema:prod` clean at ledger 309.
+- **Production's doors.** `/api/health` 200 (database ok), `/manifest.webmanifest` 200, `/sw.js` 200, `/` → the coming-soon page (the gate is up).
+- **Production by device, one spec at a time.** Desktop (large screen) **18 / 0** across feed, likes, messages, profile edit, the video and stats specs, the org Videos window, golf entry and training. Phone Chrome 10 / 3, iPhone WebKit 6 / 2, Android 6 / 2 — including the installed-app specs (`install-app`, `sw-static-cache`) green on all three.
+- **Every phone failure is the launch gate.** They are the ANONYMOUS-visitor cases of `stats-hub-mobile` and `skill-cards-mobile` (`/u/<handle>` → 307 to the coming-soon page, as designed while sign-up is closed); the signed-in case of the same file passes. `docs/LAUNCH_RUNBOOK.md` step 6 already lists them as returning to the probe set when the gate opens.
+
+Nothing was found to fix. Still Tom's: the three sittings in `docs/LAUNCH_RUNBOOK.md` §7.
+
 ## November 15, 2026 — The film read made cheap, the sport card's line, and the maintenance pass
 
 Tom, after the film-totals round: tidy the two loose ends, run the maintenance checklist, prepare the YouTube go-live. All three done; every PR below was merged by GitHub on green (`automerge-pr.sh`).
