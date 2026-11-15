@@ -18,8 +18,7 @@ import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
 import StatementsRail from '@/components/StatementsRail';
-import PostDetailModal from '@/components/PostDetailModal';
-import FollowersModal from '@/components/FollowersModal';
+import { LazyPostDetailModal as PostDetailModal, LazyFollowersModal as FollowersModal } from '@/components/profile/lazy-tabs';
 import type { Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
@@ -93,6 +92,11 @@ export default function AthleteProfilePage() {
 
   // Followers Modal state
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
+  // Each modal's chunk is fetched on its first open; the modal stays mounted after.
+  const [followersModalUsed, setFollowersModalUsed] = useState(false);
+  if (isFollowersModalOpen && !followersModalUsed) setFollowersModalUsed(true);
+  const [postModalUsed, setPostModalUsed] = useState(false);
+  if (deepLinkPostId && !postModalUsed) setPostModalUsed(true);
   const [followersModalTab, setFollowersModalTab] = useState<'followers' | 'following'>('followers');
   // Spec 2: the report sheet (declared with the other hooks — above the early returns).
   const [reportOpen, setReportOpen] = useState(false);
@@ -491,24 +495,28 @@ export default function AthleteProfilePage() {
       {/* Shared-post deep link (?post=) AND sport-card latest-post opens —
           one modal serves both; the replaceState below is a no-op for card
           clicks (no ?post= in the URL then) */}
-      <PostDetailModal
-        postId={deepLinkPostId}
-        isOpen={!!deepLinkPostId}
-        onClose={() => {
-          setDeepLinkPostId(null);
-          // Drop the ?post= param without a full navigation
-          window.history.replaceState(null, '', `/athlete/${athleteId}`);
-        }}
-        currentUserId={user?.id}
-      />
+      {postModalUsed && (
+        <PostDetailModal
+          postId={deepLinkPostId}
+          isOpen={!!deepLinkPostId}
+          onClose={() => {
+            setDeepLinkPostId(null);
+            // Drop the ?post= param without a full navigation
+            window.history.replaceState(null, '', `/athlete/${athleteId}`);
+          }}
+          currentUserId={user?.id}
+        />
+      )}
 
       {/* Followers/Following Modal */}
-      <FollowersModal
-        isOpen={isFollowersModalOpen}
-        onClose={() => setIsFollowersModalOpen(false)}
-        profileId={athleteId}
-        initialTab={followersModalTab}
-      />
+      {followersModalUsed && (
+        <FollowersModal
+          isOpen={isFollowersModalOpen}
+          onClose={() => setIsFollowersModalOpen(false)}
+          profileId={athleteId}
+          initialTab={followersModalTab}
+        />
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ import ProfileSocialLinks from '@/components/profile/ProfileSocialLinks';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import ProfilePhotoViewer from '@/components/profile/ProfilePhotoViewer';
 import type { ProfilePhotoSlot } from '@/lib/profiles/photo-paths';
-import PostDetailModal from '@/components/PostDetailModal';
+import { LazyPostDetailModal as PostDetailModal } from '@/components/profile/lazy-tabs';
 import AppHeader from '@/components/AppHeader';
 
 // Heavy / rarely-open modals — split into their own chunks. Cuts First Load

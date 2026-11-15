@@ -1,5 +1,19 @@
 # Development Log
 
+## November 15, 2026 (night) — Sprint 4 begins: the plan, and room on the profile page (PR 1)
+
+Tom's brief: the athlete's page becomes a connected set of views per sport — pick a sport, then Career → Season → Game → Play, every number a door to the clips behind it, plus a clip browser on its own; all of it built from Sprint 3's tags. His four decisions: an athlete can **hide** a game or a clip (the stat still counts; "Remove me" stays); a tagged, unclaimed player gets a **public page marked Unclaimed**, claimed by a request the person starts from that page; non-club film is **shown, marked Recreational, never counted**; the default sport is **the athlete's own order** (pins, then primary). Seven PRs; the spec arrives with PR 2 (`docs/specs/sport-profile.md`).
+
+**PR 1 — room.** The profile route was at 598 KB of its 600 KB first-load budget and nothing on it was lazy: every tab (the Stats hub, Training with the composer, Videos, Tagged, Equipment, Achievements) and two modals shipped to a visitor who opens one tab. They are now their own chunks, shared by the three routes through `src/components/profile/lazy-tabs.tsx`; a modal's chunk is fetched on its first open. No behaviour change.
+
+| Route (first load, gzip) | before | after |
+| --- | ---: | ---: |
+| `/athlete/[id]` | 598 KB | 467 KB |
+| `/athlete` | 596 KB | 467 KB |
+| `/u/[username]` | 587 KB | 358 KB |
+
+Proof: `check-bundle-weight` on the same tree before and after; staging, desktop 3 / 3 (`profile-buckets`, `stats-same-game`, `video-tagged-profile`) and phone 8 / 8 (`stats-hub-mobile`, `skill-cards-mobile`, `profile-sports`, `videos-mobile`, `performance-rollups`, `profile-buckets`). Trap met: `next/dynamic` refuses a shared options constant — the options are an object literal at each call.
+
 ## November 15, 2026 (evening) — The Security Advisor's twelve warnings closed (migration 310)
 
 Tom pasted the Supabase Security Advisor: twelve warnings, lints 0028 + 0029 — the same six functions for `anon` and for `authenticated`. `public.pulse_signal_{golf,event,broadcast,message,read,roster}()` are `SECURITY DEFINER` and were executable by both roles.
