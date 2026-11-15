@@ -45,8 +45,10 @@ export default function CareerView({ data, basePath, sportLabel }: Props) {
             ),
             count: s.games,
             stats: s.totals,
+            // A number with clips behind it is a door: that stat, that season, as a reel.
+            door: (k: string) => ((s.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season: s.key, stat: k })}` : null),
           }))}
-          foot={{ id: 'career', lead: 'Career', count: data.career.games, stats: data.career.totals }}
+          foot={{ id: 'career', lead: 'Career', count: data.career.games, stats: data.career.totals, door: k => ((data.career.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ stat: k })}` : null) }}
         />
       </div>
     </section>

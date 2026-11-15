@@ -4,13 +4,14 @@ import { adminClient, apiAs, bypassHeaders, loadQaUser, mintStorageState, readEr
 import { fitsViewportWidth } from './helpers/layout';
 import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
-// Sprint 4 PR 3 (Nov 2026) — the athlete's sport profile, the page: pick the
-// sport, Career → Season, Back walks up, every level is an address, the same
-// page by id and by handle, at phone width.
+// Sprint 4 PRs 3–4 (Nov 2026) — the athlete's sport profile, the page: pick the
+// sport, Career → Season → Game → Play, every number a door to its clips, Back
+// walks up, every level is an address, the same page by id and by handle, at
+// phone width.
 const YT = 'jNQXAC9IVRw';
 withOwnChannel([YT]);
 
-test('the sport profile: career → season → back, the game log, by id and by handle — at 375 px @mobile', async ({ browser }) => {
+test('the sport profile: career → season → game → play, the doors and the reel, back, by id and by handle — at 375 px @mobile', async ({ browser }) => {
   test.setTimeout(240_000);
   const admin = adminClient();
   const owner = loadQaUser('user-b.json');
@@ -69,8 +70,52 @@ test('the sport profile: career → season → back, the game log, by id and by 
     await expect(gameRow).toContainText('Mar 7, 2026');
     await expect(gameRow).toContainText('Game film');
     await expect(gameRow.locator('[data-stat="goals"]')).toHaveText('2');
-    await expect(gameRow.locator(`[data-game-link="film:${videoId}"]`)).toHaveAttribute('href', `/videos/${videoId}`);
     expect(await fitsViewportWidth(page)).toBe(true);
+
+    // 2a. A number is a door (PR 4): the season's goals open a reel above the season, without leaving the page.
+    await season.locator('[data-stat-row="totals"] [data-stat-door="goals"]').click();
+    await expect(page).toHaveURL(/season=2026&stat=goals$/);
+    const reel = page.locator('[data-stat-reel="goals"] [data-clip-reel]');
+    await expect(reel).toBeVisible({ timeout: 20_000 });
+    await expect(reel.locator('[data-clip-reel-now]')).toContainText('QA Hawks vs QA Owls');
+    expect(await reel.locator('[data-clip-reel-list] [data-clip]').count()).toBeGreaterThanOrEqual(2);
+    await expect(page.locator('[data-sport-level="season"]')).toBeVisible();
+    expect(await fitsViewportWidth(page)).toBe(true);
+    await reel.locator('[data-clip-reel-close]').click();
+    await expect(page).toHaveURL(/\/sport\/soccer\?season=2026$/);
+    await expect(page.locator('[data-clip-reel]')).toHaveCount(0);
+
+    // 2b. A game is a door: the athlete's line, by half, their clips, and the way to the full game.
+    await season.locator(`[data-game-link="film:${videoId}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`season=2026&game=film%3A${videoId}$`));
+    const game = page.locator(`[data-sport-level="game"][data-game="film:${videoId}"]`);
+    await expect(game).toBeVisible();
+    await expect(game.locator('[data-game-line] [data-stat-row="line"] [data-stat="goals"]')).toHaveText('2');
+    await expect(game.locator('[data-game-line] [data-stat-row="p:1"]')).toBeVisible();
+    await expect(game.locator('[data-game-full]')).toHaveAttribute('href', `/videos/${videoId}`);
+    const clips = game.locator('[data-game-clips] [data-clip-reel]');
+    await expect(clips).toHaveAttribute('data-clip-reel-count', '2', { timeout: 20_000 });
+    //     The second clip: the player goes to its moment (the first tap starts the player there).
+    await clips.locator('[data-clip-reel-list] [data-clip]').nth(1).click();
+    await expect(clips).toHaveAttribute('data-clip-reel-index', '1');
+    await expect(clips.locator('[data-video-player]')).toHaveAttribute('data-video-start', '5');
+    //     The game's own number narrows the clips to that stat; the clip links to its moment on the game's page.
+    await game.locator('[data-stat-row="line"] [data-stat-door="goals"]').click();
+    await expect(page).toHaveURL(/stat=goals$/);
+    const momentHref = await game.locator('[data-clip-reel-game]').getAttribute('href');
+    expect(momentHref).toMatch(new RegExp(`^/videos/${videoId}\\?tag=[0-9a-f-]{36}$`));
+    expect(await fitsViewportWidth(page)).toBe(true);
+    //     Back walks up: the stat, the game, the season.
+    await page.goBack();
+    await page.goBack();
+    await expect(page.locator('[data-sport-level="season"]')).toBeVisible();
+
+    // 2c. The moment's link opens the video AT the moment.
+    await page.goto(momentHref!);
+    await expect(page.locator('[data-video-player]')).toHaveAttribute('data-video-start', '1', { timeout: 30_000 });
+    await page.goto(`/athlete/${athlete.id}/sport/soccer`);
+    await page.locator('[data-sport-level="career"] [data-season-link="2026"]').click();
+    await expect(page.locator('[data-sport-level="season"]')).toBeVisible({ timeout: 30_000 });
 
     // 3. Back walks up a level; the season's own address opens the season directly.
     await page.goBack();

@@ -74,7 +74,7 @@ export default function AthleteSportProfilePage() {
         <div className="mx-auto max-w-xl px-4 py-16 text-center">
           <h1 className="mb-2 text-2xl font-bold text-primary">{load.state === 'missing' ? 'Athlete not found' : 'No sports yet'}</h1>
           <p className="mb-6 text-secondary">{load.state === 'missing' ? 'This profile is not here.' : 'This athlete has not added a sport.'}</p>
-          <button type="button" className="ea-cta" onClick={() => router.push(load.state === 'missing' ? '/feed' : `/athlete/${id}`)}>{load.state === 'missing' ? 'Go to the feed' : 'Back to the profile'}</button>
+          <button type="button" className="ea-cta inline-flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold text-white" onClick={() => router.push(load.state === 'missing' ? '/feed' : `/athlete/${id}`)}>{load.state === 'missing' ? 'Go to the feed' : 'Back to the profile'}</button>
         </div>
       </div>
     );

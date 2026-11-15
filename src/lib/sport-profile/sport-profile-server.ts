@@ -29,7 +29,7 @@ import { GAME_COLUMNS, projectGame } from '@/lib/videos/video-games-server';
 import { anonymousProfileCanView, profileManages, VIDEO_COLUMNS, videoFactsFor, type OrgAccessMemo } from '@/lib/videos/videos-server';
 import { canViewProfile } from '@/lib/privacy';
 import { filterBlockedBidirectional } from '@/lib/blocks';
-import { careerOf, clipCounts, cutHeld, seasonsOf, type ProfileClip, type ProfileGame, type Stats } from './rules';
+import { careerOf, clipCounts, clipCountsOfGame, cutHeld, filmOfGame, seasonsOf, type ProfileClip, type ProfileGame, type Stats } from './rules';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the admin client is untyped across the app
 type Admin = SupabaseClient<any, 'public', any>;
@@ -301,6 +301,10 @@ export interface SportProfileGameRow {
   held: boolean;
   /** How many clips of the athlete this game has for THIS viewer. */
   clips: number;
+  /** How many clips are behind each stat of this game (its own film, or the film that is the same game) — what makes a cell a door. */
+  statClips: Stats;
+  /** The film of this game: itself, or the film that is the same game as this official line or post. Null: no film. */
+  film: string | null;
   byPeriod: Record<number, Stats>;
 }
 
@@ -341,6 +345,7 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
     games: shown.map(cutHeld).map((g, i) => ({
       key: g.key, source: g.source, date: g.date, season: seasonOf(g), title: g.title, opponent: g.opponent, stats: g.stats, counted: g.counted,
       sameAs: g.sameAs, standing: g.standing, videoId: g.videoId, href: g.href, held: shown[i].held, clips: g.clips.length, byPeriod: g.byPeriod,
+      statClips: clipCountsOfGame(shown, g.key), film: filmOfGame(shown, g.key)?.key ?? null,
     })),
     held: shown.filter(g => g.held && g.counted).length,
   };

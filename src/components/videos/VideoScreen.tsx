@@ -81,7 +81,7 @@ function placeHref(v: VideoView): string | null {
  * this fetches with the session; a signed-out visitor of a public owner is
  * welcome. A refusal is the same "not available" as not-found.
  */
-export default function VideoScreen({ videoId, initialView = 'watch' }: { videoId: string; initialView?: VideoPageView }) {
+export default function VideoScreen({ videoId, initialView = 'watch', initialTag = null }: { videoId: string; initialView?: VideoPageView; initialTag?: string | null }) {
   const router = useRouter();
   // Sprint 3 PR 5: the recap is a view of this page (`?view=recap`), so its link is shareable and Back leaves it.
   const [view, setView] = useState<VideoPageView>(initialView);
@@ -112,6 +112,7 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
     playAllRef.current = playAll;
   }, [playAll]);
   const lastSavedRef = useRef(0);
+  const tagOpenedRef = useRef(false);
   const [resumeAt, setResumeAt] = useState<number | null>(null);
 
   // Round 2 PR 6: a spoiler-free game's unwatched plays stay on the server. Every read says how far THIS device has watched
@@ -149,11 +150,22 @@ export default function VideoScreen({ videoId, initialView = 'watch' }: { videoI
       setLoad(next);
       // The resume chip: a saved position worth offering, read once the video is known (polish B).
       if (next.state === 'ready') setResumeAt(resumeOffer(readResumeMs(defaultPlayerStorage(), next.video.provider_video_id), next.video.duration_ms));
+      // `?tag=` (Sprint 4): the link named a moment — the player opens at it, once. A moment this viewer has not been sent
+      // (a spoiler-free game's unwatched play) is simply not there: the video opens as it always does.
+      if (next.state === 'ready' && initialTag && !tagOpenedRef.current) {
+        const moment = next.highlights.find(h => h.id === initialTag);
+        if (moment) {
+          tagOpenedRef.current = true;
+          setStartMs(moment.start_ms);
+          setActiveId(moment.id);
+          setPlayKey(k => k + 1);
+        }
+      }
     });
     return () => {
       live = false;
     };
-  }, [initialAuthCheckComplete, viewerId, fetchVideo]);
+  }, [initialAuthCheckComplete, viewerId, fetchVideo, initialTag]);
 
   const providerVideoId = load.state === 'ready' ? load.video.provider_video_id : null;
   const ownerRef = load.state === 'ready' ? (load.video.owner.kind === 'org' ? `${load.video.owner.side}:${load.video.owner.id}` : `profile:${load.video.owner.id}`) : null;

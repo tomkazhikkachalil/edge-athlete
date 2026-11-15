@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { NO_SEASON, splitByOpponent, splitByPeriod, totalsOf, type ProfileGame } from '@/lib/sport-profile/rules';
-import { seasonTitle } from '@/lib/sport-profile/view';
+import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
 import { formatDateShort } from './format';
 import StatTable, { type StatTableRow } from './StatTable';
 import Tiles from './Tiles';
@@ -40,7 +40,7 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
     return (
       <section className="space-y-4" data-sport-level="season">
         <p className="text-secondary">There is no {seasonTitle(season)} season here.</p>
-        <Link href={basePath} className="ea-cta inline-flex">See the career</Link>
+        <Link href={basePath} className="ea-cta inline-flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold text-white">See the career</Link>
       </section>
     );
   }
@@ -60,12 +60,13 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
       muted: !g.counted,
       lead: (
         <span className="block min-w-[9rem]">
-          <span className="block">{row.href ? <Link href={row.href} className="ea-interactive rounded underline decoration-border underline-offset-4" data-game-link={g.key}>{title}</Link> : title}</span>
+          <span className="block"><Link href={`${basePath}${sportViewSearch({ season, game: g.key })}`} className="ea-interactive rounded underline decoration-border underline-offset-4" data-game-link={g.key}>{title}</Link></span>
           <span className="block text-xs font-normal text-muted">{[g.date ? formatDateShort(g.date) : 'No date', ...marks].join(' · ')}</span>
         </span>
       ),
       stats: g.stats,
       instead: g.held ? 'Spoiler-free — counted in the totals, the line is not shown.' : undefined,
+      door: (k: string) => ((row.statClips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season, game: g.key, stat: k })}` : null),
     };
   });
 
@@ -83,7 +84,7 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
 
       <div>
         <h3 className="mb-3 text-lg font-bold text-primary">Season totals</h3>
-        <StatTable caption={`${sportLabel} ${seasonTitle(season)} totals`} leadLabel="" countLabel="GP" columns={data.columns} rows={[{ id: 'totals', lead: seasonTitle(season), count: summary.games, stats: summary.totals }]} />
+        <StatTable caption={`${sportLabel} ${seasonTitle(season)} totals`} leadLabel="" countLabel="GP" columns={data.columns} rows={[{ id: 'totals', lead: seasonTitle(season), count: summary.games, stats: summary.totals, door: k => ((summary.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season, stat: k })}` : null) }]} />
       </div>
 
       {opponents.rows.length > 0 && (

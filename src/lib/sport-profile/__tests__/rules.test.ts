@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  careerOf, clipCounts, cutHeld, filmBehind, filmOfGame, gamesOfSeason, NO_SEASON, pageOf, reelOf, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
+  careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
   type ProfileClip, type ProfileGame,
 } from '../rules';
 
@@ -104,6 +104,28 @@ describe('levels 3 and 4: the game and the plays', () => {
   it('a number is a door only where clips are behind it', () => {
     expect(clipCounts(all)).toEqual({ goals: 3, shots: 4 });
     expect(clipCounts([officialB, post])).toEqual({});
+  });
+});
+
+describe('a game\'s own doors, and the reel as the player walks it', () => {
+  it('a game\'s cells open its own film, or the film that is the same game; a held game and a game with no film open nothing', () => {
+    expect(clipCountsOfGame(all, 'film:a')).toEqual({ goals: 2, shots: 3 });
+    expect(clipCountsOfGame(all, 'official:b')).toEqual({ goals: 1, shots: 1 });
+    expect(clipCountsOfGame(all, 'film:h')).toEqual({});
+    expect(clipCountsOfGame(all, 'post:p')).toEqual({});
+    expect(clipCountsOfGame(all, 'film:r')).toEqual({ goals: 1 }); // a recreational game still plays its own clips
+  });
+  it('every clip gets a definite end: its own, or the open length', () => {
+    const list = reelPlaylist([{ id: 'x', youtubeId: 'y1', startMs: 1000, endMs: 4000 }, { id: 'z', youtubeId: 'y2', startMs: 9000, endMs: null }], 20_000);
+    expect(list).toEqual([{ id: 'x', youtubeId: 'y1', startMs: 1000, endMs: 4000 }, { id: 'z', youtubeId: 'y2', startMs: 9000, endMs: 29_000 }]);
+  });
+  it('stay until the clip\'s end, step to the next — into another video — and stop after the last', () => {
+    const list = reelPlaylist([{ id: 'x', youtubeId: 'y1', startMs: 1000, endMs: 4000 }, { id: 'z', youtubeId: 'y2', startMs: 9000, endMs: null }], 20_000);
+    expect(reelStep(list, 0, 0)).toEqual({ action: 'stay' }); // the player still arriving
+    expect(reelStep(list, 0, 3999)).toEqual({ action: 'stay' });
+    expect(reelStep(list, 0, 4000)).toEqual({ action: 'next', index: 1 });
+    expect(reelStep(list, 1, 29_000)).toEqual({ action: 'done' });
+    expect(reelStep(list, 5, 0)).toEqual({ action: 'done' });
   });
 });
 

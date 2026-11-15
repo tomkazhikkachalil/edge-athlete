@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { statText } from '@/lib/sport-profile/view';
 import type { StatColumn } from './types';
@@ -15,6 +16,8 @@ export interface StatTableRow {
   muted?: boolean;
   /** Said instead of the numbers (a spoiler-free game). */
   instead?: ReactNode;
+  /** A number is a door to its clips: the address of the reel behind this row's stat, or null when no clip is behind it. */
+  door?: (statKey: string) => string | null;
 }
 
 interface Props {
@@ -39,9 +42,18 @@ export default function StatTable({ caption, leadLabel, countLabel, columns, row
       {countLabel && <td className="px-2 py-2 text-right tabular-nums">{r.count ?? ''}</td>}
       {r.instead
         ? <td colSpan={columns.length} className="px-2 py-2 text-left text-secondary">{r.instead}</td>
-        : columns.map(c => (
-            <td key={c.key} className={`px-2 py-2 text-right tabular-nums ${strong ? 'font-bold' : ''}`} data-stat={c.key}>{statText(r.stats[c.key] ?? 0)}</td>
-          ))}
+        : columns.map(c => {
+            const href = (r.stats[c.key] ?? 0) > 0 ? r.door?.(c.key) ?? null : null;
+            return (
+              <td key={c.key} className={`px-2 py-2 text-right tabular-nums ${strong ? 'font-bold' : ''}`} data-stat={c.key}>
+                {href ? (
+                  <Link href={href} scroll={false} className="ea-interactive -mx-2 -my-1 inline-block min-w-[2.75rem] rounded px-2 py-1 text-brand underline decoration-border underline-offset-4" aria-label={`${statText(r.stats[c.key])} ${c.label}: watch the clips`} data-stat-door={c.key}>
+                    {statText(r.stats[c.key])}
+                  </Link>
+                ) : statText(r.stats[c.key] ?? 0)}
+              </td>
+            );
+          })}
     </tr>
   );
   return (

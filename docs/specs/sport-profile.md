@@ -45,11 +45,20 @@ Tom's brief: the athlete's page is a bundle of connected views per sport, "the w
 - **One table** (`StatTable`): the repo's idiom, a horizontal scroller with the first column pinned on a phone. The levels are `next/dynamic` chunks.
 - **The door in:** the Stats tab's sport layer (`data-sport-profile-door`), for a sport with a stat sheet.
 
+## The game and the play (PR 4, Nov 16 2026)
+
+- **Every number is a door.** A stat cell with clips behind it is a link (`data-stat-door`): at the career it opens that stat's reel for the whole career (`?stat=goals`), on a season row or the season's totals that season's (`?season=…&stat=goals`), on a game row that game's (`…&game=…&stat=goals`). A number with no clip behind it — an official line with no film, a posted game — is plain text. The counts come with the payload (`career.clips`, `seasons[].clips`, `games[].statClips`); a split row is not a door.
+- **The reel sits above the level it was opened from** (`StatReel`) — "every goal that season as a clip reel, in order, without leaving the page" — and Close returns to the level's own address.
+- **The game** (`GameView`, `…&game=<key>`): the athlete's line with each number a door, the line by period, **their clips from that game**, and the way out — "Watch the full game", "Game recap", and the official result when the game is one. A game counted from its **official line** shows that line's numbers and plays **the film of the same game** (`games[].film`), and says so. A game with no film says there are no clips.
+- **One player, across videos** (`ClipReel`): a clip in the same video seeks; a clip in another video remounts the player on that video at the clip's start (the player is keyed by the video). With YouTube's API the reel steps on its own at each clip's end (`reelPlaylist` + `reelStep` — an open clip plays 20 s; a playhead before the clip's start is the player still arriving); in the plain frame, Next is the step. Previous / Next, the list (tap any clip), and "Clip n of N · the game · the date" are always there.
+- **A moment has an address:** `/videos/[id]?tag=<highlight id>` (`tagPath`, `videoPageTag` in `game-view.ts`) opens the video at that moment, once. Every clip in a reel links to it ("Open this moment in the game"). A moment the viewer has not been sent — an unwatched play of a spoiler-free game — is not there, and the video opens as it always does.
+- A clip is called by the sheet's event and the tagger's own label, once when they say the same thing.
+
 ## Decided, not yet built (Tom, Nov 15 2026 — the later PRs of the sprint)
 
 - **Hide.** The athlete (or a guardian) can hide a game or a single clip from their page: it leaves the lists and the reels for visitors, **the stat still counts**; "Remove me" stays as the stronger door.
 - **Unclaimed.** A tagged player who has not claimed their profile gets a public page marked *Unclaimed*; claiming is a request the person starts from that page.
 - **The default sport** is the athlete's own order — pins, then the primary (`orderProfileSports`).
-- The game level and the play level on the page (every number a door), the cross-video reel player, `/videos/[id]?tag=`, the Clips browser; the Stats tab's per-sport breakdown becomes a door into this.
+- The Clips browser; the Stats tab's per-sport breakdown becomes a door into this.
 
 **Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.

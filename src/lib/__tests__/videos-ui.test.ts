@@ -103,7 +103,8 @@ describe('the pages', () => {
     expect(detail).not.toMatch(/^'use client'/);
     expect(detail).toContain('<AppHeader />');
     // Sprint 3 PR 5: the shell also reads ?view=recap and hands it to the screen (no search-params hook on the client).
-    expect(detail).toContain('<VideoScreen videoId={id} initialView={videoPageView(view)} />');
+    // Sprint 4 PR 4: and ?tag=<highlight id> — the moment a clip's link names.
+    expect(detail).toContain('<VideoScreen videoId={id} initialView={videoPageView(view)} initialTag={videoPageTag(tag)} />');
     const flow = read('src/components/videos/NewVideoFlow.tsx');
     expect(flow).not.toMatch(/autoFocus/);
     expect(flow).toContain("fetch('/api/videos'");
