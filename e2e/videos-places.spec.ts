@@ -1,5 +1,5 @@
 import { test, expect } from './helpers/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { E2E_TARGET, adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { liveWire } from './helpers/activities';
 import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
@@ -16,6 +16,10 @@ const WORKOUT_YT = 'https://www.youtube.com/watch?v=9bZkp7q19f0';
 withOwnChannel(['jNQXAC9IVRw', 'aqz-KE-bpKQ', '9bZkp7q19f0']);
 
 test('videos on a round, an activity and a workout: the place\'s manager attaches; the place\'s rule gates the list; the surfaces show them', async ({ page }) => {
+  // Three places need three videos of ONE channel. Against the real YouTube (the production probe) the seeded connection names a
+  // single real channel with a single known video, and the other two ids are — rightly — refused as another channel's (found by
+  // the Nov 14–15 maintenance sweep). Staging's stand-in answers all three.
+  test.skip(E2E_TARGET === 'prod', 'needs three videos of one channel; the production probe has one');
   test.setTimeout(240_000);
   const admin = adminClient();
   const alpha = loadQaUser('user.json');

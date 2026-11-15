@@ -1,6 +1,6 @@
 import { test, expect, request as pwRequest } from './helpers/test';
 import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
-import { E2E_BASE_URL, adminClient, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { E2E_BASE_URL, E2E_TARGET, adminClient, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The player that knows the time (Videos program polish B, Nov 6 2026):
 // YouTube's IFrame Player API, loaded by trusted code under the CSP's
@@ -57,11 +57,14 @@ test('the API answers: the player is the API\'s, "This moment" types the playhea
     await expect(page.locator('[data-video-play-highlights]')).toHaveAttribute('data-video-play-highlights', 'off', { timeout: 40_000 }); // the two markers play out (≈ 7 s of video)
 
     // 4. The resume chip: a saved position worth offering (≥ 30 s; the stand-in knows no duration for this id) shows on the poster of a fresh load.
-    await page.evaluate(() => localStorage.setItem('ea-video-resume:jNQXAC9IVRw', '35000'));
-    await page.goto(`/videos/${videoId}`);
-    await expect(page.locator('[data-video-resume="35000"]')).toBeVisible();
-    await expect(page.locator('[data-video-resume="35000"]')).toContainText('Resume at 0:35');
-    await page.evaluate(() => localStorage.removeItem('ea-video-resume:jNQXAC9IVRw'));
+    //    Not against the real YouTube: there the video's real length (19 s) is known, and a position past the end is — rightly — not offered.
+    if (E2E_TARGET !== 'prod') {
+      await page.evaluate(() => localStorage.setItem('ea-video-resume:jNQXAC9IVRw', '35000'));
+      await page.goto(`/videos/${videoId}`);
+      await expect(page.locator('[data-video-resume="35000"]')).toBeVisible();
+      await expect(page.locator('[data-video-resume="35000"]')).toContainText('Resume at 0:35');
+      await page.evaluate(() => localStorage.removeItem('ea-video-resume:jNQXAC9IVRw'));
+    }
 
     // 5. Blocked: the plain frame as before, no "This moment", the typed time still saves a marker.
     const blocked = await ctx.newPage();

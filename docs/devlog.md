@@ -1,5 +1,49 @@
 # Development Log
 
+## November 15, 2026 — The film read made cheap, the sport card's line, and the maintenance pass
+
+Tom, after the film-totals round: tidy the two loose ends, run the maintenance checklist, prepare the YouTube go-live. All three done; every PR below was merged by GitHub on green (`automerge-pr.sh`).
+
+**The film read was slow, and it was live.** Measured before changing anything: an athlete's tagged games were read ONE AFTER ANOTHER, about seven database trips each. From a laptop against staging, ten film games made each Stats-tab request take ~9 s (0.5 s with none); a 40-game run timed out. The reader is behind "Tagged in" (since Sprint 3) and, since #1508, the totals and the tiles. Nobody met it — production is gated — but the first club to tag a season would have.
+
+| | stat-lines | rollups | tagged |
+| --- | --- | --- | --- |
+| staging, 10 games, before | 9,210 ms | 9,127 ms | 9,446 ms |
+| staging, 10 games, after #1511 | 1,668 ms | 1,586 ms | 1,211 ms |
+| production, no film, before → after #1514 | 202 → 125 ms | 166 → 107 ms | 98 → 94 ms |
+| production, 1 film game, before → after #1514 | 447 → 433 ms | 436 → 388 ms | 339 → 308 ms |
+
+(p50 of 10 warm reads, from a laptop through the site.) What is left is a fixed ~300 ms for having any film at all — the read's own chain of trips; the three requests run side by side in the browser, so the tab waits about 0.4 s. The next lever is caching the per-game line, which is a design decision (where it lives, how a tag edit clears it) and is NOT built.
+
+| PR | What | Proof on production |
+| --- | --- | --- |
+| #1511 `1788a452` | Tagged games read side by side (`mapBounded`, 8), the viewer's reach on an organization asked once per request (`OrgAccessMemo`), a video's tags and people read together. | `video-tagged-profile`, `video-film-official`, `stats-same-game` |
+| #1512 | `docs/LAUNCH_RUNBOOK.md` §7: the YouTube go-live in three sittings (after Google's reply; the installed-iPhone test; tagging one real game). | docs |
+| #1513 `c95efdbd` | Tom's decision — the sport card stays the VERIFIED record: when its tiles are official lines it adds "Verified games only. +N self-posted games on the Stats tab." (N through the same-game rule). | `stats-same-game` |
+| #1514 `09399217` | Both Stats routes start the film, official, guardian and different-games reads together, after the profile gate. | `stats-same-game`, `video-film-official` + the timing above |
+| #1515 | The rebuild baseline at ledger head 309 (it was at 306): 148 tables, 146 functions, 145 policies, 120 triggers; self-check OK. | — |
+| #1516 | Three specs the sweep found broken, none an app fault (below). | staging 7/7 |
+| this PR | Two specs guarded for the production probe (below); this entry. | prod: `videos-player` green, `videos-places` skipped |
+
+**The maintenance pass** (main `09399217`).
+- Gates: `npm run verify` 0 (677 files, 6,355 tests, 303 client chunks at the floor); audit 0; guardrails ✓ (104 bare-select advisory); blocklists ✓ (729 URLs / 936 classes / 242 ids / 1,696 data attributes); `check:schema` and `:prod` clean, ledger 309 on both, 148 tables.
+- Staging, paced in chunks: the touched areas (videos, YouTube, stats, account deletion and export, profile sports, guardian console, roster import) desktop **55 / 0** (1 skip); phones — mobile 12 / 0, WebKit 5 / 0, Android 5 / 0; the core set desktop 39 / 3.
+- Production, one spec at a time: **60 passed, 5 failed** — three are `org-site`'s signed-out cases (the launch gate, by design), two were specs that cannot hold against the real YouTube.
+- The phone-width pass is the 375 px assertions of the specs above on every surface the two rounds changed (the video page with tags and claims, the tag form's side chip, the flow's Where step, the Stats tab's lists and split control, the org Videos window, the sport card's line).
+
+**What the sweep found — five specs, no app fault.**
+- `likes`, `dropdown-visibility`: still selected the icon font's `<i>` tags, gone since Nov 8 (#1453). Neither is in the CI smoke set, so they had been red for a week unseen. Now `svg[data-fa=…]`.
+- `calendar-layers`: seeded "now + 2 days"; run after 11 pm the event crosses midnight and is, correctly, drawn on two days. Pinned to noon.
+- `videos-places`: needs three videos of one channel; the real YouTube rightly refuses the other two as another channel's (the Nov 11 rule). Skipped on the production probe; staging's stand-in still runs it whole.
+- `videos-player`: its resume step offers 0:35 on a 19-second video; the real YouTube knows the length. That step runs on staging only.
+- `registration` failed once inside a chunk and passed alone (a flake under load).
+
+**My own slips.** A broad `pkill -f "next dev"` to clear a stuck server could have hit another session's dev server — kill by PORT only (the stale-server rule already said so). The production probe waits for `origin/main`'s head; after a docs-only merge that commit never deploys — pin it with `E2E_EXPECT_COMMIT=<the commit /api/health shows>`.
+
+**Still open.** The film read's fixed cost (a cache, Tom's decision if it is ever wanted). The sport card does not read "different games" splits and treats a post with no date as its own game. A CI smoke set that would have caught the two stale icon specs is not widened here.
+
+**Still Tom's.** The three sittings in `docs/LAUNCH_RUNBOOK.md` §7: Google's verification reply (then the flag, the redeploy, the reviewer account), the installed-iPhone test, tagging one real game.
+
 ## November 14, 2026 (evening) — GitHub merges when green; three game-film finish-ups; verified film in the season totals
 
 Tom: "can we look to auto merge" and, for film, "only league and club tagged data is the only verified data for stats… the info needs to be there" for the rest; the club's film beats the athlete's own post; what a club or league posts is open "like a pro sports team website". Spec: `docs/specs/video-games.md` ("One game, counted once").
