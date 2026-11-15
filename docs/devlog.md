@@ -1,5 +1,18 @@
 # Development Log
 
+## November 16, 2026 (night) — Sprint 4 PR 6a: the athlete hides a game or a clip from their page (migration 311)
+
+Tom's decision 1: an athlete can hide a game or a single clip from their page; the stat still counts; "Remove me" stays as the stronger door.
+
+- **Migration 311** — `profile_film_hidden`: one row per game (no clip) or clip the athlete hid. Posture A; the grants are in the file; the profile, the video and the clip cascade. On staging: `311 APPLIED | 1 | 5 | false | 311`. **Production is Tom's to run** (the readers answer "nothing hidden" without the table, so the code is safe either side of it).
+- **One writer**, `POST /api/profile/[profileId]/film-hidden` — the athlete or their guardian, and only something they are tagged in.
+- **For a visitor** a hidden game sends no row, no clips and no periods, and a hidden clip is gone from every reel, the Clips browser and the door counts. **Every total is unchanged** (`forViewer`). The athlete and their guardian see everything, marked.
+- **On the page:** "Hide this game from my page" on the game level, the same for the playing clip in a reel, and the mark on a hidden row of the game log — said in words, no toast (the result is on the screen).
+
+Proof: `e2e/sport-profile.spec.ts` on staging at 375 px — the athlete hides a clip (the follower's goals door loses one clip, the totals do not move), then the game (gone from the follower's log; still on the athlete's, marked), a follower's own attempt is refused (403), and showing both again restores the follower's view exactly. 39 unit tests in the sport-profile rules; `check:schema` clean at ledger 311 on staging. PR 5 (#1524) merged; PR 4 proven on production (the page spec on `75ab773e`).
+
+Next: the unclaimed page and its claim request (PR 6b, migration 312).
+
 ## November 16, 2026 (evening) — Sprint 4 PR 5: media on its own — the Clips browser
 
 Tom's brief: "there still needs to be a place to just browse the athlete's clips without going through stats."

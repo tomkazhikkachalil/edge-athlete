@@ -43,9 +43,11 @@ interface Props {
   eventLabel?: (eventKey: string | null) => string | null;
   /** The Clips browser: where the playing clip came from — its game's stats, and each stat it made. */
   origin?: (clip: ReelClip) => { gameHref: string; stats: Array<{ key: string; label: string; href: string }> };
+  /** The athlete's own page: hide the playing clip from it, or show it again (the stat still counts). */
+  manage?: { busy: boolean; setHidden: (clip: ReelClip, hidden: boolean) => void };
 }
 
-export default function ClipReel({ heading, clips, total, onLoadMore, closeHref, eventLabel, origin }: Props) {
+export default function ClipReel({ heading, clips, total, onLoadMore, closeHref, eventLabel, origin, manage }: Props) {
   const list = useMemo(() => reelPlaylist(clips, OPEN_HIGHLIGHT_MS), [clips]);
   const [index, setIndex] = useState(0);
   // Bumped on every jump: the player seeks (same video) or mounts at the start (another video).
@@ -121,6 +123,14 @@ export default function ClipReel({ heading, clips, total, onLoadMore, closeHref,
           </p>
         );
       })()}
+      {manage && (
+        <p className="flex flex-wrap items-center gap-3 text-sm text-secondary" data-clip-hide="">
+          {clip.hidden && <span data-clip-hidden="">Hidden from your page — only you see it here. Its stats still count.</span>}
+          <button type="button" disabled={manage.busy} onClick={() => manage.setHidden(clip, !clip.hidden)} className="ea-interactive min-h-[44px] rounded-lg border border-border bg-surface px-4 font-medium text-primary disabled:opacity-60" data-clip-hide-toggle="">
+            {clip.hidden ? 'Show this clip on my page' : 'Hide this clip from my page'}
+          </button>
+        </p>
+      )}
       {done && <p className="text-sm text-secondary" data-clip-reel-done="">That was the last clip.</p>}
       {mode === 'frame' && clips.length > 1 && <p className="text-xs text-muted">Use Next to move to the following clip.</p>}
 
@@ -139,7 +149,7 @@ export default function ClipReel({ heading, clips, total, onLoadMore, closeHref,
                 <span className="w-14 shrink-0 tabular-nums text-muted">{clock(c.startMs)}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-primary">{clipTitle(event, c.label)}</span>
-                  <span className="block truncate text-xs text-muted">{c.gameTitle}{c.gameDate ? ` · ${formatDateShort(c.gameDate)}` : ''}{c.standing === 'recreational' ? ' · Recreational' : ''}</span>
+                  <span className="block truncate text-xs text-muted">{c.gameTitle}{c.gameDate ? ` · ${formatDateShort(c.gameDate)}` : ''}{c.standing === 'recreational' ? ' · Recreational' : ''}{c.hidden ? ' · Hidden from your page' : ''}</span>
                 </span>
               </button>
             </li>

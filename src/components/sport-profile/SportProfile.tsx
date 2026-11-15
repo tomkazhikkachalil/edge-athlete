@@ -52,6 +52,9 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
   // The viewer's own choice to open spoiler-free games — asked for, never the default.
   const [showHeld, setShowHeld] = useState(false);
   const [load, setLoad] = useState<Load>({ state: 'loading' });
+  // Bumped when the athlete hides or shows something: the numbers' rows and the reels are read again.
+  const [rev, setRev] = useState(0);
+  const onChanged = useCallback(() => setRev(r => r + 1), []);
   const [asked, setAsked] = useState({ profileId, sport, showHeld });
   if (asked.profileId !== profileId || asked.sport !== sport || asked.showHeld !== showHeld) {
     // A new sport is a new page of numbers; the same sport with the spoilers opened keeps what is on screen until the answer lands.
@@ -69,7 +72,7 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
       .then(answer => { if (!cancelled) setLoad({ state: 'ready', answer }); })
       .catch(() => { if (!cancelled) setLoad({ state: 'error' }); });
     return () => { cancelled = true; };
-  }, [profileId, sport, showHeld]);
+  }, [profileId, sport, showHeld, rev]);
 
   const basePath = sportPath(sport);
   // A clip says what it is in the sheet's own words ("Goal", "Three-pointer made").
@@ -148,17 +151,17 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
         )}
         {/* A number's clips, at the career or a season: the reel sits above the level it was opened from. */}
         {data && view.tab === 'clips' && (
-          <ClipsBrowser data={data} profileId={profileId} view={view} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} />
+          <ClipsBrowser data={data} profileId={profileId} view={view} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} onChanged={onChanged} />
         )}
         {data && view.tab === 'stats' && level !== 'game' && view.stat && (
-          <StatReel data={data} profileId={profileId} season={view.season} stat={view.stat} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} />
+          <StatReel data={data} profileId={profileId} season={view.season} stat={view.stat} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} />
         )}
         {data && view.tab === 'stats' && level === 'career' && <CareerView data={data} basePath={basePath} sportLabel={label} />}
         {data && view.tab === 'stats' && level === 'season' && view.season && (
           <SeasonView data={data} season={view.season} basePath={basePath} sportLabel={label} onShowHeld={() => setShowHeld(true)} />
         )}
         {data && view.tab === 'stats' && level === 'game' && view.game && (
-          <GameView data={data} profileId={profileId} season={view.season} gameKey={view.game} stat={view.stat} basePath={basePath} sportLabel={label} showHeld={showHeld} onShowHeld={() => setShowHeld(true)} eventLabel={eventLabel} />
+          <GameView data={data} profileId={profileId} season={view.season} gameKey={view.game} stat={view.stat} basePath={basePath} sportLabel={label} showHeld={showHeld} onShowHeld={() => setShowHeld(true)} eventLabel={eventLabel} rev={rev} onChanged={onChanged} />
         )}
       </main>
     </div>

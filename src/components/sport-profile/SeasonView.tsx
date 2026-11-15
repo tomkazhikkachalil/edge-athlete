@@ -54,6 +54,7 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
     else if (!g.counted && g.standing === 'verified_highlights') marks.push('Highlights only — not counted');
     else if (!g.counted && g.source === 'film' && !g.date) marks.push('No date played — not counted');
     else if (!g.counted) marks.push('Not counted');
+    if (row.hidden) marks.push('Hidden from your page');
     const title = g.opponent ? `vs ${g.opponent}` : g.title;
     return {
       id: g.key,

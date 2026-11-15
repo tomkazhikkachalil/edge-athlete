@@ -36,6 +36,8 @@ export interface ProfileClip {
   label: string;
   /** The athlete's stats this tag produced (`goals`, `shots`) — empty for a clip with no stat. */
   statKeys: string[];
+  /** The athlete hid this clip from their page (311). Only the athlete and their guardian are ever sent one. */
+  hidden?: boolean;
 }
 
 export interface ProfileGame {
@@ -61,6 +63,10 @@ export interface ProfileGame {
   clips: ProfileClip[];
   /** The athlete's stats by period, where the tags say the period. */
   byPeriod: Record<number, Stats>;
+  /** The athlete hid this whole game from their page (311) — still in the totals. */
+  hidden?: boolean;
+  /** Hidden, and this viewer is not the athlete: it counts, and nothing else about it is sent (forViewer). */
+  concealed?: boolean;
 }
 
 export interface Totals { games: number; totals: Stats }
@@ -135,7 +141,7 @@ export function splitByOpponent(games: readonly ProfileGame[], keys?: readonly s
   for (const g of games) {
     if (!g.counted) continue;
     const k = normName(g.opponent);
-    if (!k || g.held) { rest.push(g); continue; }
+    if (!k || g.held || g.concealed) { rest.push(g); continue; }
     const label = (g.opponent ?? '').trim();
     const row = by.get(k);
     if (!row) { by.set(k, { label, games: [g] }); continue; }
@@ -182,8 +188,8 @@ export function filmBehind(games: readonly ProfileGame[]): ProfileGame[] {
 export function filmOfGame(games: readonly ProfileGame[], key: string): ProfileGame | null {
   const g = games.find(x => x.key === key);
   if (!g) return null;
-  if (g.source === 'film') return g;
-  return games.find(x => x.source === 'film' && x.sameAs === key) ?? null;
+  if (g.source === 'film') return g.concealed ? null : g;
+  return games.find(x => x.source === 'film' && x.sameAs === key && !x.concealed) ?? null;
 }
 
 export interface ReelFilter {
@@ -267,6 +273,21 @@ export function reelStep(list: readonly ReelItem[], index: number, currentMs: nu
   if (!cur) return { action: 'done' };
   if (currentMs < cur.endMs) return { action: 'stay' };
   return index + 1 < list.length ? { action: 'next', index: index + 1 } : { action: 'done' };
+}
+
+/**
+ * What the athlete hid from their page (Tom, Nov 15 2026: the stat still
+ * counts). The athlete and their guardian see everything, marked. Anyone
+ * else: a hidden GAME keeps only what a total needs — no clips, no periods,
+ * `concealed` so the caller drops its row — and a hidden CLIP is gone from
+ * every game's clips. Totals are built before or after this; they agree.
+ */
+export function forViewer(games: readonly ProfileGame[], seesHidden: boolean): ProfileGame[] {
+  if (seesHidden) return [...games];
+  return games.map(g => {
+    if (g.hidden) return { ...g, clips: [], byPeriod: {}, concealed: true };
+    return g.clips.some(c => c.hidden) ? { ...g, clips: g.clips.filter(c => !c.hidden) } : g;
+  });
 }
 
 /**

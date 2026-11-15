@@ -4,7 +4,7 @@ import { adminClient, apiAs, bypassHeaders, loadQaUser, mintStorageState, readEr
 import { fitsViewportWidth } from './helpers/layout';
 import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
 
-// Sprint 4 PRs 3–5 (Nov 2026) — the athlete's sport profile, the page: pick the
+// Sprint 4 PRs 3–6a (Nov 2026) — the athlete's sport profile, the page: pick the
 // sport, Career → Season → Game → Play, every number a door to its clips, Back
 // walks up, every level is an address, the same page by id and by handle, at
 // phone width.
@@ -155,6 +155,41 @@ test('the sport profile: career → season → game → play, the doors and the 
     const door = page.locator('[data-sport-profile-door="soccer"]');
     await expect(door).toBeVisible({ timeout: 30_000 });
     await expect(door).toHaveAttribute('href', `/athlete/${athlete.id}/sport/soccer`);
+
+    // 5a. Hide (311; Tom: the stat still counts). The athlete hides one clip, then the whole game; a follower's totals never move.
+    const totalsOf = async (ctx: typeof athleteCtx) => {
+      const r = await ctx.request.get(`/api/profile/${athlete.id}/sport-profile?sport=soccer`);
+      expect(r.status(), await readErrorBody(r)).toBe(200);
+      return (await r.json()) as { career: { totals: Record<string, number>; clips: Record<string, number> }; games: Array<{ key: string; hidden: boolean }> };
+    };
+    const before = await totalsOf(followerCtx);
+    expect(before.games.some(g => g.key === `film:${videoId}`)).toBe(true);
+    await page.goto(`/athlete/${athlete.id}/sport/soccer?season=2026&game=film:${videoId}`);
+    const mine = page.locator(`[data-sport-level="game"][data-game="film:${videoId}"]`);
+    await expect(mine.locator('[data-clip-reel]')).toHaveAttribute('data-clip-reel-count', '2', { timeout: 30_000 });
+    await mine.locator('[data-clip-hide-toggle]').click();
+    await expect(mine.locator('[data-clip-hidden]')).toBeVisible({ timeout: 20_000 });
+    let theirsNow = await totalsOf(followerCtx);
+    expect(theirsNow.career.totals).toEqual(before.career.totals);
+    expect(theirsNow.career.clips.goals ?? 0).toBe((before.career.clips.goals ?? 0) - 1);
+    //     The whole game: gone from the follower's game log and clips; the athlete still sees it, marked; the totals are the same.
+    await mine.locator('[data-game-hide-toggle]').click();
+    await expect(mine.locator('[data-game-hidden="yes"]')).toBeVisible({ timeout: 20_000 });
+    theirsNow = await totalsOf(followerCtx);
+    expect(theirsNow.career.totals).toEqual(before.career.totals);
+    expect(theirsNow.games.some(g => g.key === `film:${videoId}`)).toBe(false);
+    expect((await totalsOf(athleteCtx)).games.find(g => g.key === `film:${videoId}`)).toMatchObject({ hidden: true });
+    const strangerHide = await followerCtx.request.post(`/api/profile/${athlete.id}/film-hidden`, { data: { video_id: videoId, hidden: false } });
+    expect(strangerHide.status()).toBe(403);
+    expect(await fitsViewportWidth(page)).toBe(true);
+    //     Shown again: back for everyone.
+    await mine.locator('[data-game-hide-toggle]').click();
+    await expect(mine.locator('[data-game-hidden="no"]')).toBeVisible({ timeout: 20_000 });
+    await mine.locator('[data-clip-hide-toggle]').click();
+    await expect(mine.locator('[data-clip-hidden]')).toHaveCount(0, { timeout: 20_000 });
+    theirsNow = await totalsOf(followerCtx);
+    expect(theirsNow.games.some(g => g.key === `film:${videoId}`)).toBe(true);
+    expect(theirsNow.career.clips).toEqual(before.career.clips);
 
     // 6. A follower, by id and by handle: the same career (a private profile's handle route hands a signed-in viewer to the id route).
     const theirs = await followerCtx.newPage();

@@ -16,6 +16,7 @@ import ClipReel from './ClipReel';
 import { formatDateShort } from './format';
 import type { SportProfileData } from './types';
 import { useClips } from './useClips';
+import { useFilmHide } from './useFilmHide';
 
 interface Props {
   data: SportProfileData;
@@ -24,13 +25,15 @@ interface Props {
   basePath: string;
   showHeld: boolean;
   eventLabel: (eventKey: string | null) => string | null;
+  rev: number;
+  onChanged: () => void;
 }
 
 const SELECT = 'min-h-[44px] w-full rounded-lg border border-border bg-surface px-3 text-base text-primary';
 
 type Filters = Pick<SportView, 'season' | 'game' | 'event'>;
 
-export default function ClipsBrowser({ data, profileId, view: opened, basePath, showHeld, eventLabel }: Props) {
+export default function ClipsBrowser({ data, profileId, view: opened, basePath, showHeld, eventLabel, rev, onChanged }: Props) {
   const router = useRouter();
   // The filters are held HERE and mirrored to the address: two changes in a row each start from the last one made,
   // not from an address the first change has not reached yet (the overlapping-saves rule).
@@ -41,7 +44,8 @@ export default function ClipsBrowser({ data, profileId, view: opened, basePath, 
   const games = useMemo(() => film.filter(g => !view.season || (g.season ?? NO_SEASON) === view.season).sort((a, b) => ((b.date ?? '') < (a.date ?? '') ? -1 : 1)), [film, view.season]);
   // The play types the sport's sheet can tag (a plain marker is not a play type).
   const events = useMemo(() => (gameSheetFor(data.sport)?.events ?? []).filter(e => e.group !== 'marker').map(e => ({ key: e.key, label: e.label })), [data.sport]);
-  const reel = useClips({ profileId, sport: data.sport, season: view.season, game: view.game, event: view.event, everyFilm: true, showHeld }, true);
+  const reel = useClips({ profileId, sport: data.sport, season: view.season, game: view.game, event: view.event, everyFilm: true, showHeld, rev }, true);
+  const hide = useFilmHide(profileId, onChanged);
   const set = (patch: Partial<Filters>) => {
     const next = { ...latest.current, ...patch };
     latest.current = next;
@@ -103,6 +107,7 @@ export default function ClipsBrowser({ data, profileId, view: opened, basePath, 
           onLoadMore={reel.more}
           eventLabel={eventLabel}
           origin={origin}
+          manage={data.can_edit ? { busy: hide.busy, setHidden: (c, hidden) => void hide.setHidden({ videoId: c.videoId, highlightId: c.id, hidden }) } : undefined}
         />
       )}
     </section>
