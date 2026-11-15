@@ -1,0 +1,114 @@
+import { test, expect } from './helpers/test';
+import { createQaOrg, deleteQaOrgs } from './helpers/org';
+import { adminClient, apiAs, bypassHeaders, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { fitsViewportWidth } from './helpers/layout';
+import { seedOwnChannel, withOwnChannel } from './helpers/own-channel';
+
+// Sprint 4 PR 3 (Nov 2026) — the athlete's sport profile, the page: pick the
+// sport, Career → Season, Back walks up, every level is an address, the same
+// page by id and by handle, at phone width.
+const YT = 'jNQXAC9IVRw';
+withOwnChannel([YT]);
+
+test('the sport profile: career → season → back, the game log, by id and by handle — at 375 px @mobile', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const admin = adminClient();
+  const owner = loadQaUser('user-b.json');
+  const athlete = loadQaUser('user.json');
+  const follower = loadQaUser('user-c.json');
+  await resetRateBucket(admin, 'video-write', owner.id);
+  const stamp = `${Date.now()}`;
+  const league = await createQaOrg(admin, 'league', { name: `QA Sport Page League ${stamp}`, owner_profile_id: owner.id, sport_key: 'soccer', visibility: 'public' });
+  const api = await apiAs('state-b.json');
+  const phone = { viewport: { width: 375, height: 800 }, extraHTTPHeaders: bypassHeaders() };
+  const athleteCtx = await browser.newContext({ storageState: await mintStorageState(athlete), ...phone });
+  const followerCtx = await browser.newContext({ storageState: await mintStorageState(follower), ...phone });
+  const since = new Date().toISOString();
+  let videoId: string | null = null;
+  try {
+    const member = await admin.from('memberships').insert({ org_id: league.id, profile_id: owner.id, role: 'owner', kind: 'follow', status: 'active' });
+    expect(member.error?.message ?? null).toBeNull();
+    await seedOwnChannel(admin, { orgId: league.id }, owner.id);
+    const follow = await admin.from('follows').insert({ follower_id: follower.id, following_id: athlete.id, status: 'accepted' });
+    expect(follow.error?.message ?? null).toBeNull();
+    // The athlete plays soccer (a sport on the profile is a setting or a post; the setting is the quiet way).
+    const declared = await admin.from('sport_settings').upsert({ profile_id: athlete.id, sport_key: 'soccer', settings: { position: 'forward' } }, { onConflict: 'profile_id,sport_key' });
+    expect(declared.error?.message ?? null).toBeNull();
+    const { data: handleRow } = await admin.from('profiles').select('handle').eq('id', athlete.id).single();
+    const handle = (handleRow as { handle: string | null } | null)?.handle;
+
+    let r = await api.post('/api/videos', { data: { url: `https://www.youtube.com/watch?v=${YT}`, title: `QA Sport Page game ${stamp}`, side: 'league', org_id: league.id, sport_key: 'soccer' } });
+    expect(r.status(), await readErrorBody(r)).toBe(201);
+    videoId = ((await r.json()).video as { id: string }).id;
+    r = await api.put(`/api/videos/${videoId}/game`, { data: { sport_key: 'soccer', played_on: '2026-03-07', side1: { name: 'QA Hawks' }, side2: { name: 'QA Owls' }, coverage: 'full', stats_hidden: false } });
+    expect(r.status(), await readErrorBody(r)).toBe(200);
+    for (const [ms, period] of [[1000, 1], [5000, 2]] as const) {
+      r = await api.post(`/api/videos/${videoId}/highlights`, { data: { start_ms: ms, label: 'Goal', event_key: 'goal', side: 1, period, people: [{ profile_id: athlete.id, role: 'scorer' }] } });
+      expect(r.status(), await readErrorBody(r)).toBe(201);
+    }
+
+    // 1. The athlete opens their own soccer profile: the career, one row per season, the career line under it.
+    const page = await athleteCtx.newPage();
+    await page.goto(`/athlete/${athlete.id}/sport/soccer`);
+    const career = page.locator('[data-sport-level="career"]');
+    await expect(career).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-sport-profile="soccer"]')).toBeVisible();
+    const seasonRow = career.locator('[data-stat-row="2026"]');
+    await expect(seasonRow.locator('[data-stat="goals"]')).toHaveText(/^[2-9]\d*$|^\d{2,}$/);
+    await expect(career.locator('[data-stat-row="career"]')).toBeVisible();
+    expect(await fitsViewportWidth(page)).toBe(true);
+
+    // 2. A season is a door: the address changes, the season's totals, the split and the game log are there.
+    await career.locator('[data-season-link="2026"]').click();
+    await expect(page).toHaveURL(/\/sport\/soccer\?season=2026$/);
+    const season = page.locator('[data-sport-level="season"][data-season="2026"]');
+    await expect(season).toBeVisible();
+    await expect(season.locator('[data-sport-split="opponent"]')).toContainText('QA Owls');
+    const gameRow = season.locator(`[data-stat-row="film:${videoId}"]`);
+    await expect(gameRow).toContainText('vs QA Owls');
+    await expect(gameRow).toContainText('Mar 7, 2026');
+    await expect(gameRow).toContainText('Game film');
+    await expect(gameRow.locator('[data-stat="goals"]')).toHaveText('2');
+    await expect(gameRow.locator(`[data-game-link="film:${videoId}"]`)).toHaveAttribute('href', `/videos/${videoId}`);
+    expect(await fitsViewportWidth(page)).toBe(true);
+
+    // 3. Back walks up a level; the season's own address opens the season directly.
+    await page.goBack();
+    await expect(page.locator('[data-sport-level="career"]')).toBeVisible();
+    await page.goto(`/athlete/${athlete.id}/sport/soccer?season=2026`);
+    await expect(page.locator('[data-sport-level="season"]')).toBeVisible({ timeout: 30_000 });
+    await page.locator('[data-level-up="career"]').click();
+    await expect(page.locator('[data-sport-level="career"]')).toBeVisible();
+
+    // 4. A sport the athlete does not have opens the first in their own order; a season that is not there says so.
+    await page.goto(`/athlete/${athlete.id}/sport/curling`);
+    await expect(page.locator('[data-sport-profile]')).toBeVisible({ timeout: 30_000 });
+    await expect(page).not.toHaveURL(/curling/);
+
+    // 5. The Stats tab's sport layer has the door.
+    await page.goto('/athlete?tab=stats&sport=soccer');
+    const door = page.locator('[data-sport-profile-door="soccer"]');
+    await expect(door).toBeVisible({ timeout: 30_000 });
+    await expect(door).toHaveAttribute('href', `/athlete/${athlete.id}/sport/soccer`);
+
+    // 6. A follower, by id and by handle: the same career (a private profile's handle route hands a signed-in viewer to the id route).
+    const theirs = await followerCtx.newPage();
+    await theirs.goto(`/athlete/${athlete.id}/sport/soccer`);
+    await expect(theirs.locator('[data-sport-level="career"] [data-stat-row="2026"]')).toBeVisible({ timeout: 30_000 });
+    if (handle) {
+      await theirs.goto(`/u/${handle}/sport/soccer?season=2026`);
+      await expect(theirs.locator('[data-sport-level="season"][data-season="2026"]')).toBeVisible({ timeout: 30_000 });
+      await expect(theirs.locator(`[data-stat-row="film:${videoId}"]`)).toContainText('vs QA Owls');
+      expect(await fitsViewportWidth(theirs)).toBe(true);
+    }
+  } finally {
+    if (videoId) await api.delete(`/api/videos/${videoId}`).catch(() => undefined);
+    await admin.from('follows').delete().eq('follower_id', follower.id).eq('following_id', athlete.id);
+    await admin.from('sport_settings').delete().eq('profile_id', athlete.id).eq('sport_key', 'soccer');
+    await admin.from('notifications').delete().eq('user_id', athlete.id).eq('type', 'tag').gte('created_at', since);
+    await api.dispose();
+    await athleteCtx.close();
+    await followerCtx.close();
+    await deleteQaOrgs(admin, [league.id]);
+  }
+});

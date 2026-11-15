@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 /**
  * The profile's Stats hub — the home for everything performance-related.
  *
@@ -87,6 +89,8 @@ interface StatsHubProps {
   initialSport?: string | null;
   /** Fires on chip flips — callers mirror the sport into the URL. */
   onSportChange?: (sportKey: string | null) => void;
+  /** The address of a sport's profile (Sprint 4) — /u/ passes its own; the default is the /athlete route. */
+  sportProfileHref?: (sportKey: string) => string;
 }
 
 export default function StatsHub({
@@ -97,6 +101,7 @@ export default function StatsHub({
   skillCards,
   initialSport,
   onSportChange,
+  sportProfileHref,
 }: StatsHubProps) {
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
@@ -354,6 +359,17 @@ export default function StatsHub({
         return (
           <>
             <SportBreakdownHeader card={card}>{breakdown}</SportBreakdownHeader>
+            {/* Sprint 4: the sport's own profile — career, seasons, every game. Only where the sport has a stat sheet. */}
+            {getStatSchema(card.sportKey as SportKey) && (
+              <Link
+                href={sportProfileHref ? sportProfileHref(card.sportKey) : `/athlete/${profileId}/sport/${card.sportKey}`}
+                className="ea-interactive mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium text-primary"
+                data-sport-profile-door={card.sportKey}
+              >
+                {card.sportLabel} profile: career, seasons and games
+                <span aria-hidden="true">→</span>
+              </Link>
+            )}
             {/* Play (244): head-to-head in this sport — the athlete chooses what shows. */}
             <RivalsPanel profileId={profileId} sportKey={card.sportKey} />
             {/* Play (244): friend challenges — the athlete's own, never shown to visitors. */}

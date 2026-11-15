@@ -633,6 +633,7 @@ export default function PublicProfilePage() {
               isOwnProfile={false}
               skillCards={profileData.skillCards}
               initialSport={statsSport}
+              sportProfileHref={sportKey => `/u/${encodeURIComponent(username)}/sport/${sportKey}`}
               onSportChange={(sportKey) => {
                 // URL mirror ONLY — statsSport is the mount seed (strip taps
                 // and deep links); updating it here would remount the hub on
