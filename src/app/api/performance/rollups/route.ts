@@ -55,7 +55,9 @@ export async function GET(request: NextRequest) {
     const trendParam = Number(searchParams.get('trend') ?? '');
     const trendLength = Number.isInteger(trendParam) && trendParam > 0 ? Math.min(trendParam, 2000) : undefined;
     // Verified film this viewer may open (Nov 14 2026) — read here, counted through the one same-game rule.
-    const film = await verifiedFilmGames(admin, profileId, sport, viewer, isOwner);
+    // Started here and awaited inside the reader, alongside the fact rows.
+    const film = verifiedFilmGames(admin, profileId, sport, viewer, isOwner);
+    film.catch(() => undefined);
     const { supported, rollups } = await readRollups(admin, profileId, sport, { viewerIsOwner: isOwner, trendLength, film });
     return NextResponse.json({ supported, rollups }, { headers: { 'Cache-Control': 'private, max-age=60' } });
   } catch (error) {

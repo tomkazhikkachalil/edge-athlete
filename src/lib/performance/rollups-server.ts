@@ -29,15 +29,21 @@ import { countGames, gameKey, type CountableGame } from './same-game';
 
 const IN_CHUNK = 200;
 
+/** Verified film handed in by the route — or the promise of it, so the route can start that read alongside this one. */
+export type FilmEvents = ReadonlyArray<{ videoId: string; date: string; contestId: string | null; stats: Record<string, number> }>;
+
 export async function readRollups(
   admin: SupabaseClient,
   profileId: string,
   sportKey: string,
-  opts: { viewerIsOwner: boolean; trendLength?: number; film?: ReadonlyArray<{ videoId: string; date: string; contestId: string | null; stats: Record<string, number> }> }
+  opts: { viewerIsOwner: boolean; trendLength?: number; film?: FilmEvents | Promise<FilmEvents> }
 ): Promise<{ supported: boolean; rollups: Rollups | null }> {
   const schema = getStatSchema(sportKey);
   if (!schema) return { supported: true, rollups: null };
 
+  // Asked alongside the rows, not after them.
+  const pairsAsked = readDistinctPairs(admin, profileId, sportKey);
+  pairsAsked.catch(() => undefined);
   const { data, error } = await admin
     .from('athlete_performances')
     .select('id, occurred_on, metrics, provenance, source, source_id, source_table, contest_id')
@@ -69,10 +75,10 @@ export async function readRollups(
     rows = rows.filter(r => r.source !== 'post' || visible.has(r.source_id));
   }
 
-  const film = opts.film ?? [];
+  const film = (await opts.film) ?? [];
   const filmId = gameKey.film;
   // The pairs the athlete said are two different games (309) — the same names the season totals use.
-  const distinct = distinctSet(await readDistinctPairs(admin, profileId, sportKey));
+  const distinct = distinctSet(await pairsAsked);
   const counted = countGames(
     [...rows.map(rollupGame), ...film.map(f => ({ id: filmId(f.videoId), source: 'film' as const, date: f.date, contestId: f.contestId }))],
     { matchByDate: gameHasSides(sportKey), distinct }
