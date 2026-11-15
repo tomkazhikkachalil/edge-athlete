@@ -26,7 +26,8 @@ test.describe('suggestion dropdowns are visible and clickable', () => {
     for (const viewport of [WIDE, NARROW]) {
       await page.setViewportSize(viewport);
       await page.goto('/sports/explore');
-      await page.locator('button:has(i.fa-search)').first().click();
+      // (Icons are symbols on one SVG sprite since Nov 8 2026 — `data-fa` names the glyph.)
+      await page.locator('button:has(svg[data-fa="magnifying-glass"])').first().click();
 
       const input = page.locator('input[name="ea-search"]');
       await expect(input).toBeVisible();
