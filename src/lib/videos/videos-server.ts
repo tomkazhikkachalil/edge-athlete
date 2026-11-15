@@ -163,12 +163,24 @@ export async function orgVideoAccess(admin: Admin, side: OrgKind, orgId: string,
   return { known: true, access: canManage && reach === null ? 'member' : reach, canManage };
 }
 
-async function factsFor(admin: Admin, row: VideoRow, user: User | null): Promise<VideoRightFacts> {
+/** One viewer's reach on organizations, remembered across the videos of ONE request (a list of an athlete's games is mostly one club's videos). Never kept longer. */
+export type OrgAccessMemo = Map<string, Promise<OrgVideoAccess>>;
+
+async function orgAccessOf(admin: Admin, orgId: string, viewerId: string | null): Promise<OrgVideoAccess> {
+  const { data: org } = await admin.from('organizations').select('kind').eq('id', orgId).maybeSingle();
+  const side: OrgKind = isOrgKind(org?.kind) ? org.kind : 'club';
+  return orgVideoAccess(admin, side, orgId, viewerId);
+}
+
+async function factsFor(admin: Admin, row: VideoRow, user: User | null, memo?: OrgAccessMemo): Promise<VideoRightFacts> {
   const viewerId = user?.id ?? null;
   if (row.org_id) {
-    const { data: org } = await admin.from('organizations').select('kind').eq('id', row.org_id).maybeSingle();
-    const side: OrgKind = isOrgKind(org?.kind) ? org.kind : 'club';
-    const a = await orgVideoAccess(admin, side, row.org_id, viewerId);
+    let asked = memo?.get(row.org_id);
+    if (!asked) {
+      asked = orgAccessOf(admin, row.org_id, viewerId);
+      memo?.set(row.org_id, asked);
+    }
+    const a = await asked;
     return { viewerId, status: row.status, owner: 'org', orgAccess: a.known ? a.access : null, orgCanManage: a.canManage };
   }
   const profileId = row.profile_id ?? '';
@@ -279,7 +291,7 @@ export interface VideoRead {
 }
 
 /** One video for THIS viewer, or null (the same 404 as not-found). */
-export async function readVideoForViewer(admin: Admin, id: string, user: User | null): Promise<VideoRead | null> {
+export async function readVideoForViewer(admin: Admin, id: string, user: User | null, memo?: OrgAccessMemo): Promise<VideoRead | null> {
   const { data, error } = await admin.from('videos').select(VIEW_COLUMNS).eq('id', id).maybeSingle();
   if (error) {
     console.error(`${TAG} read failed:`, error.message);
@@ -287,7 +299,7 @@ export async function readVideoForViewer(admin: Admin, id: string, user: User | 
   }
   if (!data) return null;
   const raw = data as unknown as ReadRow;
-  const facts = await factsFor(admin, raw, user);
+  const facts = await factsFor(admin, raw, user, memo);
   const view = viewRight(facts);
   if (!view.allowed) return null;
   const canManage = manageRight(facts).allowed;
@@ -305,19 +317,22 @@ export interface TagViewer { id: string | null; canManage: boolean }
  * and a private profile is never named to a stranger.
  */
 export async function listHighlights(admin: Admin, videoId: string, viewer: TagViewer = { id: null, canManage: false }): Promise<HighlightRow[]> {
-  const { data, error } = await admin
-    .from('video_highlights')
-    .select(HIGHLIGHT_COLUMNS)
-    .eq('video_id', videoId)
-    .order('start_ms', { ascending: true })
-    .order('created_at', { ascending: true })
-    .limit(HIGHLIGHT_READ_MAX);
+  // The tags and the people in them are two reads that do not wait on each other.
+  const [{ data, error }, people] = await Promise.all([
+    admin
+      .from('video_highlights')
+      .select(HIGHLIGHT_COLUMNS)
+      .eq('video_id', videoId)
+      .order('start_ms', { ascending: true })
+      .order('created_at', { ascending: true })
+      .limit(HIGHLIGHT_READ_MAX),
+    readTagPeople(admin, videoId, viewer),
+  ]);
   if (error) {
     console.error(`${TAG} highlights read failed:`, error.message);
     return [];
   }
   const rows = (data ?? []) as unknown as Array<Omit<HighlightRow, 'people'>>;
-  const people = await readTagPeople(admin, videoId, viewer);
   return rows.map(r => ({ ...r, people: people.get(r.id) ?? [] }));
 }
 
