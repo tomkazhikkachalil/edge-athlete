@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useMemo, useState } from 'react';
 import { cellText, personKey, tagsForPerson, type DrillFilter, type GameTag, type PlayerLine } from '@/lib/videos/game-derive';
 import { periodLabel, sheetEvent, type GameSheet } from '@/lib/videos/game-sheets';
@@ -43,6 +45,8 @@ export default function AthleteClips({ sheet, line, tags, onPlay, onPlayAll, onC
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold text-primary break-words" data-athlete-clips-name="">{line.name ?? 'Player'}</p>
+          {/* Sprint 4: a linked athlete's page — and for a player who has not claimed theirs, the unclaimed page where they can ask for it. */}
+          {line.profileId && <Link href={`/athlete/${line.profileId}`} className="text-xs font-medium text-secondary underline" data-athlete-clips-profile="">Open their profile</Link>}
           <p className="text-xs text-muted">{mine.length} {mine.length === 1 ? 'clip' : 'clips'} in this game</p>
         </div>
         <button type="button" onClick={onClose} className="ea-icon-btn text-secondary" aria-label="Close"><FaIcon icon={faXmark} /></button>

@@ -115,6 +115,10 @@ const PUBLIC_ROUTES: Record<string, string> = {
  * resolveActingProfile and remove it from this list.
  */
 const REVIEWED_SELF_SCOPED: Record<string, string> = {
+  'profile/[profileId]/unclaimed':
+    'Sprint 4 PR 6b (312): signed-in only; readUnclaimed answers null (404) unless the target is an unclaimed placeholder whose page is open, or the viewer manages the tagging organization\'s videos (orgVideoAccess → manage_video). PATCH is that organization\'s video managers only',
+  'profile/[profileId]/claim-request/[requestId]':
+    'Sprint 4 PR 6b (312): the ORGANIZATION answers — decideProfileClaim requires manage_video on the request\'s own org (orgVideoAccess) and answers 404 otherwise; the [profileId] is the placeholder, never the actor',
   'profile/[profileId]/sport-profile':
     'Sprint 4 (Nov 2026): the gate is sportProfileViewer (src/lib/sport-profile/sport-profile-server.ts) — profileManages (resolveActingProfile) for the athlete or a guardian, else canViewProfile / a public present profile for a stranger, then a block check; a refusal is a 404. Pinned by sport-profile rules.test.ts and e2e/sport-profile-api.spec.ts',
   'profile/[profileId]/sport-clips':

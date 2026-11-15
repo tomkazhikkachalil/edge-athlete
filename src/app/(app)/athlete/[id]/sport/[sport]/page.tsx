@@ -12,6 +12,8 @@ import AppHeader from '@/components/AppHeader';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import RouteLoading from '@/components/RouteLoading';
 import SportProfile from '@/components/sport-profile/SportProfile';
+import UnclaimedBanner from '@/components/sport-profile/UnclaimedBanner';
+import type { UnclaimedView } from '@/lib/sport-profile/unclaimed-server';
 import { useAuth } from '@/lib/auth';
 import { fetchJson, httpStatus, readCached } from '@/lib/net/query-cache';
 import { formatDisplayName } from '@/lib/formatters';
@@ -20,7 +22,17 @@ import type { SportSkillCard } from '@/lib/sports/server/types';
 import type { Profile } from '@/lib/supabase';
 
 interface ProfileAnswer { profile: Profile; canView?: boolean }
-type Load = { state: 'loading' } | { state: 'missing' } | { state: 'private'; profile: Profile } | { state: 'ready'; profile: Profile; cards: SportSkillCard[] };
+type Load =
+  | { state: 'loading' }
+  | { state: 'missing' }
+  | { state: 'private'; profile: Profile }
+  | { state: 'ready'; profile: Profile; cards: SportSkillCard[] }
+  // A tagged player who has not claimed their profile (312): the sport profile only, under a short name.
+  | { state: 'unclaimed'; view: UnclaimedView };
+
+/** A placeholder has no skill cards: its sports are the ones it has film in. */
+const cardsOf = (view: UnclaimedView): SportSkillCard[] =>
+  view.sports.map(s => ({ sportKey: s.sportKey as SportSkillCard['sportKey'], sportLabel: s.sportLabel, headline: null, progress: null, tiles: [], entered: [], detailHref: null, enabled: true, state: 'empty', pinned: false, pinOrder: null }));
 
 const STALE_MS = 60_000;
 
@@ -29,6 +41,8 @@ export default function AthleteSportProfilePage() {
   const { user, loading: authLoading, initialAuthCheckComplete } = useAuth();
   const router = useRouter();
   const [load, setLoad] = useState<Load>({ state: 'loading' });
+  // Bumped when a request, an answer or the private switch changed the unclaimed page.
+  const [rev, setRev] = useState(0);
 
   // Signed out: the login form is `/`.
   useEffect(() => {
@@ -47,15 +61,22 @@ export default function AthleteSportProfilePage() {
       if (cancelled) return;
       if (!profile.data) { setLoad({ state: httpStatus(profile.error) === 404 ? 'missing' : 'missing' }); return; }
       const mayView = profile.data.canView !== false || profile.data.profile.id === user.id;
-      setLoad(mayView ? { state: 'ready', profile: profile.data.profile, cards: cards?.skillCards ?? [] } : { state: 'private', profile: profile.data.profile });
+      if (mayView) { setLoad({ state: 'ready', profile: profile.data.profile, cards: cards?.skillCards ?? [] }); return; }
+      // Private to this viewer: it may still be an unclaimed placeholder, whose sport profile is open.
+      const closed = profile.data.profile;
+      fetch(`/api/profile/${id}/unclaimed`, { credentials: 'include' })
+        .then(async r => (r.ok ? ((await r.json()) as { unclaimed: UnclaimedView }).unclaimed : null))
+        .catch(() => null)
+        .then(view => { if (!cancelled) setLoad(view ? { state: 'unclaimed', view } : { state: 'private', profile: closed }); });
     });
     return () => { cancelled = true; };
-  }, [id, user]);
+  }, [id, user, rev]);
 
   // A link that names a sport the athlete does not have opens the first in their own order.
-  const landing = load.state === 'ready' ? landingSport(load.cards, sport) : null;
+  const cards = load.state === 'ready' ? load.cards : load.state === 'unclaimed' ? cardsOf(load.view) : [];
+  const landing = load.state === 'ready' || load.state === 'unclaimed' ? landingSport(cards, sport) : null;
   useEffect(() => {
-    if (load.state === 'ready' && landing && landing !== sport) router.replace(`/athlete/${id}/sport/${landing}`);
+    if ((load.state === 'ready' || load.state === 'unclaimed') && landing && landing !== sport) router.replace(`/athlete/${id}/sport/${landing}`);
   }, [load.state, landing, sport, id, router]);
 
   if (load.state === 'loading' || !user) return <RouteLoading message="Loading sport profile..." />;
@@ -64,6 +85,22 @@ export default function AthleteSportProfilePage() {
       <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <PrivateProfileView profile={load.profile} />
+      </div>
+    );
+  }
+  if (load.state === 'unclaimed') {
+    const v = load.view;
+    return (
+      <div className="min-h-screen bg-canvas pb-24 lg:pb-8">
+        <AppHeader showSearch={true} />
+        <div className="mx-auto w-full max-w-4xl px-4 pt-6 sm:px-6">
+          <UnclaimedBanner view={v} onChanged={() => setRev(r => r + 1)} />
+        </div>
+        {landing ? (
+          <SportProfile key={rev} profileId={v.profile_id} name={v.name} avatarUrl={null} cards={cards} sport={landing} profilePath={`/athlete/${v.profile_id}/sport/${landing}`} sportPath={key => `/athlete/${v.profile_id}/sport/${key}`} />
+        ) : (
+          <p className="mx-auto max-w-4xl px-4 text-secondary sm:px-6" data-unclaimed-empty="">There are no tagged games for {v.name} here.</p>
+        )}
       </div>
     );
   }

@@ -533,6 +533,10 @@ async function deleteOwnThings(admin: Admin, userId: string, mustDelete: MustDel
   await mustDelete('stat_game_distinct', 'profile_id');
   // Sport profile (311): the games and clips the person hid from their own page (before their videos: a row on their own video cascades anyway).
   await mustDelete('profile_film_hidden', 'profile_id');
+  // Unclaimed profiles (312): the person's requests for a placeholder's film (a placeholder's own rows cascade with it).
+  await mustDelete('profile_claim_requests', 'requester_profile_id');
+  await mustDelete('profile_claim_requests', 'profile_id');
+  await mustDelete('unclaimed_page_private', 'profile_id');
   await mustDelete('videos', 'profile_id');
   // The YouTube connection (298): the person's own channel grant, and any org connection their Google account made.
   await mustDelete('youtube_connections', 'profile_id');

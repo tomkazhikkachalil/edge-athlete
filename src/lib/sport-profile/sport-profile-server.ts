@@ -30,6 +30,7 @@ import { anonymousProfileCanView, profileManages, VIDEO_COLUMNS, videoFactsFor, 
 import { canViewProfile } from '@/lib/privacy';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { readFilmHidden } from './film-hide-server';
+import { unclaimedPageOpen } from './unclaimed-open-server';
 import { careerOf, clipCounts, clipCountsOfGame, cutHeld, filmOfGame, forViewer, seasonsOf, type ProfileClip, type ProfileGame, type Stats } from './rules';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the admin client is untyped across the app
@@ -48,7 +49,7 @@ export async function blockedFromProfile(admin: Admin, viewerId: string | null, 
   return allowed.length === 0;
 }
 
-export interface SportProfileViewer { user: User | null; isOwner: boolean; actsForProfile: boolean }
+export interface SportProfileViewer { user: User | null; isOwner: boolean; actsForProfile: boolean; /** Let in because this is an open unclaimed page (312): the sport profile only, under a short name. */ unclaimed?: boolean }
 
 /**
  * Who is asking, or null (the caller answers 404 — never why): the athlete
@@ -59,8 +60,11 @@ export async function sportProfileViewer(admin: Admin, user: User | null, profil
   const acts = user ? await profileManages(user.id, profileId) : false;
   if (!acts) {
     const canView = user ? (await canViewProfile(profileId, user.id)).canView : await anonymousProfileCanView(admin, profileId);
-    if (!canView) return null;
+    // An unclaimed placeholder's page is open to a signed-in visitor unless its organization keeps it private (312).
+    const unclaimed = !canView && !!user && (await unclaimedPageOpen(admin, profileId));
+    if (!canView && !unclaimed) return null;
     if (await blockedFromProfile(admin, user?.id ?? null, profileId)) return null;
+    if (unclaimed) return { user, isOwner: false, actsForProfile: false, unclaimed: true };
   }
   return { user, isOwner: user?.id === profileId, actsForProfile: acts };
 }

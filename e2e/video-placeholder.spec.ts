@@ -15,7 +15,7 @@ withOwnChannel(['jNQXAC9IVRw']);
 
 interface Candidate { id: string; name: string; group: string }
 
-test('a club adds a player with no account from the tag form, tags them, and a stranger reads "Player 1"; a person\'s video cannot — at 375 px', async ({ browser }) => {
+test('a club adds a player with no account from the tag form, tags them; a stranger reads the short name of the unclaimed page, or "Player 1" when the club keeps it private; a person\'s video cannot — at 375 px', async ({ browser }) => {
   test.setTimeout(240_000);
   const admin = adminClient();
   const owner = loadQaUser('user-b.json');
@@ -70,10 +70,22 @@ test('a club adds a player with no account from the tag form, tags them, and a s
     // 3. Tagged like anyone: named to the manager, "Player 1" to a stranger — never the name.
     res = await api.post(`/api/videos/${videoId}/highlights`, { data: { start_ms: 1000, label: 'Three', event_key: 'fg3_made', side: 1, period: 1, people: [{ profile_id: made.id, role: 'scorer' }] } });
     expect(res.status(), await readErrorBody(res)).toBe(201);
-    const strangerText = await (await strangerApi.get(`/api/videos/${videoId}`)).text();
-    expect(strangerText).toContain('Player 1');
+    //    Since Sprint 4 (Tom, Nov 15 2026; migration 312): an unclaimed player's page is open, so a signed-in stranger reads
+    //    the SHORT name and the link to that page — never the full name. The club's switch closes it: "Player 1", no link.
+    const shortName = `Phantom ${stamp.slice(-6)[0].toUpperCase()}.`;
+    let strangerText = await (await strangerApi.get(`/api/videos/${videoId}`)).text();
+    expect(strangerText).toContain(shortName);
+    expect(strangerText).toContain(made.id);
     expect(strangerText).not.toContain(name);
+    expect(strangerText).not.toContain('Player 1');
+    expect((await strangerApi.patch(`/api/profile/${made.id}/unclaimed`, { data: { listed: false } })).status()).toBe(404);
+    res = await api.patch(`/api/profile/${made.id}/unclaimed`, { data: { listed: false } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    strangerText = await (await strangerApi.get(`/api/videos/${videoId}`)).text();
+    expect(strangerText).toContain('Player 1');
+    expect(strangerText).not.toContain(shortName);
     expect(strangerText).not.toContain(made.id);
+    expect((await strangerApi.get(`/api/profile/${made.id}/unclaimed`)).status()).toBe(404);
 
     // 4. On the page: type a name nobody has, add them as a player, and they are on the tag.
     const page = await ctx.newPage();
