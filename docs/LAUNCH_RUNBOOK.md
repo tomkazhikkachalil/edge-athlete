@@ -508,10 +508,10 @@ On the iPhone with Edge Athlete added to the Home Screen, signed in as yourself.
 | # | Do | You should see |
 | --- | --- | --- |
 | 1 | Open the app from the Home Screen icon (not Safari) | The feed, no browser bar |
-| 2 | Create → **Full game** | The Link step with a **Connect YouTube** door (or your channel's name if already connected) |
+| 2 | Create → **Full game** | The Link step with "Connect your YouTube channel" and a **Connect YouTube** button (or your channel's name if already connected) |
 | 3 | Tap Connect, choose your Google account | Google's page. Until 7a is done it says "Google hasn't verified this app" — tap **Advanced**, then continue to Edge Athlete |
 | 4 | Approve | You are back **inside the installed app** on the same step, and it names your channel |
-| 5 | Choose **Upload a video**, pick a short clip (under a minute), give it a title, finish | A progress bar that reaches the end; the app stays usable while it uploads |
+| 5 | Choose **Upload a file to (your channel)**, pick a short clip (under a minute), give it a title, finish | A progress bar that reaches the end; the app stays usable while it uploads |
 | 6 | Open your profile → Videos | The new video's row, with its thumbnail once YouTube has processed it |
 
 If any row differs: a screenshot of what you see and the row number is all Claude needs. The two known weak points are row 4 (iOS may return to Safari instead of the installed app) and row 5 (a locked phone pauses an upload).
