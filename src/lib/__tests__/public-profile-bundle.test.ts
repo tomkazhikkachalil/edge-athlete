@@ -41,7 +41,8 @@ describe('the public profile is one bundle', () => {
     expect(m).toMatch(/VALUES \(280, '280_public_profile_bundle\.sql'\)/);
   });
   it('the modules use the bundle\'s lines when handed them, and read otherwise', () => {
-    expect(read('src/lib/sports/server/stat-line.ts')).toMatch(/ctx\.statLines\s*\?\s*statsCardFromLines\(ctx\.statLines\.slice\(0, 100\)/);
+    // Nov 14 2026: the same choice, the lines kept (they ride to the official merge) — the bundle's first 100, or one read.
+    expect(read('src/lib/sports/server/stat-line.ts')).toMatch(/ctx\.statLines \? ctx\.statLines\.slice\(0, 100\) : await fetchStatLinePosts\(supabase, profileId, sportKey, 100, \{ includePrivate: ctx\.includePrivate \}\)/);
     expect(read('src/lib/sports/server/track-field.ts')).toMatch(/ctx\.statLines\s*\?\s*ctx\.statLines\.slice\(0, 200\)/);
     const idx = read('src/lib/sports/server/index.ts');
     expect(idx).toMatch(/prefetched \? Promise\.resolve\(\{ data: \{ sport: prefetched\.sport \} \}\)/);

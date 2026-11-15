@@ -4,7 +4,8 @@ import {
   resolveSanctionedPairs,
   type ResultProvenance,
 } from '@/lib/orgs/provenance';
-import { computeProfileTile, type SportStatSchema, type StatLineData } from '../stat-schemas';
+import { computeProfileTile, isStatLineData, type SportStatSchema, type StatLineData } from '../stat-schemas';
+import { countGames, gameKey } from '@/lib/performance/same-game';
 import { PROVENANCE_RANK } from '../provenance-copy';
 import type { SkillCardContribution, SkillProvenance, SkillTile } from './types';
 import { type OrgKindRow, pairFieldsOf } from '@/lib/orgs/org-ref';
@@ -247,7 +248,8 @@ export async function fetchOfficialStatLines(
 export function mergeOfficialContribution(
   contribution: SkillCardContribution | null,
   officialLines: OfficialStatLine[],
-  schema: SportStatSchema | null
+  schema: SportStatSchema | null,
+  matchByDate = false
 ): SkillCardContribution | null {
   // R5: a disputed line is unconfirmed — it never feeds the headline numbers
   // (the conservative-minimum principle: a total is only as strong as its
@@ -273,8 +275,20 @@ export function mergeOfficialContribution(
 
   const officialLabels = new Set(officialTiles.map(t => t.label));
   const keptTracked = (contribution?.tiles ?? []).filter(t => !officialLabels.has(t.label));
+  // The card stays the VERIFIED record (Tom, Nov 14 2026). The Stats tab also counts the athlete's own posted games —
+  // each game once (same-game.ts) — so the card says how many of those there are besides the official ones.
+  const posted = (contribution?.statLines ?? []).filter(isStatLineData);
+  const verdicts = countGames(
+    [
+      ...confirmed.map(l => ({ id: gameKey.official(l.contestId), source: 'official' as const, date: l.date ? l.date.slice(0, 10) : null, contestId: l.contestId, opponent: l.opponentName })),
+      ...posted.map((l, i) => ({ id: `post:${i}`, source: 'post' as const, date: l.date ? l.date.slice(0, 10) : null, opponent: l.opponent ?? null })),
+    ],
+    { matchByDate }
+  );
+  const selfPostedGames = posted.filter((_, i) => verdicts.get(`post:${i}`)?.counted !== false).length;
   return {
     ...(contribution ?? {}),
     tiles: [...officialTiles, ...keptTracked],
+    ...(selfPostedGames > 0 ? { selfPostedGames } : {}),
   };
 }

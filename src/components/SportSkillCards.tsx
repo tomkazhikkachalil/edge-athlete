@@ -81,6 +81,19 @@ export function ProvenanceChip({ provenance }: { provenance: SkillProvenance }) 
   );
 }
 
+/**
+ * The card stays the VERIFIED record (Tom, Nov 14 2026): when its tiles are official lines only, the athlete's own posted
+ * games are not in them — said here, so a smaller count than the Stats tab's is explained, not a mistake.
+ */
+export function SelfPostedNote({ games, where }: { games: number | undefined; where: 'profile' | 'stats' }) {
+  if (!games || games <= 0) return null;
+  return (
+    <p className="mt-2 text-xs text-muted" data-skill-self-posted={games}>
+      Verified games only. +{games} self-posted {games === 1 ? 'game' : 'games'} {where === 'stats' ? 'counted in the breakdown' : 'on the Stats tab'}.
+    </p>
+  );
+}
+
 export function TileGrid({ tiles }: { tiles: SkillTile[] }) {
   if (tiles.length === 0) return null;
   return (
@@ -148,6 +161,7 @@ function CardBody({ card }: { card: SportSkillCard }) {
       )}
 
       <TileGrid tiles={card.tiles} />
+      <SelfPostedNote games={card.selfPostedGames} where="profile" />
 
       <SportSettingsRow items={card.entered} className="mt-3 px-0 pb-0" />
     </>
