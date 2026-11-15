@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-15T16:03:51.525013+00:00 from server 17.6 by
+-- Generated 2026-11-15T20:52:30.379047+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 310.
+-- public.schema_dump() (migration 227). Ledger head at generation: 312.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -5399,7 +5399,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (148) ──────────────────────────────────────────────────────────────
+-- ── Tables (151) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -6852,6 +6852,28 @@ CREATE TABLE IF NOT EXISTS public.profile_access_audit (
   created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS public.profile_claim_requests (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  profile_id uuid NOT NULL,
+  requester_profile_id uuid NOT NULL,
+  requested_by_user_id uuid,
+  org_id uuid NOT NULL,
+  status text DEFAULT 'pending'::text NOT NULL,
+  linked_count integer DEFAULT 0 NOT NULL,
+  decided_by_user_id uuid,
+  decided_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.profile_film_hidden (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  profile_id uuid NOT NULL,
+  video_id uuid NOT NULL,
+  highlight_id uuid,
+  created_by_user_id uuid,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.profile_seen (
   profile_id uuid NOT NULL,
   first_day date NOT NULL,
@@ -7381,6 +7403,12 @@ CREATE TABLE IF NOT EXISTS public.training_pins (
   ref text NOT NULL,
   record_kind text,
   created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.unclaimed_page_private (
+  profile_id uuid NOT NULL,
+  set_by_user_id uuid,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.user_blocks (
@@ -8107,6 +8135,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_pkey' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_film_hidden_pkey' AND conrelid = 'public.profile_film_hidden'::regclass) THEN
+    ALTER TABLE public.profile_film_hidden ADD CONSTRAINT profile_film_hidden_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_seen_pkey' AND conrelid = 'public.profile_seen'::regclass) THEN
     ALTER TABLE public.profile_seen ADD CONSTRAINT profile_seen_pkey PRIMARY KEY (profile_id);
   END IF;
@@ -8279,6 +8317,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'training_pins_pkey' AND conrelid = 'public.training_pins'::regclass) THEN
     ALTER TABLE public.training_pins ADD CONSTRAINT training_pins_pkey PRIMARY KEY (profile_id, "position");
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unclaimed_page_private_pkey' AND conrelid = 'public.unclaimed_page_private'::regclass) THEN
+    ALTER TABLE public.unclaimed_page_private ADD CONSTRAINT unclaimed_page_private_pkey PRIMARY KEY (profile_id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10088,6 +10131,21 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_access_audit_action_check' AND conrelid = 'public.profile_access_audit'::regclass) THEN
     ALTER TABLE public.profile_access_audit ADD CONSTRAINT profile_access_audit_action_check CHECK ((action = ANY (ARRAY['granted'::text, 'revoked'::text, 'role_changed'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_linked_count_check' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_linked_count_check CHECK ((linked_count >= 0));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_not_self_check' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_not_self_check CHECK ((profile_id <> requester_profile_id));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_status_check' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'declined'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -12078,6 +12136,51 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_decided_by_user_id_fkey' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_decided_by_user_id_fkey FOREIGN KEY (decided_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_org_id_fkey' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_profile_id_fkey' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_requested_by_user_id_fkey' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_requested_by_user_id_fkey FOREIGN KEY (requested_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_claim_requests_requester_profile_id_fkey' AND conrelid = 'public.profile_claim_requests'::regclass) THEN
+    ALTER TABLE public.profile_claim_requests ADD CONSTRAINT profile_claim_requests_requester_profile_id_fkey FOREIGN KEY (requester_profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_film_hidden_created_by_user_id_fkey' AND conrelid = 'public.profile_film_hidden'::regclass) THEN
+    ALTER TABLE public.profile_film_hidden ADD CONSTRAINT profile_film_hidden_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_film_hidden_highlight_id_fkey' AND conrelid = 'public.profile_film_hidden'::regclass) THEN
+    ALTER TABLE public.profile_film_hidden ADD CONSTRAINT profile_film_hidden_highlight_id_fkey FOREIGN KEY (highlight_id) REFERENCES video_highlights(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_film_hidden_profile_id_fkey' AND conrelid = 'public.profile_film_hidden'::regclass) THEN
+    ALTER TABLE public.profile_film_hidden ADD CONSTRAINT profile_film_hidden_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_film_hidden_video_id_fkey' AND conrelid = 'public.profile_film_hidden'::regclass) THEN
+    ALTER TABLE public.profile_film_hidden ADD CONSTRAINT profile_film_hidden_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profile_seen_profile_id_fkey' AND conrelid = 'public.profile_seen'::regclass) THEN
     ALTER TABLE public.profile_seen ADD CONSTRAINT profile_seen_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
   END IF;
@@ -12415,6 +12518,16 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'training_pins_profile_id_fkey' AND conrelid = 'public.training_pins'::regclass) THEN
     ALTER TABLE public.training_pins ADD CONSTRAINT training_pins_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unclaimed_page_private_profile_id_fkey' AND conrelid = 'public.unclaimed_page_private'::regclass) THEN
+    ALTER TABLE public.unclaimed_page_private ADD CONSTRAINT unclaimed_page_private_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unclaimed_page_private_set_by_user_id_fkey' AND conrelid = 'public.unclaimed_page_private'::regclass) THEN
+    ALTER TABLE public.unclaimed_page_private ADD CONSTRAINT unclaimed_page_private_set_by_user_id_fkey FOREIGN KEY (set_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -12963,6 +13076,17 @@ CREATE INDEX IF NOT EXISTS idx_profile_access_guardians ON public.profile_access
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_access_one_self_role ON public.profile_access USING btree (profile_id) WHERE (role = ANY (ARRAY['owner'::text, 'supervised'::text]));
 CREATE INDEX IF NOT EXISTS idx_profile_access_profile_role ON public.profile_access USING btree (profile_id, role);
 CREATE INDEX IF NOT EXISTS idx_profile_access_audit_profile ON public.profile_access_audit USING btree (profile_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS profile_claim_requests_decided_by_user_id_idx ON public.profile_claim_requests USING btree (decided_by_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS profile_claim_requests_open_uidx ON public.profile_claim_requests USING btree (profile_id, requester_profile_id) WHERE (status = 'pending'::text);
+CREATE INDEX IF NOT EXISTS profile_claim_requests_org_id_idx ON public.profile_claim_requests USING btree (org_id, status);
+CREATE INDEX IF NOT EXISTS profile_claim_requests_profile_id_idx ON public.profile_claim_requests USING btree (profile_id, status);
+CREATE INDEX IF NOT EXISTS profile_claim_requests_requested_by_user_id_idx ON public.profile_claim_requests USING btree (requested_by_user_id);
+CREATE INDEX IF NOT EXISTS profile_claim_requests_requester_profile_id_idx ON public.profile_claim_requests USING btree (requester_profile_id);
+CREATE UNIQUE INDEX IF NOT EXISTS profile_film_hidden_clip_uidx ON public.profile_film_hidden USING btree (profile_id, highlight_id) WHERE (highlight_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS profile_film_hidden_created_by_user_id_idx ON public.profile_film_hidden USING btree (created_by_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS profile_film_hidden_game_uidx ON public.profile_film_hidden USING btree (profile_id, video_id) WHERE (highlight_id IS NULL);
+CREATE INDEX IF NOT EXISTS profile_film_hidden_highlight_id_idx ON public.profile_film_hidden USING btree (highlight_id);
+CREATE INDEX IF NOT EXISTS profile_film_hidden_video_id_idx ON public.profile_film_hidden USING btree (video_id);
 CREATE INDEX IF NOT EXISTS idx_profile_seen_first_day ON public.profile_seen USING btree (first_day);
 CREATE INDEX IF NOT EXISTS idx_profile_seen_last_day ON public.profile_seen USING btree (last_day);
 CREATE INDEX IF NOT EXISTS idx_profile_transfers_cron ON public.profile_transfers USING btree (state) WHERE (state = ANY (ARRAY['cooling_off'::text, 'executing'::text, 'requested'::text, 'credentials_pending'::text, 'dual_confirm'::text]));
@@ -13065,6 +13189,7 @@ CREATE INDEX IF NOT EXISTS idx_tickets_retention ON public.tickets USING btree (
 CREATE INDEX IF NOT EXISTS idx_tickets_target_item ON public.tickets USING btree (target_type, target_id, created_at DESC) WHERE (target_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_tickets_target_profile ON public.tickets USING btree (target_profile_id, created_at DESC) WHERE (target_profile_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS training_pins_one_per_thing ON public.training_pins USING btree (profile_id, kind, ref, COALESCE(record_kind, ''::text));
+CREATE INDEX IF NOT EXISTS unclaimed_page_private_set_by_user_id_idx ON public.unclaimed_page_private USING btree (set_by_user_id);
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON public.user_blocks USING btree (blocked_id);
 CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker ON public.user_blocks USING btree (blocker_id);
 CREATE INDEX IF NOT EXISTS idx_user_media_presets_profile ON public.user_media_presets USING btree (profile_id, created_at DESC);
@@ -18581,6 +18706,8 @@ ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.privacy_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_access ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_access_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profile_claim_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profile_film_hidden ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_seen ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -18616,6 +18743,7 @@ ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ticket_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.training_pins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.unclaimed_page_private ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_media_presets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_mutes ENABLE ROW LEVEL SECURITY;
@@ -19880,6 +20008,10 @@ REVOKE ALL ON TABLE public.profile_access_audit FROM anon, authenticated, servic
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_access_audit TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_access_audit TO authenticated;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_access_audit TO service_role;
+REVOKE ALL ON TABLE public.profile_claim_requests FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_claim_requests TO service_role;
+REVOKE ALL ON TABLE public.profile_film_hidden FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_film_hidden TO service_role;
 REVOKE ALL ON TABLE public.profile_seen FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.profile_seen TO service_role;
 REVOKE ALL ON TABLE public.profile_transfers FROM anon, authenticated, service_role;
@@ -19962,6 +20094,8 @@ REVOKE ALL ON TABLE public.tickets FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.tickets TO service_role;
 REVOKE ALL ON TABLE public.training_pins FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.training_pins TO service_role;
+REVOKE ALL ON TABLE public.unclaimed_page_private FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.unclaimed_page_private TO service_role;
 REVOKE ALL ON TABLE public.user_blocks FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.user_blocks TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.user_blocks TO authenticated;
@@ -20466,6 +20600,8 @@ COMMENT ON COLUMN public.posts.profile_hidden_at IS 'The owner hid this result f
 COMMENT ON COLUMN public.posts.views_count IS 'Impact (252): people who saw this post, one per person per day (a hashed daily mark in post_view_marks — never who). Shown to everyone. The owner''s own views never count.';
 COMMENT ON COLUMN public.posts.plays_count IS 'Impact (252): people who played this post''s video for 3 s or more, one per person per day.';
 COMMENT ON COLUMN public.posts.on_feed IS 'The feed switch (269): true = also on the feed. Never an audience — the account decides who sees the post; this only says whether the feed lists it. Profile readers ignore it.';
+COMMENT ON TABLE public.profile_claim_requests IS 'A request to be given an unclaimed placeholder''s film (312): approved by the organization that tagged it, it moves the placeholder''s tags on that organization''s videos to the requester (docs/specs/sport-profile.md). Service role only; the one writer is src/lib/sport-profile/unclaimed-server.ts.';
+COMMENT ON TABLE public.profile_film_hidden IS 'A game (highlight_id NULL) or a clip an athlete hid from their own page (311): it leaves their game log, reels and Clips browser for visitors; the stat still counts (docs/specs/sport-profile.md). Service role only; the one writer is src/lib/sport-profile/film-hide-server.ts.';
 COMMENT ON TABLE public.profile_seen IS 'One row per account (267): the signup day, the last day the app was opened signed in, and a 63-day bitmap of those days. Counts only; never shown per person.';
 COMMENT ON COLUMN public.profile_transfers.age_preset_prompt IS 'Wave 4 rider on the eligible_notified row: pending = a guardian older-preset differed at crossing time; applied/kept = guardian decision; none = no differing preset at crossing. NULL = row predates Wave 4 — never prompt retroactively.';
 COMMENT ON COLUMN public.profile_transfers.handover_prompted_at IS 'Handover-moment stamp (migration 138): set once by the sweep when a supervised athlete reaches adulthood with the transfer still parked at eligible_notified. Dedup only — never a state.';
@@ -20552,6 +20688,7 @@ COMMENT ON COLUMN public.tickets.report_count IS 'Reports merged into this ticke
 COMMENT ON COLUMN public.tickets.appeal_used_at IS 'The one appeal (222): a user reply on a resolved ticket reopens it once; stamped when used.';
 COMMENT ON COLUMN public.tickets.anonymized_at IS 'Retention (222): two years after close the daily cron nulls the personal columns and stamps this.';
 COMMENT ON TABLE public.training_pins IS 'The bests an athlete pins to the top of Training (306): up to six per profile, in order. kind exercise (ref = workout_exercises.exercise_ref, record_kind = heaviest|e1rm|reps|volume|duration), test (ref = athlete_vitals.metric_key), effort (reserved). The VALUE is never stored here — it is derived on read. RLS on, no policies: service role only; the route applies the training privacy rule.';
+COMMENT ON TABLE public.unclaimed_page_private IS 'A placeholder player whose unclaimed page the organization keeps private (312). One row = the page is not open. Service role only; the one writer is src/lib/sport-profile/unclaimed-server.ts.';
 COMMENT ON TABLE public.user_mutes IS 'Support & Reporting (223): a user-level mute — the muted person''s posts, comments and notifications leave the muter''s view. Silent. Posture A: service role only.';
 COMMENT ON TABLE public.video_games IS 'The game on a linked video (307): the sport whose sheet reads its tags, the day, the two sides (a name, optionally a team), coverage (highlights | full) and the spoiler-free default. Its stats are DERIVED from the tags on every read (Convention 60) — none are stored. Posture A.';
 COMMENT ON TABLE public.video_highlight_people IS 'Who is in a tag on a linked video (307): a profile XOR a typed name, the sheet''s role, active | removed (the tagged person or a guardian removes a tag of themselves — the stat drops with it). video_id is denormalised from the highlight. Posture A.';
@@ -21075,7 +21212,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (307, '307_video_games.sql', 'rebuild-000'),
   (308, '308_video_tag_claims.sql', 'rebuild-000'),
   (309, '309_stat_game_distinct.sql', 'rebuild-000'),
-  (310, '310_pulse_signal_revoke.sql', 'rebuild-000')
+  (310, '310_pulse_signal_revoke.sql', 'rebuild-000'),
+  (311, '311_profile_film_hidden.sql', 'rebuild-000'),
+  (312, '312_unclaimed_profiles.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21084,12 +21223,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 148 | 146 | 145 | 310
+-- Expected: 000 REBUILT | 151 | 146 | 145 | 312
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_148,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_151,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_146,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_310;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_312;
 
