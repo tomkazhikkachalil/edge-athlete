@@ -49,7 +49,10 @@ describe('tagged by someone else', () => {
     expect(route).toContain('if (!canView) return NOT_FOUND();');
     expect(route).toContain("const PRIVATE = { 'Cache-Control': 'private, no-store' };");
     const list = read('src/lib/videos/video-tagged-server.ts');
-    expect(list).toContain('const read = await readVideoForViewer(admin, t.videoId, viewer);');
+    // Each video is still read through the viewer's own gate — side by side now (Nov 14: one after another cost a second a game), the viewer's reach on an organization asked once.
+    expect(list).toContain('const reads = await mapBounded(tagged, TAGGED_READ_WIDTH, t => Promise.all([readVideoForViewer(admin, t.videoId, viewer, memo), readGame(admin, t.videoId)]));');
+    expect(list).toContain('if (!read) continue; // hidden, private, or gone for this viewer');
+    expect(read('src/lib/videos/videos-server.ts')).toContain('memo?.set(row.org_id, asked);');
     expect(list).toContain('if (game.stats_hidden && !read.canManage && !actsForProfile) hidden = true;');
     expect(list).not.toMatch(/\.insert\(|\.update\(|\.upsert\(/); // derived, never stored
   });

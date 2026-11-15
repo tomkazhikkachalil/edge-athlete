@@ -18,7 +18,8 @@ import { gameSheetFor } from './game-sheets';
 import { gameTagOf } from './game-view';
 import type { VideoView } from './types';
 import { readGame } from './video-games-server';
-import { readVideoForViewer, taggedVideoIds } from './videos-server';
+import { mapBounded } from '@/lib/bounded-map';
+import { readVideoForViewer, taggedVideoIds, type OrgAccessMemo } from './videos-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the admin client is untyped across the app
 type Admin = SupabaseClient<any, 'public', any>;
@@ -48,6 +49,9 @@ export async function listTaggedGames(admin: Admin, profileId: string, viewer: U
   return (await taggedGamesWithStats(admin, profileId, viewer, actsForProfile)).map(g => g.view);
 }
 
+/** How many tagged videos are read at once. */
+export const TAGGED_READ_WIDTH = 8;
+
 /** The one read behind the list and the totals: each game this viewer may see, the athlete's line as cells AND as raw stats. */
 export async function taggedGamesWithStats(admin: Admin, profileId: string, viewer: User | null, actsForProfile: boolean, max?: number, only?: (videoIds: string[]) => Promise<Set<string>>): Promise<TaggedGameStats[]> {
   let tagged = await taggedVideoIds(admin, profileId, max);
@@ -57,10 +61,13 @@ export async function taggedGamesWithStats(admin: Admin, profileId: string, view
   }
   const out: TaggedGameView[] = [];
   const statsOf = new Map<string, Record<string, number>>();
-  for (const t of tagged) {
-    const read = await readVideoForViewer(admin, t.videoId, viewer);
+  // Measured Nov 14 2026: read one after another, each game cost a full round of reads (about a second from a laptop) —
+  // ten games, ten seconds. The videos are read side by side (bounded), each with its game, and the viewer's reach on an
+  // organization is asked once for all of that organization's videos.
+  const memo: OrgAccessMemo = new Map();
+  const reads = await mapBounded(tagged, TAGGED_READ_WIDTH, t => Promise.all([readVideoForViewer(admin, t.videoId, viewer, memo), readGame(admin, t.videoId)]));
+  for (const [read, game] of reads) {
     if (!read) continue; // hidden, private, or gone for this viewer
-    const game = await readGame(admin, t.videoId);
     const sheet = game ? gameSheetFor(game.sport_key) : null;
     const mine = read.highlights.filter(h => h.people.some(p => p.profile_id === profileId));
     if (mine.length === 0) continue; // the viewer may not see this profile's name on it
