@@ -1,5 +1,17 @@
 # Development Log
 
+## November 17, 2026 (evening) — The Stats tab's per-sport breakdown is retired into the sport profile
+
+Tom: "let's retire the old Stats breakdown." It was the one planned step of Sprint 4 left out, because the new game log did not yet say what the old one said about an official line.
+
+- **Carried over first:** an official line's rung in the game log ("Official · League verified"), the **Unconfirmed** mark of a disputed result, a posted game's own result, the link from an uncounted row to the game that took its place, "How verification works →", and the trend and the bests (the rollups' own reader, shown without its duplicate tiles).
+- **Then retired:** on the Stats tab a sport's layer is its card and the door — "Full breakdown: career, seasons, games and clips". The expandable breakdown and the per-sport "From game film" list are gone there.
+- **Kept on the Stats tab, on purpose:** track and field (a sum of times means nothing: its personal-best table and race log stay) and golf (its own tables); "From game film" on the All layer and on those two.
+
+Proof on staging: `stats-same-game` and `performance-rollups` now stand on the sport profile (the marked row with its link, the rung, the help link, the split and Undo; the door, the career goals, the career bests); `sport-profile`, `sport-profile-split`, `stats-hub-mobile`, `skill-cards-mobile` at phone width; `video-film-official`, `video-tagged-profile`, `contest-stat-lines`, `play-rivals`, `profile-buckets` on desktop — all green.
+
+Seen and not changed: the sport profile sums a race sport's times in its totals the way the old breakdown did for every sport but track (swimming, running, cycling, rowing). Its own small round.
+
 ## November 17, 2026 (later) — Sprint 4 closed: the athlete's sport profile is on production
 
 Tom ran migrations 311 and 312 on production and merged #1525 (hide) and #1526 (the unclaimed page, the claim request, the split control). Production serves `54f91385`; its ledger is at 312.

@@ -28,7 +28,6 @@ import FilterBar from '../filters/FilterBar';
 import SportSkillCards from '../SportSkillCards';
 import SportBreakdownHeader from './SportBreakdownHeader';
 import GolfBreakdown from './GolfBreakdown';
-import StatLineBreakdown from './StatLineBreakdown';
 import TrackBreakdown from './TrackBreakdown';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { SportKey } from '@/lib/sports/SportRegistry';
@@ -91,6 +90,16 @@ interface StatsHubProps {
   onSportChange?: (sportKey: string | null) => void;
   /** The address of a sport's profile (Sprint 4) — /u/ passes its own; the default is the /athlete route. */
   sportProfileHref?: (sportKey: string) => string;
+}
+
+/**
+ * Does this sport's full breakdown live on its sport profile? Every sport
+ * with a stat sheet, except track and field — a sum of times means nothing,
+ * so it keeps its personal-best table and race log here (TrackBreakdown) —
+ * and golf, which has its own tables.
+ */
+export function hasSportProfile(sportKey: string): boolean {
+  return sportKey !== 'golf' && sportKey !== 'track_field' && !!getStatSchema(sportKey as SportKey);
 }
 
 export default function StatsHub({
@@ -353,20 +362,21 @@ export default function StatsHub({
             <GolfBreakdown profileId={profileId} />
           ) : card.sportKey === 'track_field' ? (
             <TrackBreakdown profileId={profileId} card={card} />
-          ) : getStatSchema(card.sportKey as SportKey) ? (
-            <StatLineBreakdown profileId={profileId} sportKey={card.sportKey as SportKey} />
           ) : undefined;
+        // Every other sport with a stat sheet: its full breakdown — career, seasons, the game log, the film and the clips —
+        // IS the sport profile (Sprint 4; retired here Nov 2026). The card stays the short intro; the door is the breakdown.
+        const profiled = hasSportProfile(card.sportKey);
         return (
           <>
             <SportBreakdownHeader card={card}>{breakdown}</SportBreakdownHeader>
             {/* Sprint 4: the sport's own profile — career, seasons, every game. Only where the sport has a stat sheet. */}
-            {getStatSchema(card.sportKey as SportKey) && (
+            {profiled && (
               <Link
                 href={sportProfileHref ? sportProfileHref(card.sportKey) : `/athlete/${profileId}/sport/${card.sportKey}`}
-                className="ea-interactive mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium text-primary"
+                className="ea-cta mb-4 inline-flex min-h-[44px] items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white"
                 data-sport-profile-door={card.sportKey}
               >
-                {card.sportLabel} profile: career, seasons and games
+                Full breakdown: career, seasons, games and clips
                 <span aria-hidden="true">→</span>
               </Link>
             )}
@@ -383,7 +393,7 @@ export default function StatsHub({
       {!selectedSport && isOwnProfile && <ChallengesPanel sportKey={null} />}
 
       {/* Game film (Nov 12 2026): the athlete's line in games someone else tagged them in — a third list, labelled apart, never in the totals. */}
-      <GameFilmLines profileId={profileId} sportKey={selectedSport ?? null} />
+      {!(selectedSport && hasSportProfile(selectedSport)) && <GameFilmLines profileId={profileId} sportKey={selectedSport ?? null} />}
 
       {/* All layer: the per-sport summary intros above the combined grid. */}
       {!selectedSport && (skillCards?.length ?? 0) > 0 && (

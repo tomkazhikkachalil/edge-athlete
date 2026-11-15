@@ -63,6 +63,12 @@ export interface ProfileGame {
   clips: ProfileClip[];
   /** The athlete's stats by period, where the tags say the period. */
   byPeriod: Record<number, Stats>;
+  /** An official line: the rung it was entered at (`league_verified`, `club_recorded`, …). */
+  provenance?: string | null;
+  /** An official line under an open dispute: unconfirmed — on the log, out of the totals until resolved. */
+  disputed?: boolean;
+  /** The athlete's own post: the result as they wrote it ("W 4–2"). */
+  result?: string | null;
   /** Not counted because it shares its DATE with the game that took its place (never a contest): the athlete may say they are two games (309). */
   canSplit?: boolean;
   /** The athlete said this game and that one are two different games (309): the other game's key, so it can be taken back. */

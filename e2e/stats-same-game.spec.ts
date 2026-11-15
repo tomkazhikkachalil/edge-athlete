@@ -70,22 +70,26 @@ test('an official line and the athlete\'s own post of the same game count once �
     expect(res.status(), await readErrorBody(res)).toBe(200);
     expect(((await res.json()) as { rollups: { events: number } }).rollups.events).toBe(total - 1);
 
-    // 3. On the athlete's Stats tab at phone width: the posted copy is marked, with the link; the other game is not.
+    // 3. In the sport profile's game log at phone width (the Stats tab's breakdown was retired into it, Nov 2026):
+    //    the posted copy is marked, with the link to the official result; the other game is not.
     const page = await ctx.newPage();
-    await page.goto(`/athlete/${athlete.id}?tab=stats&sport=ice_hockey`);
-    const marked = page.locator(`[data-stat-log-row="${sameGamePost}"]`);
-    // The sport layer opens on a summary; the log is behind "Full breakdown" (a tap before hydration is swallowed — tap until it opens).
-    await expect(async () => {
-      if (!(await marked.isVisible())) await page.getByRole('button', { name: 'Full breakdown' }).click();
-      await expect(marked).toBeVisible({ timeout: 3_000 });
-    }).toPass({ timeout: 30_000 });
+    const profileNow = (await (await athleteApi.get(`/api/profile/${athlete.id}/sport-profile?sport=ice_hockey`)).json()) as { games: Array<{ key: string; season: string | null }> };
+    const seasonKey = profileNow.games.find(g => g.key === `post:${sameGamePost}`)!.season;
+    await page.goto(`/athlete/${athlete.id}/sport/ice_hockey?season=${seasonKey}`);
+    const marked = page.locator(`[data-stat-row="post:${sameGamePost}"]`);
+    await expect(marked).toBeVisible({ timeout: 30_000 });
     await expect(marked).toHaveAttribute('data-stat-counted', 'no');
-    //    The sport card above stays the VERIFIED record, and says why its count is smaller: the athlete's own game of the other day is beside it.
-    await expect(page.locator('[data-skill-self-posted]').first()).toContainText(/Verified games only\. \+\d+ self-posted games? counted in the breakdown\./);
     await expect(marked.locator('[data-stat-not-counted]')).toContainText('Not counted');
     await expect(marked.locator('[data-stat-not-counted] a')).toHaveAttribute('href', officialRow.href);
-    await expect(page.locator(`[data-stat-log-row="${otherPost}"]`)).toHaveAttribute('data-stat-counted', 'yes');
+    //    The official line says the rung it was entered at.
+    await expect(page.locator(`[data-stat-row="official:${contestId}"]`)).toContainText(/Official · (League verified|Club recorded|Sanctioned)/);
+    await expect(page.locator('[data-verified-help]')).toHaveAttribute('href', '/help/verified-stats');
     expect(await fitsViewportWidth(page)).toBe(true);
+    //    The sport card on the Stats tab stays the VERIFIED record, and says why its count is smaller.
+    const hub = await ctx.newPage();
+    await hub.goto(`/athlete/${athlete.id}?tab=stats&sport=ice_hockey`);
+    await expect(hub.locator('[data-skill-self-posted]').first()).toContainText(/Verified games only\. \+\d+ self-posted games? counted in the breakdown\./, { timeout: 30_000 });
+    await hub.close();
 
     // 4. "These are two different games" (migration 309): a doubleheader. Nobody else can say it for the athlete…
     const keys = { a: `post:${sameGamePost}`, b: `official:${contestId}` };

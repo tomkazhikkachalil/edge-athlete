@@ -75,9 +75,13 @@ Tom, Nov 15 2026: an athlete can hide a game or a single clip from their page; *
 
 - The same-game rule joins two games of one date; the athlete — or a guardian — may say they are two (309, `video-games.md`). The sport profile's game log now carries that control: a row not counted **because of the date alone** (`games[].canSplit`) offers "These are two different games"; a row the athlete split (`games[].splitFrom`) says "Counted as its own game" with Undo. A pair tied by a contest is never offered. It is the Stats tab's own writer (`POST /api/sports/stat-lines/distinct`) and its own client helper, so the two surfaces stay one fact.
 
-## Not retired yet — the Stats tab's breakdown
+## The Stats tab's per-sport breakdown is retired into this (Nov 17 2026)
 
-The plan's last step was to make the Stats tab's per-sport breakdown and its "From game film" list a door into the sport profile and remove them. **Not done, on purpose:** the sport profile's game log does not yet carry an official line's provenance label or the "Unconfirmed" mark of a disputed result, and six specs stand on the old breakdown. Until those two marks are carried over and Tom has walked the new page, both surfaces stay; the Stats tab's sport layer has the door (`data-sport-profile-door`). The numbers cannot disagree — both read the same sources through the same rule.
+One home per fact: a sport's full breakdown — career and seasons, the totals, the official lines, the game log, the film — is the sport profile. On the Stats tab a sport's layer keeps its **card** (the short, verified intro) and the **door** ("Full breakdown: career, seasons, games and clips", `data-sport-profile-door`); the expandable breakdown and the per-sport "From game film" list are gone from it.
+
+- **Which sports** (`hasSportProfile` in `StatsHub.tsx`): every sport with a stat sheet **except track and field** — a sum of times means nothing, so it keeps its personal-best table and race log on the Stats tab (`TrackBreakdown`, which still uses `StatLineBreakdown`) — and **golf**, which has its own tables. "From game film" stays on the All layer and on those two.
+- **What was carried over first**, so nothing is lost: an official line says its rung in the game log ("Official · League verified"); a disputed result carries the **Unconfirmed** mark and says it is not counted until resolved; a posted game shows its own result; a row that is not counted **links to the game that took its place** (the official result's page, or the film's game level here); "How verification works →" sits over a log with an official line; and the **trend and the bests** — the rollups' own reader (`SeasonRollups mode="extras"`, from `athlete_performances`): the career bests, the trend of the headline number and how many events are club-recorded or better on the career, the season's bests on a season.
+- The game log has no 25-row cap and no calendar-year select: a season is the sport's season.
 
 ## Unclaimed — a tagged player who has not claimed their profile (PR 6b, Nov 16 2026; migration 312)
 

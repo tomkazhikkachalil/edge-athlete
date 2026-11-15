@@ -3,12 +3,15 @@
 import Link from 'next/link';
 import { Trophy } from 'lucide-react';
 import SectionEmptyState from '@/components/SectionEmptyState';
+import SeasonRollups from '@/components/stats/SeasonRollups';
+import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
 import StatTable from './StatTable';
 import Tiles from './Tiles';
 import type { SportProfileData } from './types';
 
 interface Props {
+  profileId: string;
   data: SportProfileData;
   /** The sport profile's own path (no query). */
   basePath: string;
@@ -16,7 +19,7 @@ interface Props {
 }
 
 /** Level 1: the career — its tiles, and one row per season. A season is the door to level 2. */
-export default function CareerView({ data, basePath, sportLabel }: Props) {
+export default function CareerView({ profileId, data, basePath, sportLabel }: Props) {
   if (data.seasons.length === 0) {
     return (
       <SectionEmptyState
@@ -51,6 +54,8 @@ export default function CareerView({ data, basePath, sportLabel }: Props) {
           foot={{ id: 'career', lead: 'Career', count: data.career.games, stats: data.career.totals, door: k => ((data.career.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ stat: k })}` : null) }}
         />
       </div>
+      {/* The trend of the headline number and the career bests, from the performance record (the rollups' own reader). */}
+      {getStatSchema(data.sport) && <SeasonRollups profileId={profileId} sportKey={data.sport} heroLabel={getStatSchema(data.sport)!.heroStat.label} mode="extras" />}
     </section>
   );
 }
