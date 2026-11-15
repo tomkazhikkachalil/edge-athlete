@@ -80,6 +80,8 @@ test('an official line and the athlete\'s own post of the same game count once â
       await expect(marked).toBeVisible({ timeout: 3_000 });
     }).toPass({ timeout: 30_000 });
     await expect(marked).toHaveAttribute('data-stat-counted', 'no');
+    //    The sport card above stays the VERIFIED record, and says why its count is smaller: the athlete's own game of the other day is beside it.
+    await expect(page.locator('[data-skill-self-posted]').first()).toContainText(/Verified games only\. \+\d+ self-posted games? counted in the breakdown\./);
     await expect(marked.locator('[data-stat-not-counted]')).toContainText('Not counted');
     await expect(marked.locator('[data-stat-not-counted] a')).toHaveAttribute('href', officialRow.href);
     await expect(page.locator(`[data-stat-log-row="${otherPost}"]`)).toHaveAttribute('data-stat-counted', 'yes');

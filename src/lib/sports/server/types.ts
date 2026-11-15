@@ -75,6 +75,9 @@ export interface SportSkillCard {
   pinned: boolean;
   /** 1..n among the pinned sports; null when not pinned. */
   pinOrder: number | null;
+  /** Nov 14 2026 (Tom: the card stays the VERIFIED record): when the tiles are official lines only, how many of the
+   *  athlete's own posted games the Stats tab counts besides them — so the card can say why its count is smaller. */
+  selfPostedGames?: number;
 }
 
 /** That sport's `sport_settings.settings`, fetched once by the dispatcher. */
@@ -100,6 +103,10 @@ export interface SkillCardContribution {
    *  PB lifted into a tile) — the assembler drops them from the chips so the
    *  same fact never shows twice. */
   consumedEnteredKeys?: string[];
+  /** The stat lines the tracked tiles were built from (stat-line sports) — for the dispatcher only, never sent. */
+  statLines?: unknown[];
+  /** Set by the official merge: the athlete's own games counted besides the official ones. */
+  selfPostedGames?: number;
 }
 
 /**

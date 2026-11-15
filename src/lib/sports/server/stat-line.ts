@@ -52,11 +52,12 @@ export function statLineServerModule(sportKey: SportKey): ServerSportModule | nu
     // private lines too).
     async buildSkillCard(profileId: string, supabase: SupabaseClient, ctx) {
       // 280: the bundle's rows when the caller already has them (the first 100, as the read would take).
-      const card = ctx.statLines
-        ? statsCardFromLines(ctx.statLines.slice(0, 100).filter(isStatLineData))
-        : await mod.buildStatsCard(profileId, supabase, { includePrivate: ctx.includePrivate });
+      const lines = (ctx.statLines ? ctx.statLines.slice(0, 100) : await fetchStatLinePosts(supabase, profileId, sportKey, 100, { includePrivate: ctx.includePrivate })).filter(isStatLineData);
+      const card = statsCardFromLines(lines);
       return {
         tiles: (card?.tiles ?? []).map(t => ({ ...t, provenance: 'tracked' as const })),
+        // The lines ride along so the official merge can say how many of them are games of their own.
+        statLines: lines,
       };
     },
   };
