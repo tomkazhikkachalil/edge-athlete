@@ -30,6 +30,7 @@ import { anonymousProfileCanView, profileManages, VIDEO_COLUMNS, videoFactsFor, 
 import { canViewProfile } from '@/lib/privacy';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { readFilmHidden } from './film-hide-server';
+import { unclaimedPageOpen } from './unclaimed-open-server';
 import { careerOf, clipCounts, clipCountsOfGame, cutHeld, filmOfGame, forViewer, seasonsOf, type ProfileClip, type ProfileGame, type Stats } from './rules';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the admin client is untyped across the app
@@ -48,7 +49,7 @@ export async function blockedFromProfile(admin: Admin, viewerId: string | null, 
   return allowed.length === 0;
 }
 
-export interface SportProfileViewer { user: User | null; isOwner: boolean; actsForProfile: boolean }
+export interface SportProfileViewer { user: User | null; isOwner: boolean; actsForProfile: boolean; /** Let in because this is an open unclaimed page (312): the sport profile only, under a short name. */ unclaimed?: boolean }
 
 /**
  * Who is asking, or null (the caller answers 404 — never why): the athlete
@@ -59,8 +60,11 @@ export async function sportProfileViewer(admin: Admin, user: User | null, profil
   const acts = user ? await profileManages(user.id, profileId) : false;
   if (!acts) {
     const canView = user ? (await canViewProfile(profileId, user.id)).canView : await anonymousProfileCanView(admin, profileId);
-    if (!canView) return null;
+    // An unclaimed placeholder's page is open to a signed-in visitor unless its organization keeps it private (312).
+    const unclaimed = !canView && !!user && (await unclaimedPageOpen(admin, profileId));
+    if (!canView && !unclaimed) return null;
     if (await blockedFromProfile(admin, user?.id ?? null, profileId)) return null;
+    if (unclaimed) return { user, isOwner: false, actsForProfile: false, unclaimed: true };
   }
   return { user, isOwner: user?.id === profileId, actsForProfile: acts };
 }
@@ -262,10 +266,16 @@ export async function readSportProfile(admin: Admin, profileId: string, sportKey
     ],
     { matchByDate: gameHasSides(sportKey), distinct: distinctSet(pairs) }
   );
-  const verdictOf = (key: string, canCount: boolean): { counted: boolean; sameAs: string | null } => {
+  // "These are two different games" (309): the other game of a pair the athlete split, so the row can take it back.
+  const splitFromOf = (key: string): string | null => {
+    const pair = pairs.find(p => p.a === key || p.b === key);
+    return pair ? (pair.a === key ? pair.b : pair.a) : null;
+  };
+  const verdictOf = (key: string, canCount: boolean): { counted: boolean; sameAs: string | null; canSplit: boolean; splitFrom: string | null } => {
     const v = verdicts.get(key);
-    if (!canCount || !v) return { counted: false, sameAs: null };
-    return { counted: v.counted, sameAs: v.counted ? null : v.beatenBy };
+    if (!canCount || !v) return { counted: false, sameAs: null, canSplit: false, splitFrom: null };
+    // Joined by the DATE alone → the athlete may say they are two games; a contest link is never split.
+    return { counted: v.counted, sameAs: v.counted ? null : v.beatenBy, canSplit: !v.counted && v.reason === 'same_date' && !!v.beatenBy, splitFrom: splitFromOf(key) };
   };
   const empty = { clips: [] as ProfileClip[], byPeriod: {} as Record<number, Stats>, held: false, standing: null, videoId: null };
 
@@ -313,6 +323,10 @@ export interface SportProfileGameRow {
   film: string | null;
   /** The athlete hid this game from their page (311) — only ever true for the athlete or their guardian. */
   hidden: boolean;
+  /** Joined to `sameAs` by the date alone: the athlete may say they are two different games (309). */
+  canSplit: boolean;
+  /** The other game of a pair the athlete said are two games (309). */
+  splitFrom: string | null;
   byPeriod: Record<number, Stats>;
 }
 
@@ -355,6 +369,7 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
       key: g.key, source: g.source, date: g.date, season: seasonOf(g), title: g.title, opponent: g.opponent, stats: g.stats, counted: g.counted,
       sameAs: g.sameAs, standing: g.standing, videoId: g.videoId, href: g.href, held: shown[i].held, clips: g.clips.length, byPeriod: g.byPeriod,
       statClips: clipCountsOfGame(shown, g.key), film: filmOfGame(shown, g.key)?.key ?? null, hidden: g.hidden === true,
+      canSplit: g.canSplit === true, splitFrom: g.splitFrom ?? null,
     })),
     held: shown.filter(g => g.held && g.counted).length,
   };

@@ -49,6 +49,7 @@ import { claimKey, planLink, type LinkRow, type LinkTarget, type OwnRow } from '
 import { isStubEmail } from '@/lib/config/stubs-config';
 import { connectionIds } from './tag-people-server';
 import { gameSheetFor } from './game-sheets';
+import { openUnclaimedNames } from '@/lib/sport-profile/unclaimed-open-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the house Admin alias (schema-agnostic helper)
 type Admin = SupabaseClient<any, 'public', any>;
@@ -377,6 +378,10 @@ async function readTagPeople(admin: Admin, videoId: string, viewer: TagViewer): 
       visible.set(id, viewer.id ? (await canViewProfile(id, viewer.id)).canView : false);
     }));
   }
+  // An unclaimed placeholder whose page is open (312; Tom, Nov 15 2026) is named — the short name its page shows — and linked,
+  // for a signed-in viewer: that page is how the player finds the games they are in. Read only when someone is hidden.
+  const hiddenIds = viewer.canManage || !viewer.id ? [] : [...visible.entries()].filter(([, v]) => !v).map(([id]) => id);
+  const openNames = hiddenIds.length > 0 ? await openUnclaimedNames(admin, hiddenIds) : new Map<string, string>();
   // Someone this viewer may not see keeps ONE stand-in name across the game ("Player 2"), so their line in the box score is theirs alone.
   const masked = new Map<string, string>();
   const maskedName = (profileId: string): string => {
@@ -394,6 +399,8 @@ async function readTagPeople(admin: Admin, videoId: string, viewer: TagViewer): 
     // person back, so an edit never turns the athlete into a typed name "Player 1". Nobody else gets the id.
     const person: HighlightPerson = r.profile_id && r.profile && shown
       ? { id: r.id, profile_id: r.profile_id, name: r.profile.display_name || r.profile.full_name || MASKED_PERSON_NAME, handle: r.profile.handle, avatar_url: r.profile.avatar_url, role: r.role, side: r.side }
+      : r.profile_id && openNames.has(r.profile_id)
+        ? { id: r.id, profile_id: r.profile_id, name: openNames.get(r.profile_id)!, handle: null, avatar_url: null, role: r.role, side: r.side }
       : r.profile_id
         ? { id: r.id, profile_id: viewer.canManage ? r.profile_id : null, name: maskedName(r.profile_id), handle: null, avatar_url: null, role: r.role, side: r.side, masked: true }
         : { id: r.id, profile_id: null, name: r.name ?? MASKED_PERSON_NAME, handle: null, avatar_url: null, role: r.role, side: r.side };

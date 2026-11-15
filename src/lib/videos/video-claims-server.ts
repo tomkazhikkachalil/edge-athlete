@@ -109,7 +109,7 @@ export async function claimTargets(admin: Admin, highlights: readonly HighlightR
 }
 
 /** The people who manage an organization's videos (the `manage_video` right), read from its ladder and staff rows. */
-async function videoManagerIds(admin: Admin, orgId: string): Promise<string[]> {
+export async function videoManagerIds(admin: Admin, orgId: string): Promise<string[]> {
   const { data, error } = await admin.from('memberships').select('profile_id, kind, role, sections, scope_type, expires_at').eq(ORG_ID, orgId).in('kind', ['follow', 'staff']).in('role', ['owner', 'manager', 'admin', 'staff']).limit(500);
   if (error) {
     console.error(`${TAG} managers read failed:`, error.message);

@@ -195,6 +195,10 @@ export const PROFILE_FK_POLICY: Readonly<Record<string, 'survives' | 'goes' | 'e
   'golf_rounds.profile_id': 'engine',
   'group_posts.creator_id': 'engine',
   'group_post_participants.profile_id': 'engine',
+  // Unclaimed profiles (312): a request leaves with the placeholder or with the person who asked; the club's private switch with the placeholder.
+  'profile_claim_requests.profile_id': 'goes',
+  'profile_claim_requests.requester_profile_id': 'goes',
+  'unclaimed_page_private.profile_id': 'goes',
   // Sport profile (311): what the athlete hid on their own page leaves with them.
   'profile_film_hidden.profile_id': 'goes',
   'profile_access.profile_id': 'engine',

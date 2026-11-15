@@ -1,5 +1,33 @@
 # Development Log
 
+## November 17, 2026 — Sprint 4 PR 6b: the unclaimed page, and "this is me — request this profile" (migration 312)
+
+Tom's decision 2: a tagged player who has not claimed their profile gets "a public page, marked unclaimed", and claiming is "a process where they select the profile and start the request". Asked on Nov 16 what approval does for someone who already has an account — there is no account merge here — he chose: **move the film, keep it simple**.
+
+- **Open:** a placeholder's sport profile — film stats and clips only — to any signed-in visitor, under a short name ("Sam K."). The profile itself stays private. `/athlete/[id]` of an open placeholder goes to its sport profile.
+- **Found from a game:** an open placeholder is named (short) and linked in a game's tags, and the box score's player panel has "Open their profile". This CHANGES a Sprint 3 rule — a stranger used to read "Player 1" for every placeholder; now only when the club keeps the page private. `e2e/video-placeholder.spec.ts` says the new rule both ways.
+- **The club's switch:** "Keep this page private" — then only its video managers reach it and nobody can ask.
+- **The request:** "This is me — request this profile", or for a child the viewer is a guardian of. One open request per person; the organization with the most of the player's tagged games decides and its video managers are told.
+- **The answer**, on the placeholder's page: Approve moves the placeholder's tags on that organization's videos to the requester (the writer that already links a placeholder on a video); Decline tells them. The roster seat and any official result stay — said on the page before the person asks and to the manager before they approve.
+- **Migration 312** — `profile_claim_requests` and `unclaimed_page_private`, posture A. On staging: `312 APPLIED | 2 | 7 | false | false | 312`. **Production is Tom's to run, after 311.**
+
+Found while proving it: after an approval the placeholder had no tagged games left, so the code no longer knew whose player it was and the manager lost the panel. The roster seat now answers that as well.
+
+A machine note: two type-check processes orphaned by timed-out test-server starts held memory and made every later build crawl (the build's "Running TypeScript" step past fifteen minutes on an 8 GB machine in swap). Killing those two and running the build alone: 175 s. If the test server times out at start, look for `tsc --project` orphans before retrying.
+
+Proof on staging: `e2e/sport-profile-unclaimed.spec.ts` at 375 px (the open page → the request → the private switch both ways → the club approves → the two goals are on the requester's own profile, `linked_count` 2); `video-placeholder`, `video-claims`, `video-masking`, `video-athlete-clips`, `sport-profile-api` green; `check:schema` clean at ledger 312.
+
+**Waiting on Tom, in order:** run 311 on production and merge #1525 (hide); then run 312 and merge the PR that carries this and the split control.
+
+## November 16, 2026 (late night) — Sprint 4 PR 7a: "these are two different games" in the sport profile; what is NOT retired
+
+- **The split control is on the sport profile's game log.** A row not counted because of the date alone offers "These are two different games"; a split row says so, with Undo. The Stats tab's own writer and helper — one fact, two surfaces.
+- **The Stats tab's breakdown stays for now.** The plan's last step was to remove it in favour of a door. Not done: the new game log does not yet show an official line's provenance label or a disputed result's "Unconfirmed" mark, and six specs stand on the old breakdown. Both surfaces read the same sources through the same rule, so they cannot disagree; the door from the Stats tab is in. Retiring it is a round of its own, after those marks are carried over and Tom has walked the page.
+
+Proof: `e2e/sport-profile-split.spec.ts` on staging at 375 px (film + the athlete's own post of one date = one game; split → two games, four goals; Undo → one game). PR 5 proven on production (the Clips browser steps on `f24ad84a`).
+
+Waiting on Tom: migration 311 on production, then #1525 (hide). This PR sits on top of it.
+
 ## November 16, 2026 (night) — Sprint 4 PR 6a: the athlete hides a game or a clip from their page (migration 311)
 
 Tom's decision 1: an athlete can hide a game or a single clip from their page; the stat still counts; "Remove me" stays as the stronger door.

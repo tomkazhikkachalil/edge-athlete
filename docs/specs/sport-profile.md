@@ -71,10 +71,25 @@ Tom, Nov 15 2026: an athlete can hide a game or a single clip from their page; *
 - **On the page:** the game level has "Hide this game from my page" / "Show this game on my page" with what it does said in words; the reel has the same for the playing clip; the game log marks a hidden row for the athlete. No toast — the result is on the screen.
 - It is about the athlete's page only: the club's video, its box score and the other players are untouched. An official result is not hidden by this (that is the results rule, Convention 27).
 
-## Decided, not yet built (Tom, Nov 15 2026 — the later PRs of the sprint)
+## "These are two different games" in the game log (PR 7a, Nov 16 2026)
 
-- **Unclaimed.** A tagged player who has not claimed their profile gets a public page marked *Unclaimed*; claiming is a request the person starts from that page.
-- **The default sport** is the athlete's own order — pins, then the primary (`orderProfileSports`).
-- The Stats tab's per-sport breakdown becomes a door into this.
+- The same-game rule joins two games of one date; the athlete — or a guardian — may say they are two (309, `video-games.md`). The sport profile's game log now carries that control: a row not counted **because of the date alone** (`games[].canSplit`) offers "These are two different games"; a row the athlete split (`games[].splitFrom`) says "Counted as its own game" with Undo. A pair tied by a contest is never offered. It is the Stats tab's own writer (`POST /api/sports/stat-lines/distinct`) and its own client helper, so the two surfaces stay one fact.
 
-**Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.
+## Not retired yet — the Stats tab's breakdown
+
+The plan's last step was to make the Stats tab's per-sport breakdown and its "From game film" list a door into the sport profile and remove them. **Not done, on purpose:** the sport profile's game log does not yet carry an official line's provenance label or the "Unconfirmed" mark of a disputed result, and six specs stand on the old breakdown. Until those two marks are carried over and Tom has walked the new page, both surfaces stay; the Stats tab's sport layer has the door (`data-sport-profile-door`). The numbers cannot disagree — both read the same sources through the same rule.
+
+## Unclaimed — a tagged player who has not claimed their profile (PR 6b, Nov 16 2026; migration 312)
+
+Tom, Nov 15 2026: such a player gets "a public page, marked unclaimed", and "authentication needs to be a process where they select the profile and start the request". Nov 16: there is no account merge in this codebase, so an approved request **moves the film**.
+
+- **Who is unclaimed** (`src/lib/sport-profile/unclaimed.ts`, pure): a roster placeholder — an account on the reserved stub domain (`@stubs.invalid ⇔ unclaimed`, `stubs-config.ts`) that is still here. A supervised minor is claimed.
+- **What is open:** the placeholder's **sport profile only** — the film stats and clips, from videos the viewer may open — to any **signed-in** visitor, under a **short name** ("Sam K.", `unclaimedName`; many of these players are minors). The profile itself stays private: no posts, no follow, no messages, no search listing. `/athlete/[id]` of an open placeholder goes to `/athlete/[id]/sport/<sport>`; the sports are the ones it has film in. A block still closes it.
+- **In a game's tags** an open placeholder is named by that short name and linked (`readTagPeople` → `openUnclaimedNames`) — the box score's player panel has "Open their profile", which is how a player finds the page. Kept private, it is "Player N" with no link, as before.
+- **The club's switch** (`unclaimed_page_private`, one row = not open): the organization that tagged the player can keep the page private — then only its video managers reach it, and nobody can ask for it. A database without 312 opens nothing.
+- **The request** (`profile_claim_requests`; `POST /api/profile/[profileId]/claim-request[?for=<child>]`): "This is me — request this profile", or "This is <my child>" for an athlete the viewer is a guardian of (`resolveActingProfile`). One open request per person per placeholder; asking again is the same request. The **deciding organization** is the one with the most of the player's tagged games; its video managers (`manage_video`) are told once — never a manager who has blocked, or is blocked by, the person asking.
+- **The answer** (`PATCH …/claim-request/[requestId] {action}`), on the placeholder's page, by that organization's video managers only (anyone else gets a 404 — never that a request exists): **approve** moves the placeholder's tags on that organization's videos to the requester, through the writer that already links a placeholder on a video (`linkTagTarget` — the person is told once; they are never tagged back into something they removed themselves from); **decline** tells them. An answered request is a 409.
+- **What does not move:** the placeholder itself, its roster seat, and any official result entered for it stay with the organization. The page says so before the person asks, and the approval says so to the manager. A person with no account still claims the old way — the organization's claim link, which makes the placeholder their account.
+- **Readers and the one writer:** `unclaimed-open-server.ts` (the small reads, with no import of the video modules — `videos-server.ts` reads through it), `unclaimed-server.ts` (`readUnclaimed`, `requestProfileClaim`, `decideProfileClaim`, `setUnclaimedListed`); `GET / PATCH /api/profile/[profileId]/unclaimed`.
+
+**Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `e2e/sport-profile-split.spec.ts`, `e2e/sport-profile-unclaimed.spec.ts`, `unclaimed.test.ts`, `e2e/video-placeholder.spec.ts` (the short name, and "Player 1" when kept private), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.

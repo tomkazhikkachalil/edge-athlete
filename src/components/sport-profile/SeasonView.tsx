@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { useToast } from '@/components/Toast';
+import { saveDistinctGames } from '@/lib/performance/game-distinct-client';
 import { NO_SEASON, splitByOpponent, splitByPeriod, totalsOf, type ProfileGame } from '@/lib/sport-profile/rules';
 import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
 import { formatDateShort } from './format';
@@ -16,6 +18,9 @@ interface Props {
   sportLabel: string;
   /** The viewer asks to see the spoiler-free games of this profile. */
   onShowHeld: () => void;
+  profileId: string;
+  /** Something the totals depend on changed (two games split, or joined again): read again. */
+  onChanged: () => void;
 }
 
 // The rules read a game with its clips; the page's rows carry the count only — the splits never look at clips.
@@ -27,7 +32,7 @@ const inSeason = (rows: readonly SportGameRow[], season: string): ProfileGame[] 
 const SOURCE_NOTE: Record<SportGameRow['source'], string> = { official: 'Official', film: 'Game film', post: 'Posted' };
 
 /** Level 2: one season — its tiles and totals, the splits, and the game log (every row a game). */
-export default function SeasonView({ data, season, basePath, sportLabel, onShowHeld }: Props) {
+export default function SeasonView({ data, season, basePath, sportLabel, onShowHeld, profileId, onChanged }: Props) {
   const summary = data.seasons.find(s => s.key === season) ?? null;
   const games = useMemo(() => inSeason(data.games, season), [data.games, season]);
   const keys = useMemo(() => data.columns.map(c => c.key), [data.columns]);
@@ -35,6 +40,16 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
   const opponents = useMemo(() => splitByOpponent(games, keys), [games, keys]);
   const periods = useMemo(() => splitByPeriod(games, keys), [games, keys]);
   const heldHere = games.filter(g => g.held).length;
+  // "These are two different games" (309) — the athlete's own word on two games joined by the date alone; the server decides who may say it.
+  const { showError } = useToast();
+  const [saving, setSaving] = useState(false);
+  const split = async (a: string, b: string, distinct: boolean) => {
+    setSaving(true);
+    const saved = await saveDistinctGames(profileId, data.sport, a, b, distinct);
+    setSaving(false);
+    if (!saved.ok) showError(saved.error);
+    else onChanged();
+  };
 
   if (!summary) {
     return (
@@ -63,6 +78,17 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
         <span className="block min-w-[9rem]">
           <span className="block"><Link href={`${basePath}${sportViewSearch({ season, game: g.key })}`} className="ea-interactive rounded underline decoration-border underline-offset-4" data-game-link={g.key}>{title}</Link></span>
           <span className="block text-xs font-normal text-muted">{[g.date ? formatDateShort(g.date) : 'No date', ...marks].join(' · ')}</span>
+          {data.can_edit && row.canSplit && g.sameAs && (
+            <button type="button" disabled={saving} onClick={() => void split(g.key, g.sameAs!, true)} className="ea-interactive mt-1 block min-h-[32px] rounded text-left text-xs font-semibold text-secondary underline decoration-border underline-offset-4 disabled:opacity-60" data-stat-split="">
+              These are two different games
+            </button>
+          )}
+          {data.can_edit && g.counted && row.splitFrom && (
+            <span className="mt-1 block text-xs font-normal text-muted" data-stat-split-done="">
+              Counted as its own game.{' '}
+              <button type="button" disabled={saving} onClick={() => void split(g.key, row.splitFrom!, false)} className="ea-interactive min-h-[32px] rounded font-semibold text-secondary underline decoration-border underline-offset-4 disabled:opacity-60" data-stat-split-undo="">Undo</button>
+            </span>
+          )}
         </span>
       ),
       stats: g.stats,

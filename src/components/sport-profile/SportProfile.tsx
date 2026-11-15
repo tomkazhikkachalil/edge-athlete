@@ -158,7 +158,7 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
         )}
         {data && view.tab === 'stats' && level === 'career' && <CareerView data={data} basePath={basePath} sportLabel={label} />}
         {data && view.tab === 'stats' && level === 'season' && view.season && (
-          <SeasonView data={data} season={view.season} basePath={basePath} sportLabel={label} onShowHeld={() => setShowHeld(true)} />
+          <SeasonView data={data} season={view.season} basePath={basePath} sportLabel={label} onShowHeld={() => setShowHeld(true)} profileId={profileId} onChanged={onChanged} />
         )}
         {data && view.tab === 'stats' && level === 'game' && view.game && (
           <GameView data={data} profileId={profileId} season={view.season} gameKey={view.game} stat={view.stat} basePath={basePath} sportLabel={label} showHeld={showHeld} onShowHeld={() => setShowHeld(true)} eventLabel={eventLabel} rev={rev} onChanged={onChanged} />

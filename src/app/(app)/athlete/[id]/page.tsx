@@ -129,6 +129,19 @@ export default function AthleteProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [athleteId, user]);
 
+  // A private profile may be an unclaimed placeholder (312): its sport profile is its page.
+  useEffect(() => {
+    if (hasAccess || !profile || !athleteId) return;
+    let cancelled = false;
+    fetch(`/api/profile/${athleteId}/unclaimed`, { credentials: 'include' })
+      .then(async r => (r.ok ? ((await r.json()) as { unclaimed: { sports: Array<{ sportKey: string }> } }).unclaimed : null))
+      .catch(() => null)
+      .then(view => {
+        if (!cancelled && view) router.replace(`/athlete/${athleteId}/sport/${view.sports[0]?.sportKey ?? 'profile'}`);
+      });
+    return () => { cancelled = true; };
+  }, [hasAccess, profile, athleteId, router]);
+
   // Guards against out-of-order responses when navigating between athlete
   // profiles (same route, new param — the component stays mounted).
   const requestSeqRef = useRef(0);
