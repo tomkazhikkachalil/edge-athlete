@@ -197,3 +197,27 @@ describe('304: every pulse topic is private', () => {
     expect(read('scripts/pulse-broadcast-probe.mjs')).toContain(".channel('live-now', { config: { private: true } })");
   });
 });
+
+describe('migration 310: the six pulse trigger functions are not callable through the API (the Security Advisor, Nov 15)', () => {
+  const sql = read('database/migrations/310_pulse_signal_revoke.sql');
+  const NAMES = ['golf', 'event', 'broadcast', 'message', 'read', 'roster'];
+  it('revokes EXECUTE on each of the six from PUBLIC, anon and authenticated — and on nothing else', () => {
+    for (const n of NAMES) expect(sql).toContain(`REVOKE EXECUTE ON FUNCTION public.pulse_signal_${n}() FROM PUBLIC, anon, authenticated;`);
+    expect(sql.match(/^REVOKE /gm)?.length).toBe(6);
+    expect(sql).not.toMatch(/^(DROP|CREATE|ALTER|GRANT) /m);
+  });
+  it('every function 301 made a trigger function is covered', () => {
+    const made = [...read('database/migrations/301_pulse_broadcast.sql').matchAll(/CREATE OR REPLACE FUNCTION public\.pulse_signal_([a-z]+)\(\)/g)].map(m => m[1]);
+    expect(made.sort()).toEqual([...NAMES].sort());
+  });
+  it('the pre-flight, the ledger row and the result row', () => {
+    expect(sql).toContain("IF n < 309 THEN RAISE EXCEPTION '310 pre-flight: ledger head is %, expected 309', n; END IF;");
+    expect(sql).toContain("VALUES (310, '310_pulse_signal_revoke.sql') ON CONFLICT (number) DO NOTHING;");
+    expect(sql).toContain('-- Expected on both: 310 APPLIED | 0 | 7 | 310');
+  });
+  it('the live gate fails on a definer function the API roles can execute', () => {
+    const gate = read('scripts/check-table-grants.mjs');
+    expect(gate).toContain("const DEFINER_API_ALLOWED = new Set(['rls_auto_enable']);");
+    expect(gate).toMatch(/f\.grants\?\.anon \|\| f\.grants\?\.authenticated/);
+  });
+});

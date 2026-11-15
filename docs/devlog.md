@@ -1,5 +1,17 @@
 # Development Log
 
+## November 15, 2026 (evening) — The Security Advisor's twelve warnings closed (migration 310)
+
+Tom pasted the Supabase Security Advisor: twelve warnings, lints 0028 + 0029 — the same six functions for `anon` and for `authenticated`. `public.pulse_signal_{golf,event,broadcast,message,read,roster}()` are `SECURITY DEFINER` and were executable by both roles.
+
+- **Cause.** Migration 301 revoked EXECUTE on `pulse_send` and not on the six trigger functions that call it; they kept the default grant. The exposure was nil (a `RETURNS trigger` function refuses a direct call), the grant was wrong.
+- **Fix.** `310_pulse_signal_revoke.sql`: six `REVOKE EXECUTE … FROM PUBLIC, anon, authenticated`, nothing else. A trigger needs no EXECUTE to fire — Postgres checks it when the trigger is created.
+- **So it cannot return.** `scripts/check-table-grants.mjs` (inside `check:schema` and `check:schema:prod`) now fails on any `SECURITY DEFINER` function in `public` that `anon` or `authenticated` can execute. Before 310 it named exactly the Advisor's six on production; after, zero on both. The RLS helpers live in `private`, outside the API, and stay executable; `rls_auto_enable` is Supabase's own.
+- **Proof.** Result row `310 APPLIED | 0 | 7 | 310` on staging (runner) and production (Tom, SQL editor). `e2e/pulse.spec.ts` (a round and a message move the pulse; one fetch per change) 2 / 2 on staging and 2 / 2 on production after the revoke — the triggers still signal. `npm run verify` 0 (677 files / 6,359 tests), audit 0, guardrails ✓, blocklists ✓, `check:schema` and `check:schema:prod` clean at ledger 310. Baseline rebuilt at 310. No app code changed.
+- **Traps met.** A symlinked `node_modules` in a worktree fails the Turbopack build (it resolves outside the filesystem root) — clone it (`cp -Rc`) instead. The gate's first draft matched "SECURITY DEFINER" anywhere and counted the `private` helpers — judge the `public` schema, and the function header only.
+
+Still Tom's: re-run the Advisor to see the twelve rows gone.
+
 ## November 15, 2026 (later) — Maintenance checklist: main and production in step, every device class probed
 
 Tom: "run the full project maintenance checklist… make sure it gets to production… web, large screen, mobile, and downloaded app." Run on main `e50d2094`, right after the pass above; nothing was uncommitted in either checkout.

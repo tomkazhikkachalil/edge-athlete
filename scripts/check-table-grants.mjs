@@ -11,6 +11,9 @@
  *   INFO   a table with RLS on, ZERO policies, still holding anon / authenticated
  *          privileges — harmless (zero policies deny every row) but not posture A;
  *          docs/HARDENING.md B7 keeps the list.
+ *   ERROR  a SECURITY DEFINER function in `public` that anon or authenticated
+ *          may execute (Nov 15 2026, migration 310) — its migration forgot the
+ *          REVOKE.
  * Exit 1 on an ERROR, 0 otherwise. Runs after schema-inventory in
  * `npm run check:schema` (local → staging) and `check:schema:prod`.
  */
@@ -65,3 +68,24 @@ if (errors.length) {
   process.exit(1);
 }
 console.log('✓ every public table is reachable by service_role');
+
+// SECURITY DEFINER functions the Data API roles may execute (the Security
+// Advisor's lints 0028 / 0029; migration 310 closed the six pulse triggers).
+// A definer runs as its owner: one that anon or authenticated can call is a
+// door, and a migration that creates one owes its REVOKE in the same file.
+// A function that MUST stay callable (an RLS helper evaluates as the invoking
+// role) is named here with its reason. rls_auto_enable is Supabase's own.
+const DEFINER_API_ALLOWED = new Set(['rls_auto_enable']);
+const open = (dump.functions ?? [])
+  // `public` only: the RLS helpers live in `private` (258), outside the exposed API schema, and MUST stay executable.
+  .filter(f => (f.schema ?? 'public') === 'public')
+  // The header only (before the body's AS $tag$): a body may SAY "SECURITY DEFINER" in a comment.
+  .filter(f => /\bSECURITY DEFINER\b/.test(String(f.definition ?? '').split(/\bAS \$/)[0]) && !DEFINER_API_ALLOWED.has(f.name))
+  .filter(f => f.grants?.anon || f.grants?.authenticated)
+  .map(f => `${f.name}(${f.identity_args ?? ''})`);
+if (open.length) {
+  console.error(`  ERROR ${open.length} SECURITY DEFINER functions executable by anon / authenticated: ${open.sort().join(', ')}`);
+  console.error('  Fix: REVOKE EXECUTE ON FUNCTION public.<name>(<args>) FROM PUBLIC, anon, authenticated; in the migration that creates it (or name it in DEFINER_API_ALLOWED with the reason)');
+  process.exit(1);
+}
+console.log('✓ no SECURITY DEFINER function is executable by anon or authenticated');

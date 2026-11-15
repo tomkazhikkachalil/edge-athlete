@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-15T04:38:14.230226+00:00 from server 17.6 by
+-- Generated 2026-11-15T16:03:51.525013+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 309.
+-- public.schema_dump() (migration 227). Ledger head at generation: 310.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -20217,17 +20217,17 @@ GRANT EXECUTE ON FUNCTION public.public_profile_bundle(p_handle text) TO service
 REVOKE EXECUTE ON FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.pulse_send(p_topic text, p_payload jsonb, p_private boolean) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.pulse_signal_broadcast() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.pulse_signal_broadcast() TO PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_broadcast() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.pulse_signal_event() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.pulse_signal_event() TO PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_event() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.pulse_signal_golf() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.pulse_signal_golf() TO PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_golf() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.pulse_signal_message() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.pulse_signal_message() TO PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_message() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.pulse_signal_read() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.pulse_signal_read() TO PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_read() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.pulse_signal_roster() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.pulse_signal_roster() TO PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.pulse_signal_roster() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.rate_limit_hit_many(p_keys text[], p_max integer[], p_window_seconds integer[]) FROM PUBLIC, anon, authenticated, service_role;
@@ -21074,7 +21074,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (306, '306_training_exercise_ref_pins.sql', 'rebuild-000'),
   (307, '307_video_games.sql', 'rebuild-000'),
   (308, '308_video_tag_claims.sql', 'rebuild-000'),
-  (309, '309_stat_game_distinct.sql', 'rebuild-000')
+  (309, '309_stat_game_distinct.sql', 'rebuild-000'),
+  (310, '310_pulse_signal_revoke.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21083,12 +21084,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 148 | 146 | 145 | 309
+-- Expected: 000 REBUILT | 148 | 146 | 145 | 310
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_148,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_146,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_309;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_310;
 
