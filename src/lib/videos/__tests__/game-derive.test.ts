@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GAME_SHEETS } from '../game-sheets';
-import { cellText, deriveGame, nextHighWater, personKey, revealAt, revealMs, setWinner, tagsForPerson, type GameTag, type TagPerson } from '../game-derive';
+import { cellText, deriveGame, nextHighWater, personKey, revealAt, revealMs, setWinner, statTagsForPerson, tagsForPerson, type GameTag, type TagPerson } from '../game-derive';
 
 /**
  * Every stat of a tagged game comes from its tags (Sprint 3, Nov 12 2026):
@@ -234,3 +234,30 @@ describe('people and the drill-down', () => {
     expect(g.team[1].points).toBe(2);
   });
 });
+
+describe('the tags behind a stat (Sprint 4): a number opens exactly the clips that made it', () => {
+  const sheet = GAME_SHEETS.soccer;
+  const goal1 = tag(10_000, 'goal', 1, [who('scorer', 'ann'), who('assist', 'bea')]);
+  const shot = tag(20_000, 'shot_off_target', 1, [who('shooter', 'ann')]);
+  const goal2 = tag(30_000, 'goal', 1, [who('scorer', 'bea'), who('assist', 'ann')]);
+  const marker = tag(40_000, null, 1, [who('scorer', 'ann')]);
+  const second = tag(50_000, 'goal', 1, [who('scorer', 'cy'), who('scorer', 'ann')]); // one scorer: the first named holds the role
+  const tags = [goal2, marker, goal1, second, shot];
+  const behind = statTagsForPerson(sheet, tags, 'p:ann');
+  it('each stat names its tags in time order, and the count is the stat', () => {
+    expect(behind.goals).toEqual([goal1.id]);
+    expect(behind.shots).toEqual([goal1.id, shot.id]);
+    expect(behind.assists).toEqual([goal2.id]);
+    const line = deriveGame(sheet, tags).players.find(p => p.key === 'p:ann')!;
+    for (const [k, ids] of Object.entries(behind)) expect(ids.length).toBe(line.stats[k]);
+  });
+  it('a plain marker and a role somebody else holds are behind no stat', () => {
+    const all = Object.values(behind).flat();
+    expect(all).not.toContain(marker.id);
+    expect(all).not.toContain(second.id);
+  });
+  it('someone who is on no tag has nothing', () => {
+    expect(statTagsForPerson(sheet, tags, 'p:zed')).toEqual({});
+  });
+});
+

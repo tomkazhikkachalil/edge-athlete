@@ -262,3 +262,31 @@ export function tagsForPerson(sheet: GameSheet, tags: readonly GameTag[], key: s
     .slice()
     .sort((a, b) => a.startMs - b.startMs);
 }
+
+/**
+ * The tags behind each of one person's stats (Sprint 4): `goals → [tag ids]`,
+ * in time order — the clips a number opens. Who holds a role is deriveGame's
+ * rule (the first `max` people in it), so the ids under a stat are exactly
+ * the tags that put that stat on this person's line. A tag that gave them a
+ * clip and no stat is under no key.
+ */
+export function statTagsForPerson(sheet: GameSheet, tags: readonly GameTag[], key: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  const ordered = tags.slice().sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id));
+  for (const tag of ordered) {
+    const event = sheetEvent(sheet, tag.eventKey);
+    if (!event) continue;
+    const value = tagValue(event, tag.value);
+    for (const r of event.roles) {
+      const holders = tag.people.filter(p => p.role === r.key).slice(0, r.max ?? 1);
+      if (!holders.some(p => personKey(p) === key)) continue;
+      for (const [k, v] of Object.entries(r.stats)) {
+        if (!amount(v, tag.value, value)) continue;
+        const ids = out[k] ?? (out[k] = []);
+        if (!ids.includes(tag.id)) ids.push(tag.id);
+      }
+    }
+  }
+  return out;
+}
+
