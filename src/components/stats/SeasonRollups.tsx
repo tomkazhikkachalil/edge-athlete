@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Rollups } from '@/lib/performance/rollups';
+import { onStatGamesChanged } from '@/lib/performance/game-distinct-client';
 import { PROVENANCE_LABEL } from '@/lib/sports/provenance-copy';
 
 const shortDate = (iso: string) =>
@@ -44,15 +45,18 @@ export default function SeasonRollups({ profileId, sportKey, heroLabel }: { prof
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const read = async (fresh: boolean) => {
       try {
-        const res = await fetch(`/api/performance/rollups?profileId=${encodeURIComponent(profileId)}&sport=${encodeURIComponent(sportKey)}`);
+        const res = await fetch(`/api/performance/rollups?profileId=${encodeURIComponent(profileId)}&sport=${encodeURIComponent(sportKey)}`, fresh ? { cache: 'no-store' } : undefined);
         if (!res.ok) return;
         const body = (await res.json()) as { rollups: Rollups | null };
         if (!cancelled) setRollups(body.rollups);
       } catch { /* the rollups are a layer over the log — the log still renders */ }
-    })();
-    return () => { cancelled = true; };
+    };
+    void read(false);
+    // "These are two different games" changes what is counted: read again, past the minute's cache.
+    const off = onStatGamesChanged(() => void read(true));
+    return () => { cancelled = true; off(); };
   }, [profileId, sportKey]);
 
   if (!rollups || rollups.events === 0) return null;

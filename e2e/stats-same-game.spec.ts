@@ -84,6 +84,24 @@ test('an official line and the athlete\'s own post of the same game count once �
     await expect(marked.locator('[data-stat-not-counted] a')).toHaveAttribute('href', officialRow.href);
     await expect(page.locator(`[data-stat-log-row="${otherPost}"]`)).toHaveAttribute('data-stat-counted', 'yes');
     expect(await fitsViewportWidth(page)).toBe(true);
+
+    // 4. "These are two different games" (migration 309): a doubleheader. Nobody else can say it for the athlete…
+    const keys = { a: `post:${sameGamePost}`, b: `official:${contestId}` };
+    expect((await ownerApi.post(`/api/sports/stat-lines/distinct?profileId=${athlete.id}`, { data: { sport: 'ice_hockey', ...keys, distinct: true } })).ok()).toBe(false);
+    expect((await athleteApi.post('/api/sports/stat-lines/distinct', { data: { sport: 'ice_hockey', a: keys.a, b: keys.a, distinct: true } })).status()).toBe(400);
+    //    …the athlete says it on the row: both games count — three games, six goals — in the totals and the tiles.
+    await marked.locator('[data-stat-split]').click();
+    await expect(marked).toHaveAttribute('data-stat-counted', 'yes', { timeout: 20_000 });
+    await expect(marked.locator('[data-stat-split-done]')).toContainText('Counted as its own game');
+    const read = async () => (await (await athleteApi.get(`/api/sports/stat-lines?profileId=${athlete.id}&sport=ice_hockey`)).json()) as { entryCount: number; totals: Record<string, number> };
+    expect(await read()).toMatchObject({ entryCount: 3, totals: { goals: 6 } });
+    res = await athleteApi.get(`/api/performance/rollups?profileId=${athlete.id}&sport=ice_hockey`);
+    expect(((await res.json()) as { rollups: { events: number } }).rollups.events).toBe(total);
+    expect(await fitsViewportWidth(page)).toBe(true);
+    //    Undo: one game again.
+    await marked.locator('[data-stat-split-undo]').click();
+    await expect(marked).toHaveAttribute('data-stat-counted', 'no', { timeout: 20_000 });
+    expect(await read()).toMatchObject({ entryCount: 2, totals: { goals: 5 } });
   } finally {
     for (const id of postIds) await athleteApi.delete(`/api/posts/${id}`).catch(() => undefined);
     await ownerApi.dispose();

@@ -3,7 +3,8 @@ import type { User } from '@supabase/supabase-js';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getStatSchema, isStatLineData, formatResult, computeProfileTile, type StatLineData } from '@/lib/sports/stat-schemas';
 import { fetchOfficialStatLines } from '@/lib/sports/server/official-stats';
-import { countGames } from '@/lib/performance/same-game';
+import { distinctSet, readDistinctPairs } from '@/lib/performance/game-distinct-server';
+import { countGames, gameKey } from '@/lib/performance/same-game';
 import { gameHasSides } from '@/lib/videos/game-rules';
 import { verifiedFilmGames } from '@/lib/videos/video-tagged-server';
 import { profileManages } from '@/lib/videos/videos-server';
@@ -115,7 +116,8 @@ export async function GET(request: NextRequest) {
 
     // Verified film (Nov 14 2026): a club's or league's fully tagged, dated
     // game this viewer may open. Nothing is stored — the line is the tags'.
-    const filmAll = await verifiedFilmGames(supabase, profileId, schema.sport_key, viewer, viewer ? await profileManages(viewer.id, profileId) : false);
+    const actsFor = viewer ? await profileManages(viewer.id, profileId) : false;
+    const filmAll = await verifiedFilmGames(supabase, profileId, schema.sport_key, viewer, actsFor);
 
     // Years present in the (unfiltered) data — powers the profile-page year
     // selector. Entry date preferred; post date as fallback (string-sliced,
@@ -149,9 +151,11 @@ export async function GET(request: NextRequest) {
     // contest, or the same date in a sport with two sides. The loser stays
     // listed, marked. A disputed line is unconfirmed: it neither counts nor
     // beats anything until resolved.
-    const postGameId = (postId: string) => `post:${postId}`;
-    const officialGameId = (contestId: string) => `official:${contestId}`;
-    const filmGameId = (videoId: string) => `film:${videoId}`;
+    const postGameId = gameKey.post;
+    const officialGameId = gameKey.official;
+    const filmGameId = gameKey.film;
+    // "These are two different games" (309): the athlete's own word on a same-date pair.
+    const pairs = await readDistinctPairs(supabase, profileId, schema.sport_key);
     const confirmed = officialInYear.filter(l => !l.disputed);
     const counted = countGames(
       [
@@ -159,7 +163,7 @@ export async function GET(request: NextRequest) {
         ...filmInYear.map(f => ({ id: filmGameId(f.videoId), source: 'film' as const, date: f.date, contestId: f.contestId })),
         ...lines.map(l => ({ id: postGameId(l.postId), source: 'post' as const, date: lineDate(l), opponent: l.line.opponent ?? null })),
       ],
-      { matchByDate: gameHasSides(schema.sport_key) }
+      { matchByDate: gameHasSides(schema.sport_key), distinct: distinctSet(pairs) }
     );
     const isCounted = (id: string) => counted.get(id)?.counted !== false;
     // What beat a game, for its row: the official line's page, or the film's video.
@@ -167,9 +171,16 @@ export async function GET(request: NextRequest) {
       ...confirmed.map(l => [officialGameId(l.contestId), { source: 'official' as const, href: l.href }] as const),
       ...filmInYear.map(f => [filmGameId(f.videoId), { source: 'film' as const, href: `/videos/${f.videoId}` }] as const),
     ]);
+    // `key` names the winner; `canSplit` says the two were joined by the DATE alone, so the athlete may say they are two games.
     const sameAsOf = (id: string) => {
       const verdict = counted.get(id);
-      return verdict && !verdict.counted && verdict.beatenBy ? winnerOf.get(verdict.beatenBy) ?? null : null;
+      const winner = verdict && !verdict.counted && verdict.beatenBy ? winnerOf.get(verdict.beatenBy) : null;
+      return winner && verdict?.beatenBy ? { ...winner, key: verdict.beatenBy, canSplit: verdict.reason === 'same_date' } : null;
+    };
+    // A game the athlete already split from another: the other one's name, so the row can offer to take it back.
+    const splitFromOf = (id: string): string | null => {
+      const pair = pairs.find(p => p.a === id || p.b === id);
+      return pair ? (pair.a === id ? pair.b : pair.a) : null;
     };
 
     // The season's lines: every counted game, whichever way it arrived.
@@ -210,8 +221,10 @@ export async function GET(request: NextRequest) {
         opponent: l.line.opponent || '—',
         result: formatResult(l.line) || '—',
         keyStat: schema.headline(l.line.stats) || '—',
+        key: postGameId(l.postId),
         counted: isCounted(postGameId(l.postId)),
         sameAs: sameAsOf(postGameId(l.postId)),
+        splitFrom: splitFromOf(postGameId(l.postId)),
       };
     });
 
@@ -234,7 +247,7 @@ export async function GET(request: NextRequest) {
       }));
 
     // The verified film of the season: which games are in the totals, and what took the place of the others.
-    const film = filmInYear.map(f => ({ videoId: f.videoId, counted: isCounted(filmGameId(f.videoId)), sameAs: sameAsOf(filmGameId(f.videoId)) }));
+    const film = filmInYear.map(f => ({ videoId: f.videoId, key: filmGameId(f.videoId), counted: isCounted(filmGameId(f.videoId)), sameAs: sameAsOf(filmGameId(f.videoId)), splitFrom: splitFromOf(filmGameId(f.videoId)) }));
 
     return NextResponse.json({
       sport,
@@ -245,6 +258,8 @@ export async function GET(request: NextRequest) {
       years,
       official,
       film,
+      // The athlete or their guardian: may say two same-date games are different games.
+      canEdit: isOwner || actsFor,
     }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (e) {
     reportRouteError('[stat-lines] unexpected error:', e);
