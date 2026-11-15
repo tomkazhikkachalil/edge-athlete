@@ -60,7 +60,8 @@ test('a film game and the athlete\'s own post of the same date: one game, split 
     const page = await ctx.newPage();
     await page.goto(`/athlete/${athlete.id}/sport/soccer?season=2026`);
     const row = page.locator(`[data-stat-row="post:${postId}"]`);
-    await expect(row).toContainText('Not counted — the same game as the game film', { timeout: 30_000 });
+    await expect(row).toContainText('Not counted — the same game as the club\'s game film', { timeout: 30_000 });
+    await expect(row.locator('[data-stat-not-counted] a')).toHaveAttribute('href', new RegExp(`season=2026&game=film%3A${videoId}$`));
     await row.locator('[data-stat-split]').click();
     await expect(row.locator('[data-stat-split-done]')).toContainText('Counted as its own game.', { timeout: 20_000 });
     now = await read();

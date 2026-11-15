@@ -57,22 +57,22 @@ test('performance rollups: one stat line → one event, tiles and bests; a stran
     expect((await bravoApi.get(`/api/performance/rollups?profileId=${alpha.id}&sport=ice_hockey`)).status()).toBe(403);
     expect((await alphaApi.get(`/api/performance/rollups?profileId=${alpha.id}&sport=curling`)).status()).toBe(400);
 
-    // The Stats tab on the owner's page.
+    // The Stats tab's sport layer is the short intro; its full breakdown is the sport profile (retired Nov 2026).
     await page.goto(`/athlete/${alpha.id}?tab=stats&sport=ice_hockey`);
-    // The sport layer opens on a summary; the breakdown (and the rollups at
-    // its top) is behind "Full breakdown".
-    // A tap before hydration is swallowed (WebKit, prod probe Sep 26 2026:
-    // the card rendered, the button stayed) — tap until the section opens.
-    const section = page.locator('[data-rollups]');
-    await expect(async () => {
-      if (!(await section.isVisible())) await page.getByRole('button', { name: 'Full breakdown' }).click();
-      await expect(section).toBeVisible({ timeout: 4_000 });
-    }).toPass({ timeout: 30_000 });
-    // At least its own two (a batch may add another spec's hockey line).
-    const goalsTile = section.locator('[data-rollups-tile="Goals"]');
-    await expect(goalsTile).toContainText(/\d/);
-    expect(Number((await goalsTile.innerText()).match(/\d+/)?.[0] ?? 0)).toBeGreaterThanOrEqual(2);
-    await expect(section.locator('[data-rollups-bests]')).toContainText('Shots');
+    const door = page.locator('[data-sport-profile-door="ice_hockey"]');
+    await expect(door).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Full breakdown' })).toHaveCount(0);
+    await expect(page.locator('[data-stat-log-row]')).toHaveCount(0);
+    await door.click();
+    await expect(page).toHaveURL(new RegExp(`/athlete/${alpha.id}/sport/ice_hockey$`));
+    // The career: its goals (at least its own two — a batch may add another spec's hockey line), and the career bests from the same record.
+    const career = page.locator('[data-sport-level="career"]');
+    await expect(career).toBeVisible({ timeout: 30_000 });
+    const goals = career.locator('[data-stat-row="career"] [data-stat="goals"]');
+    await expect(goals).toHaveText(/\d/);
+    expect(Number((await goals.innerText()).match(/\d+/)?.[0] ?? 0)).toBeGreaterThanOrEqual(2);
+    const extras = career.locator('[data-rollups][data-rollups-mode="extras"]');
+    await expect(extras.locator('[data-rollups-bests]')).toContainText('Shots', { timeout: 20_000 });
   } finally {
     await purgePost(postId); // results are never deleted by the app (241) — the service role tears down
     await alphaApi.dispose();

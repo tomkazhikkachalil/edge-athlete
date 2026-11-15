@@ -39,9 +39,24 @@ function Sparkline({ points, label }: { points: Array<{ date: string; value: num
   );
 }
 
-export default function SeasonRollups({ profileId, sportKey, heroLabel }: { profileId: string; sportKey: string; heroLabel: string }) {
+interface Props {
+  profileId: string;
+  sportKey: string;
+  heroLabel: string;
+  /**
+   * `extras` (the sport profile, Sprint 4): only what the sport profile does
+   * not already show — how verified the events are, the trend and the bests —
+   * for the scope the CALLER names (`scopeKey`: a season key, or absent for
+   * the career). The default is the whole block with its own scope select.
+   */
+  mode?: 'full' | 'extras';
+  scopeKey?: string | null;
+}
+
+export default function SeasonRollups({ profileId, sportKey, heroLabel, mode = 'full', scopeKey = null }: Props) {
   const [rollups, setRollups] = useState<Rollups | null>(null);
-  const [selected, setSelected] = useState<string>('career');
+  const [picked, setSelected] = useState<string>('career');
+  const selected = mode === 'extras' ? scopeKey ?? 'career' : picked;
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +85,37 @@ export default function SeasonRollups({ profileId, sportKey, heroLabel }: { prof
   }, {});
   const verified = Object.entries(provenance).filter(([k]) => k !== 'self_reported').reduce((n, [, v]) => n + v, 0);
   const events = scope ? scope.events : rollups.events;
+
+  if (mode === 'extras') {
+    // A season the record does not know (only recreational film, say) has nothing to add.
+    if (selected !== 'career' && !scope) return null;
+    const showTrend = !scope && rollups.trend.length >= 2;
+    if (!showTrend && bests.length === 0 && verified === 0) return null;
+    return (
+      <section aria-label={scope ? 'Season bests' : 'Career bests and trend'} data-rollups="" data-rollups-mode="extras">
+        {verified > 0 && <p className="mb-4 text-xs text-tertiary" data-rollups-verified="">{verified} of {events} {events === 1 ? 'event' : 'events'} {PROVENANCE_LABEL.club_recorded.toLowerCase()} or better</p>}
+        {showTrend && (
+          <div className="mb-4">
+            <div className="mb-1 text-xs text-tertiary">{heroLabel}, last {rollups.trend.length} events</div>
+            <Sparkline points={rollups.trend} label={heroLabel} />
+          </div>
+        )}
+        {bests.length > 0 && (
+          <div>
+            <h3 className="mb-2 text-lg font-bold text-primary">{scope ? 'Season bests' : 'Career bests'}</h3>
+            <ul className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2" data-rollups-bests="">
+              {bests.map(b => (
+                <li key={b.key} className="flex justify-between gap-3">
+                  <span className="text-secondary">{b.label}</span>
+                  <span className="tabular-nums text-primary">{b.value} <span className="text-xs text-tertiary">{shortDate(b.date)}</span></span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="mb-6" aria-labelledby="rollups-heading" data-rollups="">

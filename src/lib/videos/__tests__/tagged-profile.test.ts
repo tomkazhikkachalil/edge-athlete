@@ -74,7 +74,12 @@ describe('tagged by someone else', () => {
     expect(film).not.toMatch(/api\/performance\/rollups/);
     expect(film).toContain('data-game-film-counted="yes"');
     expect(film).toContain('data-game-film-counted="no"');
-    expect(read('src/components/stats/StatsHub.tsx')).toContain('<GameFilmLines profileId={profileId} sportKey={selectedSport ?? null} />');
+    // Since the Stats breakdown was retired (Nov 2026): the list stays on the All layer and on a sport with no sport profile
+    // (golf, track); a sport WITH one shows its film in the sport profile's game log instead.
+    const hub = read('src/components/stats/StatsHub.tsx');
+    expect(hub).toContain('{!(selectedSport && hasSportProfile(selectedSport)) && <GameFilmLines profileId={profileId} sportKey={selectedSport ?? null} />}');
+    expect(hub).toMatch(/return sportKey !== 'golf' && sportKey !== 'track_field' && !!getStatSchema\(sportKey as SportKey\);/);
+    expect(hub).not.toContain("import StatLineBreakdown from './StatLineBreakdown';");
     // The totals take film ONLY through verifiedFilmGames (a club's or league's, fully tagged, dated) — never the plain tagged list, never stored.
     const route = read('src/app/api/sports/stat-lines/route.ts');
     expect(route).not.toMatch(/video_highlight|listTaggedGames/);

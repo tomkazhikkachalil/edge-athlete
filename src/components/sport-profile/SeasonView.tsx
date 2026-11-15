@@ -6,6 +6,9 @@ import { useToast } from '@/components/Toast';
 import { saveDistinctGames } from '@/lib/performance/game-distinct-client';
 import { NO_SEASON, splitByOpponent, splitByPeriod, totalsOf, type ProfileGame } from '@/lib/sport-profile/rules';
 import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
+import SeasonRollups from '@/components/stats/SeasonRollups';
+import { PROVENANCE_LABEL, UNCONFIRMED_LABEL, UNCONFIRMED_TITLE } from '@/lib/sports/provenance-copy';
+import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { formatDateShort } from './format';
 import StatTable, { type StatTableRow } from './StatTable';
 import Tiles from './Tiles';
@@ -63,9 +66,15 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
   const log: StatTableRow[] = games.map(g => {
     const row = rowOf.get(g.key)!;
     const same = g.sameAs ? rowOf.get(g.sameAs) : null;
-    const marks: string[] = [SOURCE_NOTE[g.source]];
+    // An official line says the rung it was entered at ("League verified"), as the Stats tab's Official table did.
+    const rung = g.source === 'official' && row.provenance ? (PROVENANCE_LABEL as Record<string, string>)[row.provenance] ?? null : null;
+    const marks: string[] = [rung ? `${SOURCE_NOTE[g.source]} · ${rung}` : SOURCE_NOTE[g.source]];
+    if (g.source === 'post' && row.result) marks.push(row.result);
+    // The game that took this one's place: its own page — the official result, or the film's game level here.
+    const sameHref = same ? (same.source === 'official' ? same.href : `${basePath}${sportViewSearch({ season: same.season, game: same.key })}`) : null;
     if (g.standing === 'recreational') marks.push('Recreational — shown, never counted');
-    else if (!g.counted && same) marks.push(`Not counted — the same game as the ${same.source === 'official' ? 'official line' : 'game film'}`);
+    else if (row.disputed) marks.push('Not counted until the dispute is resolved');
+    else if (!g.counted && same) { /* said below, with the link */ }
     else if (!g.counted && g.standing === 'verified_highlights') marks.push('Highlights only — not counted');
     else if (!g.counted && g.source === 'film' && !g.date) marks.push('No date played — not counted');
     else if (!g.counted) marks.push('Not counted');
@@ -74,10 +83,20 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
     return {
       id: g.key,
       muted: !g.counted,
+      counted: g.counted,
       lead: (
         <span className="block min-w-[9rem]">
           <span className="block"><Link href={`${basePath}${sportViewSearch({ season, game: g.key })}`} className="ea-interactive rounded underline decoration-border underline-offset-4" data-game-link={g.key}>{title}</Link></span>
           <span className="block text-xs font-normal text-muted">{[g.date ? formatDateShort(g.date) : 'No date', ...marks].join(' · ')}</span>
+          {row.disputed && (
+            <span className="mt-0.5 inline-block rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" title={UNCONFIRMED_TITLE} data-stat-unconfirmed="">{UNCONFIRMED_LABEL}</span>
+          )}
+          {!g.counted && same && g.standing !== 'recreational' && !row.disputed && (
+            <span className="block text-xs font-normal text-muted" data-stat-not-counted="">
+              Not counted — the same game as{' '}
+              {sameHref ? <Link href={sameHref} className="underline">{same.source === 'official' ? 'the official line' : 'the club\'s game film'}</Link> : same.source === 'official' ? 'the official line' : 'the club\'s game film'}
+            </span>
+          )}
           {data.can_edit && row.canSplit && g.sameAs && (
             <button type="button" disabled={saving} onClick={() => void split(g.key, g.sameAs!, true)} className="ea-interactive mt-1 block min-h-[32px] rounded text-left text-xs font-semibold text-secondary underline decoration-border underline-offset-4 disabled:opacity-60" data-stat-split="">
               These are two different games
@@ -143,8 +162,14 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
         </div>
       )}
 
+      {/* The season's bests, from the performance record (the rollups' own reader). */}
+      {getStatSchema(data.sport) && <SeasonRollups profileId={profileId} sportKey={data.sport} heroLabel={getStatSchema(data.sport)!.heroStat.label} mode="extras" scopeKey={season} />}
+
       <div data-sport-game-log="">
         <h3 className="mb-3 text-lg font-bold text-primary">Game log</h3>
+        {games.some(g => g.source === 'official') && (
+          <p className="mb-3 text-sm"><Link href="/help/verified-stats" className="text-brand-fg hover:text-brand-fg-strong" data-verified-help="">How verification works →</Link></p>
+        )}
         {heldHere > 0 && (
           <p className="mb-3 flex flex-wrap items-center gap-3 text-sm text-secondary" data-sport-held="">
             <span>{heldHere === 1 ? 'One game is' : `${heldHere} games are`} spoiler-free: counted above, the line kept back.</span>

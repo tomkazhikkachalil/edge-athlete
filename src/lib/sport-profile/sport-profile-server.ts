@@ -18,7 +18,7 @@ import { distinctSet, readDistinctPairs } from '@/lib/performance/game-distinct-
 import { seasonKey } from '@/lib/performance/rollups';
 import { countGames, gameKey } from '@/lib/performance/same-game';
 import { fetchOfficialStatLines } from '@/lib/sports/server/official-stats';
-import { computeProfileTile, getStatSchema, isStatLineData, type StatLineData } from '@/lib/sports/stat-schemas';
+import { computeProfileTile, formatResult, getStatSchema, isStatLineData, type StatLineData } from '@/lib/sports/stat-schemas';
 import { filmCountable, filmStanding } from '@/lib/videos/film-standing';
 import { deriveGame, statTagsForPerson, type GameTag } from '@/lib/videos/game-derive';
 import { gameHasSides, gameTitleLine, sideLabel } from '@/lib/videos/game-rules';
@@ -282,7 +282,7 @@ export async function readSportProfile(admin: Admin, profileId: string, sportKey
   const games: ProfileGame[] = [
     ...official.map(l => ({
       key: gameKey.official(l.contestId), source: 'official' as const, date: l.date ? l.date.slice(0, 10) : null,
-      title: l.competitionName, opponent: l.opponentName, stats: l.stats, href: l.href, ...empty,
+      title: l.competitionName, opponent: l.opponentName, stats: l.stats, href: l.href, ...empty, provenance: l.provenance, disputed: l.disputed,
       ...verdictOf(gameKey.official(l.contestId), !l.disputed),
     })),
     ...film.map(f => ({
@@ -294,7 +294,7 @@ export async function readSportProfile(admin: Admin, profileId: string, sportKey
     })),
     ...posts.map(p => ({
       key: gameKey.post(p.id), source: 'post' as const, date: p.date, title: p.line.opponent ? `vs ${p.line.opponent}` : schema.activityNoun,
-      opponent: p.line.opponent ?? null, stats: p.line.stats as Stats, href: null, ...empty,
+      opponent: p.line.opponent ?? null, stats: p.line.stats as Stats, href: null, ...empty, result: formatResult(p.line) || null,
       ...verdictOf(gameKey.post(p.id), true),
     })),
   ];
@@ -327,6 +327,10 @@ export interface SportProfileGameRow {
   canSplit: boolean;
   /** The other game of a pair the athlete said are two games (309). */
   splitFrom: string | null;
+  /** An official line's rung, its open dispute, and a posted game's own result. */
+  provenance: string | null;
+  disputed: boolean;
+  result: string | null;
   byPeriod: Record<number, Stats>;
 }
 
@@ -370,6 +374,7 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
       sameAs: g.sameAs, standing: g.standing, videoId: g.videoId, href: g.href, held: shown[i].held, clips: g.clips.length, byPeriod: g.byPeriod,
       statClips: clipCountsOfGame(shown, g.key), film: filmOfGame(shown, g.key)?.key ?? null, hidden: g.hidden === true,
       canSplit: g.canSplit === true, splitFrom: g.splitFrom ?? null,
+      provenance: g.provenance ?? null, disputed: g.disputed === true, result: g.result ?? null,
     })),
     held: shown.filter(g => g.held && g.counted).length,
   };

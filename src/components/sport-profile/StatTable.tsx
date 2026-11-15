@@ -14,6 +14,8 @@ export interface StatTableRow {
   stats: Record<string, number>;
   /** A row that is not in the totals reads quieter. */
   muted?: boolean;
+  /** A game-log row says whether it is in the totals (`data-stat-counted`). */
+  counted?: boolean;
   /** Said instead of the numbers (a spoiler-free game). */
   instead?: ReactNode;
   /** A number is a door to its clips: the address of the reel behind this row's stat, or null when no clip is behind it. */
@@ -37,7 +39,7 @@ interface Props {
  */
 export default function StatTable({ caption, leadLabel, countLabel, columns, rows, foot }: Props) {
   const line = (r: StatTableRow, strong: boolean) => (
-    <tr key={r.id} className={`border-b border-border-subtle last:border-b-0 ${r.muted ? 'text-muted' : 'text-primary'}`} data-stat-row={r.id}>
+    <tr key={r.id} className={`border-b border-border-subtle last:border-b-0 ${r.muted ? 'text-muted' : 'text-primary'}`} data-stat-row={r.id} data-stat-counted={r.counted === undefined ? undefined : r.counted ? 'yes' : 'no'}>
       <th scope="row" className={`sticky left-0 bg-surface py-2 pr-3 text-left align-top ${strong ? 'font-bold' : 'font-medium'}`}>{r.lead}</th>
       {countLabel && <td className="px-2 py-2 text-right tabular-nums">{r.count ?? ''}</td>}
       {r.instead
