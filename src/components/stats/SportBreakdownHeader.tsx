@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { getSportDefinition } from '@/lib/sports/SportRegistry';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import type { SportSkillCard } from '@/lib/sports/server/types';
-import { ProvenanceChip, TileGrid } from '../SportSkillCards';
+import { ProvenanceChip, SelfPostedNote, TileGrid } from '../SportSkillCards';
 import SportSettingsRow from '../SportSettingsRow';
 import FaIcon from '@/components/FaIcon';
 import { faChevronDown } from '@/lib/icons/fa/chevron-down';
@@ -85,6 +85,7 @@ export default function SportBreakdownHeader({ card, children }: SportBreakdownH
       </div>
 
       <TileGrid tiles={card.tiles} />
+      <SelfPostedNote games={card.selfPostedGames} where="stats" />
       <SportSettingsRow items={card.entered} className="mt-3 px-0 pb-0" />
 
       {expanded && children && (

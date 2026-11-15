@@ -111,3 +111,32 @@ describe('mergeOfficialContribution', () => {
     expect(mergeOfficialContribution(contribution, [line({ goals: 1 })], null)).toBe(contribution);
   });
 });
+
+describe('the card stays verified-only and says how many self-posted games are besides it (Tom, Nov 14 2026)', () => {
+  const post = (date: string | undefined, goals: number, opponent?: string) => ({ type: 'stat_line', sport_key: 'ice_hockey', ...(date ? { date } : {}), ...(opponent ? { opponent } : {}), stats: { goals } });
+  const tracked = (lines: unknown[]) => ({ tiles: [{ label: 'Goals', value: '9', provenance: 'tracked' as const }], statLines: lines });
+  it('the tiles are the official lines only; a posted game of another day is counted beside them', () => {
+    const merged = mergeOfficialContribution(tracked([post('2026-09-01', 1), post('2026-09-02', 3)]), [line({ goals: 2 })], hockey, true)!;
+    expect(merged.tiles!.find(t => t.label === 'Goals')).toMatchObject({ value: '2', provenance: 'league_verified' });
+    // Sep 1 is the official game (the same date, a sport with two sides) — one self-posted game is its own.
+    expect(merged.selfPostedGames).toBe(1);
+  });
+  it('one to one: one official line takes one post of its day with it, not all of them', () => {
+    expect(mergeOfficialContribution(tracked([post('2026-09-01', 1), post('2026-09-01', 2), post('2026-09-01', 3)]), [line({ goals: 2 })], hockey, true)!.selfPostedGames).toBe(2);
+  });
+  it('a sport without sides is never matched by date; a post with no date is a game of its own', () => {
+    expect(mergeOfficialContribution(tracked([post('2026-09-01', 1)]), [line({ goals: 2 })], hockey, false)!.selfPostedGames).toBe(1);
+    expect(mergeOfficialContribution(tracked([post(undefined, 1)]), [line({ goals: 2 })], hockey, true)!.selfPostedGames).toBe(1);
+  });
+  it('nothing is said when every posted game is an official one, when there are no posts, or when there is no official line', () => {
+    expect(mergeOfficialContribution(tracked([post('2026-09-01', 1)]), [line({ goals: 2 })], hockey, true)!.selfPostedGames).toBeUndefined();
+    expect(mergeOfficialContribution({ tiles: [] }, [line({ goals: 2 })], hockey, true)!.selfPostedGames).toBeUndefined();
+    const untouched = tracked([post('2026-09-02', 3)]);
+    expect(mergeOfficialContribution(untouched, [], hockey, true)).toBe(untouched);
+  });
+  it('a disputed line counts nothing and takes no post with it', () => {
+    const merged = mergeOfficialContribution(tracked([post('2026-09-01', 1)]), [{ ...line({ goals: 2 }), disputed: true }, { ...line({ goals: 4 }), contestId: 'c2', date: '2026-09-05T00:00:00Z' }], hockey, true)!;
+    expect(merged.selfPostedGames).toBe(1);
+  });
+});
+

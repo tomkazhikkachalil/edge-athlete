@@ -9,6 +9,7 @@ import {
   type SettingsDisplayItem,
 } from '../settings-schemas';
 import { getStatSchema } from '../stat-schemas';
+import { gameHasSides } from '@/lib/videos/game-rules';
 import { golfServerModule } from './golf';
 import {
   fetchOfficialStatLines,
@@ -110,6 +111,7 @@ export function assembleSkillCard(
     state: empty ? 'empty' : 'data',
     pinned: pin.pinned,
     pinOrder: pin.pinOrder,
+    ...(contribution?.selfPostedGames ? { selfPostedGames: contribution.selfPostedGames } : {}),
   };
 }
 
@@ -225,7 +227,8 @@ export async function buildSportSkillCards(
       const merged = mergeOfficialContribution(
         contribution,
         officialBySport.get(sportKey) ?? [],
-        getStatSchema(sportKey)
+        getStatSchema(sportKey),
+        gameHasSides(sportKey)
       );
       return assembleSkillCard(sportKey, merged, getSportSettingsDisplay(sportKey, settings), pinBySport.get(sportKey));
     })
