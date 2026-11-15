@@ -110,12 +110,14 @@ describe('"these are two different games" (migration 309)', () => {
     expect(route).toContain('setDistinctPair(getSupabaseAdmin(), acting.actorId, user.id, parsed.value)');
     expect(route).toContain("getServerAuth(request, { limit: 'settings-write' })");
     const totals = read('src/app/api/sports/stat-lines/route.ts');
-    expect(totals).toContain('const pairs = await readDistinctPairs(supabase, profileId, schema.sport_key);');
+    expect(totals).toContain('const pairsAsked = readDistinctPairs(supabase, profileId, schema.sport_key);');
+    expect(totals).toContain('const pairs = await pairsAsked;');
     expect(totals).toContain('{ matchByDate: gameHasSides(schema.sport_key), distinct: distinctSet(pairs) }');
     expect(totals).toContain("canSplit: verdict.reason === 'same_date'");
     expect(totals).toContain('canEdit: isOwner || actsFor,');
     const tiles = read('src/lib/performance/rollups-server.ts');
-    expect(tiles).toContain('const distinct = distinctSet(await readDistinctPairs(admin, profileId, sportKey));');
+    expect(tiles).toContain('const pairsAsked = readDistinctPairs(admin, profileId, sportKey);');
+    expect(tiles).toContain('const distinct = distinctSet(await pairsAsked);');
     expect(tiles).toContain("r.source_table === 'posts' ? gameKey.post(r.source_id) : r.id");
   });
   it('the table: service role only, the pair in one spelling, gone with the person', () => {

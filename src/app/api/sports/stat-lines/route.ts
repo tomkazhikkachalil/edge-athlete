@@ -79,6 +79,14 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // The reads that do not depend on each other START together, after the gate (measured on production, Nov 14 2026: one
+    // film game added ~250 ms when it was read after the others). Each is awaited where it is used; a failure is thrown there.
+    const actsForAsked = viewer ? profileManages(viewer.id, profileId) : Promise.resolve(false);
+    const officialAsked = fetchOfficialStatLines(supabase, profileId);
+    const filmAsked = actsForAsked.then(acts => verifiedFilmGames(supabase, profileId, schema.sport_key, viewer, acts));
+    const pairsAsked = readDistinctPairs(supabase, profileId, schema.sport_key);
+    for (const asked of [actsForAsked, officialAsked, filmAsked, pairsAsked]) asked.catch(() => undefined);
+
     let query = supabase
       .from('posts')
       .select('id, created_at, stats_data, visibility')
@@ -113,12 +121,8 @@ export async function GET(request: NextRequest) {
     // film (Nov 14 2026): a club's or league's fully tagged, dated game this
     // viewer may open. Nothing about film is stored. The two reads do not
     // wait on each other.
-    const [officialRows, actsFor] = await Promise.all([
-      fetchOfficialStatLines(supabase, profileId),
-      viewer ? profileManages(viewer.id, profileId) : Promise.resolve(false),
-    ]);
+    const [officialRows, actsFor, filmAll] = await Promise.all([officialAsked, actsForAsked, filmAsked]);
     const officialAll = officialRows.filter(l => l.sportKey === sport);
-    const filmAll = await verifiedFilmGames(supabase, profileId, schema.sport_key, viewer, actsFor);
 
     // Years present in the (unfiltered) data — powers the profile-page year
     // selector. Entry date preferred; post date as fallback (string-sliced,
@@ -156,7 +160,7 @@ export async function GET(request: NextRequest) {
     const officialGameId = gameKey.official;
     const filmGameId = gameKey.film;
     // "These are two different games" (309): the athlete's own word on a same-date pair.
-    const pairs = await readDistinctPairs(supabase, profileId, schema.sport_key);
+    const pairs = await pairsAsked;
     const confirmed = officialInYear.filter(l => !l.disputed);
     const counted = countGames(
       [
