@@ -4,19 +4,24 @@ import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import { COPY } from '@/lib/copy';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Camera, BarChart3, Tag, Dumbbell, Activity, Trophy, Clapperboard } from 'lucide-react';
-import PostDetailModal from './PostDetailModal';
-import EditPostModal from './EditPostModal';
-import EquipmentSection from './EquipmentSection';
-import AchievementsTab from './AchievementsTab';
-import TaggedTab from './TaggedTab';
-import ProfileVideosTab from './profile/ProfileVideosTab';
+// Every tab and both modals are their own chunks: a visitor opens one tab
+// (Sprint 4 PR 1 — the profile route sat at 598 KB of its 600 KB budget).
+import {
+  LazyStatsHub as StatsHub,
+  LazyTrainingTab as TrainingTab,
+  LazyProfileVideosTab as ProfileVideosTab,
+  LazyTaggedTab as TaggedTab,
+  LazyEquipmentSection as EquipmentSection,
+  LazyAchievementsTab as AchievementsTab,
+  LazyPostDetailModal as PostDetailModal,
+  LazyEditPostModal as EditPostModal,
+} from './profile/lazy-tabs';
+import type EditPostModalComponent from './EditPostModal';
 import SportYearFilter from './SportYearFilter';
 import FilterBar from './filters/FilterBar';
 import MediaGridItem, { type MediaItem } from './media/MediaGridItem';
-import StatsHub from './stats/StatsHub';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { useToast } from './Toast';
-import TrainingTab from './TrainingTab';
 import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
 import { nearestScrollLeft } from '@/lib/scroll-inline';
 
@@ -118,6 +123,10 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   // Modal state
   const [selectedPostIndex, setSelectedPostIndex] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // The post modal's chunk is fetched on the first open and the modal stays
+  // mounted after (its close behaviour is unchanged).
+  const [postModalUsed, setPostModalUsed] = useState(false);
+  if (isModalOpen && !postModalUsed) setPostModalUsed(true);
   const [isEditPostModalOpen, setIsEditPostModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<MediaItem | null>(null);
 
@@ -683,16 +692,19 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
       )}
 
       {/* Post Detail Modal */}
-      <PostDetailModal
-        postId={selectedPostIndex !== null ? items[selectedPostIndex]?.id : null}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onNavigate={handleNavigate}
-        currentUserId={currentUserId}
-        showNavigation={items.length > 1}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
+      {/* Mounted on the first open (its chunk is fetched then), kept after. */}
+      {postModalUsed && (
+        <PostDetailModal
+          postId={selectedPostIndex !== null ? items[selectedPostIndex]?.id : null}
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          onNavigate={handleNavigate}
+          currentUserId={currentUserId}
+          showNavigation={items.length > 1}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      )}
 
       {/* Edit Post Modal */}
       {editingPost && (
@@ -706,7 +718,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
             ...editingPost,
             tags: editingPost.tags ?? undefined,
             hashtags: editingPost.hashtags ?? undefined
-          } as Parameters<typeof EditPostModal>[0]['post']}
+          } as Parameters<typeof EditPostModalComponent>[0]['post']}
           onPostUpdated={handlePostUpdated}
         />
       )}

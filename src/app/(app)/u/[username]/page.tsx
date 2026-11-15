@@ -15,15 +15,18 @@ import { useEditProfile } from '@/components/EditProfileHost';
 import ReportSheet from '@/components/tickets/ReportSheet';
 import LazyImage from '@/components/LazyImage';
 import ProfileSports from '@/components/profile/ProfileSports';
-import StatsHub from '@/components/stats/StatsHub';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import EarnedBadges from '@/components/play/EarnedBadges';
 import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
-import TrainingTab from '@/components/TrainingTab';
-import EquipmentSection from '@/components/EquipmentSection';
-import TaggedTab from '@/components/TaggedTab';
-import ProfileVideosTab from '@/components/profile/ProfileVideosTab';
+// The sections are their own chunks, the same ones /athlete loads (Sprint 4 PR 1).
+import {
+  LazyStatsHub as StatsHub,
+  LazyTrainingTab as TrainingTab,
+  LazyProfileVideosTab as ProfileVideosTab,
+  LazyTaggedTab as TaggedTab,
+  LazyEquipmentSection as EquipmentSection,
+} from '@/components/profile/lazy-tabs';
 import { topPills } from '@/lib/achievements/display';
 import {
   formatHeight,
