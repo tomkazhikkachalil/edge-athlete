@@ -1,5 +1,19 @@
 # Development Log
 
+## November 16, 2026 (later) — Sprint 4 PR 4: the game and the play — every number a door, one reel across videos
+
+The bottom two levels (`docs/specs/sport-profile.md`, "The game and the play").
+
+- **Every number is a door.** A stat with clips behind it is a link: at the career, on a season, on a game. It opens the reel of exactly the tags that made the number. A number with no film behind it is plain text.
+- **The reel plays without leaving the page**, above the level it was opened from: the season's goals, in the order they happened, across that season's videos. One player — a clip in the same video seeks, a clip in another video starts the player on that video at the clip. With YouTube's API it steps on its own at each clip's end; otherwise Next is the step.
+- **The game:** the athlete's line (each number a door), by period, their clips from that game, "Watch the full game", the recap, and the official result. A game counted from its official line shows the official numbers and plays the film of the same game, and says so.
+- **A moment has an address:** `/videos/[id]?tag=<highlight>` opens the video at that moment; every clip links to it.
+- Seen on the phone screenshots and fixed here: the call-to-action buttons had no padding or white text (the shared class is only the gradient), and a clip read "Goal · Goal" when the label repeated the event.
+
+Proof: `e2e/sport-profile.spec.ts` on staging at 375 px (a season's goals → the reel → Close; a game → the line, by half, the clips; the second clip puts the player at 0:05; the game's own number narrows the clips; the moment's link opens the video at 0:01; Back walks stat → game → season), `sport-profile-api`, `videos` and `videos-player` still green; 49 unit tests. PR 3 (#1522) merged; PR 2 proven on production (the API spec on `fd3c5142`).
+
+Next: the Clips browser (PR 5).
+
 ## November 16, 2026 — Sprint 4 PR 3: the sport profile's page — pick the sport, Career → Season
 
 The first two levels on screen (`docs/specs/sport-profile.md`, "The page").

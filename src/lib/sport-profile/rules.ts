@@ -241,6 +241,34 @@ export function clipCounts(games: readonly ProfileGame[]): Stats {
   return out;
 }
 
+/** How many clips are behind each stat of ONE game — its own film, or the film that is the same game. Nothing for a held game. */
+export function clipCountsOfGame(games: readonly ProfileGame[], key: string): Stats {
+  const film = filmOfGame(games, key);
+  const out: Stats = {};
+  if (!film || film.held || film.standing === 'recreational' && film.key !== key) return out;
+  for (const c of film.clips) for (const k of c.statKeys) out[k] = (out[k] ?? 0) + 1;
+  return out;
+}
+
+export interface ReelItem { id: string; youtubeId: string; startMs: number; endMs: number }
+
+/** The reel as the player walks it: every clip with a definite end (an open clip plays `openMs`). The order is the reel's. */
+export function reelPlaylist(clips: ReadonlyArray<Pick<ProfileClip, 'id' | 'youtubeId' | 'startMs' | 'endMs'>>, openMs: number): ReelItem[] {
+  return clips.map(c => ({ id: c.id, youtubeId: c.youtubeId, startMs: c.startMs, endMs: c.endMs !== null && c.endMs > c.startMs ? c.endMs : c.startMs + openMs }));
+}
+
+/**
+ * While item `index` plays with the playhead at `currentMs`: stay, step to
+ * the next, or done. A playhead BEFORE the clip's start is the player still
+ * arriving (a new video starts at zero for a moment) — stay.
+ */
+export function reelStep(list: readonly ReelItem[], index: number, currentMs: number): { action: 'stay' } | { action: 'next'; index: number } | { action: 'done' } {
+  const cur = list[index];
+  if (!cur) return { action: 'done' };
+  if (currentMs < cur.endMs) return { action: 'stay' };
+  return index + 1 < list.length ? { action: 'next', index: index + 1 } : { action: 'done' };
+}
+
 /**
  * What leaves the server for a viewer who has not chosen to see a held
  * game: the row stays (the game happened, and it is in the totals), its

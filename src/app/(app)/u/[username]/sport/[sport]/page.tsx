@@ -69,7 +69,7 @@ export default function PublicSportProfilePage() {
         <div className="mx-auto max-w-xl px-4 py-16 text-center">
           <h1 className="mb-2 text-2xl font-bold text-primary">{title}</h1>
           <p className="mb-6 text-secondary">{body}</p>
-          <Link href={load.state === 'ready' ? `/u/${encodeURIComponent(handle)}` : '/'} className="ea-cta inline-flex">{load.state === 'ready' ? 'Back to the profile' : 'Go home'}</Link>
+          <Link href={load.state === 'ready' ? `/u/${encodeURIComponent(handle)}` : '/'} className="ea-cta inline-flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold text-white">{load.state === 'ready' ? 'Back to the profile' : 'Go home'}</Link>
         </div>
       </div>
     );

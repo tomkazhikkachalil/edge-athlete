@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cutForViewer, parseReveal, revealDue, advanceWatch, EMPTY_WATCH, gameTagOf, gameWatchKey, hiddenCount, hiddenNote, parseGameWatch, recapPath, revealMode, serializeGameWatch, topHighlights, videoPageView, visibleHighlights } from '../game-view';
+import { cutForViewer, parseReveal, revealDue, advanceWatch, EMPTY_WATCH, gameTagOf, gameWatchKey, hiddenCount, hiddenNote, parseGameWatch, recapPath, revealMode, serializeGameWatch, tagPath, topHighlights, videoPageTag, videoPageView, visibleHighlights } from '../game-view';
 import { GAME_SHEETS } from '../game-sheets';
 import type { HighlightRow } from '../types';
 
@@ -143,3 +143,16 @@ describe('what the server holds back', () => {
     expect(read('src/lib/videos/video-tagged-server.ts')).not.toContain('cutForViewer');
   });
 });
+
+describe('a moment has an address (Sprint 4): /videos/<id>?tag=<highlight>', () => {
+  const ID = '11111111-2222-3333-4444-555555555555';
+  it('the link names the moment, and the page reads it back', () => {
+    expect(tagPath('vid', ID)).toBe(`/videos/vid?tag=${ID}`);
+    expect(videoPageTag(ID)).toBe(ID);
+    expect(videoPageTag([ID.toUpperCase(), 'x'])).toBe(ID);
+  });
+  it('anything that is not a highlight id is no moment — never an error', () => {
+    for (const bad of [undefined, null, '', 'recap', '5', `${ID}x`, '<script>']) expect(videoPageTag(bad)).toBeNull();
+  });
+});
+

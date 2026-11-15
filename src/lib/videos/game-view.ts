@@ -138,6 +138,17 @@ export function videoPageView(raw: string | string[] | null | undefined): VideoP
 }
 
 /** The link a club shares after the game. */
+/** `?tag=<highlight id>` (Sprint 4): the moment a link asks for, or null — a malformed id is no moment, never an error. */
+export function videoPageTag(raw: string | string[] | null | undefined): string | null {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v.toLowerCase() : null;
+}
+
+/** The address of one moment of a video. */
+export function tagPath(videoId: string, highlightId: string): string {
+  return `/videos/${videoId}?tag=${highlightId}`;
+}
+
 export function recapPath(videoId: string): string {
   return `/videos/${encodeURIComponent(videoId)}?view=recap`;
 }

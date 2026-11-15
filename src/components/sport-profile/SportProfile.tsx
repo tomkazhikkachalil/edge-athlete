@@ -10,11 +10,12 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import FaIcon from '@/components/FaIcon';
 import { AvatarImage } from '@/components/OptimizedImage';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { sportIcon } from '@/lib/sports/sport-icons';
+import { gameSheetFor, sheetEvent } from '@/lib/videos/game-sheets';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { parseSportView, sportViewLevel, switcherSports } from '@/lib/sport-profile/view';
 import type { SportProfileAnswer, SportProfileData } from './types';
@@ -24,6 +25,8 @@ function LevelLoading() {
 }
 const CareerView = dynamic(() => import('./CareerView'), { ssr: false, loading: LevelLoading });
 const SeasonView = dynamic(() => import('./SeasonView'), { ssr: false, loading: LevelLoading });
+const GameView = dynamic(() => import('./GameView'), { ssr: false, loading: LevelLoading });
+const StatReel = dynamic(() => import('./StatReel'), { ssr: false, loading: LevelLoading });
 
 export interface SportProfileProps {
   profileId: string;
@@ -68,6 +71,11 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
   }, [profileId, sport, showHeld]);
 
   const basePath = sportPath(sport);
+  // A clip says what it is in the sheet's own words ("Goal", "Three-pointer made").
+  const eventLabel = useCallback((eventKey: string | null): string | null => {
+    const sheet = gameSheetFor(sport);
+    return sheet ? sheetEvent(sheet, eventKey)?.label ?? null : null;
+  }, [sport]);
   const data: SportProfileData | null = load.state === 'ready' && load.answer.supported ? load.answer : null;
 
   return (
@@ -123,9 +131,16 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
             {label} keeps its numbers on the Stats tab. <Link href={`${profilePath}?tab=stats&sport=${encodeURIComponent(sport)}`} className="underline decoration-border underline-offset-4">Open {label} stats</Link>
           </p>
         )}
+        {/* A number's clips, at the career or a season: the reel sits above the level it was opened from. */}
+        {data && level !== 'game' && view.stat && (
+          <StatReel data={data} profileId={profileId} season={view.season} stat={view.stat} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} />
+        )}
         {data && level === 'career' && <CareerView data={data} basePath={basePath} sportLabel={label} />}
-        {data && level !== 'career' && view.season && (
+        {data && level === 'season' && view.season && (
           <SeasonView data={data} season={view.season} basePath={basePath} sportLabel={label} onShowHeld={() => setShowHeld(true)} />
+        )}
+        {data && level === 'game' && view.game && (
+          <GameView data={data} profileId={profileId} season={view.season} gameKey={view.game} stat={view.stat} basePath={basePath} sportLabel={label} showHeld={showHeld} onShowHeld={() => setShowHeld(true)} eventLabel={eventLabel} />
         )}
       </main>
     </div>
