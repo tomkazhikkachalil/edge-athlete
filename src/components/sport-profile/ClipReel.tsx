@@ -41,9 +41,11 @@ interface Props {
   closeHref?: string;
   /** Said under each clip's game line, e.g. the event's name for a sheet. */
   eventLabel?: (eventKey: string | null) => string | null;
+  /** The Clips browser: where the playing clip came from — its game's stats, and each stat it made. */
+  origin?: (clip: ReelClip) => { gameHref: string; stats: Array<{ key: string; label: string; href: string }> };
 }
 
-export default function ClipReel({ heading, clips, total, onLoadMore, closeHref, eventLabel }: Props) {
+export default function ClipReel({ heading, clips, total, onLoadMore, closeHref, eventLabel, origin }: Props) {
   const list = useMemo(() => reelPlaylist(clips, OPEN_HIGHLIGHT_MS), [clips]);
   const [index, setIndex] = useState(0);
   // Bumped on every jump: the player seeks (same video) or mounts at the start (another video).
@@ -107,6 +109,18 @@ export default function ClipReel({ heading, clips, total, onLoadMore, closeHref,
         {playKey === 0 && <button type="button" onClick={() => go(at)} className="ea-cta inline-flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold text-white" data-clip-reel-play="">Play {total === 1 ? 'the clip' : `these ${total}`}</button>}
         <Link href={tagPath(clip.videoId, clip.id)} className="ea-interactive ml-auto rounded px-2 py-1 text-sm font-medium text-secondary underline decoration-border underline-offset-4" data-clip-reel-game="">Open this moment in the game</Link>
       </div>
+      {origin && (() => {
+        const from = origin(clip);
+        return (
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-secondary" data-clip-origin="">
+            <span>From</span>
+            <Link href={from.gameHref} className="ea-interactive rounded font-medium text-primary underline decoration-border underline-offset-4" data-clip-origin-game="">{clip.gameTitle} — the game&apos;s stats</Link>
+            {from.stats.map(st => (
+              <Link key={st.key} href={st.href} className="ea-interactive rounded font-medium text-primary underline decoration-border underline-offset-4" data-clip-origin-stat={st.key}>{st.label}</Link>
+            ))}
+          </p>
+        );
+      })()}
       {done && <p className="text-sm text-secondary" data-clip-reel-done="">That was the last clip.</p>}
       {mode === 'frame' && clips.length > 1 && <p className="text-xs text-muted">Use Next to move to the following clip.</p>}
 

@@ -9,6 +9,8 @@ export interface ClipsQuery {
   season?: string | null;
   game?: string | null;
   stat?: string | null;
+  /** A sheet event (`goal`) — the Clips browser's play type. */
+  event?: string | null;
   /** The Clips browser: every film game, recreational included. */
   everyFilm?: boolean;
   showHeld?: boolean;
@@ -21,6 +23,7 @@ const queryOf = (q: ClipsQuery, cursor: number): string => {
   if (q.season) p.set('season', q.season);
   if (q.game) p.set('game', q.game);
   if (q.stat) p.set('stat', q.stat);
+  if (q.event) p.set('event', q.event);
   if (q.everyFilm) p.set('scope', 'all');
   if (q.showHeld) p.set('spoilers', 'show');
   if (cursor > 0) p.set('cursor', String(cursor));

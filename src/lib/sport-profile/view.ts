@@ -12,6 +12,8 @@ export interface SportView {
   season: string | null;
   game: string | null;
   stat: string | null;
+  /** The Clips browser's play type — a sheet event (`goal`). */
+  event: string | null;
 }
 
 const SEASON_RE = /^(undated|\d{4}(-\d{2})?)$/;
@@ -25,11 +27,13 @@ export function parseSportView(query: Query): SportView {
   const season = query.get('season');
   const game = query.get('game');
   const stat = query.get('stat');
+  const event = query.get('event');
   return {
     tab: query.get('view') === 'clips' ? 'clips' : 'stats',
     season: season && SEASON_RE.test(season) ? season : null,
     game: game && GAME_RE.test(game) ? game : null,
     stat: stat && KEY_RE.test(stat) ? stat : null,
+    event: event && KEY_RE.test(event) ? event : null,
   };
 }
 
@@ -40,6 +44,7 @@ export function sportViewSearch(view: Partial<SportView>): string {
   if (view.season) q.push(`season=${encodeURIComponent(view.season)}`);
   if (view.game) q.push(`game=${encodeURIComponent(view.game)}`);
   if (view.stat) q.push(`stat=${encodeURIComponent(view.stat)}`);
+  if (view.event) q.push(`event=${encodeURIComponent(view.event)}`);
   return q.length ? `?${q.join('&')}` : '';
 }
 

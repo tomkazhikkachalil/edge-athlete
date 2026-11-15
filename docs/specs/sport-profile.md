@@ -54,11 +54,18 @@ Tom's brief: the athlete's page is a bundle of connected views per sport, "the w
 - **A moment has an address:** `/videos/[id]?tag=<highlight id>` (`tagPath`, `videoPageTag` in `game-view.ts`) opens the video at that moment, once. Every clip in a reel links to it ("Open this moment in the game"). A moment the viewer has not been sent — an unwatched play of a spoiler-free game — is not there, and the video opens as it always does.
 - A clip is called by the sheet's event and the tagger's own label, once when they say the same thing.
 
+## Media on its own — the Clips browser (PR 5, Nov 16 2026)
+
+- **Stats and Clips are two tabs of the one page** (`data-sport-tabs`): the numbers (each a door to its clips), or the clips without going through the numbers (`?view=clips`).
+- **What it lists:** every clip of the athlete in every film game the viewer may watch — **recreational film included, marked** — oldest game first (`scope=all` on the sport-clips route). A spoiler-free game gives none until the viewer has asked.
+- **Filters are the address:** season, game, play type (`?view=clips&season=…&game=…&event=…`). The play types are the sport's sheet events (a plain marker is not a play type). The filters are held in the component and mirrored to the address, so two changes in a row each start from the last one made (the overlapping-saves rule — found by the spec: the second change was built from an address the first had not reached).
+- **Every clip links back** (`data-clip-origin`): to its game's level on the Stats side, to each stat it made (that game, that stat), and to its moment on the game's own page.
+
 ## Decided, not yet built (Tom, Nov 15 2026 — the later PRs of the sprint)
 
 - **Hide.** The athlete (or a guardian) can hide a game or a single clip from their page: it leaves the lists and the reels for visitors, **the stat still counts**; "Remove me" stays as the stronger door.
 - **Unclaimed.** A tagged player who has not claimed their profile gets a public page marked *Unclaimed*; claiming is a request the person starts from that page.
 - **The default sport** is the athlete's own order — pins, then the primary (`orderProfileSports`).
-- The Clips browser; the Stats tab's per-sport breakdown becomes a door into this.
+- The Stats tab's per-sport breakdown becomes a door into this.
 
 **Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.
