@@ -1,5 +1,32 @@
 # Development Log
 
+## November 17, 2026 (later) — Sprint 4 closed: the athlete's sport profile is on production
+
+Tom ran migrations 311 and 312 on production and merged #1525 (hide) and #1526 (the unclaimed page, the claim request, the split control). Production serves `54f91385`; its ledger is at 312.
+
+**What shipped** (`docs/specs/sport-profile.md`, Convention 61): pick the sport, then Career → Season → Game → Play, the level in the address and Back walking up; every number with clips behind it opens a reel of exactly those clips, across videos, without leaving the page; a Clips browser on its own; the athlete hides a game or a clip (the stat still counts); a tagged player who has not claimed their profile has an open page marked Unclaimed, and a request the club approves moves the film to the person who asked.
+
+| PR | What | Production |
+| --- | --- | --- |
+| #1520 | the profile's tabs as their own chunks — 598 → 467 KB | 3 / 3 |
+| #1521 | the rules, the set-based film read, the two routes | the API spec |
+| #1522 | the page: sport switcher, Career, Season | the page spec |
+| #1523 | Game and Play: stat doors, the cross-video reel, `/videos/[id]?tag=` | the page spec |
+| #1524 | the Clips browser | the page spec |
+| #1525 | hide (migration 311) | the page spec, with the hide steps |
+| #1526 | unclaimed + claim request (migration 312), the split control | `sport-profile-unclaimed`, `sport-profile-split`, `video-placeholder`, `sport-profile-api` |
+
+**The closing probe on `54f91385`**, one spec at a time: phone — `sport-profile`, `sport-profile-split`, `sport-profile-unclaimed` 3 / 3; desktop — `video-placeholder`, `sport-profile-api` 2 / 2. `check:schema:prod` clean at ledger 312 (151 tables, every one reachable by the service role, no definer function open to the API roles). Baseline rebuilt at 312.
+
+A migration paste that failed: Tom's first run of 311 stopped with a syntax error in the middle of a plain `ALTER TABLE` line — the text had been copied from the chat window, not the file. Nothing changed (one transaction). The file from the clipboard, checksum-matched, ran clean. **Rule:** a migration goes to the SQL editor from the clipboard or TextEdit, never from rendered chat.
+
+**Deliberately not done:**
+- The Stats tab's per-sport breakdown is not retired — the new game log does not yet carry an official line's provenance label or a disputed result's "Unconfirmed" mark, and six specs stand on the old breakdown. The door from the Stats tab is in; the numbers cannot disagree.
+- `canViewProfile` does not look at blocks, so the Stats tab's older routes still answer a blocked viewer of a public profile. The sport profile, its clips and "Tagged in" refuse them.
+- A guardian whose child has no profile yet, and a person with no account, still claim through the organization's claim link.
+
+Still Tom's: the phone walk of the four levels with one real tagged game.
+
 ## November 17, 2026 — Sprint 4 PR 6b: the unclaimed page, and "this is me — request this profile" (migration 312)
 
 Tom's decision 2: a tagged player who has not claimed their profile gets "a public page, marked unclaimed", and claiming is "a process where they select the profile and start the request". Asked on Nov 16 what approval does for someone who already has an account — there is no account merge here — he chose: **move the film, keep it simple**.
