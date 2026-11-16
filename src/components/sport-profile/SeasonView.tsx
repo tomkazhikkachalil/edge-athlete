@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import { saveDistinctGames } from '@/lib/performance/game-distinct-client';
-import { NO_SEASON, splitByOpponent, splitByPeriod, totalsOf, type ProfileGame } from '@/lib/sport-profile/rules';
+import { NO_SEASON, sameOpponent, splitByOpponent, splitByPeriod, totalsOf, type ProfileGame } from '@/lib/sport-profile/rules';
 import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
 import SeasonRollups from '@/components/stats/SeasonRollups';
 import { PROVENANCE_LABEL, UNCONFIRMED_LABEL, UNCONFIRMED_TITLE } from '@/lib/sports/provenance-copy';
@@ -17,6 +17,8 @@ import type { SportGameRow, SportProfileData } from './types';
 interface Props {
   data: SportProfileData;
   season: string;
+  /** The opponent split's door: only the games against this opponent are in the log. */
+  opponent?: string | null;
   basePath: string;
   sportLabel: string;
   /** The viewer asks to see the spoiler-free games of this profile. */
@@ -35,7 +37,7 @@ const inSeason = (rows: readonly SportGameRow[], season: string): ProfileGame[] 
 const SOURCE_NOTE: Record<SportGameRow['source'], string> = { official: 'Official', film: 'Game film', post: 'Posted' };
 
 /** Level 2: one season — its tiles and totals, the splits, and the game log (every row a game). */
-export default function SeasonView({ data, season, basePath, sportLabel, onShowHeld, profileId, onChanged }: Props) {
+export default function SeasonView({ data, season, opponent = null, basePath, sportLabel, onShowHeld, profileId, onChanged }: Props) {
   const summary = data.seasons.find(s => s.key === season) ?? null;
   const games = useMemo(() => inSeason(data.games, season), [data.games, season]);
   const keys = useMemo(() => data.columns.map(c => c.key), [data.columns]);
@@ -125,7 +127,7 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
           <span className="font-medium text-primary">{seasonTitle(season)}</span>
         </nav>
         <h2 className="text-2xl font-bold text-primary">{seasonTitle(season)} season</h2>
-        <Tiles tiles={summary.tiles} />
+        <Tiles tiles={summary.tiles.map(t => ({ ...t, href: t.stat && (summary.clips[t.stat] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season, stat: t.stat })}` : null }))} />
       </div>
 
       {(data.sums || data.columns.length > 0) && (
@@ -144,7 +146,13 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
             countLabel="GP"
             columns={data.columns}
             rows={[
-              ...opponents.rows.map(r => ({ id: `o:${r.label}`, lead: r.label, count: r.games, stats: r.totals })),
+              // An opponent is a door: the season's games against them.
+              ...opponents.rows.map(r => ({
+                id: `o:${r.label}`,
+                lead: <Link href={`${basePath}${sportViewSearch({ season, opponent: r.label })}`} scroll={false} className="ea-interactive rounded underline decoration-border underline-offset-4" data-opponent-door={r.label}>{r.label}</Link>,
+                count: r.games,
+                stats: r.totals,
+              })),
               ...(opponents.rest.games > 0 ? [{ id: 'o:rest', lead: 'Other games', count: opponents.rest.games, stats: opponents.rest.totals, muted: true }] : []),
             ]}
           />
@@ -159,16 +167,24 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
             caption={`Season totals by ${data.period.noun.toLowerCase()}`}
             leadLabel={data.period.noun}
             columns={data.columns}
-            rows={periods.map(p => ({ id: `p:${p.period}`, lead: `${data.period!.short}${p.period}`, stats: p.totals }))}
+            // A period is a door: its clips this season, as one reel.
+            rows={periods.map(p => ({
+              id: `p:${p.period}`,
+              lead: <Link href={`${basePath}${sportViewSearch({ season, period: p.period })}`} scroll={false} className="ea-interactive rounded underline decoration-border underline-offset-4" data-period-door={p.period}>{`${data.period!.short}${p.period}`}</Link>,
+              stats: p.totals,
+            }))}
           />
         </div>
       )}
 
       {/* The season's bests, from the performance record (the rollups' own reader). */}
-      {getStatSchema(data.sport) && <SeasonRollups profileId={profileId} sportKey={data.sport} heroLabel={getStatSchema(data.sport)!.heroStat.label} mode="extras" scopeKey={season} />}
+      {getStatSchema(data.sport) && <SeasonRollups profileId={profileId} sportKey={data.sport} heroLabel={getStatSchema(data.sport)!.heroStat.label} mode="extras" scopeKey={season} bestHref={b => { const g = data.games.find(x => x.counted && (x.season ?? NO_SEASON) === season && x.date === b.date && x.stats[b.key] === b.value); return g ? `${basePath}${sportViewSearch({ season, game: g.key })}` : null; }} />}
 
       <div data-sport-game-log="">
-        <h3 className="mb-3 text-lg font-bold text-primary">Game log</h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-lg font-bold text-primary" data-game-log-heading="">{opponent ? `Games against ${opponent}` : 'Game log'}</h3>
+          {opponent && <Link href={`${basePath}${sportViewSearch({ season })}`} scroll={false} className="ea-interactive inline-flex min-h-[44px] items-center rounded-lg border border-border px-4 text-sm font-medium text-primary" data-opponent-clear="">All games</Link>}
+        </div>
         {games.some(g => g.source === 'official') && (
           <p className="mb-3 text-sm"><Link href="/help/verified-stats" className="text-brand-fg hover:text-brand-fg-strong" data-verified-help="">How verification works →</Link></p>
         )}
@@ -178,7 +194,7 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
             <button type="button" onClick={onShowHeld} className="ea-interactive rounded px-2 py-1 font-medium text-primary underline decoration-border underline-offset-4" data-show-held="">Show the results</button>
           </p>
         )}
-        <StatTable caption={`${sportLabel} ${seasonTitle(season)} game log`} leadLabel="Game" columns={data.columns} rows={log} />
+        <StatTable caption={`${sportLabel} ${seasonTitle(season)} game log`} leadLabel="Game" columns={data.columns} rows={opponent ? log.filter(r => sameOpponent(rowOf.get(r.id)?.opponent ?? null, opponent)) : log} />
         <p className="mt-3 text-xs text-muted">Season totals are {totalsOf(games, keys).games === 1 ? 'one counted game' : `${totalsOf(games, keys).games} counted games`}. One game is counted once: an official line, then a club&apos;s or league&apos;s game film, then the athlete&apos;s own post.</p>
       </div>
     </section>

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  aggregateOf, columnRule, progressionOf, careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, forViewer, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
+  aggregateOf, columnRule, progressionOf, sameOpponent, careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, forViewer, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
   type ProfileClip, type ProfileGame,
 } from '../rules';
 
@@ -263,6 +263,12 @@ describe('each column by its own rule (one wave, phase 4)', () => {
     expect(progressionOf(races, 'time_200m', 'low')).toEqual([{ key: 'post:r3', date: '2026-05-01', value: 25, record: true }]);
     expect(progressionOf(races, 'time_100m', 'high').filter(p => p.record).map(p => p.key)).toEqual(['post:r1']);
     expect(progressionOf(races, 'time_400m', 'low')).toEqual([]);
+  });
+  it('the opponent split\'s door matches a name the way the split groups it: case and spacing aside, never an empty name', () => {
+    expect(sameOpponent('QA Owls', ' qa  owls ')).toBe(true);
+    expect(sameOpponent('Owls', 'Owls FC')).toBe(false);
+    expect(sameOpponent(null, null)).toBe(false);
+    expect(sameOpponent('', '  ')).toBe(false);
   });
   it('a sport that adds up is the sum it always was', () => {
     const games = [game('post:1', { stats: { goals: 2, shots: 5 } }), game('post:2', { stats: { goals: 1 } }), game('film:3', { counted: false, stats: { goals: 9 } })];

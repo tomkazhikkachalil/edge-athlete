@@ -85,6 +85,30 @@ test('the sport profile: career → season → game → play, the doors and the 
     await expect(page).toHaveURL(/\/sport\/soccer\?season=2026$/);
     await expect(page.locator('[data-clip-reel]')).toHaveCount(0);
 
+    // 2a′. More doors ("one wave", phase 5): an opponent opens the games against them; a period its clips; a headline tile its stat's clips.
+    await season.locator('[data-opponent-door="QA Owls"]').click();
+    await expect(page).toHaveURL(/season=2026&opponent=QA%20Owls$/);
+    await expect(season.locator('[data-game-log-heading]')).toHaveText('Games against QA Owls');
+    await expect(season.locator(`[data-stat-row="film:${videoId}"]`)).toBeVisible();
+    await season.locator('[data-opponent-clear]').click();
+    await expect(season.locator('[data-game-log-heading]')).toHaveText('Game log');
+    await expect(page).toHaveURL(/\/sport\/soccer\?season=2026$/);
+    if (await season.locator('[data-period-door]').count()) {
+      await season.locator('[data-period-door]').first().click();
+      await expect(page).toHaveURL(/season=2026&period=\d+$/);
+      await expect(page.locator('[data-stat-reel^="period:"] [data-clip-reel]')).toBeVisible({ timeout: 20_000 });
+      await page.locator('[data-stat-reel^="period:"] [data-clip-reel-close]').click();
+      await expect(page.locator('[data-clip-reel]')).toHaveCount(0);
+    }
+    const tile = season.locator('[data-sport-tile-door]').first();
+    await expect(tile).toBeVisible();
+    await tile.click();
+    await expect(page).toHaveURL(/season=2026&stat=[a-z_]+$/);
+    await expect(page.locator('[data-stat-reel] [data-clip-reel]')).toBeVisible({ timeout: 20_000 });
+    expect(await fitsViewportWidth(page)).toBe(true);
+    await page.locator('[data-stat-reel] [data-clip-reel-close]').click();
+    await expect(page.locator('[data-clip-reel]')).toHaveCount(0);
+
     // 2b. A game is a door: the athlete's line, by half, their clips, and the way to the full game.
     await season.locator(`[data-game-link="film:${videoId}"]`).click();
     await expect(page).toHaveURL(new RegExp(`season=2026&game=film%3A${videoId}$`));

@@ -173,11 +173,15 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
           <BestHistory data={data} season={view.season} stat={view.stat} basePath={basePath} />
         )}
         {data && view.tab === 'stats' && level !== 'game' && view.stat && !bestColumn && (
-          <StatReel data={data} profileId={profileId} season={view.season} stat={view.stat} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} />
+          <StatReel data={data} profileId={profileId} season={view.season} stat={view.stat} event={view.event} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} />
+        )}
+        {/* A period's clips at a season: the period split's door. */}
+        {data && view.tab === 'stats' && level === 'season' && !view.stat && view.period && (
+          <StatReel data={data} profileId={profileId} season={view.season} stat={null} period={view.period} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} />
         )}
         {data && view.tab === 'stats' && level === 'career' && <CareerView profileId={profileId} data={data} basePath={basePath} sportLabel={label} />}
         {data && view.tab === 'stats' && level === 'season' && view.season && (
-          <SeasonView data={data} season={view.season} basePath={basePath} sportLabel={label} onShowHeld={() => setShowHeld(true)} profileId={profileId} onChanged={onChanged} />
+          <SeasonView data={data} season={view.season} opponent={view.opponent} basePath={basePath} sportLabel={label} onShowHeld={() => setShowHeld(true)} profileId={profileId} onChanged={onChanged} />
         )}
         {data && view.tab === 'stats' && level === 'game' && view.game && (
           <GameView data={data} profileId={profileId} season={view.season} gameKey={view.game} stat={view.stat} basePath={basePath} sportLabel={label} showHeld={showHeld} onShowHeld={() => setShowHeld(true)} eventLabel={eventLabel} rev={rev} onChanged={onChanged} />

@@ -17,6 +17,10 @@ export interface SportView {
   event: string | null;
   /** Golf: one hole of a round, 1–18 (`&game=round:<id>&hole=7`). */
   hole: number | null;
+  /** A season's games against one opponent (`&opponent=Owls`) — the opponent split's door. */
+  opponent: string | null;
+  /** A period's clips at a season (`&period=2`) — the period split's door. */
+  period: number | null;
 }
 
 const SEASON_RE = /^(undated|\d{4}(-\d{2})?)$/;
@@ -25,6 +29,12 @@ const GAME_RE = /^(official|film|post|round):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}
 const KEY_RE = /^[a-z0-9_]{2,40}$/;
 
 type Query = { get(name: string): string | null };
+
+/** An opponent's name from the address: trimmed, one line, 60 characters at most; it is only ever COMPARED to the games' own opponents and shown as text. */
+function cleanOpponent(value: string | null): string | null {
+  const v = (value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return v ? v : null;
+}
 
 /** What the address says, with anything malformed dropped (a bad link opens the career, never an error). */
 export function parseSportView(query: Query): SportView {
@@ -39,6 +49,8 @@ export function parseSportView(query: Query): SportView {
     stat: stat && KEY_RE.test(stat) ? stat : null,
     event: event && KEY_RE.test(event) ? event : null,
     hole: /^([1-9]|1[0-8])$/.test(query.get('hole') ?? '') ? Number(query.get('hole')) : null,
+    opponent: cleanOpponent(query.get('opponent')),
+    period: /^([1-9]|1[0-9]|20)$/.test(query.get('period') ?? '') ? Number(query.get('period')) : null,
   };
 }
 
@@ -51,6 +63,8 @@ export function sportViewSearch(view: Partial<SportView>): string {
   if (view.stat) q.push(`stat=${encodeURIComponent(view.stat)}`);
   if (view.event) q.push(`event=${encodeURIComponent(view.event)}`);
   if (view.hole) q.push(`hole=${view.hole}`);
+  if (view.opponent) q.push(`opponent=${encodeURIComponent(view.opponent)}`);
+  if (view.period) q.push(`period=${view.period}`);
   return q.length ? `?${q.join('&')}` : '';
 }
 
