@@ -28,8 +28,9 @@ import type { VideoRow } from '@/lib/videos/types';
 import { GAME_COLUMNS, projectGame } from '@/lib/videos/video-games-server';
 import { anonymousProfileCanView, profileManages, VIDEO_COLUMNS, videoFactsFor, type OrgAccessMemo } from '@/lib/videos/videos-server';
 import { canViewProfile } from '@/lib/privacy';
-import { filterBlockedBidirectional } from '@/lib/blocks';
+import { blockedEitherWay } from '@/lib/blocks';
 import { readFilmHidden } from './film-hide-server';
+import { sportSums } from './has-profile';
 import { unclaimedPageOpen } from './unclaimed-open-server';
 import { careerOf, clipCounts, clipCountsOfGame, cutHeld, filmOfGame, forViewer, seasonsOf, type ProfileClip, type ProfileGame, type Stats } from './rules';
 
@@ -44,9 +45,7 @@ const IN_CHUNK = 150;
 
 /** A block in either direction: the profile's film and numbers are not this viewer's to read (never says who blocked whom — the caller answers 404). */
 export async function blockedFromProfile(admin: Admin, viewerId: string | null, profileId: string): Promise<boolean> {
-  if (!viewerId || viewerId === profileId) return false;
-  const { allowed } = await filterBlockedBidirectional(admin, viewerId, [profileId]);
-  return allowed.length === 0;
+  return blockedEitherWay(admin, viewerId, profileId);
 }
 
 export interface SportProfileViewer { user: User | null; isOwner: boolean; actsForProfile: boolean; /** Let in because this is an open unclaimed page (312): the sport profile only, under a short name. */ unclaimed?: boolean }
@@ -338,6 +337,8 @@ export interface SportProfilePayload {
   sport: string;
   columns: Array<{ key: string; label: string; short: string }>;
   period: { noun: string; short: string } | null;
+  /** The sport's numbers add up (a game with sides). False for a race: counts and bests, never a total of times. */
+  sums: boolean;
   career: { games: number; totals: Stats; tiles: Array<{ label: string; value: string | null }>; clips: Stats };
   seasons: Array<{ key: string; games: number; totals: Stats; from: string | null; to: string | null; tiles: Array<{ label: string; value: string | null }>; clips: Stats }>;
   games: SportProfileGameRow[];
@@ -364,6 +365,7 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
     sport: read.sportKey,
     columns: schema.fields.filter(f => used.has(f.key)).map(f => ({ key: f.key, label: f.label, short: f.shortLabel })),
     period: sheet ? { noun: sheet.period.noun, short: sheet.period.short } : null,
+    sums: sportSums(read.sportKey),
     career: { ...career, tiles: tilesOf(read.games), clips: clipCounts(shown) },
     seasons: seasonsOf(read.games, read.seasonKeyOf, read.statKeys).map(s => {
       const inSeason = (g: ProfileGame) => (seasonOf(g) ?? 'undated') === s.key;

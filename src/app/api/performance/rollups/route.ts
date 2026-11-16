@@ -4,6 +4,7 @@ import { getProfileRole, getSupabaseAdmin, requireAuth } from '@/lib/auth-server
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { readRollups } from '@/lib/performance/rollups-server';
 import { verifiedFilmGames } from '@/lib/videos/video-tagged-server';
+import { blockedEitherWay } from '@/lib/blocks';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -49,6 +50,8 @@ export async function GET(request: NextRequest) {
           .maybeSingle();
         if (!follow) return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
       }
+      // A block in either direction closes the numbers too (Nov 2026) — said as a private profile, never as a block.
+      if (await blockedEitherWay(admin, viewerId, profileId)) return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
     }
 
     // ?trend=<n>: the trends page wants the whole series; the tab wants ten.

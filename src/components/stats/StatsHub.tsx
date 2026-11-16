@@ -14,6 +14,7 @@ import Link from 'next/link';
  */
 
 import GameFilmLines from '@/components/stats/GameFilmLines';
+import { hasSportProfile } from '@/lib/sport-profile/has-profile';
 import RivalsPanel from '@/components/play/RivalsPanel';
 import { COPY } from '@/lib/copy';
 import ChallengesPanel from '@/components/play/ChallengesPanel';
@@ -29,8 +30,6 @@ import SportSkillCards from '../SportSkillCards';
 import SportBreakdownHeader from './SportBreakdownHeader';
 import GolfBreakdown from './GolfBreakdown';
 import TrackBreakdown from './TrackBreakdown';
-import { getStatSchema } from '@/lib/sports/stat-schemas';
-import type { SportKey } from '@/lib/sports/SportRegistry';
 import { useToast } from '../Toast';
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import type { SportSkillCard } from '@/lib/sports/server/types';
@@ -90,16 +89,6 @@ interface StatsHubProps {
   onSportChange?: (sportKey: string | null) => void;
   /** The address of a sport's profile (Sprint 4) — /u/ passes its own; the default is the /athlete route. */
   sportProfileHref?: (sportKey: string) => string;
-}
-
-/**
- * Does this sport's full breakdown live on its sport profile? Every sport
- * with a stat sheet, except track and field — a sum of times means nothing,
- * so it keeps its personal-best table and race log here (TrackBreakdown) —
- * and golf, which has its own tables.
- */
-export function hasSportProfile(sportKey: string): boolean {
-  return sportKey !== 'golf' && sportKey !== 'track_field' && !!getStatSchema(sportKey as SportKey);
 }
 
 export default function StatsHub({

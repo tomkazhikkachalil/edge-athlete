@@ -428,6 +428,8 @@ export default function AthleteProfilePage() {
                         isOwner
                         onCardsChange={setSkillCards}
                         onOpenSport={(sportKey) => {
+                          // A sport with a sport profile opens it (Nov 2026); golf and track open the Stats tab's layer, as before.
+                          if (user && skillCards.find(c => c.sportKey === sportKey)?.sportProfile) { router.push(`/athlete/${user.id}/sport/${sportKey}`); return; }
                           setDeepLinkTab('stats');
                           setDeepLinkSport(sportKey);
                           window.history.replaceState(null, '', `/athlete?tab=stats&sport=${sportKey}`);

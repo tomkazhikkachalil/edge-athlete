@@ -389,6 +389,8 @@ export default function AthleteProfilePage() {
                 cards={skillCards}
                 isOwner={false}
                 onOpenSport={(sportKey) => {
+                  // A sport with a sport profile opens it (Nov 2026); golf and track open the Stats tab's layer, as before.
+                  if (skillCards.find(c => c.sportKey === sportKey)?.sportProfile) { router.push(`/athlete/${athleteId}/sport/${sportKey}`); return; }
                   setHubTab('stats');
                   setHubSport(sportKey);
                   window.history.replaceState(null, '', `/athlete/${athleteId}?tab=stats&sport=${sportKey}`);

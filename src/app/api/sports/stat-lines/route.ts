@@ -8,6 +8,7 @@ import { countGames, gameKey } from '@/lib/performance/same-game';
 import { gameHasSides } from '@/lib/videos/game-rules';
 import { verifiedFilmGames } from '@/lib/videos/video-tagged-server';
 import { profileManages } from '@/lib/videos/videos-server';
+import { blockedEitherWay } from '@/lib/blocks';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -76,6 +77,10 @@ export async function GET(request: NextRequest) {
         if (!follow) {
           return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
         }
+      }
+      // A block in either direction closes the numbers too (Nov 2026) — said as a private profile, never as a block.
+      if (await blockedEitherWay(supabase, viewerId, profileId)) {
+        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
       }
     }
 

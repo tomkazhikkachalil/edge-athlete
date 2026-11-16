@@ -150,6 +150,12 @@ test('the sport profile: career → season → game → play, the doors and the 
     await expect(page.locator('[data-sport-profile]')).toBeVisible({ timeout: 30_000 });
     await expect(page).not.toHaveURL(/curling/);
 
+    // 4a. The profile's own sport strip opens the sport profile (Nov 2026) — one tap from the profile.
+    await page.goto(`/athlete`);
+    await page.locator('#sports').getByRole('button', { name: 'Soccer stats', exact: true }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/athlete/${athlete.id}/sport/soccer$`), { timeout: 30_000 });
+    await expect(page.locator('[data-sport-level="career"]')).toBeVisible({ timeout: 30_000 });
+
     // 5. The Stats tab's sport layer has the door.
     await page.goto('/athlete?tab=stats&sport=soccer');
     const door = page.locator('[data-sport-profile-door="soccer"]');

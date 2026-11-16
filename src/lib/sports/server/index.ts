@@ -1,3 +1,4 @@
+import { hasSportProfile } from '@/lib/sport-profile/has-profile';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSportDefinition, type SportKey, SPORT_REGISTRY } from '../SportRegistry';
 import { computeActiveSports } from '../active-sports';
@@ -111,6 +112,7 @@ export function assembleSkillCard(
     state: empty ? 'empty' : 'data',
     pinned: pin.pinned,
     pinOrder: pin.pinOrder,
+    sportProfile: def.enabled && hasSportProfile(sportKey),
     ...(contribution?.selfPostedGames ? { selfPostedGames: contribution.selfPostedGames } : {}),
   };
 }

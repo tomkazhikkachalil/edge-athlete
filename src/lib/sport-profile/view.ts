@@ -60,13 +60,17 @@ export function seasonTitle(key: string): string {
   return key === 'undated' ? 'No date' : key.replace('-', '–');
 }
 
-/** The sports the switcher offers: the athlete's own order, the ones with a stats door. The first is where a bare link lands. */
-export function switcherSports<T extends { sportKey: string; enabled: boolean }>(cards: readonly T[]): T[] {
-  return cards.filter(c => c.enabled !== false);
+/**
+ * The sports the switcher offers: the athlete's own order, the ones that HAVE a sport profile (golf and track keep
+ * their numbers on the Stats tab — offering them here would be a dead end). A card with no word on it (an older
+ * cached one, a placeholder's) is offered. The first is where a bare link lands.
+ */
+export function switcherSports<T extends { sportKey: string; enabled: boolean; sportProfile?: boolean }>(cards: readonly T[]): T[] {
+  return cards.filter(c => c.enabled !== false && c.sportProfile !== false);
 }
 
 /** The sport a link opens: the one it names when the athlete has it, else the first in their order, else null (no sport at all). */
-export function landingSport<T extends { sportKey: string; enabled: boolean }>(cards: readonly T[], asked: string | null | undefined): string | null {
+export function landingSport<T extends { sportKey: string; enabled: boolean; sportProfile?: boolean }>(cards: readonly T[], asked: string | null | undefined): string | null {
   const list = switcherSports(cards);
   if (asked && list.some(c => c.sportKey === asked)) return asked;
   return list[0]?.sportKey ?? null;

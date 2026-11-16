@@ -672,7 +672,11 @@ export default function PublicProfilePage() {
             <ProfileSports
               cards={profileData.skillCards}
               isOwner={false}
-              onOpenSport={(sportKey) => switchSection('stats', sportKey)}
+              onOpenSport={(sportKey) => {
+                // A sport with a sport profile opens it (Nov 2026); golf and track open the Stats section, as before.
+                if (profileData.skillCards?.find(c => c.sportKey === sportKey)?.sportProfile) router.push(`/u/${encodeURIComponent(username)}/sport/${sportKey}`);
+                else switchSection('stats', sportKey);
+              }}
             />
           </div>
         )}

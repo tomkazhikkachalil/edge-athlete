@@ -34,11 +34,12 @@ export default function CareerView({ profileId, data, basePath, sportLabel }: Pr
       <Tiles tiles={data.career.tiles} />
       <div>
         <h2 className="mb-3 text-lg font-bold text-primary">Career</h2>
+        {!data.sums && <p className="mb-3 text-sm text-muted" data-sport-no-sums="">Times and marks are not added up: each season shows how many were raced, each race its own numbers, and the bests are below.</p>}
         <StatTable
           caption={`${sportLabel} career, by season`}
           leadLabel="Season"
           countLabel="GP"
-          columns={data.columns}
+          columns={data.sums ? data.columns : []}
           rows={data.seasons.map(s => ({
             id: s.key,
             lead: (
