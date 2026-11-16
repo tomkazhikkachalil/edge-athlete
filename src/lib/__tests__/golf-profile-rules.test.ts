@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { frontBack, golfByCourse, golfListed, golfSeasons, golfTotals, holesOfKind, parseGolfYear, pctText, scoreKindOf, toParText, type GolfHoleRow, type GolfRound } from '../sport-profile/golf-rules';
+import { frontBack, golfByCourse, golfListed, golfSeasons, golfTotals, holesOfKind, mayViewRoundMedia, mediaCountByHole, mediaOfHole, parseGolfYear, pctText, scoreKindOf, toParText, type GolfHoleRow, type GolfMedia, type GolfRound } from '../sport-profile/golf-rules';
 
 // Golf's sport profile ("one wave", phase 3, Nov 2026): Career → Season → Round → Hole.
 const hole = (n: number, par: number, strokes: number | null, extra: Partial<GolfHoleRow> = {}): GolfHoleRow => ({ n, par, strokes, putts: null, fairway: null, green: null, penalties: 0, ...extra });
@@ -80,6 +80,40 @@ describe('golf profile rules', () => {
     expect([toParText(0), toParText(3), toParText(-2), toParText(7.4), toParText(null)]).toEqual(['E', '+3', '−2', '+7.4', '—']);
     expect([pctText({ hit: 5, of: 8 }), pctText({ hit: 0, of: 0 })]).toEqual(['63%', '—']);
     expect([parseGolfYear('2026'), parseGolfYear('26'), parseGolfYear("2026'--"), parseGolfYear(null)]).toEqual(['2026', null, null, null]);
+  });
+
+  it('a shared round\'s media: shown to whom the round\'s own rule admits — public, the creator, a participant', () => {
+    expect(mayViewRoundMedia({ visibility: 'public', creatorId: 'c' }, null, false)).toBe(true);
+    expect(mayViewRoundMedia({ visibility: 'private', creatorId: 'c' }, null, false)).toBe(false);
+    expect(mayViewRoundMedia({ visibility: 'private', creatorId: 'c' }, 'c', false)).toBe(true);
+    expect(mayViewRoundMedia({ visibility: 'private', creatorId: 'c' }, 'v', true)).toBe(true);
+    expect(mayViewRoundMedia({ visibility: 'private', creatorId: 'c' }, 'v', false)).toBe(false);
+    expect(mayViewRoundMedia({ visibility: null, creatorId: null }, 'v', false)).toBe(false);
+    // The same rule the media proxy asks for the bytes.
+    const proxy = readFileSync(join(__dirname, '../media/authorize.ts'), 'utf8');
+    expect(proxy).toContain("if (gp.visibility === 'public') return { allow: true, isPublic: true };");
+    expect(proxy).toContain('if (viewerId === gp.creator_id) return { allow: true, isPublic: false };');
+    const reader = readFileSync(join(__dirname, '../sport-profile/golf-profile-server.ts'), 'utf8');
+    expect(reader).toContain('mayViewRoundMedia({ visibility: g.visibility, creatorId: g.creator_id }, viewerId, participant.has(g.id))');
+    expect(reader).toContain("toProxyUrl(m.media_url, { type: 'group', id: m.group_post_id })");
+  });
+
+  it('official is the one rule\'s answer, asked for shared rounds only, a season at a time; an unread answer is not shown', () => {
+    const reader = readFileSync(join(__dirname, '../sport-profile/golf-profile-server.ts'), 'utf8');
+    expect(reader).toContain('const shared = rows.filter(r => r.group_post_id);');
+    expect(reader).toContain("resolveResultOrigin(admin, { kind: 'golf_round', id: r.id })");
+    expect(reader).toContain("origins[i]?.official === true && origins[i]?.unknown === false && origins[i]?.eventId");
+    // Never for the whole career's list.
+    const whole = reader.slice(reader.indexOf('export async function readGolfProfile'), reader.indexOf('export const GOLF_MEDIA_MAX'));
+    expect(whole).not.toContain('officialRounds');
+  });
+
+  it('a hole\'s media and the counts a scorecard shows', () => {
+    const m = (id: string, roundId: string, n: number | null): GolfMedia => ({ id, roundId, n, type: 'image', url: 'u', poster: null, seconds: null });
+    const media = [m('1', 'a', 3), m('2', 'a', 3), m('3', 'a', 7), m('4', 'a', null), m('5', 'b', 3)];
+    expect(mediaOfHole(media, 'a', 3).map(x => x.id)).toEqual(['1', '2']);
+    expect(mediaOfHole(media, 'a', 4)).toEqual([]);
+    expect([...mediaCountByHole(media, 'a').entries()]).toEqual([[3, 2], [7, 1]]);
   });
 
   it('the reader folds the totals over every round and lists only what the viewer may see; the route keeps the sport profile\'s gate', () => {

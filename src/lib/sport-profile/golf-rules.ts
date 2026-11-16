@@ -237,3 +237,40 @@ export function pctText(r: Ratio): string {
 export function parseGolfYear(value: string | null | undefined): string | null {
   return value && /^(19|20)\d{2}$/.test(value) ? value : null;
 }
+
+// ── A hole's photos and clips ────────────────────────────────────────────────
+
+/** One photo or clip of a round — on a hole (`n`), or of the round as a whole (`n: null`). */
+export interface GolfMedia {
+  id: string;
+  roundId: string;
+  n: number | null;
+  type: 'image' | 'video';
+  url: string;
+  poster: string | null;
+  seconds: number | null;
+}
+
+/**
+ * Who may be shown a shared round's media: the group rule of the media proxy
+ * (src/lib/media/authorize.ts authorizeGroup, the SQL can_view_group_post) —
+ * a public round, its creator, or any participant. The proxy asks again for
+ * the bytes; this keeps even the LIST from someone the round is closed to.
+ */
+export function mayViewRoundMedia(round: { visibility: string | null; creatorId: string | null }, viewerId: string | null, viewerIsParticipant: boolean): boolean {
+  if (round.visibility === 'public') return true;
+  if (!viewerId) return false;
+  return viewerId === round.creatorId || viewerIsParticipant;
+}
+
+/** A hole's media, in the order it was added. */
+export function mediaOfHole(media: readonly GolfMedia[], roundId: string, n: number): GolfMedia[] {
+  return media.filter(m => m.roundId === roundId && m.n === n);
+}
+
+/** How many photos and clips each hole of a round has. */
+export function mediaCountByHole(media: readonly GolfMedia[], roundId: string): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const m of media) if (m.roundId === roundId && m.n !== null) out.set(m.n, (out.get(m.n) ?? 0) + 1);
+  return out;
+}
