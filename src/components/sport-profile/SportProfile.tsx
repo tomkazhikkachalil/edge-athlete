@@ -18,7 +18,7 @@ import { sportIcon } from '@/lib/sports/sport-icons';
 import { gameSheetFor, sheetEvent } from '@/lib/videos/game-sheets';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { parseSportView, sportViewLevel, switcherSports } from '@/lib/sport-profile/view';
-import type { SportProfileAnswer, SportProfileData } from './types';
+import type { GolfProfileData, SportProfileAnswer, SportProfileData } from './types';
 
 function LevelLoading() {
   return <div className="min-h-[40vh] w-full" aria-busy="true" data-sport-level-loading="" />;
@@ -28,6 +28,7 @@ const SeasonView = dynamic(() => import('./SeasonView'), { ssr: false, loading: 
 const GameView = dynamic(() => import('./GameView'), { ssr: false, loading: LevelLoading });
 const StatReel = dynamic(() => import('./StatReel'), { ssr: false, loading: LevelLoading });
 const ClipsBrowser = dynamic(() => import('./ClipsBrowser'), { ssr: false, loading: LevelLoading });
+const GolfProfile = dynamic(() => import('./GolfProfile'), { ssr: false, loading: LevelLoading });
 
 export interface SportProfileProps {
   profileId: string;
@@ -80,7 +81,9 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
     const sheet = gameSheetFor(sport);
     return sheet ? sheetEvent(sheet, eventKey)?.label ?? null : null;
   }, [sport]);
-  const data: SportProfileData | null = load.state === 'ready' && load.answer.supported ? load.answer : null;
+  // Golf answers its own payload (`kind: 'golf'`): the same page, its own levels (GolfProfile).
+  const golf: GolfProfileData | null = load.state === 'ready' && load.answer.supported && 'kind' in load.answer ? load.answer : null;
+  const data: SportProfileData | null = load.state === 'ready' && load.answer.supported && !('kind' in load.answer) ? load.answer : null;
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6" data-sport-profile={sport}>
@@ -156,6 +159,8 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
             {label} keeps its numbers on the Stats tab. <Link href={`${profilePath}?tab=stats&sport=${encodeURIComponent(sport)}`} className="underline decoration-border underline-offset-4">Open {label} stats</Link>
           </p>
         )}
+        {golf && view.tab === 'stats' && <GolfProfile profileId={profileId} data={golf} view={view} basePath={basePath} />}
+        {golf && view.tab === 'clips' && <p className="text-secondary" data-golf-clips-soon="">Golf has no clips here yet: the photos and clips of a hole are on its round.</p>}
         {/* A number's clips, at the career or a season: the reel sits above the level it was opened from. */}
         {data && view.tab === 'clips' && (
           <ClipsBrowser data={data} profileId={profileId} view={view} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} onChanged={onChanged} />

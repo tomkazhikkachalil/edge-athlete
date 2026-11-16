@@ -2,7 +2,8 @@
  * The sport profile's place in the URL (Sprint 4 PR 3) — pure, no imports.
  * The drill-down is the address: `?season=2025-26` is a season,
  * `&game=film:<id>` a game, `&stat=goals` the clips behind a number,
- * `?view=clips` the browser. Each step down is a history entry, so Back
+ * `?view=clips` the browser. Golf's game is a round (`&game=round:<id>`) and
+ * goes one level further, `&hole=7`. Each step down is a history entry, so Back
  * walks up a level; every level is a link someone can be sent.
  */
 export type SportProfileTab = 'stats' | 'clips';
@@ -14,10 +15,13 @@ export interface SportView {
   stat: string | null;
   /** The Clips browser's play type — a sheet event (`goal`). */
   event: string | null;
+  /** Golf: one hole of a round, 1–18 (`&game=round:<id>&hole=7`). */
+  hole: number | null;
 }
 
 const SEASON_RE = /^(undated|\d{4}(-\d{2})?)$/;
-const GAME_RE = /^(official|film|post):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// `round:` is golf's game (one wave, phase 3): a golf_rounds id.
+const GAME_RE = /^(official|film|post|round):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const KEY_RE = /^[a-z0-9_]{2,40}$/;
 
 type Query = { get(name: string): string | null };
@@ -34,6 +38,7 @@ export function parseSportView(query: Query): SportView {
     game: game && GAME_RE.test(game) ? game : null,
     stat: stat && KEY_RE.test(stat) ? stat : null,
     event: event && KEY_RE.test(event) ? event : null,
+    hole: /^([1-9]|1[0-8])$/.test(query.get('hole') ?? '') ? Number(query.get('hole')) : null,
   };
 }
 
@@ -45,6 +50,7 @@ export function sportViewSearch(view: Partial<SportView>): string {
   if (view.game) q.push(`game=${encodeURIComponent(view.game)}`);
   if (view.stat) q.push(`stat=${encodeURIComponent(view.stat)}`);
   if (view.event) q.push(`event=${encodeURIComponent(view.event)}`);
+  if (view.hole) q.push(`hole=${view.hole}`);
   return q.length ? `?${q.join('&')}` : '';
 }
 
@@ -61,8 +67,8 @@ export function seasonTitle(key: string): string {
 }
 
 /**
- * The sports the switcher offers: the athlete's own order, the ones that HAVE a sport profile (golf and track keep
- * their numbers on the Stats tab — offering them here would be a dead end). A card with no word on it (an older
+ * The sports the switcher offers: the athlete's own order, the ones that HAVE a sport profile (track keeps
+ * its numbers on the Sports tab — offering them here would be a dead end). A card with no word on it (an older
  * cached one, a placeholder's) is offered. The first is where a bare link lands.
  */
 export function switcherSports<T extends { sportKey: string; enabled: boolean; sportProfile?: boolean }>(cards: readonly T[]): T[] {

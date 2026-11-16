@@ -153,9 +153,11 @@ test('the sport profile reads career, season, game and play from the tags; the n
     expect((await strangerApi.get(`${base}/sport-profile?sport=soccer`)).status()).toBe(200);
     expect((await strangerApi.get(`/api/sports/stat-lines?profileId=${athlete.id}&sport=soccer`)).status()).toBe(200);
     expect(((await (await strangerApi.get(`/api/profile?id=${athlete.id}`)).json()) as { canView?: boolean }).canView).toBe(true);
-    // A sport with no stat sheet here answers that plainly.
+    // A sport with no stat sheet here answers that plainly. Golf has its own payload since "one wave" phase 3 (golf-profile-api.spec.ts).
+    const none = await athleteApi.get(`${base}/sport-profile?sport=not_a_sport`);
+    expect(((await none.json()) as { supported: boolean }).supported).toBe(false);
     const golf = await athleteApi.get(`${base}/sport-profile?sport=golf`);
-    expect(((await golf.json()) as { supported: boolean }).supported).toBe(false);
+    expect((await golf.json()) as { supported: boolean; kind: string }).toMatchObject({ supported: true, kind: 'golf' });
   } finally {
     await admin.from('user_blocks').delete().eq('blocker_id', athlete.id).eq('blocked_id', stranger.id);
     await admin.from('follows').delete().eq('follower_id', stranger.id).eq('following_id', athlete.id);

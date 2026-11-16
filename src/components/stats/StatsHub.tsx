@@ -27,7 +27,6 @@ import MultiSelectDropdown from '../filters/MultiSelectDropdown';
 import FilterBar from '../filters/FilterBar';
 import SportSkillCards from '../SportSkillCards';
 import SportBreakdownHeader from './SportBreakdownHeader';
-import GolfBreakdown from './GolfBreakdown';
 import TrackBreakdown from './TrackBreakdown';
 import { useToast } from '../Toast';
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
@@ -316,9 +315,7 @@ export default function StatsHub({
         // trends; track → PB table + race log; other stat-line sports →
         // season totals + game log.
         const breakdown =
-          card.sportKey === 'golf' ? (
-            <GolfBreakdown profileId={profileId} />
-          ) : card.sportKey === 'track_field' ? (
+          card.sportKey === 'track_field' ? (
             <TrackBreakdown profileId={profileId} card={card} />
           ) : undefined;
         return (

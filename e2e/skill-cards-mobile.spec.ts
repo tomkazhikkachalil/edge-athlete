@@ -65,7 +65,7 @@ test('@mobile /u/ shows the sports skill cards to an anonymous phone viewer', as
   await context.close();
 });
 
-test('@mobile own /athlete strip row opens the Stats hub, whose golf breakdown links to trends', async ({ page }) => {
+test('@mobile own /athlete strip row opens golf\'s sport profile, whose trends link to the full trends page', async ({ page }) => {
   await page.goto('/athlete');
 
   // Compact strip (Stats Hub round): headline metric on the golf row.
@@ -73,17 +73,14 @@ test('@mobile own /athlete strip row opens the Stats hub, whose golf breakdown l
   await sports.scrollIntoViewIfNeeded();
   await expect(sports.getByText('Handicap est.')).toBeVisible({ timeout: 15_000 });
 
-  // Tap the row: the Stats hub opens pinned with the golf chip active.
+  // Tap the row: golf has its own sport profile since "one wave" phase 3 (it opened the Stats hub's golf layer before).
   await sports.getByRole('button', { name: 'Golf stats' }).click();
-  await expect(page).toHaveURL(/tab=stats&sport=golf/);
-  // The Sports tab (Nov 2026): no chip row — golf's layer is open, with the way back to every sport.
-  await expect(page.locator('[data-sports-all]')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('region', { name: 'Golf stats' })).toBeInViewport();
+  await expect(page).toHaveURL(/\/athlete\/[0-9a-f-]{36}\/sport\/golf$/);
+  await expect(page.locator('[data-sport-level="career"]')).toBeVisible({ timeout: 30_000 });
 
-  // Owner path to the full trends page now lives inside the expanded
-  // breakdown.
-  const header = page.getByRole('region', { name: 'Golf stats' });
-  await header.getByRole('button', { name: 'Full breakdown' }).click();
-  await header.getByRole('link', { name: /Open full trends/ }).click();
+  // The trends moved with it; the owner's path to the full trends page is inside them.
+  const trends = page.locator('[data-golf-trends]');
+  await expect(trends.getByText('Avg to par · last 5')).toBeVisible({ timeout: 15_000 });
+  await trends.getByRole('link', { name: /Open full trends/ }).click();
   await page.waitForURL('**/app/sport/golf/trends', { timeout: 20_000 });
 });

@@ -42,31 +42,26 @@ test.afterAll(async () => {
   await admin.from('profiles').update({ visibility: 'private', handle: null }).eq('id', u.id);
 });
 
-test('@mobile anonymous /u/ deep link lands on the golf hub layer', async ({ browser }) => {
+test('@mobile anonymous /u/: the old golf deep link opens the sport cards; golf\'s card opens its sport profile, trends and all', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     storageState: 'e2e/.auth/anon.json',
   });
   const page = await context.newPage();
+  // Golf kept a layer on this tab until "one wave" phase 3: its old address now opens the cards, each a door.
   await page.goto(`/u/@${probeHandle()}?tab=stats&sport=golf`);
-
-  // The Sports tab (Nov 2026): no chip row — golf's layer is open, with the way back to every sport's card.
-  await expect(page.locator('[data-sports-all]')).toBeVisible({ timeout: 15_000 });
-  const header = page.getByRole('region', { name: 'Golf stats' });
-  await expect(header.getByText('Handicap est.')).toBeVisible();
-  // The full breakdown opens for an anonymous viewer too (the trends
-  // endpoint's anonymous-public gate).
-  await header.getByRole('button', { name: 'Full breakdown' }).click();
-  await expect(header.getByText('Avg to par · last 5')).toBeVisible({ timeout: 15_000 });
-  // Back to every sport: one card each; the hockey card is the door to its profile, golf's opens this layer again.
-  await page.locator('[data-sports-all]').click();
-  await expect(page.locator('#stats-hub-sports [data-sport-profile-door="ice_hockey"]')).toHaveAttribute('href', new RegExp(`/u/${probeHandle()}/sport/ice_hockey$`));
-  await page.locator('#stats-hub-sports [data-sport-layer-door="golf"]').click();
-  await expect(page.getByRole('region', { name: 'Golf stats' })).toBeVisible();
+  const cards = page.locator('#stats-hub-sports');
+  await expect(cards.locator('[data-sport-profile-door="ice_hockey"]')).toHaveAttribute('href', new RegExp(`/u/${probeHandle()}/sport/ice_hockey$`), { timeout: 15_000 });
+  await expect(cards.locator('[data-sport-profile-door="golf"]')).toHaveAttribute('href', new RegExp(`/u/${probeHandle()}/sport/golf$`));
+  await expect(page.locator('[data-sports-all]')).toHaveCount(0);
+  await cards.locator('[data-sport-profile-door="golf"]').click();
+  await expect(page.locator('[data-sport-level="career"]')).toBeVisible({ timeout: 30_000 });
+  // The trends open for an anonymous viewer too (the trends endpoint's anonymous-public gate).
+  await expect(page.locator('[data-golf-trends]').getByText('Avg to par · last 5')).toBeVisible({ timeout: 15_000 });
   await context.close();
 });
 
-// Since Nov 2026 a sport WITH a sport profile opens it from the strip (golf and track still open the Stats section's layer).
+// Since Nov 2026 a sport WITH a sport profile opens it from the strip (track still opens the Sports tab's layer).
 test('@mobile /u/ Overview strip-tap opens that sport\'s profile', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
