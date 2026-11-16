@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Trophy } from 'lucide-react';
+import RivalsPanel from '@/components/play/RivalsPanel';
 import SectionEmptyState from '@/components/SectionEmptyState';
 import SeasonRollups from '@/components/stats/SeasonRollups';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
@@ -55,6 +56,8 @@ export default function CareerView({ profileId, data, basePath, sportLabel }: Pr
           foot={{ id: 'career', lead: 'Career', count: data.career.games, stats: data.career.totals, door: k => ((data.career.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ stat: k })}` : null) }}
         />
       </div>
+      {/* Head-to-head in this sport (Play, 244) — moved here from the Sports tab's layer; the athlete chooses what shows. */}
+      <RivalsPanel profileId={profileId} sportKey={data.sport} />
       {/* The trend of the headline number and the career bests, from the performance record (the rollups' own reader). */}
       {getStatSchema(data.sport) && <SeasonRollups profileId={profileId} sportKey={data.sport} heroLabel={getStatSchema(data.sport)!.heroStat.label} mode="extras" />}
     </section>

@@ -53,6 +53,12 @@ interface SportSkillCardsProps {
   /** Section anchor id. Override when embedding a second instance on a page
    *  that already carries the profile-body `#sports` section. */
   sectionId?: string;
+  /**
+   * The Sports tab (Nov 2026): every card is a door. `href` opens the
+   * sport's profile; `onOpen` opens what the sport still keeps on the tab
+   * (golf, track — until their profiles land). Null: the card is not a door.
+   */
+  door?: (card: SportSkillCard) => { href: string } | { onOpen: () => void } | null;
 }
 
 // The ladder's words live in src/lib/sports/provenance-copy.ts (pure) so the
@@ -89,7 +95,7 @@ export function SelfPostedNote({ games, where }: { games: number | undefined; wh
   if (!games || games <= 0) return null;
   return (
     <p className="mt-2 text-xs text-muted" data-skill-self-posted={games}>
-      Verified games only. +{games} self-posted {games === 1 ? 'game' : 'games'} {where === 'stats' ? 'counted in the breakdown' : 'on the Stats tab'}.
+      Verified games only. +{games} self-posted {games === 1 ? 'game' : 'games'} {where === 'stats' ? 'counted in the breakdown' : 'in the sport\'s profile'}.
     </p>
   );
 }
@@ -174,6 +180,7 @@ export default function SportSkillCards({
   initialCards,
   onAddDetails,
   sectionId = 'sports',
+  door,
 }: SportSkillCardsProps) {
   const [cards, setCards] = useState<SportSkillCard[]>(initialCards ?? []);
   // The add-affordance must wait for the fetch to settle, or it would flash
@@ -238,6 +245,21 @@ export default function SportSkillCards({
       {cards.map(card => {
         const shell = 'mt-4 bg-surface rounded-xl shadow-sm border border-border p-4';
         const body = <CardBody card={card} />;
+        const way = door?.(card) ?? null;
+        if (way) {
+          const foot = <p className="mt-3 text-sm font-semibold text-brand-fg">Open {card.sportLabel} <span aria-hidden="true">→</span></p>;
+          return 'href' in way ? (
+            <Link key={card.sportKey} href={way.href} className={`block ea-interactive ${shell}`} aria-label={`Open ${card.sportLabel}`} data-sport-profile-door={card.sportKey}>
+              {body}
+              {foot}
+            </Link>
+          ) : (
+            <div key={card.sportKey} role="button" tabIndex={0} onClick={way.onOpen} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); way.onOpen(); } }} className={`cursor-pointer ea-interactive ${shell}`} aria-label={`Open ${card.sportLabel}`} data-sport-layer-door={card.sportKey}>
+              {body}
+              {foot}
+            </div>
+          );
+        }
         return isOwner && card.detailHref ? (
           <Link key={card.sportKey} href={card.detailHref} className={`block ea-interactive ${shell}`}>
             {body}

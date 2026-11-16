@@ -92,17 +92,13 @@ async function buckets(browser: Browser) {
         await tabs.locator('[data-tab="all"]').click();
         await expect(page.locator(`[data-post-id="${plainId}"]`).first()).toBeVisible({ timeout: 20_000 });
         await expect(page.locator(`[data-post-id="${lineId}"]`).first()).toBeVisible();
-        // Stats: the data post only — under All Sports and under the sport's chip.
+        // Sports (the tab id is still `stats`): the data post only.
         await tabs.locator('[data-tab="stats"]').click();
         const hub = page.getByTestId('stats-hub');
         await expect(hub.locator(`[data-post-id="${lineId}"]`)).toBeVisible({ timeout: 20_000 });
         expect(await hub.locator(`[data-post-id="${plainId}"]`).count()).toBe(0);
-        const chips = hub.getByRole('tablist', { name: 'Sport' });
-        if (await chips.count()) {
-          await chips.getByRole('tab', { name: 'Ice Hockey' }).click();
-          await expect(hub.locator(`[data-post-id="${lineId}"]`)).toBeVisible({ timeout: 20_000 });
-          expect(await hub.locator(`[data-post-id="${plainId}"]`).count()).toBe(0);
-        }
+        //   (The chip row is gone since Nov 2026: the tab is the sport cards — each a door — over this one grid.)
+        await expect(hub.getByRole('tablist', { name: 'Sport' })).toHaveCount(0);
         // The Stats badge is the data-posts count the API gave.
         const badge = (await tabs.locator('[data-tab="stats"]').innerText()).replace(/\D/g, '');
         if (counts.stats <= 99) expect(Number(badge)).toBe(counts.stats);

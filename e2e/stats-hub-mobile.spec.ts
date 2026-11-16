@@ -50,14 +50,19 @@ test('@mobile anonymous /u/ deep link lands on the golf hub layer', async ({ bro
   const page = await context.newPage();
   await page.goto(`/u/@${probeHandle()}?tab=stats&sport=golf`);
 
-  const tablist = page.getByRole('tablist', { name: 'Sport' });
-  await expect(tablist.getByRole('tab', { name: 'Golf' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+  // The Sports tab (Nov 2026): no chip row — golf's layer is open, with the way back to every sport's card.
+  await expect(page.locator('[data-sports-all]')).toBeVisible({ timeout: 15_000 });
   const header = page.getByRole('region', { name: 'Golf stats' });
   await expect(header.getByText('Handicap est.')).toBeVisible();
   // The full breakdown opens for an anonymous viewer too (the trends
   // endpoint's anonymous-public gate).
   await header.getByRole('button', { name: 'Full breakdown' }).click();
   await expect(header.getByText('Avg to par · last 5')).toBeVisible({ timeout: 15_000 });
+  // Back to every sport: one card each; the hockey card is the door to its profile, golf's opens this layer again.
+  await page.locator('[data-sports-all]').click();
+  await expect(page.locator('#stats-hub-sports [data-sport-profile-door="ice_hockey"]')).toHaveAttribute('href', new RegExp(`/u/${probeHandle()}/sport/ice_hockey$`));
+  await page.locator('#stats-hub-sports [data-sport-layer-door="golf"]').click();
+  await expect(page.getByRole('region', { name: 'Golf stats' })).toBeVisible();
   await context.close();
 });
 
