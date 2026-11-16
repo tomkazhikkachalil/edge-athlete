@@ -1,5 +1,11 @@
 # Development Log
 
+## November 16, 2026 (18:46) — Next 16.4.2 → 16.4.6: the advisory closed, the build no longer stops
+
+`npm audit --omit=dev` reported one moderate advisory on Next 16.3.0–16.4.4 (GHSA-mfr8-8qww-v76h: information disclosure when a `'use cache'` function is called through `unstable_cache()`). The app has no `'use cache'` site, so it was not exposed — but `next build` had begun stopping on some runs to print the notice (once in the gate, twice under the e2e web server), which reads as "webServer was not able to start".
+
+`next` and `eslint-config-next` to 16.4.6 (published Nov 9); the lockfile moves only the Next packages. Proof: `npm audit --omit=dev` — 0 vulnerabilities; `npm run verify` exit 0 on the first run, no stop (6,462 tests, 360 client chunks within the browser floor). Tom asked for the bump ("do the Next.js patch bump").
+
 ## November 16, 2026 (18:30) — The type check is three programs, each under the heap
 
 `npm run typecheck` checked the whole repository as one program: 5,712 files and 4.21 GB against the 4 GB heap setting. It passed only on the incremental cache and the collector's slack; the build's type check had failed in exactly this way three times on CI before #1542. The rule is to split the program, never to raise the number.
