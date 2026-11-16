@@ -6,7 +6,7 @@
  * Collapsed (default): sport icon + the sport's headline skill metric with
  * its provenance chip + the summary tiles — a compact strip above the media
  * grid, which stays the bigger presence. Expanding reveals the sport's full
- * professional breakdown (`children` — GolfBreakdown, StatLineBreakdown, …);
+ * professional breakdown (`children` — none since every sport with numbers has a sport profile, Nov 2026);
  * sports whose full breakdown hasn't landed yet simply have no children and
  * render no expander.
  */

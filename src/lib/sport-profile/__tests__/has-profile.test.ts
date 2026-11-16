@@ -6,9 +6,9 @@ import { hasSportProfile, sportSums } from '../has-profile';
 const read = (f: string) => fs.readFileSync(path.join(process.cwd(), f), 'utf8');
 
 describe('which sports have a sport profile', () => {
-  it('a sport with a stat sheet has one, and golf (its own payload, since one wave phase 3); track and field (its PB table) and a sport with no sheet do not', () => {
-    for (const k of ['soccer', 'basketball', 'ice_hockey', 'volleyball', 'baseball', 'mma', 'boxing', 'swimming', 'running', 'golf']) expect(hasSportProfile(k), k).toBe(true);
-    for (const k of ['track_field', 'tennis', 'football', 'curling']) expect(hasSportProfile(k), k).toBe(false);
+  it('every sport with a stat sheet has one — track and field too, since each event is a best (one wave phase 4) — and golf (its own payload); a sport with no sheet does not', () => {
+    for (const k of ['soccer', 'basketball', 'ice_hockey', 'volleyball', 'baseball', 'mma', 'boxing', 'swimming', 'running', 'golf', 'track_field']) expect(hasSportProfile(k), k).toBe(true);
+    for (const k of ['tennis', 'football', 'curling']) expect(hasSportProfile(k), k).toBe(false);
   });
   it('the skill card says it, so a page needs no stat sheet to know; the strip\'s tap opens the sport profile on all three routes', () => {
     expect(read('src/lib/sports/server/index.ts')).toContain('sportProfile: def.enabled && hasSportProfile(sportKey),');

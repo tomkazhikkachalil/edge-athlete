@@ -28,6 +28,7 @@ const SeasonView = dynamic(() => import('./SeasonView'), { ssr: false, loading: 
 const GameView = dynamic(() => import('./GameView'), { ssr: false, loading: LevelLoading });
 const StatReel = dynamic(() => import('./StatReel'), { ssr: false, loading: LevelLoading });
 const ClipsBrowser = dynamic(() => import('./ClipsBrowser'), { ssr: false, loading: LevelLoading });
+const BestHistory = dynamic(() => import('./BestHistory'), { ssr: false, loading: LevelLoading });
 const GolfProfile = dynamic(() => import('./GolfProfile'), { ssr: false, loading: LevelLoading });
 const GolfClips = dynamic(() => import('./GolfClips'), { ssr: false, loading: LevelLoading });
 
@@ -86,6 +87,7 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
   const golf: GolfProfileData | null = load.state === 'ready' && load.answer.supported && 'kind' in load.answer ? load.answer : null;
   const data: SportProfileData | null = load.state === 'ready' && load.answer.supported && !('kind' in load.answer) ? load.answer : null;
 
+  const bestColumn = !!data && !!view.stat && data.columns.some(c => c.key === view.stat && (c.rule === 'low' || c.rule === 'high'));
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6" data-sport-profile={sport}>
       <header className="mb-6 space-y-4">
@@ -166,7 +168,11 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
         {data && view.tab === 'clips' && (
           <ClipsBrowser data={data} profileId={profileId} view={view} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} onChanged={onChanged} />
         )}
-        {data && view.tab === 'stats' && level !== 'game' && view.stat && (
+        {/* A best's own history (a race time, a pace): every one, in order — instead of a reel of clips. */}
+        {data && view.tab === 'stats' && level !== 'game' && view.stat && bestColumn && (
+          <BestHistory data={data} season={view.season} stat={view.stat} basePath={basePath} />
+        )}
+        {data && view.tab === 'stats' && level !== 'game' && view.stat && !bestColumn && (
           <StatReel data={data} profileId={profileId} season={view.season} stat={view.stat} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} />
         )}
         {data && view.tab === 'stats' && level === 'career' && <CareerView profileId={profileId} data={data} basePath={basePath} sportLabel={label} />}

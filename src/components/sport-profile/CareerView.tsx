@@ -46,6 +46,7 @@ export default function CareerView({ profileId, data, basePath, sportLabel }: Pr
           leadLabel="Season"
           countLabel="GP"
           columns={data.columns}
+          headDoor={k => (data.columns.find(c => c.key === k && (c.rule === 'low' || c.rule === 'high')) ? `${basePath}${sportViewSearch({ stat: k })}` : null)}
           rows={data.seasons.map(s => ({
             id: s.key,
             lead: (

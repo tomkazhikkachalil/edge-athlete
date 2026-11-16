@@ -1,5 +1,13 @@
 # Development Log
 
+## November 16, 2026 (00:33) — "One wave", phase 4 closes: track and field has a sport profile; the event is a pivot
+
+#1540 merged (the race columns, and the correction to this log's dates). Its first CI run failed in `verify` with no test or type error: `next build`'s own type check ran out of the 4 GB heap on the runner (4,026 MB at the end); the same commit passed on a re-run. The gate is at its memory edge — the build type-checks 458 e2e files and 684 unit-test files it never ships. Not changed here: how the gate is split is Tom's call (the rule is "split the program, never raise the number").
+
+Track and field now runs on the sport profile: each event's column is a best, so career rows are season bests and the foot row the personal bests, each opening the race it was set in. The event is a pivot — a best column's heading opens every race of that event, newest first, with the ones that were a best at the time marked (`BestHistory`, `progressionOf`); the same pivot serves a pace in the endurance sports. `hasSportProfile` is now "golf, or any sport with a stat sheet"; `TrackBreakdown` and `StatLineBreakdown` are deleted (359 lines); the Sports tab keeps a layer only for a sport with no stat sheet.
+
+Proof on staging: `sport-profile-race` phone 2 / 2 (track: `11.85`, `12.10`, `24.10`; four 100 m races, three marked; a row opens its race); `skill-cards-mobile`, `stats-hub-mobile`, `profile-sports`, `sport-profile`, `golf-profile` phone green; `sport-profile-api`, `play-rivals`, `video-tagged-profile` desktop green.
+
 ## November 16, 2026 — "One wave", phase 4, PR 1: a race sport's columns show, each by its own rule
 
 **A correction to this log's dates.** The entries from "Sprint 4 begins" to "phase 3 closes" below were written with dates that ran ahead of the calendar — a new "day" for each round, up to "November 19". All of that work merged on November 15, 2026. Their headings now carry that date and the time their pull request merged; the same slip is corrected in the specs, `database/MIGRATIONS.md` (migrations 311 and 312 ran on Nov 15) and two code comments. Nothing else in those entries changed.
