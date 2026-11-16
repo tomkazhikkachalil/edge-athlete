@@ -29,6 +29,7 @@ const GameView = dynamic(() => import('./GameView'), { ssr: false, loading: Leve
 const StatReel = dynamic(() => import('./StatReel'), { ssr: false, loading: LevelLoading });
 const ClipsBrowser = dynamic(() => import('./ClipsBrowser'), { ssr: false, loading: LevelLoading });
 const GolfProfile = dynamic(() => import('./GolfProfile'), { ssr: false, loading: LevelLoading });
+const GolfClips = dynamic(() => import('./GolfClips'), { ssr: false, loading: LevelLoading });
 
 export interface SportProfileProps {
   profileId: string;
@@ -160,7 +161,7 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
           </p>
         )}
         {golf && view.tab === 'stats' && <GolfProfile profileId={profileId} data={golf} view={view} basePath={basePath} />}
-        {golf && view.tab === 'clips' && <p className="text-secondary" data-golf-clips-soon="">Golf has no clips here yet: the photos and clips of a hole are on its round.</p>}
+        {golf && view.tab === 'clips' && <GolfClips profileId={profileId} data={golf} view={view} basePath={basePath} />}
         {/* A number's clips, at the career or a season: the reel sits above the level it was opened from. */}
         {data && view.tab === 'clips' && (
           <ClipsBrowser data={data} profileId={profileId} view={view} basePath={basePath} showHeld={showHeld} eventLabel={eventLabel} rev={rev} onChanged={onChanged} />

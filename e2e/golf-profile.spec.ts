@@ -30,6 +30,12 @@ test('golf\'s sport profile at 375 px: career → season → a score kind\'s hol
     const { error: holeErr } = await admin.from('golf_holes').insert([...card, { round_id: idOn('2026-08-01'), hole_number: 1, par: 5, strokes: 3 }]);
     expect(holeErr, holeErr?.message).toBeNull();
 
+    // June 1 was a shared round, open to everyone, with a photo on hole 3.
+    const { data: gp, error: gpErr } = await admin.from('group_posts').insert({ creator_id: owner.id, type: 'golf_round', title: 'QA shared round', date: '2026-06-01', visibility: 'public', status: 'completed' }).select('id').single();
+    expect(gpErr, gpErr?.message).toBeNull();
+    expect((await admin.from('golf_rounds').update({ group_post_id: gp!.id }).eq('id', idOn('2026-06-01'))).error).toBeNull();
+    expect((await admin.from('group_post_media').insert({ group_post_id: gp!.id, uploaded_by: owner.id, media_url: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/uploads/qa-golf/hole3.jpg`, media_type: 'image', segment_number: 3, segment_kind: 'hole' })).error).toBeNull();
+
     const page = await ctx.newPage();
     const base = `/athlete/${owner.id}/sport/golf`;
     await page.goto(base);
@@ -71,6 +77,7 @@ test('golf\'s sport profile at 375 px: career → season → a score kind\'s hol
     await expect(hole).toHaveAttribute('data-golf-hole', '3', { timeout: 20_000 });
     await expect(hole).toContainText('Par 5');
     await expect(hole.locator('[data-sport-tiles]')).toContainText('4 · Birdie');
+    await expect(hole.locator('[data-golf-hole-media] [data-golf-media-item]')).toHaveCount(1);
     await hole.locator('[data-golf-hole-next]').click();
     await expect(page.locator('[data-sport-level="hole"]')).toHaveAttribute('data-golf-hole', '4');
     await page.goBack();
@@ -83,6 +90,10 @@ test('golf\'s sport profile at 375 px: career → season → a score kind\'s hol
     await expect(card18.locator('[data-golf-hole-link]')).toHaveCount(18);
     await expect(card18.locator('[data-golf-row="hole-5"] [data-golf-kind="double"]')).toHaveText('6');
     await expect(card18.locator('[data-golf-edit]')).toHaveCount(0);
+    // The hole with a photo says so on the scorecard; the round shows it, with the door to its hole.
+    await expect(card18.locator('[data-golf-row="hole-3"] [data-golf-hole-media-count="1"]')).toBeVisible();
+    await expect(card18.locator('[data-golf-hole-media-count]')).toHaveCount(1);
+    await expect(card18.locator('[data-golf-round-media] [data-golf-media-item]')).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await card18.locator('[data-golf-up="season"]').click();
     await expect(page.locator('[data-sport-level="season"] [data-golf-rounds]')).toBeVisible();
@@ -92,6 +103,14 @@ test('golf\'s sport profile at 375 px: career → season → a score kind\'s hol
     await expect(page.locator('[data-golf-no-holes]')).toBeVisible({ timeout: 30_000 });
     await page.goto(`${base}?season=2026&game=round:${idOn('2026-08-01')}`);
     await expect(page.locator('[data-golf-round-missing]')).toBeVisible({ timeout: 30_000 });
+
+    // The Clips tab: every photo and clip of the listed rounds; the caption is the door to its hole.
+    await page.goto(`${base}?view=clips`);
+    const clips = page.locator('[data-golf-clips]');
+    await expect(clips.locator('[data-golf-clips-count="1"]')).toBeVisible({ timeout: 30_000 });
+    await clips.locator('[data-golf-media-door]').click();
+    await expect(page.locator('[data-sport-level="hole"]')).toHaveAttribute('data-golf-hole', '3', { timeout: 20_000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     // The athlete: the hidden round is listed and marked, is the door to the best, and can be edited.
     const mine = await own.newPage();

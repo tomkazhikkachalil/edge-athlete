@@ -1,5 +1,15 @@
 # Development Log
 
+## November 19, 2026 (later) — Golf's profile: a hole's photos and clips, the Clips tab, the official mark — phase 3 closes
+
+#1538 merged (`0ba65fa3`); production passed `golf-profile` at phone width and `golf-profile-api` on desktop. Tom's own golf now opens from his Sports tab.
+
+This PR finishes the phase. A shared round's photos and clips show on the hole they were taken on, on the round (a camera count on the scorecard row), and on golf's Clips tab, each with the door to its hole. Who is shown them is the round's own rule — public, the creator, a participant — applied to the list itself (someone the round is closed to is not told a photo exists), and the media proxy asks again for the bytes. A round played in an organization's event is marked official; the rule is asked a season at a time for shared rounds only.
+
+My call: the owner's full trends page and rounds list stay beside the profile (it links to them) rather than redirect — they hold four charts, search and filters the profile does not.
+
+Proof on staging: `golf-profile-api` desktop (a private round's media: creator 2, visitor 0, participant 2, public 2; proxy addresses only), `golf-profile` phone (hole photo, scorecard count, round grid, Clips tab → hole). 3 new unit pins.
+
 ## November 19, 2026 — "One wave", phase 3: golf has a sport profile (Career → Season → Round → Hole)
 
 Phase 2 closed: #1535 (exercise page doors), #1536 (feed: an edit invalidates the read cache — `feed-toggle` green again) and #1537 (the two older Training reads through the one gate) merged; production `03a30edd` passed `training-timeline` and `training-exercises` at phone width.

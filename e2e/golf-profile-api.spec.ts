@@ -67,11 +67,40 @@ test('golf\'s sport profile: totals over every round, the list and the holes onl
     expect(mine.career.best18).toMatchObject({ gross: 70, roundId: idOn('2026-08-01') });
     expect(Object.keys(((await read(ownerApi, '&holes=2026')) as { holes: Record<string, unknown> }).holes)).toHaveLength(3);
 
+    // ── A shared round's photos and clips: listed only for someone the round's own rule admits.
+    const { data: gp, error: gpErr } = await admin.from('group_posts').insert({ creator_id: owner.id, type: 'golf_round', title: 'QA shared round', date: '2026-06-01', visibility: 'private', status: 'completed' }).select('id').single();
+    expect(gpErr, gpErr?.message).toBeNull();
+    expect((await admin.from('golf_rounds').update({ group_post_id: gp!.id }).eq('id', idOn('2026-06-01'))).error).toBeNull();
+    const stored = (name: string) => `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/uploads/qa-golf/${name}`;
+    const { error: mediaErr } = await admin.from('group_post_media').insert([
+      { group_post_id: gp!.id, uploaded_by: owner.id, media_url: stored('hole2.jpg'), media_type: 'image', segment_number: 2, segment_kind: 'hole' },
+      { group_post_id: gp!.id, uploaded_by: owner.id, media_url: stored('round.mp4'), media_type: 'video', thumbnail_url: stored('round.jpg'), duration_seconds: 12 },
+    ]);
+    expect(mediaErr, mediaErr?.message).toBeNull();
+    type Media = Array<{ roundId: string; n: number | null; type: string; url: string; poster: string | null }>;
+    const mediaOf = async (api: typeof ownerApi, extra: string) => ((await read(api, extra)) as { media: Media }).media;
+    // Private round: the creator sees both; a visitor who is not in the round is not even told they exist.
+    expect(await mediaOf(visitorApi, '&holes=2026')).toEqual([]);
+    expect(await mediaOf(visitorApi, '&media=all')).toEqual([]);
+    const own = await mediaOf(ownerApi, '&media=all');
+    expect(own.map(m => [m.roundId, m.n, m.type])).toEqual([[idOn('2026-06-01'), 2, 'image'], [idOn('2026-06-01'), null, 'video']]);
+    // The addresses are the media proxy's — never the stored one.
+    expect(own.every(m => m.url.startsWith('/api/media/') && !m.url.includes('supabase'))).toBe(true);
+    expect(own[1].poster?.startsWith('/api/media/')).toBe(true);
+    // A participant is admitted; so is everyone once the round is public.
+    expect((await admin.from('group_post_participants').insert({ group_post_id: gp!.id, profile_id: visitor.id, status: 'pending' })).error).toBeNull();
+    expect(await mediaOf(visitorApi, '&holes=2026')).toHaveLength(2);
+    expect((await admin.from('group_post_participants').delete().eq('group_post_id', gp!.id).eq('profile_id', visitor.id)).error).toBeNull();
+    expect(await mediaOf(visitorApi, '&holes=2026')).toEqual([]);
+    expect((await admin.from('group_posts').update({ visibility: 'public' }).eq('id', gp!.id)).error).toBeNull();
+    expect((await mediaOf(visitorApi, '&media=all')).map(m => m.n)).toEqual([2, null]);
+
     // ── A block closes it; a bad year is the whole profile, not an error.
     expect(((await read(visitorApi, '&holes=20x6')) as Golf).kind).toBe('golf');
     expect((await admin.from('user_blocks').insert({ blocker_id: owner.id, blocked_id: visitor.id })).error).toBeNull();
     expect((await visitorApi.get(`/api/profile/${owner.id}/sport-profile?sport=golf`)).status()).toBe(404);
     expect((await visitorApi.get(`/api/profile/${owner.id}/sport-profile?sport=golf&holes=2026`)).status()).toBe(404);
+    expect((await visitorApi.get(`/api/profile/${owner.id}/sport-profile?sport=golf&media=all`)).status()).toBe(404);
   } finally {
     await ownerApi.dispose();
     await visitorApi.dispose();

@@ -10,12 +10,13 @@
  */
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Flag } from 'lucide-react';
+import { Camera, Flag } from 'lucide-react';
 import SectionEmptyState from '@/components/SectionEmptyState';
 import RivalsPanel from '@/components/play/RivalsPanel';
 import GolfBreakdown from '@/components/stats/GolfBreakdown';
-import { frontBack, golfSeasonOf, holesOfKind, pctText, SCORE_KINDS, scoreKindOf, toParText, type GolfHoleRow, type GolfRoundListed, type GolfTotals, type ScoreKind } from '@/lib/sport-profile/golf-rules';
+import { frontBack, golfSeasonOf, holesOfKind, mediaCountByHole, mediaOfHole, pctText, SCORE_KINDS, scoreKindOf, toParText, type GolfHoleRow, type GolfMedia, type GolfRoundListed, type GolfTotals, type ScoreKind } from '@/lib/sport-profile/golf-rules';
 import { sportViewSearch, type SportView } from '@/lib/sport-profile/view';
+import GolfMediaGrid from './GolfMediaGrid';
 import Tiles from './Tiles';
 import type { GolfProfileData } from './types';
 
@@ -85,7 +86,7 @@ function totalsCells(t: GolfTotals, best: ReactNode): ReactNode[] {
   return [t.rounds, one(t.avg18), toParText(t.toPar18), best, pctText(t.fairways), pctText(t.greens), one(t.putts18)];
 }
 
-type Holes = { year: string; state: 'loading' | 'error' } | { year: string; state: 'ready'; byRound: Record<string, GolfHoleRow[]> };
+type Holes = { year: string; state: 'loading' | 'error' } | { year: string; state: 'ready'; byRound: Record<string, GolfHoleRow[]>; media: GolfMedia[]; official: string[] };
 
 export default function GolfProfile({ profileId, data, view, basePath }: Props) {
   const roundId = view.game?.startsWith('round:') ? view.game.slice(6) : null;
@@ -102,13 +103,15 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
     fetch(`/api/profile/${profileId}/sport-profile?sport=golf&holes=${year}`, { credentials: 'include' })
       .then(async r => {
         if (!r.ok) throw new Error(String(r.status));
-        return (await r.json()) as { holes?: Record<string, GolfHoleRow[]> };
+        return (await r.json()) as { holes?: Record<string, GolfHoleRow[]>; media?: GolfMedia[]; official?: string[] };
       })
-      .then(body => { if (!cancelled) setHoles({ year, state: 'ready', byRound: body.holes ?? {} }); })
+      .then(body => { if (!cancelled) setHoles({ year, state: 'ready', byRound: body.holes ?? {}, media: body.media ?? [], official: body.official ?? [] }); })
       .catch(() => { if (!cancelled) setHoles({ year, state: 'error' }); });
     return () => { cancelled = true; };
   }, [profileId, year]);
   const byRound = holes?.state === 'ready' && holes.year === year ? holes.byRound : null;
+  const media = holes?.state === 'ready' && holes.year === year ? holes.media : [];
+  const official = holes?.state === 'ready' && holes.year === year ? holes.official : [];
   const holesNote = holes?.state === 'error'
     ? <p className="text-sm text-secondary" role="alert">The scorecards could not be loaded. Check your connection and try again.</p>
     : <div className="min-h-[20vh]" aria-busy="true" data-golf-holes-loading="" />;
@@ -152,6 +155,12 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
                 { label: 'Green in regulation', value: h.green === null ? null : h.green ? 'Yes' : 'No' },
                 { label: 'Penalties', value: h.penalties > 0 ? String(h.penalties) : null },
               ]} />
+              {mediaOfHole(media, round.id, view.hole).length > 0 && (
+                <div data-golf-hole-media="">
+                  <h3 className="mb-2 text-base font-bold text-primary">Photos and clips</h3>
+                  <GolfMediaGrid media={mediaOfHole(media, round.id, view.hole)} describe={() => `Hole ${view.hole}, ${round.course}, ${day(round.date, true)}`} />
+                </div>
+              )}
               <nav aria-label="Holes" className="flex justify-between gap-3">
                 {at > 0 ? <Link href={href({ season: year, game: roundKey(round.id), hole: numbers[at - 1] })} className={backLink} data-golf-hole-prev=""><span aria-hidden="true">←</span> Hole {numbers[at - 1]}</Link> : <span />}
                 {at >= 0 && at < numbers.length - 1 ? <Link href={href({ season: year, game: roundKey(round.id), hole: numbers[at + 1] })} className={backLink} data-golf-hole-next="">Hole {numbers[at + 1]} <span aria-hidden="true">→</span></Link> : <span />}
@@ -163,6 +172,8 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
     }
 
     const nines = card ? frontBack(card) : null;
+    const mediaCount = mediaCountByHole(media, round.id);
+    const roundMedia = media.filter(m => m.roundId === round.id);
     return (
       <section className="space-y-6" data-sport-level="game" data-golf-round={round.id}>
         <Link href={seasonHref} className={backLink} data-golf-up="season"><span aria-hidden="true">←</span> {year}</Link>
@@ -170,6 +181,7 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
           <h2 className="text-lg font-bold text-primary">{round.course}</h2>
           <p className="text-sm text-secondary">
             {day(round.date, true)}{round.tee ? ` · ${round.tee} tees` : ''} · {round.holes} holes
+            {official.includes(round.id) && <span className="ml-2 rounded bg-brand-soft px-1.5 py-0.5 text-xs font-semibold text-brand-fg" data-golf-official="">Official event round</span>}
             {round.hidden && <span className="ml-2 rounded bg-surface-sunken px-1.5 py-0.5 text-xs font-semibold text-secondary" data-golf-hidden="">Hidden from your profile</span>}
           </p>
         </div>
@@ -191,7 +203,16 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
                 return {
                   id: `hole-${h.n}`,
                   cells: [
-                    <Link key="n" href={href({ season: year, game: roundKey(round.id), hole: h.n })} className={door} data-golf-hole-link={h.n}>Hole {h.n}</Link>,
+                    <span key="n" className="inline-flex items-center gap-2">
+                      <Link href={href({ season: year, game: roundKey(round.id), hole: h.n })} className={door} data-golf-hole-link={h.n}>Hole {h.n}</Link>
+                      {mediaCount.has(h.n) && (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted" data-golf-hole-media-count={mediaCount.get(h.n)}>
+                          <Camera className="h-3.5 w-3.5" aria-hidden="true" />
+                          {mediaCount.get(h.n)}
+                          <span className="sr-only"> photos and clips</span>
+                        </span>
+                      )}
+                    </span>,
                     h.par ?? '—',
                     h.strokes === null ? '—' : <span title={kind ? KIND_WORD[kind] : undefined} className={kind === 'eagle' || kind === 'birdie' ? 'font-bold text-emerald-700 dark:text-emerald-400' : kind === 'double' ? 'font-bold text-red-600 dark:text-red-400' : ''} data-golf-kind={kind ?? undefined}>{h.strokes}</span>,
                     h.putts ?? '—',
@@ -200,6 +221,16 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
                   ],
                 };
               })}
+            />
+          </div>
+        )}
+        {roundMedia.length > 0 && (
+          <div data-golf-round-media="">
+            <h3 className="mb-2 text-base font-bold text-primary">Photos and clips</h3>
+            <GolfMediaGrid
+              media={roundMedia}
+              describe={m => `${m.n ? `Hole ${m.n}, ` : ''}${round.course}, ${day(round.date, true)}`}
+              caption={m => (m.n ? { text: `Hole ${m.n}`, href: href({ season: year, game: roundKey(round.id), hole: m.n }) } : null)}
             />
           </div>
         )}
@@ -224,7 +255,7 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
         </section>
       );
     }
-    return <SeasonLevel year={year} season={season} log={log} byRound={byRound} holesNote={holesNote} kind={isKind(view.stat) ? view.stat : null} href={href} basePath={basePath} />;
+    return <SeasonLevel year={year} season={season} log={log} byRound={byRound} official={official} holesNote={holesNote} kind={isKind(view.stat) ? view.stat : null} href={href} basePath={basePath} />;
   }
 
   // ── Career ──────────────────────────────────────────────────────────────────
@@ -258,11 +289,12 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
   );
 }
 
-function SeasonLevel({ year, season, log, byRound, holesNote, kind, href, basePath }: {
+function SeasonLevel({ year, season, log, byRound, official, holesNote, kind, href, basePath }: {
   year: string;
   season: GolfProfileData['seasons'][number];
   log: GolfRoundListed[];
   byRound: Record<string, GolfHoleRow[]> | null;
+  official: string[];
   holesNote: ReactNode;
   kind: ScoreKind | null;
   href: (v: Partial<SportView>) => string;
@@ -367,7 +399,7 @@ function SeasonLevel({ year, season, log, byRound, holesNote, kind, href, basePa
                 <Link href={href({ season: year, game: roundKey(r.id) })} className="ea-surface ea-interactive flex min-h-[56px] items-center justify-between gap-3 rounded-lg p-3" data-golf-round-link={r.id}>
                   <span className="min-w-0">
                     <span className="block truncate font-semibold text-primary">{r.course}</span>
-                    <span className="block text-sm text-secondary">{day(r.date)} · {r.holes} holes{r.hidden ? ' · Hidden' : ''}</span>
+                    <span className="block text-sm text-secondary">{day(r.date)} · {r.holes} holes{official.includes(r.id) ? ' · Official' : ''}{r.hidden ? ' · Hidden' : ''}</span>
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block text-lg font-bold tabular-nums text-primary">{r.gross ?? '—'}</span>
