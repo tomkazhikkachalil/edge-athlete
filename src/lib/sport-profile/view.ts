@@ -87,3 +87,29 @@ export function statText(n: number | undefined): string {
   if (n === undefined || !Number.isFinite(n)) return '–';
   return Number.isInteger(n) ? String(n) : (Math.round(n * 10) / 10).toFixed(1);
 }
+
+/** How a column's number reads: a plain number, a race time (11.85, 4:05.30), or a clock (42:10, 1:02:03). */
+export type StatFormat = 'number' | 'race_time' | 'clock';
+
+/** A field's format from its own key: `time_*` is a race time; `pace_*` and `*_s` (moving, elapsed) are a clock. */
+export function statFormatOf(key: string): StatFormat {
+  if (/^time_/.test(key)) return 'race_time';
+  if (/^pace_/.test(key) || /_s$/.test(key)) return 'clock';
+  return 'number';
+}
+
+/** A stat cell in its column's format. */
+export function statCell(n: number | undefined, format: StatFormat = 'number'): string {
+  if (n === undefined || !Number.isFinite(n)) return '–';
+  if (format === 'number' || n <= 0) return statText(n);
+  if (format === 'race_time') {
+    if (n < 60) return n.toFixed(2);
+    const m = Math.floor(n / 60);
+    return `${m}:${(n - m * 60).toFixed(2).padStart(5, '0')}`;
+  }
+  const total = Math.round(n);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}

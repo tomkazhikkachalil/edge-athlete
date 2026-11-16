@@ -45,7 +45,7 @@ Tom's brief: the athlete's page is a bundle of connected views per sport, "the w
 - **One table** (`StatTable`): the repo's idiom, a horizontal scroller with the first column pinned on a phone. The levels are `next/dynamic` chunks.
 - **The door in:** the Stats tab's sport layer (`data-sport-profile-door`), for a sport with a stat sheet.
 
-## The game and the play (PR 4, Nov 16 2026)
+## The game and the play (PR 4, Nov 15 2026)
 
 - **Every number is a door.** A stat cell with clips behind it is a link (`data-stat-door`): at the career it opens that stat's reel for the whole career (`?stat=goals`), on a season row or the season's totals that season's (`?season=…&stat=goals`), on a game row that game's (`…&game=…&stat=goals`). A number with no clip behind it — an official line with no film, a posted game — is plain text. The counts come with the payload (`career.clips`, `seasons[].clips`, `games[].statClips`); a split row is not a door.
 - **The reel sits above the level it was opened from** (`StatReel`) — "every goal that season as a clip reel, in order, without leaving the page" — and Close returns to the level's own address.
@@ -54,14 +54,14 @@ Tom's brief: the athlete's page is a bundle of connected views per sport, "the w
 - **A moment has an address:** `/videos/[id]?tag=<highlight id>` (`tagPath`, `videoPageTag` in `game-view.ts`) opens the video at that moment, once. Every clip in a reel links to it ("Open this moment in the game"). A moment the viewer has not been sent — an unwatched play of a spoiler-free game — is not there, and the video opens as it always does.
 - A clip is called by the sheet's event and the tagger's own label, once when they say the same thing.
 
-## Media on its own — the Clips browser (PR 5, Nov 16 2026)
+## Media on its own — the Clips browser (PR 5, Nov 15 2026)
 
 - **Stats and Clips are two tabs of the one page** (`data-sport-tabs`): the numbers (each a door to its clips), or the clips without going through the numbers (`?view=clips`).
 - **What it lists:** every clip of the athlete in every film game the viewer may watch — **recreational film included, marked** — oldest game first (`scope=all` on the sport-clips route). A spoiler-free game gives none until the viewer has asked.
 - **Filters are the address:** season, game, play type (`?view=clips&season=…&game=…&event=…`). The play types are the sport's sheet events (a plain marker is not a play type). The filters are held in the component and mirrored to the address, so two changes in a row each start from the last one made (the overlapping-saves rule — found by the spec: the second change was built from an address the first had not reached).
 - **Every clip links back** (`data-clip-origin`): to its game's level on the Stats side, to each stat it made (that game, that stat), and to its moment on the game's own page.
 
-## Hide — the athlete's own page (PR 6a, Nov 16 2026; migration 311)
+## Hide — the athlete's own page (PR 6a, Nov 15 2026; migration 311)
 
 Tom, Nov 15 2026: an athlete can hide a game or a single clip from their page; **the stat still counts**. "Remove me" (the tag is removed and the stat drops for everyone) stays, on the game's own page, as the stronger door.
 
@@ -71,11 +71,11 @@ Tom, Nov 15 2026: an athlete can hide a game or a single clip from their page; *
 - **On the page:** the game level has "Hide this game from my page" / "Show this game on my page" with what it does said in words; the reel has the same for the playing clip; the game log marks a hidden row for the athlete. No toast — the result is on the screen.
 - It is about the athlete's page only: the club's video, its box score and the other players are untouched. An official result is not hidden by this (that is the results rule, Convention 27).
 
-## "These are two different games" in the game log (PR 7a, Nov 16 2026)
+## "These are two different games" in the game log (PR 7a, Nov 15 2026)
 
 - The same-game rule joins two games of one date; the athlete — or a guardian — may say they are two (309, `video-games.md`). The sport profile's game log now carries that control: a row not counted **because of the date alone** (`games[].canSplit`) offers "These are two different games"; a row the athlete split (`games[].splitFrom`) says "Counted as its own game" with Undo. A pair tied by a contest is never offered. It is the Stats tab's own writer (`POST /api/sports/stat-lines/distinct`) and its own client helper, so the two surfaces stay one fact.
 
-## The Stats tab's per-sport breakdown is retired into this (Nov 17 2026)
+## The Stats tab's per-sport breakdown is retired into this (Nov 15 2026)
 
 One home per fact: a sport's full breakdown — career and seasons, the totals, the official lines, the game log, the film — is the sport profile. On the Stats tab a sport's layer keeps its **card** (the short, verified intro) and the **door** ("Full breakdown: career, seasons, games and clips", `data-sport-profile-door`); the expandable breakdown and the per-sport "From game film" list are gone from it.
 
@@ -83,7 +83,7 @@ One home per fact: a sport's full breakdown — career and seasons, the totals, 
 - **What was carried over first**, so nothing is lost: an official line says its rung in the game log ("Official · League verified"); a disputed result carries the **Unconfirmed** mark and says it is not counted until resolved; a posted game shows its own result; a row that is not counted **links to the game that took its place** (the official result's page, or the film's game level here); "How verification works →" sits over a log with an official line; and the **trend and the bests** — the rollups' own reader (`SeasonRollups mode="extras"`, from `athlete_performances`): the career bests, the trend of the headline number and how many events are club-recorded or better on the career, the season's bests on a season.
 - The game log has no 25-row cap and no calendar-year select: a season is the sport's season.
 
-## Unclaimed — a tagged player who has not claimed their profile (PR 6b, Nov 16 2026; migration 312)
+## Unclaimed — a tagged player who has not claimed their profile (PR 6b, Nov 15 2026; migration 312)
 
 Tom, Nov 15 2026: such a player gets "a public page, marked unclaimed", and "authentication needs to be a process where they select the profile and start the request". Nov 16: there is no account merge in this codebase, so an approved request **moves the film**.
 
@@ -96,14 +96,14 @@ Tom, Nov 15 2026: such a player gets "a public page, marked unclaimed", and "aut
 - **What does not move:** the placeholder itself, its roster seat, and any official result entered for it stay with the organization. The page says so before the person asks, and the approval says so to the manager. A person with no account still claims the old way — the organization's claim link, which makes the placeholder their account.
 - **Readers and the one writer:** `unclaimed-open-server.ts` (the small reads, with no import of the video modules — `videos-server.ts` reads through it), `unclaimed-server.ts` (`readUnclaimed`, `requestProfileClaim`, `decideProfileClaim`, `setUnclaimedListed`); `GET / PATCH /api/profile/[profileId]/unclaimed`.
 
-## Follow-ups (Nov 18 2026)
+## Follow-ups (Nov 15 2026)
 
 - **A block closes a profile.** `canViewProfile` (`src/lib/privacy.ts`) refuses a signed-in viewer with a block in either direction, on the two paths that would let them in (a public profile, an accepted follow) — it reads as a profile they cannot view, never as "blocked". A guardian's access row is not a viewer's and is not closed by it. The Stats tab's two older routes gate inline (`/api/sports/stat-lines`, `/api/performance/rollups`): they refuse too, as a private profile. One predicate, `blockedEitherWay` in `src/lib/blocks.ts`. (The signed-out view of a public profile cannot know who is looking; that is unchanged.)
 - **A race does not add up** (`sportSums` in `src/lib/sport-profile/has-profile.ts`): a sport with two sides sums (goals, points, takedowns); swimming, running, cycling and rowing do not — their numbers are times and marks. Their sport profile counts the races per season, shows each race's own numbers in the game log and the bests, and **never a total** (`sums: false` in the payload).
 - **The sport strip opens the sport profile.** On the profile's own sport strip (all three routes) a sport WITH a sport profile opens it in one tap; golf and track open the Stats tab's layer as before. The skill card says which (`sportProfile`, set on the server by `hasSportProfile`), so a profile route needs no stat sheet to know and its first load is unchanged.
 - **The switcher offers only sports that have a sport profile** (`switcherSports`); a link naming one that does not (golf) opens the first that does. The header shows what the athlete says about themselves in the sport — the card's headline when it is self-entered (a level), then the rest.
 
-## The Sports tab (Nov 18 2026 — the "one wave" program, phase 1)
+## The Sports tab (Nov 15 2026 — the "one wave" program, phase 1)
 
 Tom: the profile's tabs stay seven, and **Stats is renamed Sports** — "one card per sport, a tap opens that sport's profile". The tab's id and address stay `stats` (`?tab=stats`): links and specs hold; only the name people read changed (`ProfileMediaTabs`, and the section on `/u/`).
 
@@ -111,6 +111,24 @@ Tom: the profile's tabs stay seven, and **Stats is renamed Sports** — "one car
 - Under the cards, as before: the athlete's own challenges, "From game film" across sports, and the grid of posts with data.
 - **Head-to-head (rivals)** for a sport with a profile moved to that profile's Career view; golf and track keep it on their layer.
 - A card's own line now reads "+N self-posted games in the sport's profile".
+
+## Each column by its own rule ("one wave", phase 4 — Nov 2026)
+
+A race sport's profile used to show only how many were raced ("a sum of times means nothing" — `sportSums`). That hid numbers that DO carry up a level. Now each column has its own rule (`columnRule`, by the field's own key, so a new race sheet needs no rule of its own):
+
+| The field | Carried up as | Examples |
+| --- | --- | --- |
+| a game with two sides (`sportSums`) | a **sum**, every column | goals, points — unchanged |
+| `time_*`, `pace_*` | the **best** (lowest) | 100 m, pace per km |
+| `max_*` | the **highest** | max heart rate |
+| `avg_*` | the **average** of the games that recorded it | average heart rate, power |
+| anything else in a race | a **sum** | distance, moving time, elevation, calories |
+
+- `aggregateOf` folds the counted games; for a best it also names **the game it was set in** (`bestIn` — the first to reach the number), and the cell is the door to that game. A best set in a game whose row this viewer is not sent opens nothing.
+- The column says how it reads (`format`, by key): a race time (`11.85`, `4:05.30`), a clock (`4:40`, `1:13:20`), a number. A header's tooltip says "— best" or "— average".
+- Career and season tables show the columns for every sport; a race sport's season block is "Season totals and bests". The splits by opponent and period stay a game-with-sides thing.
+- **Found on the way:** the rollups' bests chose the direction per SPORT, so a runner's "best pace" was their slowest. The direction is now the field's (`time_*` / `pace_*` are best low in any sport).
+- Pinned by `rules.test.ts`, `view.test.ts`, `rollups.test.ts`, `has-profile.test.ts`, `e2e/sport-profile-race.spec.ts`.
 
 ## Golf's sport profile ("one wave", phase 3 — Nov 2026)
 

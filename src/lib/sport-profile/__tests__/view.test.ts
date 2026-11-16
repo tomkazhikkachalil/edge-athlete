@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { landingSport, parseSportView, seasonTitle, sportViewLevel, sportViewSearch, statText, switcherSports } from '../view';
+import { landingSport, parseSportView, seasonTitle, sportViewLevel, sportViewSearch, statCell, statFormatOf, statText, switcherSports } from '../view';
 
 const q = (s: string) => new URLSearchParams(s);
 const GAME = 'film:11111111-2222-3333-4444-555555555555';
@@ -69,5 +69,14 @@ describe('a stat cell', () => {
     expect(statText(12)).toBe('12');
     expect(statText(11.85)).toBe('11.9');
     expect(statText(undefined)).toBe('–');
+  });
+});
+
+describe('how a column reads', () => {
+  it('a race time, a clock, a number — from the field\'s own key', () => {
+    expect(['time_100m', 'pace_s_per_km', 'moving_s', 'elapsed_s', 'distance_km', 'goals', 'avg_hr'].map(statFormatOf)).toEqual(['race_time', 'clock', 'clock', 'clock', 'number', 'number', 'number']);
+    expect([statCell(11.85, 'race_time'), statCell(245.3, 'race_time'), statCell(60, 'race_time')]).toEqual(['11.85', '4:05.30', '1:00.00']);
+    expect([statCell(280, 'clock'), statCell(3725, 'clock'), statCell(59.6, 'clock')]).toEqual(['4:40', '1:02:05', '1:00']);
+    expect([statCell(12, 'number'), statCell(155.5), statCell(0, 'clock'), statCell(undefined, 'race_time')]).toEqual(['12', '155.5', '0', '–']);
   });
 });

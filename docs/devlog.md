@@ -1,6 +1,18 @@
 # Development Log
 
-## November 19, 2026 (later) — Golf's profile: a hole's photos and clips, the Clips tab, the official mark — phase 3 closes
+## November 16, 2026 — "One wave", phase 4, PR 1: a race sport's columns show, each by its own rule
+
+**A correction to this log's dates.** The entries from "Sprint 4 begins" to "phase 3 closes" below were written with dates that ran ahead of the calendar — a new "day" for each round, up to "November 19". All of that work merged on November 15, 2026. Their headings now carry that date and the time their pull request merged; the same slip is corrected in the specs, `database/MIGRATIONS.md` (migrations 311 and 312 ran on Nov 15) and two code comments. Nothing else in those entries changed.
+
+Phase 3 closed: #1539 (a hole's photos and clips, golf's Clips tab, the official mark) merged on green.
+
+Running, cycling, swimming and rowing had a sport profile whose tables showed only a count — every column was hidden because "a race does not add up". But distance and moving time do add up, a pace is a best, a heart rate an average. Each column now has its own rule, decided by the field's key (`columnRule`); a best is the door to the run it was set in; a time reads as a time (`4:40`, `1:13:20`, `4:05.30`). Sports with two sides sum every column exactly as before.
+
+Found on the way and fixed: the rollups' bests took the direction from the sport, so a runner's "best pace" was the slowest one. The direction is the field's now.
+
+Proof on staging: `sport-profile-race` phone 1 / 1 (the read's rules and bests; `15` km, `1:13:20`, `4:40`; the pace opens its run); `sport-profile`, `sport-profile-split`, `performance-rollups` phone green; `sport-profile-api`, `stats-same-game` desktop green. 5 new unit pins.
+
+## November 15, 2026 (23:58) — Golf's profile: a hole's photos and clips, the Clips tab, the official mark — phase 3 closes
 
 #1538 merged (`0ba65fa3`); production passed `golf-profile` at phone width and `golf-profile-api` on desktop. Tom's own golf now opens from his Sports tab.
 
@@ -10,7 +22,7 @@ My call: the owner's full trends page and rounds list stay beside the profile (i
 
 Proof on staging: `golf-profile-api` desktop (a private round's media: creator 2, visitor 0, participant 2, public 2; proxy addresses only), `golf-profile` phone (hole photo, scorecard count, round grid, Clips tab → hole). 3 new unit pins.
 
-## November 19, 2026 — "One wave", phase 3: golf has a sport profile (Career → Season → Round → Hole)
+## November 15, 2026 (23:36) — "One wave", phase 3: golf has a sport profile (Career → Season → Round → Hole)
 
 Phase 2 closed: #1535 (exercise page doors), #1536 (feed: an edit invalidates the read cache — `feed-toggle` green again) and #1537 (the two older Training reads through the one gate) merged; production `03a30edd` passed `training-timeline` and `training-exercises` at phone width.
 
@@ -22,7 +34,7 @@ My call: "official or not" is asked per round later, not in the list — `resolv
 
 Proof on staging: `golf-profile` phone 1 / 1, `golf-profile-api` desktop 1 / 1; `sport-profile`, `profile-sports`, `skill-cards-mobile`, `stats-hub-mobile`, `play-rivals` phone green; `play-rivals`, `play-challenges`, `sport-profile-api` desktop green. 12 new unit pins.
 
-## November 18, 2026 (night, 5) — "One wave", phase 2 closes: the two older Training reads go through the one gate
+## November 15, 2026 (23:04) — "One wave", phase 2 closes: the two older Training reads go through the one gate
 
 `GET /api/workouts?profileId=` and `GET /api/vitals?profileId=` kept their own visibility + follow check, which never asked about a block, and set no cache header. Both now ask `resolveActivityAccess` (blocks either way, a departed athlete, a guardian as the owner) and answer `private, no-store`. With #1533 (the single workout) every Training read has the same gate.
 
@@ -30,7 +42,7 @@ Found while sweeping, not from this program: `feed-toggle` fails on staging — 
 
 Proof on staging: phone — `training-timeline` (both reads 200 + `private, no-store` for a visitor, 403 once blocked, the owner's 200), `training-mobile`, `training-pins`, `training-history`, `activities-profile`, `profile-buckets` green; desktop `training` green. 6,436 unit tests.
 
-## November 18, 2026 (night, 4) — "One wave", phase 2, PR 4: the exercise page reaches down and across — Training's drill-down is whole
+## November 15, 2026 (22:34) — "One wave", phase 2, PR 4: the exercise page reaches down and across — Training's drill-down is whole
 
 PR 3 (#1534) merged on green. On an exercise's page a session row opens the workout's own page (for a visitor too) and a best opens the session it was set in; on a session's page each exercise has "History ›" to its own page, and Back returns. With this the walk is whole: Overview → week → session → exercise → the session a best was set in, and Year → Month → Week → Session from History.
 
@@ -38,13 +50,13 @@ Not built, on purpose: the plan had the exercise page show the exercise's clips 
 
 Proof on staging, phone width: `training-exercises` (best → session → exercise → Back → Forward, as a visitor; the hidden workout's 250 never shows), `training-pins`, `training-timeline` green. `npm run verify` exit 0 (6,435 tests).
 
-## November 18, 2026 (night, 3) — "One wave", phase 2, PR 3: every number on Training's Overview is a door
+## November 15, 2026 (22:15) — "One wave", phase 2, PR 3: every number on Training's Overview is a door
 
 PR 2 (#1533, `de22378d`) merged on green. The Overview's dead ends open: this week's ring and numbers → the week; the streak → the 12-week window, whose rows → that week; the latest best → its test's window; a recent session → its page; "See all history" → History. The Recent sessions card was one button to History; its rows are the doors now, so three specs that clicked the card (the smoke `training` among them) click "See all history".
 
 Proof on staging: phone — `training-timeline` (recent session → page, week door, streak → window → week), `training-history`, `workout-drafts`, `training-load`, `training-mobile`, `activities-profile`, `activities-sport-session` green; desktop — `training` (smoke) green.
 
-## November 18, 2026 (night, 2) — "One wave", phase 2, PR 2: a workout has its own page for everyone who may see it
+## November 15, 2026 (21:59) — "One wave", phase 2, PR 2: a workout has its own page for everyone who may see it
 
 PR 1 (#1532, `73306a95`) merged on green. A week's workout row is now a door: `&session=<id>` opens the workout inside the tab — its exercises, sets and clips — read-only for a visitor (who had no page for a single workout before), with the owner's own actions for the owner. Back returns to the week.
 
@@ -54,7 +66,7 @@ Phase 1 on production (`d0490c99`): `sport-profile` and the signed-in `skill-car
 
 Proof on staging, phone width: `training-timeline` (now with the session page, the hidden / undecided 404s and the blocked 403), `training-history`, `training-exercises`, `workout-drafts`, `workout-review`, `workout-posted-edit`, `workout-photos`, `workout-post-media`, `reopen-prompt` — all green; desktop `training`, `workout-post-media` green.
 
-## November 18, 2026 (night) — "One wave", phase 2, PR 1: Training's timeline (Year → Month → Week)
+## November 15, 2026 (21:38) — "One wave", phase 2, PR 1: Training's timeline (Year → Month → Week)
 
 Phase 1 (#1531, `d0490c99`) merged on green. Phase 2 starts: History opens on the years; a year lists its months, a month its weeks, a week its sessions day by day. Each level has its own address (`&year=`, `&month=`, `&week=`) and is a history entry, so Back walks up. One new read, `GET /api/profile/[id]/training/timeline` — a narrow row a session under History's own gate — grouped in the viewer's calendar by `src/lib/training/timeline.ts`. A week across a month end counts, inside each month, only that month's days, so the numbers add up. No migration.
 
@@ -62,7 +74,7 @@ My call: the week's address is its Monday's date (`&week=2026-11-09`), not an IS
 
 Proof on staging: `training-timeline` at phone width 1 / 1 (the visitor's six of eight sessions; years → months → weeks → sessions; Back twice; a week's own address); `training-history`, `training-mobile`, `training-exercises`, `training-pins` phone 4 / 4; `training` desktop 1 / 1. 10 new unit pins.
 
-## November 18, 2026 (later) — "One wave", phase 1: the Stats tab is the Sports tab
+## November 15, 2026 (21:15) — "One wave", phase 1: the Stats tab is the Sports tab
 
 Tom, after seeing phone screenshots of a sample sport profile (staging only): "I want more drill down ability… it needs to include all sports, including golf and track… most people are only focused on fitness. So let's start building up so everything is on the same wave." His decisions: the tabs stay seven with **Stats renamed Sports** (one card per sport, a tap opens that sport's profile); **Training stays its own tab**, deepened Year → Month → Week → Session; more doors on the sport pages, fundamentals first. Five phases: the Sports tab, Training, golf, track and the race sports, more doors. Comparing two seasons is not in this round.
 
@@ -70,7 +82,7 @@ Tom, after seeing phone screenshots of a sample sport profile (staging only): "I
 
 Proof on staging: phone — `stats-hub-mobile`, `skill-cards-mobile`, `performance-rollups`, `sport-profile`, `profile-buckets`, `profile-sports` 8 / 8; desktop — `stats-same-game`, `play-rivals`, `play-challenges`, `video-film-official`, `video-tagged-profile`, `composer-default-general`, `profile-buckets` 11 / 11.
 
-## November 18, 2026 — Sport profile follow-ups: a block closes a profile, races do not add up, the sport strip opens the sport profile
+## November 15, 2026 (19:50) — Sport profile follow-ups: a block closes a profile, races do not add up, the sport strip opens the sport profile
 
 Tom: "let's do the small fixes" — and that he could not see the new pages on production. Production had them (`7d31f4a3` on both domains); the way in was three taps deep, and golf has no sport profile.
 
@@ -81,7 +93,7 @@ Tom: "let's do the small fixes" — and that he could not see the new pages on p
 
 Proof on staging: `sport-profile`, `stats-hub-mobile` (its strip test now expects the sport profile), `profile-sports`, `skill-cards-mobile` at phone width; `sport-profile-api` (the block's 403s on the two Stats routes and `canView: false`, then open again), `activities-api`, `stats-same-game`, `video-tag-who` on desktop.
 
-## November 17, 2026 (evening) — The Stats tab's per-sport breakdown is retired into the sport profile
+## November 15, 2026 (16:44) — The Stats tab's per-sport breakdown is retired into the sport profile
 
 Tom: "let's retire the old Stats breakdown." It was the one planned step of Sprint 4 left out, because the new game log did not yet say what the old one said about an official line.
 
@@ -95,7 +107,7 @@ Production (`7d31f4a3`, #1528), one spec at a time: `stats-same-game` on desktop
 
 Seen and not changed: the sport profile sums a race sport's times in its totals the way the old breakdown did for every sport but track (swimming, running, cycling, rowing). Its own small round.
 
-## November 17, 2026 (later) — Sprint 4 closed: the athlete's sport profile is on production
+## November 15, 2026 (16:06) — Sprint 4 closed: the athlete's sport profile is on production
 
 Tom ran migrations 311 and 312 on production and merged #1525 (hide) and #1526 (the unclaimed page, the claim request, the split control). Production serves `54f91385`; its ledger is at 312.
 
@@ -122,9 +134,9 @@ A migration paste that failed: Tom's first run of 311 stopped with a syntax erro
 
 Still Tom's: the phone walk of the four levels with one real tagged game.
 
-## November 17, 2026 — Sprint 4 PR 6b: the unclaimed page, and "this is me — request this profile" (migration 312)
+## November 15, 2026 (15:42) — Sprint 4 PR 6b: the unclaimed page, and "this is me — request this profile" (migration 312)
 
-Tom's decision 2: a tagged player who has not claimed their profile gets "a public page, marked unclaimed", and claiming is "a process where they select the profile and start the request". Asked on Nov 16 what approval does for someone who already has an account — there is no account merge here — he chose: **move the film, keep it simple**.
+Tom's decision 2: a tagged player who has not claimed their profile gets "a public page, marked unclaimed", and claiming is "a process where they select the profile and start the request". Asked on Nov 15 what approval does for someone who already has an account — there is no account merge here — he chose: **move the film, keep it simple**.
 
 - **Open:** a placeholder's sport profile — film stats and clips only — to any signed-in visitor, under a short name ("Sam K."). The profile itself stays private. `/athlete/[id]` of an open placeholder goes to its sport profile.
 - **Found from a game:** an open placeholder is named (short) and linked in a game's tags, and the box score's player panel has "Open their profile". This CHANGES a Sprint 3 rule — a stranger used to read "Player 1" for every placeholder; now only when the club keeps the page private. `e2e/video-placeholder.spec.ts` says the new rule both ways.
@@ -141,7 +153,7 @@ Proof on staging: `e2e/sport-profile-unclaimed.spec.ts` at 375 px (the open page
 
 **Waiting on Tom, in order:** run 311 on production and merge #1525 (hide); then run 312 and merge the PR that carries this and the split control.
 
-## November 16, 2026 (late night) — Sprint 4 PR 7a: "these are two different games" in the sport profile; what is NOT retired
+## November 15, 2026 (afternoon) — Sprint 4 PR 7a: "these are two different games" in the sport profile; what is NOT retired
 
 - **The split control is on the sport profile's game log.** A row not counted because of the date alone offers "These are two different games"; a split row says so, with Undo. The Stats tab's own writer and helper — one fact, two surfaces.
 - **The Stats tab's breakdown stays for now.** The plan's last step was to remove it in favour of a door. Not done: the new game log does not yet show an official line's provenance label or a disputed result's "Unconfirmed" mark, and six specs stand on the old breakdown. Both surfaces read the same sources through the same rule, so they cannot disagree; the door from the Stats tab is in. Retiring it is a round of its own, after those marks are carried over and Tom has walked the page.
@@ -150,7 +162,7 @@ Proof: `e2e/sport-profile-split.spec.ts` on staging at 375 px (film + the athlet
 
 Waiting on Tom: migration 311 on production, then #1525 (hide). This PR sits on top of it.
 
-## November 16, 2026 (night) — Sprint 4 PR 6a: the athlete hides a game or a clip from their page (migration 311)
+## November 15, 2026 (15:41) — Sprint 4 PR 6a: the athlete hides a game or a clip from their page (migration 311)
 
 Tom's decision 1: an athlete can hide a game or a single clip from their page; the stat still counts; "Remove me" stays as the stronger door.
 
@@ -163,7 +175,7 @@ Proof: `e2e/sport-profile.spec.ts` on staging at 375 px — the athlete hides a 
 
 Next: the unclaimed page and its claim request (PR 6b, migration 312).
 
-## November 16, 2026 (evening) — Sprint 4 PR 5: media on its own — the Clips browser
+## November 15, 2026 (14:11) — Sprint 4 PR 5: media on its own — the Clips browser
 
 Tom's brief: "there still needs to be a place to just browse the athlete's clips without going through stats."
 
@@ -176,7 +188,7 @@ Proof: `e2e/sport-profile.spec.ts` on staging at 375 px (the tab, a play type wi
 
 Next: hide, and the unclaimed page with its claim request (PR 6 — two migrations, Tom runs production).
 
-## November 16, 2026 (later) — Sprint 4 PR 4: the game and the play — every number a door, one reel across videos
+## November 15, 2026 (13:53) — Sprint 4 PR 4: the game and the play — every number a door, one reel across videos
 
 The bottom two levels (`docs/specs/sport-profile.md`, "The game and the play").
 
@@ -190,7 +202,7 @@ Proof: `e2e/sport-profile.spec.ts` on staging at 375 px (a season's goals → th
 
 Next: the Clips browser (PR 5).
 
-## November 16, 2026 — Sprint 4 PR 3: the sport profile's page — pick the sport, Career → Season
+## November 15, 2026 (13:38) — Sprint 4 PR 3: the sport profile's page — pick the sport, Career → Season
 
 The first two levels on screen (`docs/specs/sport-profile.md`, "The page").
 
@@ -210,7 +222,7 @@ Proof: `e2e/sport-profile.spec.ts` on staging at 375 px (the athlete's career �
 
 Next: the game and the play — every number a door, the reel across videos (PR 4).
 
-## November 15, 2026 (late night) — Sprint 4 PR 2: the sport profile's rules, its reader and its two routes
+## November 15, 2026 (13:20) — Sprint 4 PR 2: the sport profile's rules, its reader and its two routes
 
 No page yet — the reads the pages will stand on (`docs/specs/sport-profile.md`, Convention 61).
 
@@ -230,7 +242,7 @@ Proof: 48 unit tests for the rules and the stat → tags function; `e2e/sport-pr
 
 Found, not changed: `canViewProfile` does not look at blocks, so the Stats tab's older routes still answer a blocked viewer of a public profile. Named in the spec for its own round.
 
-## November 15, 2026 (night) — Sprint 4 begins: the plan, and room on the profile page (PR 1)
+## November 15, 2026 (12:25) — Sprint 4 begins: the plan, and room on the profile page (PR 1)
 
 Tom's brief: the athlete's page becomes a connected set of views per sport — pick a sport, then Career → Season → Game → Play, every number a door to the clips behind it, plus a clip browser on its own; all of it built from Sprint 3's tags. His four decisions: an athlete can **hide** a game or a clip (the stat still counts; "Remove me" stays); a tagged, unclaimed player gets a **public page marked Unclaimed**, claimed by a request the person starts from that page; non-club film is **shown, marked Recreational, never counted**; the default sport is **the athlete's own order** (pins, then primary). Seven PRs; the spec arrives with PR 2 (`docs/specs/sport-profile.md`).
 
@@ -244,7 +256,7 @@ Tom's brief: the athlete's page becomes a connected set of views per sport — p
 
 Proof: `check-bundle-weight` on the same tree before and after; staging, desktop 3 / 3 (`profile-buckets`, `stats-same-game`, `video-tagged-profile`) and phone 8 / 8 (`stats-hub-mobile`, `skill-cards-mobile`, `profile-sports`, `videos-mobile`, `performance-rollups`, `profile-buckets`). Trap met: `next/dynamic` refuses a shared options constant — the options are an object literal at each call.
 
-## November 15, 2026 (evening) — The Security Advisor's twelve warnings closed (migration 310)
+## November 15, 2026 (11:21) — The Security Advisor's twelve warnings closed (migration 310)
 
 Tom pasted the Supabase Security Advisor: twelve warnings, lints 0028 + 0029 — the same six functions for `anon` and for `authenticated`. `public.pulse_signal_{golf,event,broadcast,message,read,roster}()` are `SECURITY DEFINER` and were executable by both roles.
 

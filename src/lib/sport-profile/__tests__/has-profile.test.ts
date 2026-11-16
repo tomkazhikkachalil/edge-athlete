@@ -25,9 +25,12 @@ describe('which sports\' numbers add up', () => {
     for (const k of ['soccer', 'basketball', 'ice_hockey', 'mma', 'wrestling']) expect(sportSums(k), k).toBe(true);
     for (const k of ['swimming', 'running', 'cycling', 'rowing', 'track_field', 'golf']) expect(sportSums(k), k).toBe(false);
   });
-  it('the page shows no total for a sport that does not add up', () => {
-    expect(read('src/components/sport-profile/CareerView.tsx')).toContain('columns={data.sums ? data.columns : []}');
-    expect(read('src/components/sport-profile/SeasonView.tsx')).toMatch(/\{data\.sums && \(\s+<div>\s+<h3 [^>]*>Season totals<\/h3>/);
+  it('a sport that does not add up shows each column by its own rule', () => {
+    // Since one wave phase 4 a race's columns show, each by its own rule (a total, a best, an average) — never a sum of times.
+    expect(read('src/components/sport-profile/CareerView.tsx')).toContain('columns={data.columns}');
+    expect(read('src/components/sport-profile/SeasonView.tsx')).toContain("{data.sums ? 'Season totals' : 'Season totals and bests'}");
+    // The splits by opponent and period stay a game-with-sides thing.
+    expect(read('src/components/sport-profile/SeasonView.tsx')).toContain('{data.sums && opponents.rows.length > 0 && (');
   });
 });
 

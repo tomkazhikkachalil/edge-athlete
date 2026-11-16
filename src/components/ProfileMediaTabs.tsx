@@ -455,7 +455,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
     // Videos program (296): the linked full games, beside Media (a clip is a post; a game is a link).
     { id: 'videos' as TabType, label: 'Videos', icon: Clapperboard, count: videosCount },
-    // Renamed Sports (Tom, Nov 18 2026): one card per sport, a tap opens that sport's profile. The id and `?tab=stats` stay — links and specs hold.
+    // Renamed Sports (Tom, Nov 15 2026): one card per sport, a tap opens that sport's profile. The id and `?tab=stats` stay — links and specs hold.
     { id: 'stats' as TabType, label: 'Sports', icon: BarChart3, count: counts.stats },
     // Training sits beside Stats (Tom, Oct 10 2026) — the same order /u/ uses.
     // No count (Tom, Oct 25 2026): a tally makes sense for Media and Stats,

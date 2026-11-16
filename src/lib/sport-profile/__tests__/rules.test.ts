@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, forViewer, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
+  aggregateOf, columnRule, careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, forViewer, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
   type ProfileClip, type ProfileGame,
 } from '../rules';
 
@@ -219,5 +219,39 @@ describe('the module and its doors', () => {
     expect(src).toContain('viewRight(facts).allowed');
     expect(src).toContain('profileMemo.get(row.profile_id)');
     expect(src).not.toContain('readVideoForViewer');
+  });
+});
+
+describe('each column by its own rule (one wave, phase 4)', () => {
+  const race = (key: string, date: string, stats: Record<string, number>, more: Partial<ProfileGame> = {}) => game(key, { date, stats, ...more });
+  it('a game with sides adds every column up; a race: distance and time add up, a pace or a race time is the lowest, a max the highest, an average averaged', () => {
+    for (const k of ['goals', 'time_100m', 'pace_s_per_km', 'max_hr', 'avg_hr']) expect(columnRule(k, true)).toBe('sum');
+    expect(['distance_km', 'moving_s', 'elev_gain_m', 'calories'].map(k => columnRule(k, false))).toEqual(['sum', 'sum', 'sum', 'sum']);
+    expect(['time_100m', 'time_1500m', 'pace_s_per_km', 'pace_s_per_100m'].map(k => columnRule(k, false))).toEqual(['low', 'low', 'low', 'low']);
+    expect([columnRule('max_hr', false), columnRule('avg_hr', false), columnRule('avg_power', false)]).toEqual(['high', 'avg', 'avg']);
+  });
+  it('a best is the first counted game to reach it; a game that is not counted never sets one', () => {
+    const runs = [
+      race('post:a', '2026-03-01', { distance_km: 10, moving_s: 3000, pace_s_per_km: 300, avg_hr: 150, max_hr: 171 }),
+      race('post:b', '2026-04-01', { distance_km: 5, moving_s: 1400, pace_s_per_km: 280, avg_hr: 161, max_hr: 180 }),
+      race('post:c', '2026-05-01', { distance_km: 5, moving_s: 1400, pace_s_per_km: 280, max_hr: 180 }), // equals the best: did not set it
+      race('post:x', '2026-06-01', { distance_km: 42, pace_s_per_km: 200 }, { counted: false }),
+    ];
+    const keys = ['distance_km', 'moving_s', 'pace_s_per_km', 'avg_hr', 'max_hr', 'calories'];
+    const a = aggregateOf(runs, keys, k => columnRule(k, false));
+    expect(a.games).toBe(3);
+    expect(a.totals).toEqual({ distance_km: 20, moving_s: 5800, pace_s_per_km: 280, avg_hr: 155.5, max_hr: 180 });
+    expect(a.bestIn).toEqual({ pace_s_per_km: 'post:b', max_hr: 'post:b' });
+    // Track: one event a race — each event's season best, and where it was run.
+    const meets = [race('official:m1', '2026-05-10', { time_100m: 11.92 }), race('post:m2', '2026-06-10', { time_100m: 11.85, time_200m: 24.1 }), race('post:m3', '2026-07-10', { time_200m: 23.95 })];
+    const t = aggregateOf(meets, ['time_100m', 'time_200m', 'time_400m'], k => columnRule(k, false));
+    expect(t.totals).toEqual({ time_100m: 11.85, time_200m: 23.95 });
+    expect(t.bestIn).toEqual({ time_100m: 'post:m2', time_200m: 'post:m3' });
+  });
+  it('a sport that adds up is the sum it always was', () => {
+    const games = [game('post:1', { stats: { goals: 2, shots: 5 } }), game('post:2', { stats: { goals: 1 } }), game('film:3', { counted: false, stats: { goals: 9 } })];
+    const a = aggregateOf(games, ['goals', 'shots'], k => columnRule(k, true));
+    expect(a.totals).toEqual(totalsOf(games, ['goals', 'shots']).totals);
+    expect(a.bestIn).toEqual({});
   });
 });
