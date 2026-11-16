@@ -30,6 +30,8 @@ interface Props {
   rows: StatTableRow[];
   /** The total row, under the others. */
   foot?: StatTableRow;
+  /** A column's heading as a door (a best's history: every race of that event) — the address, or null. */
+  headDoor?: (statKey: string) => string | null;
 }
 
 /**
@@ -37,7 +39,7 @@ interface Props {
  * the game log): the repo's table idiom — a horizontal scroller on a phone,
  * the first column pinned so a row keeps its name while the numbers move.
  */
-export default function StatTable({ caption, leadLabel, countLabel, columns, rows, foot }: Props) {
+export default function StatTable({ caption, leadLabel, countLabel, columns, rows, foot, headDoor }: Props) {
   const line = (r: StatTableRow, strong: boolean) => (
     <tr key={r.id} className={`border-b border-border-subtle last:border-b-0 ${r.muted ? 'text-muted' : 'text-primary'}`} data-stat-row={r.id} data-stat-counted={r.counted === undefined ? undefined : r.counted ? 'yes' : 'no'}>
       <th scope="row" className={`sticky left-0 bg-surface py-2 pr-3 text-left align-top ${strong ? 'font-bold' : 'font-medium'}`}>{r.lead}</th>
@@ -66,9 +68,19 @@ export default function StatTable({ caption, leadLabel, countLabel, columns, row
           <tr className="border-b border-border-subtle text-xs uppercase tracking-wide text-muted">
             <th scope="col" className="sticky left-0 bg-surface py-2 pr-3 text-left font-medium">{leadLabel}</th>
             {countLabel && <th scope="col" className="px-2 py-2 text-right font-medium">{countLabel}</th>}
-            {columns.map(c => (
-              <th key={c.key} scope="col" className="px-2 py-2 text-right font-medium" title={c.label}><abbr title={`${c.label}${c.rule === 'low' || c.rule === 'high' ? ' — best' : c.rule === 'avg' ? ' — average' : ''}`} className="no-underline">{c.short}</abbr></th>
-            ))}
+            {columns.map(c => {
+              const title = `${c.label}${c.rule === 'low' || c.rule === 'high' ? ' — best' : c.rule === 'avg' ? ' — average' : ''}`;
+              const href = headDoor?.(c.key) ?? null;
+              return (
+                <th key={c.key} scope="col" className="px-2 py-2 text-right font-medium" title={c.label}>
+                  {href ? (
+                    <Link href={href} scroll={false} className="ea-interactive -mx-2 -my-1 inline-block min-w-[2.75rem] rounded px-2 py-1 text-brand underline decoration-border underline-offset-4" aria-label={`${title}: every one, in order`} data-stat-head-door={c.key}>{c.short}</Link>
+                  ) : (
+                    <abbr title={title} className="no-underline">{c.short}</abbr>
+                  )}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>{rows.map(r => line(r, false))}</tbody>

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  aggregateOf, columnRule, careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, forViewer, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
+  aggregateOf, columnRule, progressionOf, careerOf, clipCounts, clipCountsOfGame, cutHeld, filmBehind, filmOfGame, forViewer, gamesOfSeason, NO_SEASON, pageOf, reelOf, reelPlaylist, reelStep, seasonsOf, splitByOpponent, splitByPeriod, totalsOf,
   type ProfileClip, type ProfileGame,
 } from '../rules';
 
@@ -247,6 +247,22 @@ describe('each column by its own rule (one wave, phase 4)', () => {
     const t = aggregateOf(meets, ['time_100m', 'time_200m', 'time_400m'], k => columnRule(k, false));
     expect(t.totals).toEqual({ time_100m: 11.85, time_200m: 23.95 });
     expect(t.bestIn).toEqual({ time_100m: 'post:m2', time_200m: 'post:m3' });
+  });
+  it('a best\'s history: newest first, a record is what beat every EARLIER one; the first counts; an uncounted game is not in it', () => {
+    const races = [
+      race('post:r1', '2025-05-01', { time_100m: 12.4 }),
+      race('post:r2', '2025-06-01', { time_100m: 12.1 }),
+      race('post:r3', '2026-05-01', { time_100m: 12.3, time_200m: 25 }),
+      race('post:r4', '2026-06-01', { time_100m: 11.85 }),
+      race('post:r5', '2026-06-08', { time_100m: 11.85 }), // equalled: not a record
+      race('post:rx', '2026-07-01', { time_100m: 9.5 }, { counted: false }),
+    ];
+    expect(progressionOf(races, 'time_100m', 'low').map(p => [p.key, p.value, p.record])).toEqual([
+      ['post:r5', 11.85, false], ['post:r4', 11.85, true], ['post:r3', 12.3, false], ['post:r2', 12.1, true], ['post:r1', 12.4, true],
+    ]);
+    expect(progressionOf(races, 'time_200m', 'low')).toEqual([{ key: 'post:r3', date: '2026-05-01', value: 25, record: true }]);
+    expect(progressionOf(races, 'time_100m', 'high').filter(p => p.record).map(p => p.key)).toEqual(['post:r1']);
+    expect(progressionOf(races, 'time_400m', 'low')).toEqual([]);
   });
   it('a sport that adds up is the sum it always was', () => {
     const games = [game('post:1', { stats: { goals: 2, shots: 5 } }), game('post:2', { stats: { goals: 1 } }), game('film:3', { counted: false, stats: { goals: 9 } })];

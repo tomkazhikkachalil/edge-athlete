@@ -61,7 +61,7 @@ test('@mobile anonymous /u/: the old golf deep link opens the sport cards; golf\
   await context.close();
 });
 
-// Since Nov 2026 a sport WITH a sport profile opens it from the strip (track still opens the Sports tab's layer).
+// Since Nov 2026 a sport WITH a sport profile opens it from the strip.
 test('@mobile /u/ Overview strip-tap opens that sport\'s profile', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },

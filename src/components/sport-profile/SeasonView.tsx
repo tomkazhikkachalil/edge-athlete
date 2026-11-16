@@ -131,7 +131,7 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
       {(data.sums || data.columns.length > 0) && (
       <div data-sport-season-totals="">
         <h3 className="mb-3 text-lg font-bold text-primary">{data.sums ? 'Season totals' : 'Season totals and bests'}</h3>
-        <StatTable caption={`${sportLabel} ${seasonTitle(season)} totals`} leadLabel="" countLabel="GP" columns={data.columns} rows={[{ id: 'totals', lead: seasonTitle(season), count: summary.games, stats: summary.totals, door: k => (summary.bestIn[k] && data.games.some(g => g.key === summary.bestIn[k]) ? `${basePath}${sportViewSearch({ season, game: summary.bestIn[k] })}` : (summary.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season, stat: k })}` : null) }]} />
+        <StatTable caption={`${sportLabel} ${seasonTitle(season)} totals`} leadLabel="" countLabel="GP" columns={data.columns} headDoor={k => (data.columns.find(c => c.key === k && (c.rule === 'low' || c.rule === 'high')) ? `${basePath}${sportViewSearch({ season, stat: k })}` : null)} rows={[{ id: 'totals', lead: seasonTitle(season), count: summary.games, stats: summary.totals, door: k => (summary.bestIn[k] && data.games.some(g => g.key === summary.bestIn[k]) ? `${basePath}${sportViewSearch({ season, game: summary.bestIn[k] })}` : (summary.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season, stat: k })}` : null) }]} />
       </div>
       )}
 

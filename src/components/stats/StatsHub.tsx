@@ -27,7 +27,6 @@ import MultiSelectDropdown from '../filters/MultiSelectDropdown';
 import FilterBar from '../filters/FilterBar';
 import SportSkillCards from '../SportSkillCards';
 import SportBreakdownHeader from './SportBreakdownHeader';
-import TrackBreakdown from './TrackBreakdown';
 import { useToast } from '../Toast';
 import { HIDDEN_NOTICE } from '@/lib/results/kinds';
 import type { SportSkillCard } from '@/lib/sports/server/types';
@@ -311,13 +310,9 @@ export default function StatsHub({
       {selectedSport && (() => {
         const card = (skillCards ?? []).find(c => c.sportKey === selectedSport);
         if (!card) return null;
-        // Every sport with data gets a full breakdown: golf → embedded
-        // trends; track → PB table + race log; other stat-line sports →
-        // season totals + game log.
-        const breakdown =
-          card.sportKey === 'track_field' ? (
-            <TrackBreakdown profileId={profileId} card={card} />
-          ) : undefined;
+        // A sport with a sport profile never reaches here (its card is the door). What is left is a sport with no stat
+        // sheet: the short card, its rivals and challenges.
+        const breakdown = undefined;
         return (
           <>
             <SportBreakdownHeader card={card}>{breakdown}</SportBreakdownHeader>

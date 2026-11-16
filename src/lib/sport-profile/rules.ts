@@ -148,6 +148,29 @@ export function aggregateOf(games: readonly ProfileGame[], keys: readonly string
   return { games: counted.length, totals, bestIn };
 }
 
+export interface ProgressionPoint { key: string; date: string | null; value: number; /** It beat every earlier one: a best at the time. The first is the baseline, and counts. */ record: boolean }
+
+/**
+ * One column that is a best, game by game — "every 100 m, and how it came
+ * down". Counted games with a value, NEWEST first; a record is a value that
+ * beat every earlier one (lower for `low`, higher for `high`).
+ */
+export function progressionOf(games: ReadonlyArray<Pick<ProfileGame, 'key' | 'date' | 'stats' | 'counted'>>, statKey: string, rule: ColumnRule): ProgressionPoint[] {
+  const with_ = games
+    .filter(g => g.counted && typeof g.stats[statKey] === 'number' && Number.isFinite(g.stats[statKey]) && g.stats[statKey] !== 0)
+    .slice()
+    .sort((a, b) => ((a.date ?? '9999') < (b.date ?? '9999') ? -1 : (a.date ?? '9999') > (b.date ?? '9999') ? 1 : a.key < b.key ? -1 : 1));
+  let best: number | null = null;
+  const out: ProgressionPoint[] = [];
+  for (const g of with_) {
+    const v = g.stats[statKey];
+    const record = best === null || (rule === 'high' ? v > best : v < best);
+    if (record) best = v;
+    out.push({ key: g.key, date: g.date, value: v, record });
+  }
+  return out.reverse();
+}
+
 /** Level 1: the career line. */
 export function careerOf(games: readonly ProfileGame[], keys?: readonly string[]): Totals {
   return totalsOf(games, keys);

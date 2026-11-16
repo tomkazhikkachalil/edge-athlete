@@ -10,11 +10,11 @@ import { gameHasSides } from '@/lib/videos/game-rules';
 /**
  * Every sport with a stat sheet, and golf — which has no stat sheet and its
  * own payload (golf-rules.ts; "one wave" phase 3, Nov 2026). Track and field
- * still keeps its personal-best table and race log on the Sports tab (phase 4).
+ * joined in phase 4: each event's column is a best, so its personal-best
+ * table and race log are the profile's own tables.
  */
 export function hasSportProfile(sportKey: string): boolean {
-  if (sportKey === 'golf') return true;
-  return sportKey !== 'track_field' && !!getStatSchema(sportKey as SportKey);
+  return sportKey === 'golf' || !!getStatSchema(sportKey as SportKey);
 }
 
 /**

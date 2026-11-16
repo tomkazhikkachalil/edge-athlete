@@ -65,3 +65,60 @@ test('running\'s profile: distance and time add up, the pace is the best and ope
     await deleteQaUser(runner.id);
   }
 });
+
+test('track\'s profile: each event\'s season best and personal best, an event\'s every race with the bests marked, the race — at 375 px @mobile', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const sprinter = await createQaUser({ displayName: 'Tess Track', firstName: 'Tess', lastName: 'Track' });
+  const state = await mintStorageState(sprinter);
+  const api = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: state, extraHTTPHeaders: bypassHeaders() });
+  const ctx = await browser.newContext({ storageState: state, viewport: { width: 375, height: 812 }, extraHTTPHeaders: bypassHeaders() });
+  try {
+    const race = async (date: string, stats: Record<string, number>) => {
+      const res = await api.post('/api/posts', { data: { caption: `QA race ${date}`, visibility: 'private', postType: 'track_field', stats_data: { type: 'stat_line', sport_key: 'track_field', date, opponent: 'QA Open', stats } } });
+      expect(res.ok(), await readErrorBody(res)).toBe(true);
+      return (await res.json()).post.id as string;
+    };
+    await race('2025-06-01', { time_100m: 12.1 });
+    await race('2026-05-10', { time_100m: 11.92 });
+    const best = await race('2026-06-10', { time_100m: 11.85, time_200m: 24.1 });
+    await race('2026-07-01', { time_100m: 12 });
+
+    const res = await api.get(`/api/profile/${sprinter.id}/sport-profile?sport=track_field`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    const p = (await res.json()) as Payload;
+    expect(p).toMatchObject({ supported: true, sums: false });
+    expect(p.columns.find(c => c.key === 'time_100m')).toMatchObject({ rule: 'low', format: 'race_time' });
+    expect(p.career.totals).toMatchObject({ time_100m: 11.85, time_200m: 24.1 });
+    expect(p.career.bestIn.time_100m).toBe(`post:${best}`);
+
+    // The Sports tab's card is the door now (track kept a layer there until this).
+    const page = await ctx.newPage();
+    await page.goto(`/athlete/${sprinter.id}?tab=stats`);
+    await page.locator('#stats-hub-sports [data-sport-profile-door="track_field"]').click({ timeout: 40_000 });
+    await expect(page).toHaveURL(/\/sport\/track_field$/);
+    const career = page.locator('[data-sport-level="career"]');
+    await expect(career.locator('[data-stat-row="2026"] [data-stat="time_100m"]')).toHaveText('11.85', { timeout: 40_000 });
+    await expect(career.locator('[data-stat-row="2025"] [data-stat="time_100m"]')).toHaveText('12.10');
+    await expect(career.locator('[data-stat-row="career"] [data-stat="time_200m"]')).toHaveText('24.10');
+
+    // The event is a pivot: every 100 m, newest first, the ones that were a best at the time marked.
+    await career.locator('[data-stat-head-door="time_100m"]').click();
+    await expect(page).toHaveURL(/\?stat=time_100m$/);
+    const history = page.locator('[data-best-history="time_100m"]');
+    await expect(history.locator('[data-best-history-row]')).toHaveCount(4, { timeout: 20_000 });
+    await expect(history.locator('[data-best-history-record]')).toHaveCount(3);
+    await expect(history.locator('[data-best-history-row]').first()).toContainText('12.00');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    // A row is the door to its race; Back returns to the event.
+    await history.locator(`[data-best-history-row="post:${best}"]`).click();
+    await expect(page.locator('[data-sport-level="game"]')).toBeVisible({ timeout: 20_000 });
+    await page.goBack();
+    await expect(history.locator('[data-best-history-row]')).toHaveCount(4, { timeout: 20_000 });
+    await history.locator('[data-best-history-close]').click();
+    await expect(page.locator('[data-best-history]')).toHaveCount(0);
+  } finally {
+    await ctx.close();
+    await api.dispose();
+    await deleteQaUser(sprinter.id);
+  }
+});
