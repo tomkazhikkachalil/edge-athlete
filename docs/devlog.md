@@ -1,5 +1,13 @@
 # Development Log
 
+## November 16, 2026 (02:12) — "One wave" is complete: every sport has a profile, Training drills down, and the proof on production
+
+#1543 (phase 5, more doors) merged on its first CI run — no memory failure since the build's type check was split (#1542). Production `3ff2ece7` passed, at phone width: `sport-profile` (with the opponent, period and tile doors) and `feed-toggle` (2).
+
+The program, from Tom's "I want more drill down ability… all sports, including golf and track… everything on the same wave": the Sports tab (#1531); Training's Year → Month → Week → Session → exercise and every Overview number a door (#1532–#1535, #1537); golf's Career → Season → Round → Hole with a hole's photos and clips (#1538, #1539); a race sport's columns by their own rule, and track's profile with the event as a pivot (#1540, #1541); more doors on the sport pages (#1543). Beside it: the feed's stale page after an edit (#1536) and the build's type-check scope (#1542). No migration in any of it.
+
+Left open, on purpose or for Tom: comparing two seasons side by side (not built); `npm run typecheck` over the whole repository at 4.21 GB (the next thing to split); the play-type chips and the bests' links have source pins but no browser spec; Tom's own phone walk of the new levels.
+
 ## November 16, 2026 (01:56) — "One wave", phase 5: more doors on the sport pages — the program's last build
 
 #1541 (track's profile) merged on its third smoke run: the first two ran out of the CI heap in `next build`'s type check, as #1540's verify had. Measured cold: the whole repository is 5,712 files and 4.21 GB to type-check; the app's own code 4,434 files and 3.24 GB. The split was prepared as #1542; Tom approved it ("yes, split the build's type check, make sure it works on web") and it merged as `c8f520d3`. Production built with the new scope and passed eight checks: desktop — `health`, `training`, `golf-profile-api`, `sport-profile-api`; phone — `golf-profile`, `sport-profile-race` (2), `training-timeline`. Before it, `npm run verify` failed on this branch on a cold cache, in the build's type check; after it, it passes. Still open: `npm run typecheck` over the whole repository is at 4.21 GB — the next thing to split.
