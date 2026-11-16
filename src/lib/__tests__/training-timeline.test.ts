@@ -104,6 +104,31 @@ describe('training timeline', () => {
     expect(scopeTrail({ level: 'all' })).toEqual([]);
   });
 
+  it('a workout\'s own page: its address, and its week\'s way up once it has loaded', () => {
+    const id = '0b1e7c1a-6f0e-4b7e-9a57-1d2c3b4a5f60';
+    expect(parseHistoryScope({ session: id })).toEqual({ level: 'session', id });
+    expect(parseHistoryScope({ session: id.toUpperCase(), week: '2026-11-09' })).toEqual({ level: 'session', id });
+    expect(parseHistoryScope({ session: 'w:1' })).toEqual({ level: 'all' });
+    expect(parseHistoryScope({ session: `${id}'--` })).toEqual({ level: 'all' });
+    expect(historyScopeSearch({ level: 'session', id })).toBe(`?tab=training&view=history&session=${id}`);
+    expect(scopeTrail({ level: 'session', id })).toEqual([{ level: 'all' }]);
+    expect(scopeTrail({ level: 'session', id }, at(2026, 12, 1))).toEqual([
+      { level: 'all' },
+      { level: 'year', year: 2026 },
+      { level: 'month', year: 2026, month: 11 },
+      { level: 'week', week: '2026-11-30' },
+    ]);
+  });
+
+  it('the single-workout route reads through the one gate and is never a shared cache\'s', () => {
+    const route = readFileSync(join(__dirname, '../../app/api/workouts/[id]/route.ts'), 'utf8');
+    const get = route.slice(route.indexOf('export async function GET'), route.indexOf('export async function', route.indexOf('export async function GET') + 10));
+    expect(get).toContain('resolveActivityAccess(supabase, currentUserId, session.profile_id)');
+    expect(get).not.toContain(".from('follows')");
+    expect(get).toContain("{ session }, { headers: NO_STORE }");
+    expect(get).toContain("session.status !== 'completed' || session.profile_hidden_at || !session.share_decided_at");
+  });
+
   it('the words', () => {
     expect(totalTimeLabel(2700)).toBe('45 min');
     expect(totalTimeLabel(5400)).toBe('1 h 30 min');

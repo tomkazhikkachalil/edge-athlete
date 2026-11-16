@@ -23,13 +23,15 @@ interface WorkoutCardProps {
   onShare?: () => void;
   /** Called after a successful delete; caller removes/refetches. */
   onDeleted?: () => void;
+  /** The session's own page (Training's timeline): it starts open. */
+  defaultExpanded?: boolean;
 }
 
 /** Expandable workout history card for the Training tab. */
 export default function WorkoutCard({
-  session, onOpenPost, isOwnProfile = false, onEdit, onShare, onDeleted,
+  session, onOpenPost, isOwnProfile = false, onEdit, onShare, onDeleted, defaultExpanded = false,
 }: WorkoutCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [savePromptOpen, setSavePromptOpen] = useState(false);

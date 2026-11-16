@@ -1,5 +1,15 @@
 # Development Log
 
+## November 18, 2026 (night, 2) — "One wave", phase 2, PR 2: a workout has its own page for everyone who may see it
+
+PR 1 (#1532, `73306a95`) merged on green. A week's workout row is now a door: `&session=<id>` opens the workout inside the tab — its exercises, sets and clips — read-only for a visitor (who had no page for a single workout before), with the owner's own actions for the owner. Back returns to the week.
+
+Found on the way: `GET /api/workouts/[id]` had its own visibility + follow check and never asked about a block — a blocked account that followed before the block could still read a workout by id. It now reads through Training's one gate (`resolveActivityAccess`) and answers `private, no-store`. The order of answers is kept (a draft is 404 before a private profile is 403 — `workout-drafts` pins it).
+
+Phase 1 on production (`d0490c99`): `sport-profile` and the signed-in `skill-cards-mobile` step pass at phone width; the three signed-out `/u/` steps stop at "Edge Athlete is coming soon" — the launch gate, by design.
+
+Proof on staging, phone width: `training-timeline` (now with the session page, the hidden / undecided 404s and the blocked 403), `training-history`, `training-exercises`, `workout-drafts`, `workout-review`, `workout-posted-edit`, `workout-photos`, `workout-post-media`, `reopen-prompt` — all green; desktop `training`, `workout-post-media` green.
+
 ## November 18, 2026 (night) — "One wave", phase 2, PR 1: Training's timeline (Year → Month → Week)
 
 Phase 1 (#1531, `d0490c99`) merged on green. Phase 2 starts: History opens on the years; a year lists its months, a month its weeks, a week its sessions day by day. Each level has its own address (`&year=`, `&month=`, `&week=`) and is a history entry, so Back walks up. One new read, `GET /api/profile/[id]/training/timeline` — a narrow row a session under History's own gate — grouped in the viewer's calendar by `src/lib/training/timeline.ts`. A week across a month end counts, inside each month, only that month's days, so the numbers add up. No migration.

@@ -39,6 +39,7 @@ import MetricBubbleCard from './training/MetricBubbleCard';
 import MetricDetailOverlay from './training/MetricDetailOverlay';
 import TrainingHistory from './training/TrainingHistory';
 import TrainingTimeline from './training/TrainingTimeline';
+import SessionPage from './training/SessionPage';
 import { historyScopeSearch, parseHistoryScope, type HistoryScope } from '@/lib/training/timeline';
 import WeeklyActivityOverlay from './training/WeeklyActivityOverlay';
 import BodyDetailOverlay from './training/BodyDetailOverlay';
@@ -185,7 +186,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
   // A step down or up is a HISTORY ENTRY (pushState): Back walks up the levels.
   const readScope = (): HistoryScope => {
     const query = new URLSearchParams(window.location.search);
-    return parseHistoryScope({ year: query.get('year'), month: query.get('month'), week: query.get('week') });
+    return parseHistoryScope({ year: query.get('year'), month: query.get('month'), week: query.get('week'), session: query.get('session') });
   };
   const [historyScope, setHistoryScope] = useState<HistoryScope>(() => (typeof window === 'undefined' ? { level: 'all' } : readScope()));
   const openScope = (scope: HistoryScope) => {
@@ -200,7 +201,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       const query = new URLSearchParams(window.location.search);
       if (query.get('tab') !== 'training') return;
       setView(parseTrainingView(query.get('view'), query.get('tab')));
-      setHistoryScope(parseHistoryScope({ year: query.get('year'), month: query.get('month'), week: query.get('week') }));
+      setHistoryScope(parseHistoryScope({ year: query.get('year'), month: query.get('month'), week: query.get('week'), session: query.get('session') }));
       setOpenExercise(parseExerciseParam(query.get('exercise')));
     };
     window.addEventListener('popstate', onPop);
@@ -558,7 +559,20 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       {/* ══ History: every workout, every activity ═════════════════════════ */}
       {view === 'history' && (
       <>
-      <TrainingTimeline profileId={profileId} isOwnProfile={isOwnProfile} scope={historyScope} onScope={openScope} unit={unit} />
+      {historyScope.level === 'session' ? (
+        <SessionPage
+          key={historyScope.id}
+          sessionId={historyScope.id}
+          isOwnProfile={isOwnProfile}
+          onScope={openScope}
+          onOpenPost={postId => setLinkedPostId(postId)}
+          onEdit={id => router.push(`/app/workout/${id}`)}
+          onShare={id => router.push(`/app/workout/${id}?step=preview`)}
+          onChanged={() => fetchDataRef.current()}
+        />
+      ) : (
+        <TrainingTimeline profileId={profileId} isOwnProfile={isOwnProfile} scope={historyScope} onScope={openScope} unit={unit} />
+      )}
       {/* A year, a month or a week is its own level: the whole list and the posted items belong to History's top. */}
       {historyScope.level === 'all' && (
       <>

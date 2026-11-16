@@ -54,7 +54,9 @@ export type HistoryScope =
   | { level: 'all' }
   | { level: 'year'; year: number }
   | { level: 'month'; year: number; month: number }
-  | { level: 'week'; week: string };
+  | { level: 'week'; week: string }
+  /** One workout's own page (PR 2). An activity's page is its own route, /activities/[id]. */
+  | { level: 'session'; id: string };
 
 const pad = (n: number) => String(n).padStart(2, '0');
 /** A local calendar day as YYYY-MM-DD. */
@@ -157,16 +159,18 @@ export function weekRange(week: string): { from: string; to: string } {
 
 // ── The address ─────────────────────────────────────────────────────────────
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const YEAR = /^(19|20)\d{2}$/;
 const MONTH = /^((?:19|20)\d{2})-(0[1-9]|1[0-2])$/;
 const DAY = /^((?:19|20)\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 /**
- * `?year=`, `?month=`, `?week=` arrive from the URL: the deepest one that reads
+ * `?year=`, `?month=`, `?week=`, `?session=` arrive from the URL: the deepest one that reads
  * wins; anything else is the whole History. A `week` that is not a Monday is
  * that day's week (a hand-typed date still lands).
  */
-export function parseHistoryScope(q: { year?: string | null; month?: string | null; week?: string | null }): HistoryScope {
+export function parseHistoryScope(q: { year?: string | null; month?: string | null; week?: string | null; session?: string | null }): HistoryScope {
+  if (q.session && UUID.test(q.session)) return { level: 'session', id: q.session.toLowerCase() };
   if (q.week && DAY.test(q.week)) {
     const d = dateOfKey(q.week);
     if (dayKey(d) === q.week) return { level: 'week', week: weekKeyOf(d) };
@@ -183,12 +187,20 @@ export function historyScopeSearch(scope: HistoryScope): string {
   if (scope.level === 'year') return `${base}&year=${scope.year}`;
   if (scope.level === 'month') return `${base}&month=${scope.year}-${pad(scope.month)}`;
   if (scope.level === 'week') return `${base}&week=${scope.week}`;
+  if (scope.level === 'session') return `${base}&session=${scope.id}`;
   return base;
 }
 
 /** The way up: a week's month (the month its Monday is in), a month's year, a year's History. */
-export function scopeTrail(scope: HistoryScope): HistoryScope[] {
+export function scopeTrail(scope: HistoryScope, sessionStartedAt?: string | null): HistoryScope[] {
   if (scope.level === 'all') return [];
+  // A session's way up is its week's — known once the session has loaded; until then, History.
+  if (scope.level === 'session') {
+    const d = sessionStartedAt ? new Date(sessionStartedAt) : null;
+    if (!d || Number.isNaN(d.getTime())) return [{ level: 'all' }];
+    const week: HistoryScope = { level: 'week', week: weekKeyOf(d) };
+    return [...scopeTrail(week), week];
+  }
   if (scope.level === 'year') return [{ level: 'all' }];
   if (scope.level === 'month') return [{ level: 'all' }, { level: 'year', year: scope.year }];
   const monday = dateOfKey(scope.week);

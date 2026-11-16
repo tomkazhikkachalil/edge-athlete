@@ -7,6 +7,10 @@ import { healStoredMediaUrl, toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
 import { clampAt, finishDuration, planPause, planResume } from '@/lib/workouts/timing';
 import { refreshWorkoutPostStats } from '@/lib/workouts/post-stats-server';
+import { resolveActivityAccess } from '@/lib/activities/read-server';
+
+// Viewer-dependent (the owner's draft, a follower's view, a block): never a shared cache's.
+const NO_STORE = { 'Cache-Control': 'private, no-store' };
 
 const SESSION_SELECT = `
   *,
@@ -29,8 +33,8 @@ function sortNested(session: NestedSession): void {
 
 /**
  * GET /api/workouts/[id] — one session with nested exercises/sets.
- * Owner sees any status; others (public profile or accepted follower)
- * see completed sessions only.
+ * The owner (or their guardian) sees any status; anyone else the profile
+ * admits (resolveActivityAccess) sees a completed, decided, not-hidden one.
  */
 export async function GET(
   request: NextRequest,
@@ -61,37 +65,26 @@ export async function GET(
       return NextResponse.json({ error: 'Workout not found' }, { status: 404 });
     }
 
-    const isOwner = currentUserId === session.profile_id;
+    // The ONE gate of Training's readers (resolveActivityAccess: blocks either way, a departed athlete, supervision,
+    // a guardian as the owner) — this route kept its own visibility + follow check until "one wave" phase 2 (Nov 2026),
+    // which never asked about a block. The athlete's own session skips it (the editor reads through here).
+    const isSelf = currentUserId === session.profile_id;
+    const access = isSelf ? null : await resolveActivityAccess(supabase, currentUserId, session.profile_id);
+    const isOwner = isSelf || (access?.ok === true && access.audience === 'owner');
     if (!isOwner) {
-      // In progress, or hidden by its owner (269): nothing to see — the same 404 as "no such workout".
+      // In progress, or hidden by its owner (269): nothing to see — the same 404 as "no such workout", asked FIRST
+      // (whoever is refused below still cannot tell a draft from nothing).
       // An unposted finished workout (share_decided_at NULL) is the owner's draft — a visitor never sees it (Training fixes PR 4).
       if (session.status !== 'completed' || session.profile_hidden_at || !session.share_decided_at) {
-        return NextResponse.json({ error: 'Workout not found' }, { status: 404 });
+        return NextResponse.json({ error: 'Workout not found' }, { status: 404, headers: NO_STORE });
       }
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('visibility')
-        .eq('id', session.profile_id)
-        .single();
+      if (!access?.ok) {
+        return NextResponse.json({ error: 'This profile is private' }, { status: 403, headers: NO_STORE });
+      }
       // Training privacy (migration 122): closes the lazy-details path used by
       // WorkoutPostCard — the card already degrades to "unavailable".
       if (aspectHidden(await fetchTrainingPrivacy(supabase, session.profile_id), 'workouts', false)) {
-        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
-      }
-      if (profile?.visibility !== 'public') {
-        if (!currentUserId) {
-          return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
-        }
-        const { data: followRecord } = await supabase
-          .from('follows')
-          .select('id')
-          .eq('follower_id', currentUserId)
-          .eq('following_id', session.profile_id)
-          .eq('status', 'accepted')
-          .maybeSingle();
-        if (!followRecord) {
-          return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
-        }
+        return NextResponse.json({ error: 'This profile is private' }, { status: 403, headers: NO_STORE });
       }
     }
 
@@ -114,7 +107,7 @@ export async function GET(
         }
       }
     }
-    return NextResponse.json({ session });
+    return NextResponse.json({ session }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('GET /api/workouts/[id] error:', error);

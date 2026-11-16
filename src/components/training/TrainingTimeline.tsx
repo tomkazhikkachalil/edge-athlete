@@ -35,15 +35,18 @@ import {
 
 type State = { kind: 'loading' } | { kind: 'error' } | { kind: 'hidden' } | { kind: 'ready'; sessions: TimelineSession[] };
 
+/** The levels that count sessions; one session's page is SessionPage's. */
+export type PeriodScope = Exclude<HistoryScope, { level: 'session' }>;
+
 interface TrainingTimelineProps {
   profileId: string;
   isOwnProfile: boolean;
-  scope: HistoryScope;
+  scope: PeriodScope;
   onScope: (scope: HistoryScope) => void;
   unit: DistanceUnit;
 }
 
-function scopeLabel(scope: HistoryScope, short = false): string {
+export function scopeLabel(scope: HistoryScope, short = false): string {
   if (scope.level === 'year') return String(scope.year);
   if (scope.level === 'month') return monthLabel(scope.year, scope.month, !short);
   if (scope.level === 'week') {
@@ -97,7 +100,7 @@ function Row({ label, line, rowKey, onOpen }: { label: string; line: string; row
   );
 }
 
-function SessionRow({ session: s, unit }: { session: TimelineSession; unit: DistanceUnit }) {
+function SessionRow({ session: s, unit, onOpen }: { session: TimelineSession; unit: DistanceUnit; onOpen: () => void }) {
   const def = s.kind === 'activity' && isActivityType(s.type) ? ACTIVITY_TYPE_DEFS[s.type] : null;
   const line = [
     def ? def.label : 'Workout',
@@ -122,7 +125,10 @@ function SessionRow({ session: s, unit }: { session: TimelineSession; unit: Dist
       <span className="shrink-0 text-muted" aria-hidden="true">›</span>
     </Link>
   ) : (
-    <div className={shell} data-timeline-session={s.id} data-session-kind="workout">{body}</div>
+    <button type="button" onClick={onOpen} className={`ea-interactive w-full text-left ${shell}`} data-timeline-session={s.id} data-session-kind="workout">
+      {body}
+      <span className="shrink-0 text-muted" aria-hidden="true">›</span>
+    </button>
   );
 }
 
@@ -245,7 +251,7 @@ export default function TrainingTimeline({ profileId, isOwnProfile, scope, onSco
                 <div key={day.key} data-timeline-day={day.key}>
                   <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">{dateOfKey(day.key).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</h4>
                   <ul className="space-y-2">
-                    {day.sessions.map(s => <li key={`${s.kind}:${s.id}`}><SessionRow session={s} unit={unit} /></li>)}
+                    {day.sessions.map(s => <li key={`${s.kind}:${s.id}`}><SessionRow session={s} unit={unit} onOpen={() => onScope({ level: 'session', id: s.id })} /></li>)}
                   </ul>
                 </div>
               ))}
