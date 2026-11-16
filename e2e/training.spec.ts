@@ -76,7 +76,8 @@ test('training: seed → hero → PBs → chart → log → visitor', { tag: '@s
 
   // History — the Recent sessions card is its door: the month-grouped diary is the
   // view's own list (no window over the page); expanding a session shows its set line.
-  await page.getByRole('button', { name: /Recent sessions/i }).click();
+  // (Since "one wave" phase 2 each row of the card is a door to its session; "See all history" opens History.)
+  await page.locator('[data-training-see-history]').click();
   await expect(views.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
   await expect(page).toHaveURL(/\?tab=training&view=history$/);
   const diary = page.locator('[data-training-history]');

@@ -3,6 +3,7 @@
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import SectionInfo from '@/components/SectionInfo';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BODY_METRIC_CATEGORIES } from '@/lib/body-metrics-config';
 import { Plus, History, Ruler, Dumbbell, Loader2, ChevronDown, Settings, BarChart3, Lock } from 'lucide-react';
@@ -40,7 +41,7 @@ import MetricDetailOverlay from './training/MetricDetailOverlay';
 import TrainingHistory from './training/TrainingHistory';
 import TrainingTimeline from './training/TrainingTimeline';
 import SessionPage from './training/SessionPage';
-import { historyScopeSearch, parseHistoryScope, type HistoryScope } from '@/lib/training/timeline';
+import { historyScopeSearch, parseHistoryScope, weekKeyOf, type HistoryScope } from '@/lib/training/timeline';
 import WeeklyActivityOverlay from './training/WeeklyActivityOverlay';
 import BodyDetailOverlay from './training/BodyDetailOverlay';
 import RoundedBarChart from './training/RoundedBarChart';
@@ -463,6 +464,9 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
         heightDisplay={heroHeightDisplay}
         weightDisplay={heroWeightDisplay}
         onOpenMetric={openBodyMetric}
+        onOpenWeek={weekly.workouts > 0 ? () => openScope({ level: 'week', week: weekKeyOf(new Date()) }) : undefined}
+        onOpenStreak={() => setShowActivityOverlay(true)}
+        onOpenPb={key => { changeView('body'); setMetricOverlayKey(key); }}
       />
 
       <PinnedBests pins={pins.resolved} onOpen={openPin} />
@@ -489,8 +493,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
             span="md"
             icon={Dumbbell}
             label="Recent sessions"
-            // The whole card is one button: the History view (every workout and activity).
-            onOpen={() => changeView('history')}
+            // "One wave", phase 2: each row is a door to its session; "See all history" is the door to History.
             staggerIndex={1}
           >
             <div className="space-y-2" data-training-recent-sessions>
@@ -499,8 +502,9 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
                 // A9: a sport session wears its sport — "Soccer · Practice".
                 const sport = session.sportKey && session.sportKey in SPORT_REGISTRY ? SPORT_REGISTRY[session.sportKey as SportKey] : null;
                 const sportLine = sport ? [sport.display_name, session.sessionKind ? SESSION_KIND_LABELS[session.sessionKind] : null].filter(Boolean).join(' · ') : null;
-                return (
-                  <div key={`${session.kind}:${session.id}`} className="flex items-center justify-between gap-2 text-sm" data-session-kind={session.kind}>
+                const rowClass = 'ea-interactive -mx-2 flex min-h-[44px] w-[calc(100%+1rem)] items-center justify-between gap-2 rounded-lg px-2 text-left text-sm';
+                const row = (
+                  <>
                     <span className="flex min-w-0 items-center gap-2 font-semibold text-primary">
                       <FaIcon icon={sport ? sportIcon(sport.sport_key) : def ? activityGlyph(def.icon) : faDumbbell} className="w-4 shrink-0 text-center text-xs text-muted" />
                       {/* A sport session's sport sits under its name: side by side, both truncate at 375 px. */}
@@ -521,13 +525,22 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
                       {session.seconds > 0 && <> · {formatDuration(session.seconds)}</>}
                       {session.sourceName && <> · {session.sourceName}</>}
                     </span>
-                  </div>
+                  </>
+                );
+                return session.kind === 'activity' ? (
+                  <Link key={`${session.kind}:${session.id}`} href={`/activities/${session.id}`} className={rowClass} data-session-kind={session.kind} data-session-door={session.id}>
+                    {row}
+                  </Link>
+                ) : (
+                  <button key={`${session.kind}:${session.id}`} type="button" onClick={() => openScope({ level: 'session', id: session.id })} className={rowClass} data-session-kind={session.kind} data-session-door={session.id}>
+                    {row}
+                  </button>
                 );
               })}
             </div>
-            <div className="mt-3 text-xs font-bold text-brand-fg-strong" data-training-see-history="">
+            <button type="button" onClick={() => changeView('history')} className="ea-interactive mt-1 inline-flex min-h-[44px] items-center rounded-lg text-xs font-bold text-brand-fg-strong" data-training-see-history="">
               See all history
-            </div>
+            </button>
           </StatBubbleCard>
         ) : (
           <StatBubbleCard span="md" icon={Dumbbell} label="Recent sessions" staggerIndex={1}>
@@ -846,6 +859,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
         <WeeklyActivityOverlay
           sessions={sessions}
           onClose={() => setShowActivityOverlay(false)}
+          onOpenWeek={week => { setShowActivityOverlay(false); openScope({ level: 'week', week }); }}
         />
       )}
 

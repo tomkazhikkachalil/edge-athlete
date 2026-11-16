@@ -1,5 +1,11 @@
 # Development Log
 
+## November 18, 2026 (night, 3) — "One wave", phase 2, PR 3: every number on Training's Overview is a door
+
+PR 2 (#1533, `de22378d`) merged on green. The Overview's dead ends open: this week's ring and numbers → the week; the streak → the 12-week window, whose rows → that week; the latest best → its test's window; a recent session → its page; "See all history" → History. The Recent sessions card was one button to History; its rows are the doors now, so three specs that clicked the card (the smoke `training` among them) click "See all history".
+
+Proof on staging: phone — `training-timeline` (recent session → page, week door, streak → window → week), `training-history`, `workout-drafts`, `training-load`, `training-mobile`, `activities-profile`, `activities-sport-session` green; desktop — `training` (smoke) green.
+
 ## November 18, 2026 (night, 2) — "One wave", phase 2, PR 2: a workout has its own page for everyone who may see it
 
 PR 1 (#1532, `73306a95`) merged on green. A week's workout row is now a door: `&session=<id>` opens the workout inside the tab — its exercises, sets and clips — read-only for a visitor (who had no page for a single workout before), with the owner's own actions for the owner. Back returns to the week.

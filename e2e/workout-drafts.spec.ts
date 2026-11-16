@@ -96,7 +96,7 @@ test('workout drafts: Finish records, the steps are history entries, leaving kee
     // The Training card carries the tag; the start screen warns before "Start another".
     await page.goto('/athlete?tab=training');
     await expect(page.locator(`[data-training-finish-posting="${id}"]`)).toBeVisible({ timeout: 20_000 });
-    await page.locator('[data-training-recent-sessions]').click();
+    await page.locator('[data-training-see-history]').click();
     await expect(page.locator(`[data-workout-finish-posting="${id}"]`).first()).toBeVisible({ timeout: 20_000 });
     await page.goto('/app/workout/start');
     await expect(page.locator(`[data-workout-start-unposted="${id}"]`)).toBeVisible({ timeout: 20_000 });

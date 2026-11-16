@@ -17,12 +17,14 @@ interface WeeklyActivityOverlayProps {
   /** Workouts AND activities (src/lib/training/sessions.ts mergeSessions). */
   sessions: TrainingSession[];
   onClose: () => void;
+  /** A week's row is a door to that week (its Monday, YYYY-MM-DD) — "one wave", phase 2. */
+  onOpenWeek?: (weekStart: string) => void;
 }
 
 const weekLabel = (weekStart: string) =>
   parseDateLocal(weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-export default function WeeklyActivityOverlay({ sessions, onClose }: WeeklyActivityOverlayProps) {
+export default function WeeklyActivityOverlay({ sessions, onClose, onOpenWeek }: WeeklyActivityOverlayProps) {
   const bars = useMemo(() => sessionsWeeklyBars(sessions, 12), [sessions]);
   const [view, setView] = useState<'sessions' | 'load'>('sessions');
   const trained = bars.filter(b => b.workouts > 0).length;
@@ -71,25 +73,34 @@ export default function WeeklyActivityOverlay({ sessions, onClose }: WeeklyActiv
       </div>
 
       <div className="space-y-2">
-        {[...bars].reverse().map(bar => (
-          <div
-            key={bar.weekStart}
-            className={`flex items-center justify-between gap-3 text-sm py-2.5 px-3 rounded-xl border ${
-              bar.isCurrent ? 'border-brand-soft bg-brand-soft/40' : 'border-border-subtle bg-surface'
-            }`}
-          >
-            <span className="font-semibold text-primary whitespace-nowrap">
-              {weekLabel(bar.weekStart)}
-              {bar.isCurrent && <span className="ml-2 text-xs font-bold text-brand-fg">This week</span>}
-            </span>
-            <span className="text-xs text-muted text-right">
-              {bar.workouts} session{bar.workouts !== 1 ? 's' : ''}
-              {bar.volumeLbs > 0 && <> · {formatVolume(bar.volumeLbs)}</>}
-              {bar.seconds > 0 && <> · {formatDuration(bar.seconds)}</>}
-              {bar.rated > 0 && <span data-week-load={bar.load}> · load {bar.load.toLocaleString()}</span>}
-            </span>
-          </div>
-        ))}
+        {[...bars].reverse().map(bar => {
+          const shell = `flex w-full items-center justify-between gap-3 text-sm py-2.5 px-3 rounded-xl border ${
+            bar.isCurrent ? 'border-brand-soft bg-brand-soft/40' : 'border-border-subtle bg-surface'
+          }`;
+          const body = (
+            <>
+              <span className="font-semibold text-primary whitespace-nowrap">
+                {weekLabel(bar.weekStart)}
+                {bar.isCurrent && <span className="ml-2 text-xs font-bold text-brand-fg">This week</span>}
+              </span>
+              <span className="text-xs text-muted text-right">
+                {bar.workouts} session{bar.workouts !== 1 ? 's' : ''}
+                {bar.volumeLbs > 0 && <> · {formatVolume(bar.volumeLbs)}</>}
+                {bar.seconds > 0 && <> · {formatDuration(bar.seconds)}</>}
+                {bar.rated > 0 && <span data-week-load={bar.load}> · load {bar.load.toLocaleString()}</span>}
+                {onOpenWeek && bar.workouts > 0 && <span aria-hidden="true"> ›</span>}
+              </span>
+            </>
+          );
+          // A week with nothing in it has nothing to open.
+          return onOpenWeek && bar.workouts > 0 ? (
+            <button key={bar.weekStart} type="button" onClick={() => onOpenWeek(bar.weekStart)} className={`ea-interactive min-h-[44px] text-left ${shell}`} data-week-door={bar.weekStart}>
+              {body}
+            </button>
+          ) : (
+            <div key={bar.weekStart} className={shell}>{body}</div>
+          );
+        })}
       </div>
     </TrainingOverlay>
   );
