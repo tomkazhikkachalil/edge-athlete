@@ -463,7 +463,10 @@ export default function FeedPage() {
   }, []);
 
   const handlePostUpdated = () => {
-    // Refresh the feed when a post is updated
+    // Refresh the feed when a post is updated. The first page is read through the cache (Nov 7 2026): without this
+    // an edit reloaded the page the cache already held — a post switched off the feed stayed on it, an edited caption
+    // kept its old words, for up to thirty seconds. Create and delete always invalidated; an edit did not.
+    invalidate('/api/posts');
     loadFeed();
     setIsEditPostModalOpen(false);
     setEditingPost(null);
