@@ -278,3 +278,14 @@ Tom: "sometimes there are too many personal bests, we need to group and store in
 - **Where they show:** the top of Training's Overview (`PinnedBests`), for every viewer the `records` privacy aspect admits; a card opens the exercise's page or the test's window. Nothing pinned renders nothing.
 - **Routes:** `GET /api/profile/[profileId]/training/pins` (`private, no-store`; `mine` for the athlete alone); `PUT /api/training/pins { pins }` — the whole list for the session's own profile, 400 and nothing written unless it parses (`parsePins`).
 - Pinned by `training-pins.test.ts`, `e2e/training-pins.spec.ts`.
+
+## The timeline: Year → Month → Week → Session ("one wave", phase 2, PR 1 — Nov 18 2026)
+
+Tom: Training stays its own tab, deepened in place — **Year → Month → Week → Session**. One rule with the sport profiles: a level has its own address, Back walks up, a number is a door.
+
+- **Addresses:** `?tab=training&view=history` is the whole History; `&year=2026`, `&month=2026-11`, `&week=2026-11-09` (the week's Monday) are its levels — one parameter, the deepest (`parseHistoryScope`, `historyScopeSearch`). A step down or up is a **history entry** (`pushState`); the tab re-reads its address on `popstate`. The trail above the heading is the same way up, by name.
+- **One narrow read:** `GET /api/profile/[profileId]/training/timeline` → every session the viewer may see as one row (`id, kind, startedAt, seconds, distanceM, title`, an activity's `type`, a rated session's `effort`). No sets, clips or routes. History's own gate and row rules (`resolveActivityAccess`, the `workouts` privacy aspect; never a hidden or undecided workout, nor an Only-me activity, to a non-owner). `private, no-store`.
+- **Grouping is the viewer's calendar** (`src/lib/training/timeline.ts`, pure): weeks start Monday (`workouts/week.ts`). **Inside a month a week counts only that month's days** ("Nov 30", "Dec 1 – 6"), so weeks add up to the month and months to the year; opening either half opens the whole week.
+- **What a level shows:** sessions, time, active days, distance (when there is any), load with "n of m rated" (when any is rated); then its rows. History's top keeps the list and the posted items under a "By year" block; a year, month or week shows only itself.
+- A week's activity row opens the activity's page. A workout row becomes a door with the session's read-only page (PR 2).
+- Pinned by `training-timeline.test.ts`, `e2e/training-timeline.spec.ts`.

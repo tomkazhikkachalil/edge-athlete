@@ -1,5 +1,13 @@
 # Development Log
 
+## November 18, 2026 (night) — "One wave", phase 2, PR 1: Training's timeline (Year → Month → Week)
+
+Phase 1 (#1531, `d0490c99`) merged on green. Phase 2 starts: History opens on the years; a year lists its months, a month its weeks, a week its sessions day by day. Each level has its own address (`&year=`, `&month=`, `&week=`) and is a history entry, so Back walks up. One new read, `GET /api/profile/[id]/training/timeline` — a narrow row a session under History's own gate — grouped in the viewer's calendar by `src/lib/training/timeline.ts`. A week across a month end counts, inside each month, only that month's days, so the numbers add up. No migration.
+
+My call: the week's address is its Monday's date (`&week=2026-11-09`), not an ISO week number — nothing to look up, and a hand-typed date still lands on its week.
+
+Proof on staging: `training-timeline` at phone width 1 / 1 (the visitor's six of eight sessions; years → months → weeks → sessions; Back twice; a week's own address); `training-history`, `training-mobile`, `training-exercises`, `training-pins` phone 4 / 4; `training` desktop 1 / 1. 10 new unit pins.
+
 ## November 18, 2026 (later) — "One wave", phase 1: the Stats tab is the Sports tab
 
 Tom, after seeing phone screenshots of a sample sport profile (staging only): "I want more drill down ability… it needs to include all sports, including golf and track… most people are only focused on fitness. So let's start building up so everything is on the same wave." His decisions: the tabs stay seven with **Stats renamed Sports** (one card per sport, a tap opens that sport's profile); **Training stays its own tab**, deepened Year → Month → Week → Session; more doors on the sport pages, fundamentals first. Five phases: the Sports tab, Training, golf, track and the race sports, more doors. Comparing two seasons is not in this round.
