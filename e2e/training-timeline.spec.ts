@@ -92,6 +92,18 @@ test('the timeline: years → a year\'s months → a month\'s weeks → a week\'
     await expect(level('week').locator('[data-timeline-tiles]')).toContainText('1 of 2 rated');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
+    // A workout row is a door: the session's own page, read-only for the visitor — its sets, no owner actions.
+    await level('week').locator(`[data-timeline-session="${idOf('QA tl A')}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`session=${idOf('QA tl A')}$`));
+    const sessionPage = level('session').locator(`[data-timeline-session-page="${idOf('QA tl A')}"]`);
+    await expect(sessionPage).toContainText('QA tl A', { timeout: 20_000 });
+    await expect(sessionPage).toContainText('Nov 10, 2025');
+    await expect(sessionPage.getByRole('button', { name: 'Edit' })).toHaveCount(0);
+    await expect(level('session').locator('[data-timeline-up="week"]')).toHaveText('Nov 10 – 16');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.goBack();
+    await expect(level('week').locator('[data-timeline-heading]')).toHaveText('Nov 10 – 16, 2025');
+
     // Back walks up, level by level; the trail is the same way up by name.
     await page.goBack();
     await expect(level('month').locator('[data-timeline-heading]')).toHaveText('November 2025');
@@ -107,6 +119,20 @@ test('the timeline: years → a year\'s months → a month\'s weeks → a week\'
     await expect(level('week').locator('[data-timeline-session]')).toHaveCount(1);
     await level('week').locator('[data-timeline-up="month"]').click();
     await expect(level('month').locator('[data-timeline-heading]')).toHaveText('November 2025');
+
+    // The hidden and the undecided workout have no page for a visitor — by address either; a blocked visitor has none at all.
+    for (const title of ['QA tl hidden', 'QA tl undecided']) {
+      expect((await visitorApi.get(`/api/workouts/${idOf(title)}`)).status()).toBe(404);
+    }
+    await page.goto(`/athlete/${owner.id}?tab=training&view=history&session=${idOf('QA tl hidden')}`);
+    await expect(level('session').locator('[data-timeline-empty="session"]')).toBeVisible({ timeout: 30_000 });
+    const open = await visitorApi.get(`/api/workouts/${idOf('QA tl A')}`);
+    expect(open.status()).toBe(200);
+    expect(open.headers()['cache-control']).toBe('private, no-store');
+    expect((await ownerApi.get(`/api/workouts/${idOf('QA tl undecided')}`)).status()).toBe(200);
+    const { error: blockErr } = await admin.from('user_blocks').insert({ blocker_id: owner.id, blocked_id: visitor.id });
+    expect(blockErr, blockErr?.message).toBeNull();
+    expect((await visitorApi.get(`/api/workouts/${idOf('QA tl A')}`)).status()).toBe(403);
   } finally {
     await ctx.close();
     await ownerApi.dispose();
