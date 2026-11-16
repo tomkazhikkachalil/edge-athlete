@@ -6,17 +6,17 @@ const GAME = 'film:11111111-2222-3333-4444-555555555555';
 
 describe('the sport profile\'s address', () => {
   it('a bare link is the career', () => {
-    expect(parseSportView(q(''))).toEqual({ tab: 'stats', season: null, game: null, stat: null, event: null, hole: null });
+    expect(parseSportView(q(''))).toEqual({ tab: 'stats', season: null, game: null, stat: null, event: null, hole: null, opponent: null, period: null });
     expect(sportViewLevel(parseSportView(q('')))).toBe('career');
   });
   it('each level reads back from the address it writes', () => {
     const views = [
-      { tab: 'stats' as const, season: '2025-26', game: null, stat: null, event: null, hole: null },
-      { tab: 'stats' as const, season: '2026', game: GAME, stat: null, event: null, hole: null },
-      { tab: 'stats' as const, season: '2026', game: GAME, stat: 'goals', event: null, hole: null },
-      { tab: 'stats' as const, season: 'undated', game: null, stat: 'shots_on_target', event: null, hole: null },
-      { tab: 'clips' as const, season: null, game: null, stat: null, event: null, hole: null },
-      { tab: 'clips' as const, season: '2026', game: GAME, stat: null, event: 'goal', hole: null },
+      { tab: 'stats' as const, season: '2025-26', game: null, stat: null, event: null, hole: null, opponent: null, period: null },
+      { tab: 'stats' as const, season: '2026', game: GAME, stat: null, event: null, hole: null, opponent: null, period: null },
+      { tab: 'stats' as const, season: '2026', game: GAME, stat: 'goals', event: null, hole: null, opponent: null, period: null },
+      { tab: 'stats' as const, season: 'undated', game: null, stat: 'shots_on_target', event: null, hole: null, opponent: null, period: null },
+      { tab: 'clips' as const, season: null, game: null, stat: null, event: null, hole: null, opponent: null, period: null },
+      { tab: 'clips' as const, season: '2026', game: GAME, stat: null, event: 'goal', hole: null, opponent: null, period: null },
     ];
     for (const v of views) expect(parseSportView(q(sportViewSearch(v).slice(1)))).toEqual(v);
     expect(sportViewSearch({})).toBe('');
@@ -24,18 +24,27 @@ describe('the sport profile\'s address', () => {
   });
   it('golf: a round is the game, and a hole is one level further', () => {
     const ROUND = 'round:11111111-2222-3333-4444-555555555555';
-    const v = { tab: 'stats' as const, season: '2026', game: ROUND, stat: null, event: null, hole: 7 };
+    const v = { tab: 'stats' as const, season: '2026', game: ROUND, stat: null, event: null, hole: 7, opponent: null, period: null };
     expect(sportViewSearch(v)).toBe(`?season=2026&game=${encodeURIComponent(ROUND)}&hole=7`);
     expect(parseSportView(q(sportViewSearch(v).slice(1)))).toEqual(v);
     for (const bad of ['0', '19', '7a', '-1', '']) expect(parseSportView(q(`hole=${bad}`)).hole).toBeNull();
     expect(parseSportView(q('hole=18')).hole).toBe(18);
+  });
+  it('the splits\' doors: an opponent and a period ride the season\'s address; a name is cleaned, never trusted', () => {
+    const v = { tab: 'stats' as const, season: '2026', game: null, stat: null, event: null, hole: null, opponent: 'QA Owls', period: 2 };
+    expect(sportViewSearch(v)).toBe('?season=2026&opponent=QA%20Owls&period=2');
+    expect(parseSportView(q(sportViewSearch(v).slice(1)))).toEqual(v);
+    expect(parseSportView(q('opponent=%20%20Owls%0A%09FC%20%20')).opponent).toBe('Owls FC');
+    expect(parseSportView(q(`opponent=${'x'.repeat(200)}`)).opponent).toHaveLength(60);
+    expect(parseSportView(q('opponent=%20')).opponent).toBeNull();
+    for (const bad of ['0', '21', '2a', '-1']) expect(parseSportView(q(`period=${bad}`)).period).toBeNull();
   });
   it('the deepest level named is the level', () => {
     expect(sportViewLevel(parseSportView(q('season=2026')))).toBe('season');
     expect(sportViewLevel(parseSportView(q(`season=2026&game=${GAME}`)))).toBe('game');
   });
   it('a malformed part is dropped, never an error', () => {
-    expect(parseSportView(q('season=<script>&game=nope&stat=DROP TABLE&view=x&event=A B'))).toEqual({ tab: 'stats', season: null, game: null, stat: null, event: null, hole: null });
+    expect(parseSportView(q('season=<script>&game=nope&stat=DROP TABLE&view=x&event=A B'))).toEqual({ tab: 'stats', season: null, game: null, stat: null, event: null, hole: null, opponent: null, period: null });
   });
   it('a season reads the way people write it', () => {
     expect(seasonTitle('2025-26')).toBe('2025–26');

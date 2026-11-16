@@ -10,6 +10,7 @@
  * sport — the breakdown below still shows the game log.
  */
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { Rollups } from '@/lib/performance/rollups';
 import { onStatGamesChanged } from '@/lib/performance/game-distinct-client';
@@ -51,9 +52,11 @@ interface Props {
    */
   mode?: 'full' | 'extras';
   scopeKey?: string | null;
+  /** The sport profile: a best is the door to the game it happened in (its address, or null when no such game is on the page). */
+  bestHref?: (best: { key: string; value: number; date: string }) => string | null;
 }
 
-export default function SeasonRollups({ profileId, sportKey, heroLabel, mode = 'full', scopeKey = null }: Props) {
+export default function SeasonRollups({ profileId, sportKey, heroLabel, mode = 'full', scopeKey = null, bestHref }: Props) {
   const [rollups, setRollups] = useState<Rollups | null>(null);
   const [picked, setSelected] = useState<string>('career');
   const selected = mode === 'extras' ? scopeKey ?? 'career' : picked;
@@ -104,12 +107,24 @@ export default function SeasonRollups({ profileId, sportKey, heroLabel, mode = '
           <div>
             <h3 className="mb-2 text-lg font-bold text-primary">{scope ? 'Season bests' : 'Career bests'}</h3>
             <ul className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2" data-rollups-bests="">
-              {bests.map(b => (
-                <li key={b.key} className="flex justify-between gap-3">
-                  <span className="text-secondary">{b.label}</span>
-                  <span className="tabular-nums text-primary">{b.value} <span className="text-xs text-tertiary">{shortDate(b.date)}</span></span>
-                </li>
-              ))}
+              {bests.map(b => {
+                const href = bestHref?.(b) ?? null;
+                const body = (
+                  <>
+                    <span className="text-secondary">{b.label}</span>
+                    <span className="tabular-nums text-primary">{b.value} <span className="text-xs text-tertiary">{shortDate(b.date)}</span>{href && <span aria-hidden="true" className="ml-1 text-brand-fg">›</span>}</span>
+                  </>
+                );
+                return (
+                  <li key={b.key}>
+                    {href ? (
+                      <Link href={href} className="ea-interactive flex min-h-[44px] items-center justify-between gap-3 rounded" aria-label={`${b.label} ${b.value}: open that game`} data-rollups-best-door={b.key}>{body}</Link>
+                    ) : (
+                      <span className="flex justify-between gap-3 py-1">{body}</span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

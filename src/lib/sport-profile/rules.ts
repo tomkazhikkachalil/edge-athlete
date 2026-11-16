@@ -210,6 +210,9 @@ export interface SplitRow extends Totals { label: string }
 
 const normName = (s: string | null): string => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
+/** Two spellings of one opponent (case and spacing aside) — the opponent split's own rule, for its door. */
+export const sameOpponent = (a: string | null, b: string | null): boolean => normName(a) !== '' && normName(a) === normName(b);
+
 /**
  * By opponent: the counted games, grouped by who they were against (case
  * and spacing aside), most games first. A held game is never under its

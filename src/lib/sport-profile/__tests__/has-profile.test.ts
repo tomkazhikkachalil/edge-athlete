@@ -46,3 +46,17 @@ describe('a block closes a profile (Nov 2026)', () => {
     }
   });
 });
+
+describe('more doors on the sport pages (one wave, phase 5)', () => {
+  it('a stat\'s reel offers the kinds of play that made it as chips, only when there is more than one', () => {
+    const reel = read('src/components/sport-profile/StatReel.tsx');
+    expect(reel).toContain('const kinds = stat ? [...new Set(whole.clips.map(c => c.eventKey).filter((k): k is string => !!k))] : [];');
+    expect(reel).toContain('{kinds.length > 1 && (');
+    expect(reel).toContain("sportViewSearch({ season, stat, event: k })");
+  });
+  it('a best opens the game it happened in, a headline tile the clips of its one stat — and nothing when there is none', () => {
+    expect(read('src/components/sport-profile/CareerView.tsx')).toContain('bestHref={b => bestDoor(data.games.find(g => g.counted && g.date === b.date && g.stats[b.key] === b.value)?.key)}');
+    expect(read('src/components/sport-profile/CareerView.tsx')).toContain("href: t.stat && (data.career.clips[t.stat] ?? 0) > 0 ?");
+    expect(read('src/lib/sport-profile/sport-profile-server.ts')).toContain("('keys' in t.compute && t.compute.keys.length === 1 ? t.compute.keys[0] : null)");
+  });
+});

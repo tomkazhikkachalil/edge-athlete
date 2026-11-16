@@ -131,6 +131,17 @@ A race sport's profile used to show only how many were raced ("a sum of times me
 - **Track and field has a sport profile (PR 2).** Each event's column is a best, so the engine above IS its personal-best table: Career — one row a season with each event's season best, the foot row the personal bests; a cell opens the race it was set in. Season — "Season totals and bests" and the race log (an official meet line says its rung). **The event is a pivot** (`BestHistory`, `?stat=time_100m`): a best column's heading opens every race of that event, newest first, with the ones that were a best at the time marked (`progressionOf`); a row is the door to its race. The same pivot works for a pace in running, cycling, swimming and rowing. The Sports tab keeps a layer only for a sport with no stat sheet.
 - Pinned by `rules.test.ts`, `view.test.ts`, `rollups.test.ts`, `has-profile.test.ts`, `e2e/sport-profile-race.spec.ts`.
 
+## More doors on the sport pages ("one wave", phase 5 — Nov 2026)
+
+Tom ticked four ideas and left the cut to the plan: "fundamentals for now, simple, drill down where it makes sense". Built: the three that are doors. **Not built: comparing two seasons side by side** (not a fundamental; a decision to revisit, not an oversight).
+
+- **An opponent opens the games against them.** In a season's "By opponent" table the name is a link: `?season=2026&opponent=QA%20Owls` narrows the game log to those games ("Games against QA Owls", "All games" to clear). The name in the address is cleaned (one line, 60 characters) and only ever compared to the games' own opponents the way the split groups them (`sameOpponent`: case and spacing aside).
+- **A period opens its clips.** In "By period" the period is a link: `?season=2026&period=2` plays that period's clips of the season as one reel (the clips route's own `period` filter).
+- **A best opens its game.** "Season bests" / "Career bests" rows link to the counted game with that value on that date — when it is on the page; otherwise the row is text.
+- **A headline tile opens its clips.** A tile made of ONE stat (the payload names it, `stat`) with clips behind it is the door to that stat's reel.
+- **Kinds of play under a stat.** A stat's reel shows chips for the sheet events among its clips (twos, threes, free throws; a goal, a penalty goal) when there is more than one kind; a chip is `&event=<key>` — the clips route's own filter.
+- Pinned by `view.test.ts`, `rules.test.ts`, `has-profile.test.ts`, `e2e/sport-profile.spec.ts` (opponent, period, tile).
+
 ## Golf's sport profile ("one wave", phase 3 — Nov 2026)
 
 Golf does not fit the stat-line payload — its numbers are scores against par, not sums — so it has its own rules and payload, with the same levels and the same promise. **Career → Season → Round → Hole.**

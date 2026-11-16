@@ -342,8 +342,8 @@ export interface SportProfilePayload {
   /** The sport's numbers add up (a game with sides). False for a race: counts and bests, never a total of times. */
   sums: boolean;
   /** `bestIn`: for a column that is a best, the game it was set in — what the number opens. */
-  career: { games: number; totals: Stats; bestIn: Record<string, string>; tiles: Array<{ label: string; value: string | null }>; clips: Stats };
-  seasons: Array<{ key: string; games: number; totals: Stats; bestIn: Record<string, string>; from: string | null; to: string | null; tiles: Array<{ label: string; value: string | null }>; clips: Stats }>;
+  career: { games: number; totals: Stats; bestIn: Record<string, string>; tiles: Array<{ label: string; value: string | null; stat?: string | null }>; clips: Stats };
+  seasons: Array<{ key: string; games: number; totals: Stats; bestIn: Record<string, string>; from: string | null; to: string | null; tiles: Array<{ label: string; value: string | null; stat?: string | null }>; clips: Stats }>;
   games: SportProfileGameRow[];
   /** Games in the totals whose own line this viewer has not chosen to see. */
   held: number;
@@ -359,7 +359,9 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
   const linesOf = (list: readonly ProfileGame[]): StatLineData[] => list.filter(g => g.counted).map(g => ({ type: 'stat_line' as const, sport_key: schema.sport_key, stats: g.stats }));
   const tilesOf = (list: readonly ProfileGame[]) => {
     const lines = linesOf(list);
-    return schema.profileTiles.map(t => ({ label: t.label, value: lines.length === 0 ? null : computeProfileTile(t, lines) }));
+    // A tile made of ONE stat names it (`stat`): the tile is then the door to that stat's clips.
+    const statOf = (t: (typeof schema.profileTiles)[number]): string | null => ('keys' in t.compute && t.compute.keys.length === 1 ? t.compute.keys[0] : null);
+    return schema.profileTiles.map(t => ({ label: t.label, value: lines.length === 0 ? null : computeProfileTile(t, lines), stat: statOf(t) }));
   };
   const seasonOf = (g: ProfileGame): string | null => (g.date ? read.seasonKeyOf(g.date) : null);
   // Each column by its own rule (one wave, phase 4): a sport that adds up sums every column — the numbers it always had.

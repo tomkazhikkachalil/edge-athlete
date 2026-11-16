@@ -37,7 +37,7 @@ export default function CareerView({ profileId, data, basePath, sportLabel }: Pr
   };
   return (
     <section className="space-y-6" data-sport-level="career">
-      <Tiles tiles={data.career.tiles} />
+      <Tiles tiles={data.career.tiles.map(t => ({ ...t, href: t.stat && (data.career.clips[t.stat] ?? 0) > 0 ? `${basePath}${sportViewSearch({ stat: t.stat })}` : null }))} />
       <div>
         <h2 className="mb-3 text-lg font-bold text-primary">Career</h2>
         {!data.sums && <p className="mb-3 text-sm text-muted" data-sport-no-sums="">A race does not add up as a whole: distance and time are totals, a pace or a race time is the best of the season — tap it to open the race it was set in.</p>}
@@ -65,7 +65,7 @@ export default function CareerView({ profileId, data, basePath, sportLabel }: Pr
       {/* Head-to-head in this sport (Play, 244) — moved here from the Sports tab's layer; the athlete chooses what shows. */}
       <RivalsPanel profileId={profileId} sportKey={data.sport} />
       {/* The trend of the headline number and the career bests, from the performance record (the rollups' own reader). */}
-      {getStatSchema(data.sport) && <SeasonRollups profileId={profileId} sportKey={data.sport} heroLabel={getStatSchema(data.sport)!.heroStat.label} mode="extras" />}
+      {getStatSchema(data.sport) && <SeasonRollups profileId={profileId} sportKey={data.sport} heroLabel={getStatSchema(data.sport)!.heroStat.label} mode="extras" bestHref={b => bestDoor(data.games.find(g => g.counted && g.date === b.date && g.stats[b.key] === b.value)?.key)} />}
     </section>
   );
 }
