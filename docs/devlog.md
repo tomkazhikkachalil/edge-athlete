@@ -1,8 +1,8 @@
 # Development Log
 
-## November 16, 2026 (01:01) — "One wave", phase 5: more doors on the sport pages — the program's last build
+## November 16, 2026 (01:56) — "One wave", phase 5: more doors on the sport pages — the program's last build
 
-#1541 (track's profile) merged on its third smoke run: the first two ran out of the CI heap in `next build`'s type check, as #1540's verify had. Measured cold: the whole repository is 5,712 files and 4.21 GB to type-check; the app's own code 4,434 files and 3.24 GB. The split is prepared as #1542 and left for Tom to merge (it changes the gate's shape).
+#1541 (track's profile) merged on its third smoke run: the first two ran out of the CI heap in `next build`'s type check, as #1540's verify had. Measured cold: the whole repository is 5,712 files and 4.21 GB to type-check; the app's own code 4,434 files and 3.24 GB. The split was prepared as #1542; Tom approved it ("yes, split the build's type check, make sure it works on web") and it merged as `c8f520d3`. Production built with the new scope and passed eight checks: desktop — `health`, `training`, `golf-profile-api`, `sport-profile-api`; phone — `golf-profile`, `sport-profile-race` (2), `training-timeline`. Before it, `npm run verify` failed on this branch on a cold cache, in the build's type check; after it, it passes. Still open: `npm run typecheck` over the whole repository is at 4.21 GB — the next thing to split.
 
 The doors Tom asked for "where it makes sense": an opponent opens the season's games against them; a period opens its clips as one reel; a season or career best opens the game it happened in; a headline tile made of one stat opens that stat's clips; a stat's reel offers the kinds of play that made it as chips. Comparing two seasons side by side is not built — my cut, not a fundamental.
 
