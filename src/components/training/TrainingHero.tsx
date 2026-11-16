@@ -1,5 +1,6 @@
 'use client';
 
+import type { KeyboardEvent } from 'react';
 import { Dumbbell, Weight, Timer, Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import LazyImage from '../LazyImage';
 import ProgressRing from './ProgressRing';
@@ -37,6 +38,10 @@ interface TrainingHeroProps {
   heightDisplay?: string | null;
   weightDisplay?: string | null;
   onOpenMetric?: (key: 'height' | 'weight') => void;
+  /** "One wave", phase 2: every number here is a door. This week's numbers open the week; the streak its weeks; the best its own window. */
+  onOpenWeek?: () => void;
+  onOpenStreak?: () => void;
+  onOpenPb?: (metricKey: string) => void;
 }
 
 function DeltaGlyph({ now, prior }: { now: number; prior: number }) {
@@ -66,8 +71,15 @@ function Stat({
 
 export default function TrainingHero({
   profile, isOwnProfile, summary, streak, activeDays, pb,
-  heightDisplay, weightDisplay, onOpenMetric,
+  heightDisplay, weightDisplay, onOpenMetric, onOpenWeek, onOpenStreak, onOpenPb,
 }: TrainingHeroProps) {
+  const streakBadge = streak > 0 && onOpenStreak ? (
+    <button type="button" onClick={onOpenStreak} className="ea-interactive inline-flex min-h-[44px] items-center rounded-full" aria-label={`${streak}-week streak. See the weeks.`} data-training-streak-door="">
+      <StreakBadge weeks={streak} />
+    </button>
+  ) : (
+    <StreakBadge weeks={streak} />
+  );
   const firstName = profile?.firstName?.trim() || null;
   const greeting = isOwnProfile
     ? `Let's go${firstName ? `, ${firstName}` : ''}!`
@@ -134,16 +146,36 @@ export default function TrainingHero({
           </div>
         )}
         <div className="shrink-0 hidden sm:block">
-          <StreakBadge weeks={streak} />
+          {streakBadge}
         </div>
       </div>
       {/* On phones the badge drops under the greeting so it never squeezes it */}
       {streak > 0 && (
         <div className="mt-3 sm:hidden">
-          <StreakBadge weeks={streak} />
+          {streakBadge}
         </div>
       )}
 
+      {/* This week's numbers are ONE door to the week (History → this week's sessions). A div with a button's role:
+          the ring and the stats are not phrasing content a <button> may hold. */}
+      <div
+        {...(onOpenWeek
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              onClick: onOpenWeek,
+              onKeyDown: (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpenWeek();
+                }
+              },
+              'aria-label': 'This week. Open its sessions.',
+              className: 'ea-interactive -mx-2 cursor-pointer rounded-2xl px-2 pb-2',
+            }
+          : {})}
+        data-training-week-door={onOpenWeek ? '' : undefined}
+      >
       {/* Ring + this-week numbers */}
       <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 sm:items-center">
         <div className="flex flex-col items-center gap-2">
@@ -190,8 +222,26 @@ export default function TrainingHero({
         </p>
       )}
 
+      </div>
+
       {/* PB spotlight — the newest all-time best, front and center */}
-      <div className="mt-6 flex items-center gap-3 rounded-2xl bg-surface-muted p-4">
+      <div
+        className={`mt-6 flex items-center gap-3 rounded-2xl bg-surface-muted p-4${pb && onOpenPb ? ' ea-interactive cursor-pointer' : ''}`}
+        {...(pb && onOpenPb
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              onClick: () => onOpenPb(pb.metricKey),
+              onKeyDown: (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpenPb(pb.metricKey);
+                }
+              },
+              'data-training-pb-door': pb.metricKey,
+            }
+          : {})}
+      >
         <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${pb ? accent.chip : 'bg-surface-sunken'}`}>
           <Trophy className={`w-5 h-5 ${pb ? accent.text : 'text-decor'}`} aria-hidden="true" />
         </div>

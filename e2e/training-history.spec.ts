@@ -113,7 +113,7 @@ test('History pages past twenty, groups by month, filters by kind; a visitor nev
     // The Overview counts the same year: its latest-sessions card is the door back here.
     await page.getByRole('tablist', { name: 'Training views' }).getByRole('tab', { name: 'Overview' }).click();
     await expect(page.locator('[data-training-recent-sessions] [data-session-kind="workout"]')).toHaveCount(3, { timeout: 20_000 });
-    await page.locator('[data-training-recent-sessions]').click();
+    await page.locator('[data-training-see-history]').click();
     await expect(page.locator('[data-training-history] [data-history-item]')).toHaveCount(20, { timeout: 20_000 });
   } finally {
     await ctx.close();

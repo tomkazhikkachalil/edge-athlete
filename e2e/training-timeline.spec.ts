@@ -34,21 +34,23 @@ test('the timeline: years → a year\'s months → a month\'s weeks → a week\'
       row('2024-06-03', 'QA tl F'),
       row('2025-11-11', 'QA tl hidden', { profile_hidden_at: decided }),
       row('2025-11-13', 'QA tl undecided', { share_decided_at: null }),
+      // One a minute ago: this week's, whenever the suite runs — the Overview's doors need a current week.
+      { ...row('2025-01-01', 'QA tl now'), started_at: new Date(Date.now() - 60_000).toISOString(), ended_at: new Date().toISOString(), duration_seconds: 60 },
     ]).select('id, title');
     expect(insErr, insErr?.message).toBeNull();
     const idOf = (title: string) => (inserted ?? []).find(r => r.title === title)!.id as string;
 
-    // ── The API: one narrow row a session; the visitor's six, the owner's eight.
+    // ── The API: one narrow row a session; the visitor's seven, the owner's nine.
     const res = await visitorApi.get(`/api/profile/${owner.id}/training/timeline`);
     expect(res.status()).toBe(200);
     expect(res.headers()['cache-control']).toBe('private, no-store');
     const seen = (await res.json()) as { sessions: Array<Record<string, unknown>>; isOwner: boolean };
     expect(seen.isOwner).toBe(false);
-    expect(seen.sessions).toHaveLength(6);
+    expect(seen.sessions).toHaveLength(7);
     expect(seen.sessions.map(s => s.id)).not.toContain(idOf('QA tl hidden'));
     expect(seen.sessions.map(s => s.id)).not.toContain(idOf('QA tl undecided'));
     expect(Object.keys(seen.sessions[0]).sort()).toEqual(['distanceM', 'id', 'kind', 'seconds', 'startedAt', 'title']);
-    expect(((await (await ownerApi.get(`/api/profile/${owner.id}/training/timeline`)).json()) as { sessions: unknown[] }).sessions).toHaveLength(8);
+    expect(((await (await ownerApi.get(`/api/profile/${owner.id}/training/timeline`)).json()) as { sessions: unknown[] }).sessions).toHaveLength(9);
     expect((await visitorApi.get('/api/profile/00000000-0000-4000-8000-000000000000/training/timeline')).status()).toBe(404);
     // The Workouts privacy aspect hides it from the visitor.
     await admin.from('profiles').update({ vitals_privacy: { hidden: false, body: false, records: false, workouts: true } }).eq('id', owner.id);
@@ -63,7 +65,7 @@ test('the timeline: years → a year\'s months → a month\'s weeks → a week\'
     const level = (name: string) => page.locator(`[data-timeline-level="${name}"]`);
     await expect(level('all').locator('[data-timeline-row="2025"]')).toContainText('5 sessions', { timeout: 30_000 });
     await expect(level('all').locator('[data-timeline-row="2024"]')).toContainText('1 session');
-    await expect(page.locator('[data-training-history] [data-history-item]')).toHaveCount(6, { timeout: 20_000 });
+    await expect(page.locator('[data-training-history] [data-history-item]')).toHaveCount(7, { timeout: 20_000 });
 
     // A year: its months, and the whole list steps aside.
     await level('all').locator('[data-timeline-row="2025"]').click();
@@ -111,7 +113,7 @@ test('the timeline: years → a year\'s months → a month\'s weeks → a week\'
     await expect(level('year').locator('[data-timeline-heading]')).toHaveText('2025');
     await level('year').locator('[data-timeline-up="all"]').click();
     await expect(level('all').locator('[data-timeline-row="2025"]')).toBeVisible();
-    await expect(page.locator('[data-training-history] [data-history-item]')).toHaveCount(6, { timeout: 20_000 });
+    await expect(page.locator('[data-training-history] [data-history-item]')).toHaveCount(7, { timeout: 20_000 });
 
     // A week's own address opens it; a week across a month end is whole here (Nov 24 – 30 holds the 30th).
     await page.goto(`/athlete/${owner.id}?tab=training&view=history&week=2025-11-30`);
@@ -119,6 +121,26 @@ test('the timeline: years → a year\'s months → a month\'s weeks → a week\'
     await expect(level('week').locator('[data-timeline-session]')).toHaveCount(1);
     await level('week').locator('[data-timeline-up="month"]').click();
     await expect(level('month').locator('[data-timeline-heading]')).toHaveText('November 2025');
+
+    // The Overview's numbers are doors: a recent session opens its page; the 12-week window's row opens that week.
+    await page.goto(`/athlete/${owner.id}?tab=training`);
+    const recent = page.locator('[data-training-recent-sessions] [data-session-door]');
+    await expect(recent.first()).toBeVisible({ timeout: 30_000 });
+    await recent.first().click(); // the newest
+    await expect(level('session').locator(`[data-timeline-session-page="${idOf('QA tl now')}"]`)).toContainText('QA tl now', { timeout: 20_000 });
+    await page.goBack();
+    await expect(page.locator('[data-training-recent-sessions]')).toBeVisible();
+    // This week's numbers are one door to the week; the 12-week window's row is the same door.
+    await page.locator('[data-training-week-door]').click();
+    await expect(page).toHaveURL(/week=\d{4}-\d{2}-\d{2}$/);
+    await expect(level('week').locator(`[data-timeline-session="${idOf('QA tl now')}"]`)).toBeVisible({ timeout: 20_000 });
+    await page.goBack();
+    await page.locator('[data-training-streak-door]:visible').click();
+    await page.locator('[data-week-door]').first().click();
+    await expect(level('week').locator(`[data-timeline-session="${idOf('QA tl now')}"]`)).toBeVisible({ timeout: 20_000 });
+    await page.goBack();
+    await page.locator('[data-training-see-history]').click();
+    await expect(level('all').locator('[data-timeline-row="2025"]')).toBeVisible({ timeout: 20_000 });
 
     // The hidden and the undecided workout have no page for a visitor — by address either; a blocked visitor has none at all.
     for (const title of ['QA tl hidden', 'QA tl undecided']) {
