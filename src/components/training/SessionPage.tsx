@@ -24,9 +24,11 @@ interface SessionPageProps {
   onShare: (sessionId: string) => void;
   /** The workout was deleted: the Overview's numbers are stale. */
   onChanged: () => void;
+  /** An exercise's row opens that exercise's own page (its bests, its chart, its sessions). */
+  onOpenExercise: (ref: string) => void;
 }
 
-export default function SessionPage({ sessionId, isOwnProfile, onScope, onOpenPost, onEdit, onShare, onChanged }: SessionPageProps) {
+export default function SessionPage({ sessionId, isOwnProfile, onScope, onOpenPost, onEdit, onShare, onChanged, onOpenExercise }: SessionPageProps) {
   const [state, setState] = useState<State>({ kind: 'loading' });
 
   useEffect(() => {
@@ -86,6 +88,7 @@ export default function SessionPage({ sessionId, isOwnProfile, onScope, onOpenPo
           <WorkoutCard
             session={session}
             defaultExpanded
+            onOpenExercise={ref => onOpenExercise(ref)}
             isOwnProfile={isOwnProfile}
             onOpenPost={onOpenPost}
             onEdit={() => onEdit(session.id)}

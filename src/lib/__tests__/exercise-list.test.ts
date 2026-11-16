@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { chartKindOf, describeExercise, exerciseTimeline, groupByArea, headlineOf, summarizeExercises, type ExerciseSession } from '../workouts/exercise-list';
+import { bestSessionOf, chartKindOf, describeExercise, exerciseTimeline, groupByArea, headlineOf, summarizeExercises, type ExerciseSession } from '../workouts/exercise-list';
 import { BODY_AREAS, EXERCISE_CATALOG } from '../workout-config';
 import type { EntryExercise, EntrySet } from '../workouts/entries';
 
@@ -68,6 +68,15 @@ describe('one exercise, session by session', () => {
     expect(records.s1).toEqual([]);
     expect(records.s2).toEqual(['heaviest', 'e1rm', 'volume']);
     expect(records.s3).toEqual([]); // 195 × 5 again: nothing beaten
+  });
+  it('a best opens the session it was SET in: the first to reach the number, never a tested max', () => {
+    expect(bestSessionOf(timeline, 'heaviest', 205)).toBe('s2');
+    // Two sessions at the same number: the earlier one set it, the later only equalled it (the timeline is newest first).
+    const twice = [{ ...timeline[0], sessionId: 'later', bests: { ...timeline[0].bests, heaviest: 205 } }, ...timeline];
+    expect(bestSessionOf(twice, 'heaviest', 205)).toBe('s2');
+    expect(bestSessionOf(timeline, 'heaviest', 999)).toBeNull();
+    expect(bestSessionOf(timeline, 'heaviest', null)).toBeNull();
+    expect(bestSessionOf([{ ...timeline[0], sessionId: 'tested:1', bests: { ...timeline[0].bests, heaviest: 300 }, tested: true }, ...timeline], 'heaviest', 300)).toBeNull();
   });
   it('the order the sessions arrive in does not matter', () => {
     expect(exerciseTimeline([...history].reverse(), 'bench_press')).toEqual(timeline);

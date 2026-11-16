@@ -1,5 +1,13 @@
 # Development Log
 
+## November 18, 2026 (night, 4) — "One wave", phase 2, PR 4: the exercise page reaches down and across — Training's drill-down is whole
+
+PR 3 (#1534) merged on green. On an exercise's page a session row opens the workout's own page (for a visitor too) and a best opens the session it was set in; on a session's page each exercise has "History ›" to its own page, and Back returns. With this the walk is whole: Overview → week → session → exercise → the session a best was set in, and Year → Month → Week → Session from History.
+
+Not built, on purpose: the plan had the exercise page show the exercise's clips by widening the bests reader to media. `exercise-list.test.ts` pins that reader as never reading media — the Nov 11 fix that made the page fast. The rule stays; the clips are on the session's page, one tap from the row.
+
+Proof on staging, phone width: `training-exercises` (best → session → exercise → Back → Forward, as a visitor; the hidden workout's 250 never shows), `training-pins`, `training-timeline` green. `npm run verify` exit 0 (6,435 tests).
+
 ## November 18, 2026 (night, 3) — "One wave", phase 2, PR 3: every number on Training's Overview is a door
 
 PR 2 (#1533, `de22378d`) merged on green. The Overview's dead ends open: this week's ring and numbers → the week; the streak → the 12-week window, whose rows → that week; the latest best → its test's window; a recent session → its page; "See all history" → History. The Recent sessions card was one button to History; its rows are the doors now, so three specs that clicked the card (the smoke `training` among them) click "See all history".
