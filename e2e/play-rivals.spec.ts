@@ -109,10 +109,10 @@ test('a shared round makes a rivalry: the athlete chooses what shows, the oppone
     expect(await (await rivalsOfA(p.anon)).json()).toMatchObject({ rivals: [] });
     await adminClient().from('profiles').update({ visibility: 'public' }).eq('id', p.a.id);
 
-    // The UI: the Stats hub's golf layer on the athlete's own page, the toggle, and the opponent's view.
+    // The UI: golf's sport profile (its Career view holds the rivals since "one wave" phase 3), the toggle, and the opponent's view.
     const ctxA = await browser.newContext({ storageState: await mintStorageState(p.a), extraHTTPHeaders: bypassHeaders() });
     const pageA = await ctxA.newPage();
-    await pageA.goto(`/athlete/${p.a.id}?tab=stats&sport=golf`);
+    await pageA.goto(`/athlete/${p.a.id}/sport/golf`);
     const panel = pageA.locator('[data-rivals="golf"]');
     const row = panel.locator(`[data-rival="${p.b.id}"]`);
     await expect(row.locator('[data-rival-record]')).toHaveText('1–0', { timeout: 20_000 });
@@ -125,7 +125,7 @@ test('a shared round makes a rivalry: the athlete chooses what shows, the oppone
 
     const ctxB = await browser.newContext({ storageState: await mintStorageState(p.b), extraHTTPHeaders: bypassHeaders() });
     const pageB = await ctxB.newPage();
-    await pageB.goto(`/athlete/${p.a.id}?tab=stats&sport=golf`);
+    await pageB.goto(`/athlete/${p.a.id}/sport/golf`);
     await expect(pageB.locator('[data-rivals-yours] [data-rival-record]')).toHaveText('0–1', { timeout: 20_000 });
     await ctxB.close();
   } finally {
@@ -140,7 +140,7 @@ test('the opponent\'s own record on /u/ at phone width @mobile', async ({ browse
     await playRound(p);
     const ctxB = await browser.newContext({ storageState: await mintStorageState(p.b), extraHTTPHeaders: bypassHeaders(), viewport: { width: 390, height: 844 } });
     const page = await ctxB.newPage();
-    await page.goto(`/u/@${p.handleA}?tab=stats&sport=golf`);
+    await page.goto(`/u/@${p.handleA}/sport/golf`);
     const yours = page.locator('[data-rivals-yours]');
     await expect(yours.locator('[data-rival-record]')).toHaveText('0–1', { timeout: 20_000 });
     await yours.scrollIntoViewIfNeeded();

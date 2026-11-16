@@ -1,5 +1,17 @@
 # Development Log
 
+## November 19, 2026 — "One wave", phase 3: golf has a sport profile (Career → Season → Round → Hole)
+
+Phase 2 closed: #1535 (exercise page doors), #1536 (feed: an edit invalidates the read cache — `feed-toggle` green again) and #1537 (the two older Training reads through the one gate) merged; production `03a30edd` passed `training-timeline` and `training-exercises` at phone width.
+
+Golf does not fit the stat-line payload (scores against par are not sums), so it has its own rules (`golf-rules.ts`, pure), a set-based reader and its own payload on the sport-profile route (`kind: 'golf'`; `&holes=<year>` for a season's scorecards). The page is the sport profile's: career by year with the handicap and the trends, a season with score kinds, by par, by course and the round log, a round's scorecard, a hole. Every step is a link. A round its owner hid counts in every total and is never listed, sent or opened for anyone else (241).
+
+`hasSportProfile('golf')` flipped: the Sports tab's golf card and the profile's sport strip open the new page; the golf layer on the Sports tab is gone and its trends and rivals moved into the Career view. Four specs followed golf to its new address (`skill-cards-mobile`, `stats-hub-mobile`, `play-rivals`, `sport-profile-api`).
+
+My call: "official or not" is asked per round later, not in the list — `resolveResultOrigin` reads one result at a time.
+
+Proof on staging: `golf-profile` phone 1 / 1, `golf-profile-api` desktop 1 / 1; `sport-profile`, `profile-sports`, `skill-cards-mobile`, `stats-hub-mobile`, `play-rivals` phone green; `play-rivals`, `play-challenges`, `sport-profile-api` desktop green. 12 new unit pins.
+
 ## November 18, 2026 (night, 5) — "One wave", phase 2 closes: the two older Training reads go through the one gate
 
 `GET /api/workouts?profileId=` and `GET /api/vitals?profileId=` kept their own visibility + follow check, which never asked about a block, and set no cache header. Both now ask `resolveActivityAccess` (blocks either way, a departed athlete, a guardian as the owner) and answer `private, no-store`. With #1533 (the single workout) every Training read has the same gate.

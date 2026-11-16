@@ -112,4 +112,19 @@ Tom: the profile's tabs stay seven, and **Stats is renamed Sports** — "one car
 - **Head-to-head (rivals)** for a sport with a profile moved to that profile's Career view; golf and track keep it on their layer.
 - A card's own line now reads "+N self-posted games in the sport's profile".
 
+## Golf's sport profile ("one wave", phase 3 — Nov 2026)
+
+Golf does not fit the stat-line payload — its numbers are scores against par, not sums — so it has its own rules and payload, with the same levels and the same promise. **Career → Season → Round → Hole.**
+
+**The rules and the reads.**
+
+- **Rules** (`src/lib/sport-profile/golf-rules.ts`, pure): a season is the **calendar year** of the round's date; a round is **scored** when complete with a gross score; **to par per 18** puts 9- and 18-hole rounds on one scale; the scoring average and "best 18" read 18-hole rounds only (a best 9 is its own number); fairways are asked on par 4s and 5s, and a hole with no answer is not an attempt; putts scale to 18 over the holes that recorded them. Score kinds: eagle or better, birdie, par, bogey, double or worse. By par: the average over par on 3s, 4s and 5s. By course: the name matched without case or outer spaces.
+- **A hidden round counts and is never shown (241, the results-kept rule):** the totals are folded over every round; the list and the holes a non-owner receives never hold a round its owner hid, and a best set in one has no door (`roundId: null`). The athlete and a guardian see it, marked.
+- **Reads:** `GET /api/profile/[profileId]/sport-profile?sport=golf` → `kind: 'golf'`: the handicap estimate and its history (`fetchHandicapComputation`), `career`, `seasons` (each with its courses), `rounds` (listed, newest first, no holes). `&holes=<year>` → that season's holes by round (`kind: 'golf-holes'`). The sport profile's own gate (`sportProfileViewer`: a block closes it), `private, no-store`. Set-based: rounds in pages of 1,000, holes in batches of 55 rounds.
+- My call: "official or not" is asked per round at the Round level (PR 3) — `resolveResultOrigin` reads one result at a time, and a list of hundreds must not.
+- **The screens** (`GolfProfile`, one lazy chunk on the sport profile's page): **Career** — tiles (handicap estimate, rounds, scoring average, to par, fairways, greens, putts), one row a year with a total, the trends the Sports tab's golf layer used to show (`GolfBreakdown`, for an anonymous viewer too) and the rivals; "Best 18" opens that round. **Season** (`?season=2026`) — tiles, the score kinds (a count opens its holes: `&stat=birdie`), by par, by course (a course filters the round log), the round log. **Round** (`&game=round:<id>`) — score, front and back nine, the scorecard, the athlete's "Edit this round". **Hole** (`&hole=7`) — its numbers, previous and next. A total-only round says it has no hole scores; a round the viewer may not open says it is not available.
+- **`hasSportProfile('golf')` is true:** golf's card on the Sports tab and the profile's sport strip open this page; `?tab=stats&sport=golf` (old links, a challenge's notification) opens the cards. The golf layer on the Sports tab is gone; nothing it showed was dropped.
+- Not yet: a hole's photos and clips and the Clips tab (the next PR); the owner's trends and rounds pages still exist beside it.
+- Pinned by `golf-profile-rules.test.ts`, `view.test.ts`, `e2e/golf-profile-api.spec.ts`, `e2e/golf-profile.spec.ts`.
+
 **Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `e2e/sport-profile-split.spec.ts`, `e2e/sport-profile-unclaimed.spec.ts`, `unclaimed.test.ts`, `e2e/video-placeholder.spec.ts` (the short name, and "Player 1" when kept private), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.

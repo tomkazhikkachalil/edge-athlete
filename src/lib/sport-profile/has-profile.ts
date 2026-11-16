@@ -8,12 +8,13 @@ import type { SportKey } from '@/lib/sports/SportRegistry';
 import { gameHasSides } from '@/lib/videos/game-rules';
 
 /**
- * Every sport with a stat sheet, except track and field — it keeps its
- * personal-best table and race log on the Stats tab — and golf, which has
- * its own tables.
+ * Every sport with a stat sheet, and golf — which has no stat sheet and its
+ * own payload (golf-rules.ts; "one wave" phase 3, Nov 2026). Track and field
+ * still keeps its personal-best table and race log on the Sports tab (phase 4).
  */
 export function hasSportProfile(sportKey: string): boolean {
-  return sportKey !== 'golf' && sportKey !== 'track_field' && !!getStatSchema(sportKey as SportKey);
+  if (sportKey === 'golf') return true;
+  return sportKey !== 'track_field' && !!getStatSchema(sportKey as SportKey);
 }
 
 /**
