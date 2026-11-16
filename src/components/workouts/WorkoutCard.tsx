@@ -25,11 +25,13 @@ interface WorkoutCardProps {
   onDeleted?: () => void;
   /** The session's own page (Training's timeline): it starts open. */
   defaultExpanded?: boolean;
+  /** The session's own page: an exercise's row carries the door to that exercise's page. */
+  onOpenExercise?: (ref: string, name: string) => void;
 }
 
 /** Expandable workout history card for the Training tab. */
 export default function WorkoutCard({
-  session, onOpenPost, isOwnProfile = false, onEdit, onShare, onDeleted, defaultExpanded = false,
+  session, onOpenPost, isOwnProfile = false, onEdit, onShare, onDeleted, defaultExpanded = false, onOpenExercise,
 }: WorkoutCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -178,7 +180,7 @@ export default function WorkoutCard({
           {entries.length === 0 && (
             <p className="text-xs text-muted">No exercises logged.</p>
           )}
-          <WorkoutDetailItems exercises={entries} tone="history" />
+          <WorkoutDetailItems exercises={entries} tone="history" onOpenExercise={onOpenExercise} />
           {session.notes && (
             <p className="text-xs text-muted italic border-t border-border-subtle pt-2">
               {session.notes}

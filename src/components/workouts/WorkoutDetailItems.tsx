@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { exerciseRefOf } from '@/lib/workout-config';
 import MediaLightbox from '@/components/media/MediaLightbox';
 import GroupDetailCard from './GroupDetailCard';
 import ExerciseMediaStrip from './ExerciseMediaStrip';
@@ -34,9 +35,11 @@ interface Props {
   exercises: EntryExercise[];
   /** The host's text tones (the post is violet; the history card is neutral). */
   tone: 'post' | 'history';
+  /** Training's session page: an exercise's name row carries the door to its own page (its identity, its name). */
+  onOpenExercise?: (ref: string, name: string) => void;
 }
 
-export default function WorkoutDetailItems({ exercises, tone }: Props) {
+export default function WorkoutDetailItems({ exercises, tone, onOpenExercise }: Props) {
   const items = useMemo(() => workoutCollageItems(exercises), [exercises]);
   const [viewing, setViewing] = useState<number | null>(null);
   const open = (id: string | null) => {
@@ -58,7 +61,22 @@ export default function WorkoutDetailItems({ exercises, tone }: Props) {
         <GroupDetailCard key={item.group.groupId} kind={item.group.kind} rounds={item.group.rounds} members={item.group.members} tone={tone} onOpenMedia={open} />
       ) : (
         <div key={item.index} className={`rounded-lg border ${cardClass} p-2`} data-post-exercise-card="">
-          <ExerciseName as="p" name={item.exercise.name} className={`text-xs font-bold ${nameClass}`} />
+          {onOpenExercise ? (
+            <div className="flex items-center justify-between gap-2">
+              <ExerciseName as="p" name={item.exercise.name} className={`min-w-0 text-xs font-bold ${nameClass}`} />
+              <button
+                type="button"
+                onClick={() => onOpenExercise(exerciseRefOf(item.exercise.exerciseKey, item.exercise.name), item.exercise.name)}
+                className="ea-interactive -my-2 inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2 text-xs font-semibold text-brand-fg"
+                aria-label={`${item.exercise.name}: bests and history`}
+                data-exercise-door={exerciseRefOf(item.exercise.exerciseKey, item.exercise.name)}
+              >
+                History <span aria-hidden="true" className="ml-1">›</span>
+              </button>
+            </div>
+          ) : (
+            <ExerciseName as="p" name={item.exercise.name} className={`text-xs font-bold ${nameClass}`} />
+          )}
           {item.exercise.notes && <p className="text-xs text-muted italic">{item.exercise.notes}</p>}
           {(() => {
             const media = exerciseMedia(item.exercise);

@@ -215,6 +215,13 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
     // The hosts mirror the tab the same way (replaceState, no navigation): shareable, refresh-stable.
     window.history.replaceState(null, '', `${window.location.pathname}${trainingViewSearch(next)}`);
   };
+  /** From a session's page to an exercise's: a step, so a history entry — Back returns to the session. */
+  const openExercisePage = (ref: string) => {
+    setView('exercises');
+    setHistoryScope({ level: 'all' });
+    setOpenExercise(ref);
+    window.history.pushState(null, '', `${window.location.pathname}${trainingViewSearch('exercises', ref)}`);
+  };
   const changeExercise = (ref: string | null) => {
     setOpenExercise(ref);
     window.history.replaceState(null, '', `${window.location.pathname}${trainingViewSearch('exercises', ref)}`);
@@ -582,6 +589,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
           onEdit={id => router.push(`/app/workout/${id}`)}
           onShare={id => router.push(`/app/workout/${id}?step=preview`)}
           onChanged={() => fetchDataRef.current()}
+          onOpenExercise={openExercisePage}
         />
       ) : (
         <TrainingTimeline profileId={profileId} isOwnProfile={isOwnProfile} scope={historyScope} onScope={openScope} unit={unit} />
@@ -668,7 +676,7 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
       {/* ══ Exercises: one row per exercise, one page per exercise ═════════ */}
       {view === 'exercises' && (
       <>
-      <TrainingExercises profileId={profileId} isOwnProfile={isOwnProfile} openRef={openExercise} onOpen={changeExercise} pins={isSelf ? pins.mine : undefined} onTogglePin={pins.toggle} onBestsChanged={() => void pins.reload()} />
+      <TrainingExercises profileId={profileId} isOwnProfile={isOwnProfile} openRef={openExercise} onOpen={changeExercise} pins={isSelf ? pins.mine : undefined} onTogglePin={pins.toggle} onBestsChanged={() => void pins.reload()} onOpenSession={id => openScope({ level: 'session', id })} />
       </>
       )}
 

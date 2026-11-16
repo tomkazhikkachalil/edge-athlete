@@ -6,7 +6,6 @@
 // page opens from the list on /athlete, /athlete/[id] and /u/[username].
 // Everything shown is what the SERVER folded for this viewer.
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Award, Plus, Trash2 } from 'lucide-react';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -20,7 +19,7 @@ import { isPinned, type TrainingPin } from '@/lib/training/pins';
 import TrainingOverlay from './TrainingOverlay';
 import BodyMetricTrendChart from '@/components/charts/BodyMetricTrendChart';
 import { BODY_AREAS, type BodyArea } from '@/lib/workout-config';
-import { chartKindOf, type ExerciseTimelinePoint } from '@/lib/workouts/exercise-list';
+import { bestSessionOf, chartKindOf, type ExerciseTimelinePoint } from '@/lib/workouts/exercise-list';
 import { formatPr, PR_KIND_RANK, PR_LABELS, type ExerciseBests, type PrKind } from '@/lib/workouts/prs';
 
 interface Detail {
@@ -46,9 +45,11 @@ interface ExerciseDetailOverlayProps {
   /** PR 7: the athlete's own pins and the toggle — a best of one kind pins to the top of Training. */
   pins?: readonly TrainingPin[];
   onTogglePin?: (pin: TrainingPin) => void;
+  /** "One wave", phase 2: a session row — and a best — opens the workout's own page in Training, for a visitor too. */
+  onOpenSession?: (sessionId: string) => void;
 }
 
-export default function ExerciseDetailOverlay({ profileId, exerciseRef, fallbackName, onClose, onChanged, pins, onTogglePin }: ExerciseDetailOverlayProps) {
+export default function ExerciseDetailOverlay({ profileId, exerciseRef, fallbackName, onClose, onChanged, pins, onTogglePin, onOpenSession }: ExerciseDetailOverlayProps) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   // PR 6: a tested max is the athlete's own entry — offered to the athlete, never to a guardian or a visitor.
   const { user } = useAuth();
@@ -116,10 +117,24 @@ export default function ExerciseDetailOverlay({ profileId, exerciseRef, fallback
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {kinds.map(kind => (
                 <div key={kind} className="ea-surface flex items-start gap-1 rounded-lg p-3" data-exercise-best={kind}>
-                  <div className="min-w-0 flex-1">
-                    <dt className="text-xs text-muted">{PR_LABELS[kind]}</dt>
-                    <dd className="mt-0.5 text-lg font-bold text-primary tabular-nums">{formatPr(kind as PrKind, detail.exercise.bests[kind]!, detail.unit)}</dd>
-                  </div>
+                  {(() => {
+                    // A best is a door to the session it was set in (when that session is one this viewer may open).
+                    const setIn = onOpenSession && !detail.sessionsHidden ? bestSessionOf(detail.timeline, kind, detail.exercise.bests[kind]) : null;
+                    const body = (
+                      <>
+                        <dt className="text-xs text-muted">{PR_LABELS[kind]}</dt>
+                        <dd className="mt-0.5 text-lg font-bold text-primary tabular-nums">{formatPr(kind as PrKind, detail.exercise.bests[kind]!, detail.unit)}</dd>
+                        {setIn && <dd className="mt-0.5 text-xs font-semibold text-brand-fg">See the session <span aria-hidden="true">›</span></dd>}
+                      </>
+                    );
+                    return setIn ? (
+                      <div role="button" tabIndex={0} onClick={() => onOpenSession!(setIn)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenSession!(setIn); } }} className="ea-interactive min-w-0 flex-1 cursor-pointer rounded-md" data-exercise-best-door={setIn}>
+                        {body}
+                      </div>
+                    ) : (
+                      <div className="min-w-0 flex-1">{body}</div>
+                    );
+                  })()}
                   {isSelf && pins && onTogglePin && (
                     <PinToggle
                       pinned={isPinned(pins, { kind: 'exercise', ref: detail.exercise.ref, recordKind: kind })}
@@ -225,10 +240,10 @@ export default function ExerciseDetailOverlay({ profileId, exerciseRef, fallback
                   }
                   return (
                     <li key={p.sessionId} data-exercise-session={p.sessionId}>
-                      {detail.isOwner ? (
-                        <Link href={`/app/workout/${p.sessionId}`} className="ea-surface ea-interactive block rounded-lg p-3">
+                      {onOpenSession ? (
+                        <button type="button" onClick={() => onOpenSession(p.sessionId)} className="ea-surface ea-interactive block w-full rounded-lg p-3 text-left" data-exercise-session-door="">
                           {body}
-                        </Link>
+                        </button>
                       ) : (
                         <div className="ea-surface rounded-lg p-3">{body}</div>
                       )}

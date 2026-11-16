@@ -34,9 +34,11 @@ interface TrainingExercisesProps {
   onTogglePin?: (pin: TrainingPin) => void;
   /** A tested max was added or removed: a pinned best's number may have moved. */
   onBestsChanged?: () => void;
+  /** A session row or a best on an exercise's page opens the workout's own page. */
+  onOpenSession?: (sessionId: string) => void;
 }
 
-export default function TrainingExercises({ profileId, isOwnProfile, openRef, onOpen, pins, onTogglePin, onBestsChanged }: TrainingExercisesProps) {
+export default function TrainingExercises({ profileId, isOwnProfile, openRef, onOpen, pins, onTogglePin, onBestsChanged, onOpenSession }: TrainingExercisesProps) {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [reload, setReload] = useState(0);
   // PR 6: the athlete can type in a best for an exercise they never logged here.
@@ -140,7 +142,7 @@ export default function TrainingExercises({ profileId, isOwnProfile, openRef, on
           </div>
         ))}
 
-      {openRef && <ExerciseDetailOverlay profileId={profileId} exerciseRef={openRef} fallbackName={ready?.exercises.find(e => e.ref === openRef)?.name} onClose={() => onOpen(null)} onChanged={() => { setReload(n => n + 1); onBestsChanged?.(); }} pins={pins} onTogglePin={onTogglePin} />}
+      {openRef && <ExerciseDetailOverlay profileId={profileId} exerciseRef={openRef} fallbackName={ready?.exercises.find(e => e.ref === openRef)?.name} onClose={() => onOpen(null)} onChanged={() => { setReload(n => n + 1); onBestsChanged?.(); }} pins={pins} onTogglePin={onTogglePin} onOpenSession={onOpenSession} />}
     </section>
   );
 }

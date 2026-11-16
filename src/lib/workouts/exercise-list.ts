@@ -140,3 +140,17 @@ export function chartKindOf(timeline: readonly ExerciseTimelinePoint[]): PrKind 
   }
   return null;
 }
+
+/**
+ * The session a best was SET in: the newest logged session whose own value for
+ * the kind is the best's (a later session that only equalled it did not set
+ * it — the first to reach the number did). Null when the best is a tested max
+ * or its session is not in the timeline.
+ */
+export function bestSessionOf(timeline: readonly ExerciseTimelinePoint[], kind: PrKind, best: number | null | undefined): string | null {
+  if (best === null || best === undefined) return null;
+  let found: ExerciseTimelinePoint | null = null;
+  // Newest first: keep walking back so the EARLIEST session holding the value wins.
+  for (const p of timeline) if (p.bests[kind] === best) found = p;
+  return found && !found.tested ? found.sessionId : null;
+}

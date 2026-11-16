@@ -104,9 +104,24 @@ test('a visitor sees an exercise\'s bests from the sessions they may open — ne
     const exercisePage = page.locator('[data-exercise-detail="bench_press"]');
     await expect(exercisePage.locator('[data-exercise-best="heaviest"]')).toContainText('195 lbs', { timeout: 30_000 });
     await expect(exercisePage.locator('[data-exercise-session]')).toHaveCount(2);
-    await expect(exercisePage.locator('[data-exercise-session] a')).toHaveCount(0); // a visitor's rows open nothing
+    // "One wave", phase 2: a session row is a door for a visitor too — the workout's own page — and so is a best.
+    await expect(exercisePage.locator('[data-exercise-session] [data-exercise-session-door]')).toHaveCount(2);
+    await expect(exercisePage.locator('[data-exercise-best="heaviest"] [data-exercise-best-door]')).toHaveCount(1);
     await expect(page.getByText('250')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    // The best → the session it was set in → that session's exercise row → back on the exercise's page; Back returns to the session.
+    await exercisePage.locator('[data-exercise-best="heaviest"] [data-exercise-best-door]').click();
+    const sessionPage = page.locator('[data-timeline-level="session"] [data-timeline-session-page]');
+    await expect(sessionPage).toContainText('195', { timeout: 20_000 });
+    await expect(page).toHaveURL(/view=history&session=[0-9a-f-]{36}$/);
+    await expect(page.getByText('250')).toHaveCount(0);
+    await sessionPage.locator('[data-exercise-door="bench_press"]').click();
+    await expect(page).toHaveURL(/view=exercises&exercise=bench_press$/);
+    await expect(exercisePage.locator('[data-exercise-best="heaviest"]')).toContainText('195 lbs', { timeout: 20_000 });
+    await page.goBack();
+    await expect(sessionPage).toBeVisible({ timeout: 20_000 });
+    await page.goForward();
+    await expect(exercisePage).toBeVisible({ timeout: 20_000 });
     await page.getByRole('dialog', { name: 'Bench Press' }).getByRole('button', { name: 'Close' }).click();
     await expect(page.locator('[data-exercise-row="bench_press"] [data-exercise-headline="heaviest"]')).toHaveText('195 lbs');
     await expect(page.locator('[data-exercise-area="other"] [data-exercise-row="db_curl"]')).toBeVisible();
