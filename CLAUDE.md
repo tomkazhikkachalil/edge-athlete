@@ -24,7 +24,7 @@ Required: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE
 npm run dev            # Turbopack dev server → http://localhost:3000
 npm run build          # production build (4 GB heap via NODE_OPTIONS — on purpose)
 npm run start          # serve the build
-npm run typecheck      # tsc --noEmit, 4 GB heap: exit 134 = heap, never a type error
+npm run typecheck      # three tsc programs (app, tests, e2e), 4 GB heap each: exit 134 = heap, never a type error
 npm run lint           # eslint --max-warnings 0 — a warning fails the gate
 npm run test           # vitest, node-only: no jsdom, only pure functions are unit-testable
 npm run verify         # typecheck + lint + test + build + check:syntax — THE GATE, before every commit

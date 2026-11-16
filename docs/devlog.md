@@ -1,5 +1,25 @@
 # Development Log
 
+## November 16, 2026 (18:30) — The type check is three programs, each under the heap
+
+`npm run typecheck` checked the whole repository as one program: 5,712 files and 4.21 GB against the 4 GB heap setting. It passed only on the incremental cache and the collector's slack; the build's type check had failed in exactly this way three times on CI before #1542. The rule is to split the program, never to raise the number.
+
+Now three programs, run one after another, each its own process at the same 4 GB setting (measured cold, `--incremental false --extendedDiagnostics`):
+
+| Program | Config | Files | Memory | Time |
+| --- | --- | --- | --- | --- |
+| the app | `tsconfig.build.json` (the build's own scope) | 4,433 | 3.17 GB | 56 s |
+| unit tests | `tsconfig.tests.json` | 3,619 | 2.35 GB | 17 s |
+| browser specs | `tsconfig.e2e.json` | 2,172 | 1.33 GB | 8 s |
+
+Before: one program, 4.21 GB, 176 s. `npm run typecheck` runs `typecheck:app`, `typecheck:tests`, `typecheck:e2e`; each config keeps its own incremental cache (`tsBuildInfoFile`). `tsconfig.json` is unchanged — it is the editor's config and still covers every file.
+
+The price of a split is a file that falls between the programs and is never checked. `typecheck-coverage.test.ts` pins that none does (every `.ts` / `.tsx` / `.mts` under `src`, `e2e`, `scripts` and the root is in at least one program), that the app program holds no test and no spec, and that the script runs all three. Proof by hand: a type error planted in a test file failed `typecheck:tests`, one in `e2e/` failed `typecheck:e2e`; both removed.
+
+**Found on the way, not fixed here:** `npm audit --omit=dev` reports one moderate advisory on Next 16.3.0–16.4.4 (GHSA-mfr8-8qww-v76h: a `'use cache'` function called through `unstable_cache()`); we are on 16.4.2. The app has no `'use cache'` site (18 `unstable_cache` sites, none wrapping one), so it is not exposed; the patch bump is its own round. `next build` stopped once locally to print that notice and passed on the next run.
+
+**The next ceiling, stated:** the app program alone is 3.17 GB — 79 % of the heap. This removes today's overflow, not the trend; when the app nears 3.6 GB it needs its own split (project references, or the API routes as a program of their own).
+
 ## November 16, 2026 (02:12) — "One wave" is complete: every sport has a profile, Training drills down, and the proof on production
 
 #1543 (phase 5, more doors) merged on its first CI run — no memory failure since the build's type check was split (#1542). Production `3ff2ece7` passed, at phone width: `sport-profile` (with the opponent, period and tile doors) and `feed-toggle` (2).
