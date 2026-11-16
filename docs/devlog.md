@@ -1,5 +1,16 @@
 # Development Log
 
+## November 18, 2026 — Sport profile follow-ups: a block closes a profile, races do not add up, the sport strip opens the sport profile
+
+Tom: "let's do the small fixes" — and that he could not see the new pages on production. Production had them (`7d31f4a3` on both domains); the way in was three taps deep, and golf has no sport profile.
+
+- **Blocked viewers.** The shared visibility check now refuses a signed-in viewer with a block in either direction, and the Stats tab's two older routes (which gate inline) refuse too. Found in Sprint 4 PR 2 and named then.
+- **Races.** Swimming, running, cycling and rowing no longer show a total of times: seasons count the races, the game log shows each race, the bests are below.
+- **The way in.** Tapping a sport on the profile's own sport strip opens its sport profile (golf and track still open the Stats tab's layer). The card says which sports have one, so the profile routes' first load is unchanged.
+- **Seen in the spec's snapshot and fixed:** the switcher offered Golf, which leads nowhere here — it now offers only sports that have a sport profile; and a self-entered level ("AAA") was missing from the header.
+
+Proof on staging: `sport-profile`, `stats-hub-mobile` (its strip test now expects the sport profile), `profile-sports`, `skill-cards-mobile` at phone width; `sport-profile-api` (the block's 403s on the two Stats routes and `canView: false`, then open again), `activities-api`, `stats-same-game`, `video-tag-who` on desktop.
+
 ## November 17, 2026 (evening) — The Stats tab's per-sport breakdown is retired into the sport profile
 
 Tom: "let's retire the old Stats breakdown." It was the one planned step of Sprint 4 left out, because the new game log did not yet say what the old one said about an official line.

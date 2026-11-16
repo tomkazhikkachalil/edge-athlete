@@ -113,8 +113,15 @@ export default function SportProfile({ profileId, name, avatarUrl, cards, sport,
           </nav>
         )}
 
-        {card && card.entered.length > 0 && (
+        {/* What the athlete says about themselves in this sport: the card's own headline when it is self-entered (a level, a position), then the rest. */}
+        {card && (card.entered.length > 0 || card.headline?.provenance === 'entered') && (
           <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm" data-sport-profile-facts="">
+            {card.headline?.provenance === 'entered' && (
+              <div className="flex gap-2">
+                <dt className="text-muted">{card.headline.label}</dt>
+                <dd className="font-medium text-primary">{card.headline.value}</dd>
+              </div>
+            )}
             {card.entered.slice(0, 4).map(item => (
               <div key={item.key} className="flex gap-2">
                 <dt className="text-muted">{item.label}</dt>

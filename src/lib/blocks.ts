@@ -55,6 +55,13 @@ export async function filterBlockedBidirectional(
   return { allowed, skipped: unique.length - allowed.length };
 }
 
+/** Is there a block between these two, in either direction? (Fail-open on a query error, like the filter.) */
+export async function blockedEitherWay(admin: Admin, a: string | null | undefined, b: string | null | undefined): Promise<boolean> {
+  if (!a || !b || a === b) return false;
+  const { allowed } = await filterBlockedBidirectional(admin, a, [b]);
+  return allowed.length === 0;
+}
+
 /**
  * Block blockedId for blockerId (Wave 4 extraction — the messages block
  * route's semantics verbatim, shared with the household blocks loop):

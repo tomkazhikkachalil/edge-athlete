@@ -78,7 +78,7 @@ describe('tagged by someone else', () => {
     // (golf, track); a sport WITH one shows its film in the sport profile's game log instead.
     const hub = read('src/components/stats/StatsHub.tsx');
     expect(hub).toContain('{!(selectedSport && hasSportProfile(selectedSport)) && <GameFilmLines profileId={profileId} sportKey={selectedSport ?? null} />}');
-    expect(hub).toMatch(/return sportKey !== 'golf' && sportKey !== 'track_field' && !!getStatSchema\(sportKey as SportKey\);/);
+    expect(read('src/lib/sport-profile/has-profile.ts')).toMatch(/return sportKey !== 'golf' && sportKey !== 'track_field' && !!getStatSchema\(sportKey as SportKey\);/);
     expect(hub).not.toContain("import StatLineBreakdown from './StatLineBreakdown';");
     // The totals take film ONLY through verifiedFilmGames (a club's or league's, fully tagged, dated) — never the plain tagged list, never stored.
     const route = read('src/app/api/sports/stat-lines/route.ts');

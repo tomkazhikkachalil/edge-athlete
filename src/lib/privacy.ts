@@ -6,6 +6,7 @@
  */
 
 import { getSupabaseAdmin } from './auth-server';
+import { blockedEitherWay } from '@/lib/blocks';
 import { FEATURE_FLAGS } from './features';
 
 export type ProfileVisibility = 'public' | 'private';
@@ -99,8 +100,16 @@ export async function canViewProfile(
     };
   }
 
+  // A block in either direction closes the profile to a signed-in viewer (Nov 2026): it reads as a profile they
+  // cannot view — never as "blocked". Asked only on the two paths that would let them in. (A guardian's access row
+  // above is not a viewer's: it is not closed by a block.)
+  const blocked = async (): Promise<PrivacyCheckResult | null> =>
+    (await blockedEitherWay(supabaseAdmin, currentUserId, profileId)) ? { canView: false, limitedAccess: true, reason: 'not_following' } : null;
+
   // Public profile - anyone can view
   if (profile.visibility === 'public') {
+    const closed = await blocked();
+    if (closed) return closed;
     return {
       canView: true,
       limitedAccess: false,
@@ -117,6 +126,8 @@ export async function canViewProfile(
     .maybeSingle();
 
   if (followRelation?.status === 'accepted') {
+    const closed = await blocked();
+    if (closed) return closed;
     return {
       canView: true,
       limitedAccess: false,

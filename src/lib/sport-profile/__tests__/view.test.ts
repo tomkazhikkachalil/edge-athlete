@@ -41,6 +41,12 @@ describe('which sport opens (Tom, Nov 15 2026: the athlete\'s own order)', () =>
   it('the switcher offers the sports with a stats door, in the order given', () => {
     expect(switcherSports(cards).map(c => c.sportKey)).toEqual(['soccer', 'basketball']);
   });
+  it('a sport with no sport profile (golf, track) is not offered, and a link to it opens the first that has one', () => {
+    const mixed = [{ sportKey: 'golf', enabled: true, sportProfile: false }, { sportKey: 'ice_hockey', enabled: true, sportProfile: true }, { sportKey: 'soccer', enabled: true }];
+    expect(switcherSports(mixed).map(c => c.sportKey)).toEqual(['ice_hockey', 'soccer']);
+    expect(landingSport(mixed, 'golf')).toBe('ice_hockey');
+    expect(landingSport([{ sportKey: 'golf', enabled: true, sportProfile: false }], 'golf')).toBeNull();
+  });
   it('a link that names a sport the athlete has opens it; anything else opens the first in their order', () => {
     expect(landingSport(cards, 'basketball')).toBe('basketball');
     expect(landingSport(cards, 'tennis')).toBe('soccer');

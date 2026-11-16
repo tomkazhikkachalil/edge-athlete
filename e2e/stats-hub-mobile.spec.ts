@@ -61,7 +61,8 @@ test('@mobile anonymous /u/ deep link lands on the golf hub layer', async ({ bro
   await context.close();
 });
 
-test('@mobile /u/ Overview strip-tap opens the Stats section on that sport', async ({ browser }) => {
+// Since Nov 2026 a sport WITH a sport profile opens it from the strip (golf and track still open the Stats section's layer).
+test('@mobile /u/ Overview strip-tap opens that sport\'s profile', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     storageState: 'e2e/.auth/anon.json',
@@ -73,8 +74,9 @@ test('@mobile /u/ Overview strip-tap opens the Stats section on that sport', asy
   await sports.scrollIntoViewIfNeeded();
   await sports.getByRole('button', { name: 'Ice Hockey stats' }).click();
 
-  const header = page.getByRole('region', { name: 'Ice Hockey stats' });
-  await expect(header.getByText('AAA', { exact: true })).toBeVisible({ timeout: 15_000 });
-  expect(page.url()).toContain('tab=stats&sport=ice_hockey');
+  await expect(page).toHaveURL(new RegExp(`/u/${probeHandle()}/sport/ice_hockey$`), { timeout: 15_000 });
+  const profile = page.locator('[data-sport-profile="ice_hockey"]');
+  await expect(profile).toBeVisible({ timeout: 15_000 });
+  await expect(profile.locator('[data-sport-profile-facts]').getByText('AAA', { exact: true })).toBeVisible({ timeout: 15_000 });
   await context.close();
 });

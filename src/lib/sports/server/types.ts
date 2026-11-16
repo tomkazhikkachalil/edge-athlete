@@ -78,6 +78,8 @@ export interface SportSkillCard {
   /** Nov 14 2026 (Tom: the card stays the VERIFIED record): when the tiles are official lines only, how many of the
    *  athlete's own posted games the Stats tab counts besides them — so the card can say why its count is smaller. */
   selfPostedGames?: number;
+  /** The sport has a sport profile (career, seasons, games, clips) — the strip's tap opens it. Optional so an older cached card still parses. */
+  sportProfile?: boolean;
 }
 
 /** That sport's `sport_settings.settings`, fetched once by the dispatcher. */

@@ -128,12 +128,14 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
         <Tiles tiles={summary.tiles} />
       </div>
 
+      {data.sums && (
       <div>
         <h3 className="mb-3 text-lg font-bold text-primary">Season totals</h3>
         <StatTable caption={`${sportLabel} ${seasonTitle(season)} totals`} leadLabel="" countLabel="GP" columns={data.columns} rows={[{ id: 'totals', lead: seasonTitle(season), count: summary.games, stats: summary.totals, door: k => ((summary.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season, stat: k })}` : null) }]} />
       </div>
+      )}
 
-      {opponents.rows.length > 0 && (
+      {data.sums && opponents.rows.length > 0 && (
         <div data-sport-split="opponent">
           <h3 className="mb-3 text-lg font-bold text-primary">By opponent</h3>
           <StatTable
@@ -149,7 +151,7 @@ export default function SeasonView({ data, season, basePath, sportLabel, onShowH
         </div>
       )}
 
-      {periods.length > 1 && data.period && (
+      {data.sums && periods.length > 1 && data.period && (
         <div data-sport-split="period">
           <h3 className="mb-1 text-lg font-bold text-primary">By {data.period.noun.toLowerCase()}</h3>
           <p className="mb-3 text-sm text-muted">From game film only — an official line or a posted game has no {data.period.noun.toLowerCase()}s, so these need not add up to the season.</p>

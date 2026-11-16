@@ -143,10 +143,16 @@ test('the sport profile reads career, season, game and play from the tags; the n
       expect((await strangerApi.get(`${base}/sport-profile?sport=soccer`)).status()).toBe(404);
       expect((await strangerApi.get(`${base}/sport-clips?sport=soccer`)).status()).toBe(404);
       expect((await strangerApi.get(`/api/videos/tagged?profileId=${athlete.id}`)).status()).toBe(404);
+      //    …and (Nov 2026) the profile itself and the Stats tab's older routes: a profile they cannot view, never "blocked".
+      expect((await strangerApi.get(`/api/sports/stat-lines?profileId=${athlete.id}&sport=soccer`)).status()).toBe(403);
+      expect((await strangerApi.get(`/api/performance/rollups?profileId=${athlete.id}&sport=soccer`)).status()).toBe(403);
+      expect(((await (await strangerApi.get(`/api/profile?id=${athlete.id}`)).json()) as { canView?: boolean }).canView).toBe(false);
     } finally {
       await admin.from('user_blocks').delete().eq('blocker_id', athlete.id).eq('blocked_id', stranger.id);
     }
     expect((await strangerApi.get(`${base}/sport-profile?sport=soccer`)).status()).toBe(200);
+    expect((await strangerApi.get(`/api/sports/stat-lines?profileId=${athlete.id}&sport=soccer`)).status()).toBe(200);
+    expect(((await (await strangerApi.get(`/api/profile?id=${athlete.id}`)).json()) as { canView?: boolean }).canView).toBe(true);
     // A sport with no stat sheet here answers that plainly.
     const golf = await athleteApi.get(`${base}/sport-profile?sport=golf`);
     expect(((await golf.json()) as { supported: boolean }).supported).toBe(false);
