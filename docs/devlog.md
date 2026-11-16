@@ -1,5 +1,13 @@
 # Development Log
 
+## November 18, 2026 (night, 5) — "One wave", phase 2 closes: the two older Training reads go through the one gate
+
+`GET /api/workouts?profileId=` and `GET /api/vitals?profileId=` kept their own visibility + follow check, which never asked about a block, and set no cache header. Both now ask `resolveActivityAccess` (blocks either way, a departed athlete, a guardian as the owner) and answer `private, no-store`. With #1533 (the single workout) every Training read has the same gate.
+
+Found while sweeping, not from this program: `feed-toggle` fails on staging — after Edit post → "Post to feed" off, the feed still shows the card. The feed's `handlePostUpdated` reloads without invalidating the client cache (delete does); since the Nov 7 open-path cache. Its own PR follows.
+
+Proof on staging: phone — `training-timeline` (both reads 200 + `private, no-store` for a visitor, 403 once blocked, the owner's 200), `training-mobile`, `training-pins`, `training-history`, `activities-profile`, `profile-buckets` green; desktop `training` green. 6,436 unit tests.
+
 ## November 18, 2026 (night, 4) — "One wave", phase 2, PR 4: the exercise page reaches down and across — Training's drill-down is whole
 
 PR 3 (#1534) merged on green. On an exercise's page a session row opens the workout's own page (for a visitor too) and a best opens the session it was set in; on a session's page each exercise has "History ›" to its own page, and Back returns. With this the walk is whole: Overview → week → session → exercise → the session a best was set in, and Year → Month → Week → Session from History.

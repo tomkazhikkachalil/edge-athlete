@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { filterTrainingRows, aspectHidden } from '@/lib/training-privacy';
 import { fetchTrainingPrivacy } from '@/lib/training-privacy-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { reportRouteError } from '@/lib/observability/report';
 import { TESTED_MAX_SOURCE, TESTED_MAX_SOURCES } from '@/lib/workouts/tested-max';
+import { resolveActivityAccess } from '@/lib/activities/read-server';
 
 /**
  * GET /api/vitals?profileId=xxx
  * Returns all body-metrics entries + training posts + athlete birthday for a profile.
  * Public profiles are visible without auth; private profiles require owner auth.
  */
+// Viewer-dependent (the owner's rows, a follower's, a block): every answer is `private, no-store`.
 export async function GET(request: NextRequest) {
+  const response = await readTrainingRows(request);
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
+}
+
+async function readTrainingRows(request: NextRequest): Promise<NextResponse | Response> {
   try {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
@@ -45,30 +53,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    // Guardian parity (Family Console Wave 1): a guardian reads their managed
-    // athlete's data exactly as the owner does. This check used to be
-    // owner-only, which sent guardians down the follower/privacy path —
-    // "guardian-blind". Lazy: the role lookup only runs for non-owners.
-    const isOwner = currentUserId === profileId ||
-      (!!currentUserId && (await getProfileRole(currentUserId, profileId)) === 'guardian');
-    const isPublic = profile.visibility === 'public';
-
-    if (!isOwner && !isPublic) {
-      // Allow approved followers to view a private profile's body metrics
-      if (!currentUserId) {
-        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
-      }
-      const { data: followRecord } = await supabase
-        .from('follows')
-        .select('id')
-        .eq('follower_id', currentUserId)
-        .eq('following_id', profileId)
-        .eq('status', 'accepted')
-        .maybeSingle();
-      if (!followRecord) {
-        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
-      }
+    // The ONE gate of Training's readers (resolveActivityAccess — "one wave" phase 2, Nov 2026): a block either
+    // way, a departed athlete, a private profile's accepted followers, and a guardian as the owner. This route kept
+    // its own visibility + follow check until now, which never asked about a block.
+    const access = currentUserId === profileId ? ({ ok: true, audience: 'owner' } as const) : await resolveActivityAccess(supabase, currentUserId, profileId);
+    if (!access.ok) {
+      return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
     }
+    const isOwner = access.audience === 'owner';
 
     // Training privacy (migration 122): the profile itself is viewable, so a
     // master-hidden section answers 200 with a hidden flag and empty

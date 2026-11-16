@@ -129,6 +129,15 @@ describe('training timeline', () => {
     expect(get).toContain("session.status !== 'completed' || session.profile_hidden_at || !session.share_decided_at");
   });
 
+  it('the workouts list and the body-metrics read go through the one gate too, and every answer is no-store', () => {
+    for (const file of ['api/workouts', 'api/vitals']) {
+      const route = readFileSync(join(__dirname, '../../app', file, 'route.ts'), 'utf8');
+      expect(route, file).toContain('await resolveActivityAccess(supabase, currentUserId, profileId)');
+      expect(route, file).not.toContain(".from('follows')");
+      expect(route, file).toMatch(/export async function GET\(request: NextRequest\) \{\n {2}const response = await \w+\(request\);\n {2}response\.headers\.set\('Cache-Control', 'private, no-store'\);/);
+    }
+  });
+
   it('the words', () => {
     expect(totalTimeLabel(2700)).toBe('45 min');
     expect(totalTimeLabel(5400)).toBe('1 h 30 min');
