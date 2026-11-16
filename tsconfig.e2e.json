@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./tsconfig.e2e.tsbuildinfo"
+  },
+  "include": [
+    "src/**/*.d.ts",
+    "playwright.config.ts",
+    "e2e/**/*.ts",
+    "e2e/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
