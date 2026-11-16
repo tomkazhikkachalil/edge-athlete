@@ -568,7 +568,7 @@ export default function PublicProfilePage() {
             overflow-hidden is the Training lesson (CLAUDE.md). */}
         <div className="mt-4 -mx-4 px-4 overflow-x-auto">
           <nav className="inline-flex gap-2 p-1 bg-surface-sunken rounded-xl whitespace-nowrap" aria-label="Profile sections">
-            {([['overview', 'Overview'], ['videos', 'Videos'], ['stats', 'Stats'], ['training', 'Training'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
+            {([['overview', 'Overview'], ['videos', 'Videos'], ['stats', 'Sports'], ['training', 'Training'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
               <button
                 key={section}
                 onClick={() => switchSection(section)}

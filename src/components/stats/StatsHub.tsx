@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 
 /**
  * The profile's Stats hub — the home for everything performance-related.
@@ -49,13 +48,14 @@ type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
 /** `?sport=` arrives from the URL; anything not among the athlete's active
- *  sports degrades to null — the All layer. */
+ *  sports degrades to null — the All layer. So does a sport that has a sport
+ *  profile (Nov 2026): it keeps no layer here, its card is the door. */
 export function parseStatsSport(
   value: string | null | undefined,
   cards: SportSkillCard[] | undefined
 ): string | null {
   if (!value || !cards) return null;
-  return cards.some(c => c.sportKey === value) ? value : null;
+  return cards.some(c => c.sportKey === value) && !hasSportProfile(value) ? value : null;
 }
 
 /** Search matches are computed over what the hub has LOADED. */
@@ -298,44 +298,13 @@ export default function StatsHub({
 
   return (
     <div data-testid="stats-hub">
-      {/* Layered navigation: All + one chip per sport the athlete plays —
-          flipping between sports is one tap, no menus (explore-page chip
-          pattern). Chips are NAVIGATION, so they sit above the FilterBar and
-          are not part of its clear-all. */}
-      {(skillCards?.length ?? 0) > 0 && (
-        <div
-          className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-4 -mx-4 px-4 sm:mx-0 sm:px-0"
-          role="tablist"
-          aria-label="Sport"
-        >
-          <button
-            role="tab"
-            aria-selected={selectedSport === null}
-            onClick={() => handleSportChip(null)}
-            className={`shrink-0 min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-              selectedSport === null
-                ? 'bg-brand text-white border-brand'
-                : 'bg-surface text-secondary border-border-strong hover:bg-surface-sunken'
-            }`}
-          >
-            All Sports
-          </button>
-          {(skillCards ?? []).filter(card => card.enabled !== false).map(card => (
-            <button
-              key={card.sportKey}
-              role="tab"
-              aria-selected={selectedSport === card.sportKey}
-              onClick={() => handleSportChip(card.sportKey)}
-              className={`shrink-0 min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-                selectedSport === card.sportKey
-                  ? 'bg-brand text-white border-brand'
-                  : 'bg-surface text-secondary border-border-strong hover:bg-surface-sunken'
-              }`}
-            >
-              {card.sportLabel}
-            </button>
-          ))}
-        </div>
+      {/* The Sports tab (Nov 2026; Tom: one card per sport, a tap opens that sport's profile). The chip row is gone:
+          a sport with a profile opens it from its card; golf and track — until their profiles land — open the layer
+          they keep here, and this is the way back from it. */}
+      {selectedSport && (
+        <button type="button" onClick={() => handleSportChip(null)} className="ea-interactive mb-4 inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium text-primary" data-sports-all="">
+          <span aria-hidden="true">←</span> All sports
+        </button>
       )}
 
       {/* Sport layer: the compact expandable breakdown header — the short
@@ -352,23 +321,9 @@ export default function StatsHub({
           ) : card.sportKey === 'track_field' ? (
             <TrackBreakdown profileId={profileId} card={card} />
           ) : undefined;
-        // Every other sport with a stat sheet: its full breakdown — career, seasons, the game log, the film and the clips —
-        // IS the sport profile (Sprint 4; retired here Nov 2026). The card stays the short intro; the door is the breakdown.
-        const profiled = hasSportProfile(card.sportKey);
         return (
           <>
             <SportBreakdownHeader card={card}>{breakdown}</SportBreakdownHeader>
-            {/* Sprint 4: the sport's own profile — career, seasons, every game. Only where the sport has a stat sheet. */}
-            {profiled && (
-              <Link
-                href={sportProfileHref ? sportProfileHref(card.sportKey) : `/athlete/${profileId}/sport/${card.sportKey}`}
-                className="ea-cta mb-4 inline-flex min-h-[44px] items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white"
-                data-sport-profile-door={card.sportKey}
-              >
-                Full breakdown: career, seasons, games and clips
-                <span aria-hidden="true">→</span>
-              </Link>
-            )}
             {/* Play (244): head-to-head in this sport — the athlete chooses what shows. */}
             <RivalsPanel profileId={profileId} sportKey={card.sportKey} />
             {/* Play (244): friend challenges — the athlete's own, never shown to visitors. */}
@@ -392,6 +347,13 @@ export default function StatsHub({
             isOwner={false}
             initialCards={skillCards}
             sectionId="stats-hub-sports"
+            door={card =>
+              card.enabled === false
+                ? null
+                : hasSportProfile(card.sportKey)
+                  ? { href: sportProfileHref ? sportProfileHref(card.sportKey) : `/athlete/${profileId}/sport/${card.sportKey}` }
+                  : { onOpen: () => handleSportChip(card.sportKey) }
+            }
           />
         </div>
       )}

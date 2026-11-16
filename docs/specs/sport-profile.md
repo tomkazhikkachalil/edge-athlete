@@ -103,4 +103,13 @@ Tom, Nov 15 2026: such a player gets "a public page, marked unclaimed", and "aut
 - **The sport strip opens the sport profile.** On the profile's own sport strip (all three routes) a sport WITH a sport profile opens it in one tap; golf and track open the Stats tab's layer as before. The skill card says which (`sportProfile`, set on the server by `hasSportProfile`), so a profile route needs no stat sheet to know and its first load is unchanged.
 - **The switcher offers only sports that have a sport profile** (`switcherSports`); a link naming one that does not (golf) opens the first that does. The header shows what the athlete says about themselves in the sport — the card's headline when it is self-entered (a level), then the rest.
 
+## The Sports tab (Nov 18 2026 — the "one wave" program, phase 1)
+
+Tom: the profile's tabs stay seven, and **Stats is renamed Sports** — "one card per sport, a tap opens that sport's profile". The tab's id and address stay `stats` (`?tab=stats`): links and specs hold; only the name people read changed (`ProfileMediaTabs`, and the section on `/u/`).
+
+- **The tab is the sport cards** (`SportSkillCards` with its `door`): a card of a sport WITH a sport profile is a link to it (`data-sport-profile-door`); golf and track — until their profiles land — open the layer they still keep on the tab (`data-sport-layer-door`), and that layer has the way back, "← All sports" (`data-sports-all`). **The chip row is gone.** `?tab=stats&sport=<a sport with a profile>` opens the cards (`parseStatsSport`).
+- Under the cards, as before: the athlete's own challenges, "From game film" across sports, and the grid of posts with data.
+- **Head-to-head (rivals)** for a sport with a profile moved to that profile's Career view; golf and track keep it on their layer.
+- A card's own line now reads "+N self-posted games in the sport's profile".
+
 **Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `e2e/sport-profile-split.spec.ts`, `e2e/sport-profile-unclaimed.spec.ts`, `unclaimed.test.ts`, `e2e/video-placeholder.spec.ts` (the short name, and "Player 1" when kept private), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.

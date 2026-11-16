@@ -1,5 +1,13 @@
 # Development Log
 
+## November 18, 2026 (later) — "One wave", phase 1: the Stats tab is the Sports tab
+
+Tom, after seeing phone screenshots of a sample sport profile (staging only): "I want more drill down ability… it needs to include all sports, including golf and track… most people are only focused on fitness. So let's start building up so everything is on the same wave." His decisions: the tabs stay seven with **Stats renamed Sports** (one card per sport, a tap opens that sport's profile); **Training stays its own tab**, deepened Year → Month → Week → Session; more doors on the sport pages, fundamentals first. Five phases: the Sports tab, Training, golf, track and the race sports, more doors. Comparing two seasons is not in this round.
+
+**Phase 1.** The tab reads Sports (its address is still `?tab=stats`). It is the sport cards: a card of a sport with a profile is the link to it; golf and track open the layer they keep until their profiles land, with "← All sports" back. The chip row is gone. Rivals for a sport with a profile moved into its Career view. Also from the earlier follow-ups round (#1530): production `2fbe089b` passed `sport-profile-api` on desktop and `sport-profile` at phone width.
+
+Proof on staging: phone — `stats-hub-mobile`, `skill-cards-mobile`, `performance-rollups`, `sport-profile`, `profile-buckets`, `profile-sports` 8 / 8; desktop — `stats-same-game`, `play-rivals`, `play-challenges`, `video-film-official`, `video-tagged-profile`, `composer-default-general`, `profile-buckets` 11 / 11.
+
 ## November 18, 2026 — Sport profile follow-ups: a block closes a profile, races do not add up, the sport strip opens the sport profile
 
 Tom: "let's do the small fixes" — and that he could not see the new pages on production. Production had them (`7d31f4a3` on both domains); the way in was three taps deep, and golf has no sport profile.

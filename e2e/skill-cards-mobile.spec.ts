@@ -76,9 +76,9 @@ test('@mobile own /athlete strip row opens the Stats hub, whose golf breakdown l
   // Tap the row: the Stats hub opens pinned with the golf chip active.
   await sports.getByRole('button', { name: 'Golf stats' }).click();
   await expect(page).toHaveURL(/tab=stats&sport=golf/);
-  const tablist = page.getByRole('tablist', { name: 'Sport' });
-  await expect(tablist.getByRole('tab', { name: 'Golf' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
-  await expect(tablist.getByRole('tab', { name: 'Golf' })).toBeInViewport();
+  // The Sports tab (Nov 2026): no chip row — golf's layer is open, with the way back to every sport.
+  await expect(page.locator('[data-sports-all]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('region', { name: 'Golf stats' })).toBeInViewport();
 
   // Owner path to the full trends page now lives inside the expanded
   // breakdown.

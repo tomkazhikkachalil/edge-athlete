@@ -88,7 +88,7 @@ test('an official line and the athlete\'s own post of the same game count once â
     //    The sport card on the Stats tab stays the VERIFIED record, and says why its count is smaller.
     const hub = await ctx.newPage();
     await hub.goto(`/athlete/${athlete.id}?tab=stats&sport=ice_hockey`);
-    await expect(hub.locator('[data-skill-self-posted]').first()).toContainText(/Verified games only\. \+\d+ self-posted games? counted in the breakdown\./, { timeout: 30_000 });
+    await expect(hub.locator('[data-skill-self-posted]').first()).toContainText(/Verified games only\. \+\d+ self-posted games? in the sport's profile\./, { timeout: 30_000 });
     await hub.close();
 
     // 4. "These are two different games" (migration 309): a doubleheader. Nobody else can say it for the athleteâ€¦
