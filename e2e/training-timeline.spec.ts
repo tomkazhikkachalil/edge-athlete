@@ -152,9 +152,19 @@ test('the timeline: years → a year\'s months → a month\'s weeks → a week\'
     expect(open.status()).toBe(200);
     expect(open.headers()['cache-control']).toBe('private, no-store');
     expect((await ownerApi.get(`/api/workouts/${idOf('QA tl undecided')}`)).status()).toBe(200);
+    // The two older Training reads answer the visitor, privately — until the block.
+    for (const path of [`/api/workouts?profileId=${owner.id}`, `/api/vitals?profileId=${owner.id}`]) {
+      const read = await visitorApi.get(path);
+      expect(read.status(), path).toBe(200);
+      expect(read.headers()['cache-control'], path).toBe('private, no-store');
+    }
     const { error: blockErr } = await admin.from('user_blocks').insert({ blocker_id: owner.id, blocked_id: visitor.id });
     expect(blockErr, blockErr?.message).toBeNull();
     expect((await visitorApi.get(`/api/workouts/${idOf('QA tl A')}`)).status()).toBe(403);
+    for (const path of [`/api/workouts?profileId=${owner.id}`, `/api/vitals?profileId=${owner.id}`, `/api/profile/${owner.id}/training/timeline`]) {
+      expect((await visitorApi.get(path)).status(), path).toBeGreaterThanOrEqual(403);
+    }
+    expect((await ownerApi.get(`/api/workouts?profileId=${owner.id}`)).status()).toBe(200);
   } finally {
     await ctx.close();
     await ownerApi.dispose();

@@ -31,7 +31,8 @@ const GATE_RE =
 /** Gates that scope access to a PROFILE (not just "some session exists").
  *  requireAdmin qualifies: admin surfaces act cross-profile by design. */
 const PROFILE_GATE_RE =
-  /\b(requireProfileRole|resolveActingProfile|getProfileRole|mayManagePostMedia|canViewProfile|requireAdmin|requireModerator)\b/;
+  // resolveActivityAccess (activities/read-server.ts) is Training's one gate: getProfileRole + canViewProfile + blocks + departed.
+  /\b(requireProfileRole|resolveActingProfile|getProfileRole|mayManagePostMedia|canViewProfile|resolveActivityAccess|requireAdmin|requireModerator)\b/;
 
 /**
  * Routes that are deliberately public — no cookie auth at all. Each entry
