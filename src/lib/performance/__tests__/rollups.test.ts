@@ -60,6 +60,13 @@ describe('computeRollups', () => {
     expect(many.trend[0].date < many.trend[TREND_LENGTH - 1].date).toBe(true);
   });
 
+  it('a pace is best LOW in a sport whose headline is a distance; its distance is still best high', () => {
+    const running = getStatSchema('running')!;
+    const t = computeRollups(running, [row('2026-05-01', { distance_km: 10, pace_s_per_km: 300 }), row('2026-05-08', { distance_km: 5, pace_s_per_km: 280 })]);
+    expect(t.career.bests.find(x => x.key === 'pace_s_per_km')).toMatchObject({ value: 280, date: '2026-05-08' });
+    expect(t.career.bests.find(x => x.key === 'distance_km')).toMatchObject({ value: 10, date: '2026-05-01' });
+  });
+
   it('a lower-is-better sport takes the minimum as the best', () => {
     const track = getStatSchema('track_field');
     if (!track) return; // not a stat-line sport in this build

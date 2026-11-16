@@ -279,7 +279,7 @@ Tom: "sometimes there are too many personal bests, we need to group and store in
 - **Routes:** `GET /api/profile/[profileId]/training/pins` (`private, no-store`; `mine` for the athlete alone); `PUT /api/training/pins { pins }` — the whole list for the session's own profile, 400 and nothing written unless it parses (`parsePins`).
 - Pinned by `training-pins.test.ts`, `e2e/training-pins.spec.ts`.
 
-## The timeline: Year → Month → Week → Session ("one wave", phase 2, PR 1 — Nov 18 2026)
+## The timeline: Year → Month → Week → Session ("one wave", phase 2, PR 1 — Nov 15 2026)
 
 Tom: Training stays its own tab, deepened in place — **Year → Month → Week → Session**. One rule with the sport profiles: a level has its own address, Back walks up, a number is a door.
 

@@ -101,6 +101,53 @@ export function totalsOf(games: readonly ProfileGame[], keys?: readonly string[]
   return { games: n, totals };
 }
 
+/**
+ * How one column is carried up a level ("one wave" phase 4, Nov 2026). A game
+ * with two sides adds up (goals, points). A race does not add up as a whole —
+ * but not every number of a race is a time: distance and moving time DO add
+ * up, a pace or a race time is a BEST (the lowest), a maximum is the highest,
+ * and an average is averaged. Decided by the field's own key, so a new race
+ * sheet needs no rule of its own.
+ */
+export type ColumnRule = 'sum' | 'low' | 'high' | 'avg';
+export function columnRule(key: string, sums: boolean): ColumnRule {
+  if (sums) return 'sum';
+  if (/^(time_|pace_)/.test(key)) return 'low';
+  if (/^max_/.test(key)) return 'high';
+  if (/^avg_/.test(key)) return 'avg';
+  return 'sum';
+}
+
+export interface Aggregate extends Totals {
+  /** For a best (`low` / `high`): the counted game it was set in — the first to reach it. What the number opens. */
+  bestIn: Record<string, string>;
+}
+
+/** A level's numbers over the COUNTED games, each column by its own rule. For a sport that adds up this is `totalsOf`. */
+export function aggregateOf(games: readonly ProfileGame[], keys: readonly string[], ruleOf: (key: string) => ColumnRule): Aggregate {
+  const counted = games.filter(g => g.counted).slice().sort((a, b) => (a.date ?? '9999') < (b.date ?? '9999') ? -1 : (a.date ?? '9999') > (b.date ?? '9999') ? 1 : a.key < b.key ? -1 : 1);
+  const totals: Stats = {};
+  const bestIn: Record<string, string> = {};
+  for (const key of keys) {
+    const rule = ruleOf(key);
+    let sum = 0, n = 0;
+    let best: number | null = null;
+    for (const g of counted) {
+      const v = g.stats[key];
+      if (typeof v !== 'number' || !Number.isFinite(v) || v === 0) continue;
+      sum += v;
+      n += 1;
+      if ((rule === 'low' && (best === null || v < best)) || (rule === 'high' && (best === null || v > best))) {
+        best = v;
+        bestIn[key] = g.key;
+      }
+    }
+    if (n === 0) continue;
+    totals[key] = rule === 'sum' ? sum : rule === 'avg' ? Math.round((sum / n) * 10) / 10 : best!;
+  }
+  return { games: counted.length, totals, bestIn };
+}
+
 /** Level 1: the career line. */
 export function careerOf(games: readonly ProfileGame[], keys?: readonly string[]): Totals {
   return totalsOf(games, keys);

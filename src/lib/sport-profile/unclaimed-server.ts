@@ -2,7 +2,7 @@
  * Unclaimed profiles — the reads and the one writer (Sprint 4 PR 6b,
  * migration 312). Server only. The rules are unclaimed.ts.
  *
- * An approved request MOVES THE FILM (Tom, Nov 16 2026): the placeholder's
+ * An approved request MOVES THE FILM (Tom, Nov 15 2026): the placeholder's
  * tags on the deciding organization's videos become the requester's own,
  * through the writer that already does it for "this is me" on a video
  * (linkTagTarget). There is no account merge: the placeholder, its roster

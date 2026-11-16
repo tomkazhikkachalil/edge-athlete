@@ -83,9 +83,12 @@ function tiles(schema: SportStatSchema, lines: StatLineData[]): RollupTile[] {
 }
 
 function bests(schema: SportStatSchema, rows: Array<{ date: string; stats: Record<string, number> }>): RollupBest[] {
-  const lower = headlineDirection(schema.sport_key) === 'lower';
+  const sportLower = headlineDirection(schema.sport_key) === 'lower';
   const out: RollupBest[] = [];
   for (const f of schema.fields) {
+    // The direction is the FIELD's, not only the sport's (Nov 2026): a pace or a race time is best LOW in any
+    // sport — a runner's "best pace" used to be their slowest, because running's headline is a distance.
+    const lower = sportLower || /^(time_|pace_)/.test(f.key);
     let best: { value: number; date: string } | null = null;
     for (const r of rows) {
       const v = r.stats[f.key];

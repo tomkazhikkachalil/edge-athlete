@@ -32,7 +32,8 @@ import { blockedEitherWay } from '@/lib/blocks';
 import { readFilmHidden } from './film-hide-server';
 import { sportSums } from './has-profile';
 import { unclaimedPageOpen } from './unclaimed-open-server';
-import { careerOf, clipCounts, clipCountsOfGame, cutHeld, filmOfGame, forViewer, seasonsOf, type ProfileClip, type ProfileGame, type Stats } from './rules';
+import { aggregateOf, clipCounts, clipCountsOfGame, columnRule, cutHeld, filmOfGame, forViewer, seasonsOf, type ColumnRule, type ProfileClip, type ProfileGame, type Stats } from './rules';
+import { statFormatOf, type StatFormat } from './view';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the admin client is untyped across the app
 type Admin = SupabaseClient<any, 'public', any>;
@@ -335,12 +336,14 @@ export interface SportProfileGameRow {
 
 export interface SportProfilePayload {
   sport: string;
-  columns: Array<{ key: string; label: string; short: string }>;
+  /** `rule`: how the column is carried up a level (a sum, a best, an average); `format`: how its number reads. */
+  columns: Array<{ key: string; label: string; short: string; rule: ColumnRule; format: StatFormat }>;
   period: { noun: string; short: string } | null;
   /** The sport's numbers add up (a game with sides). False for a race: counts and bests, never a total of times. */
   sums: boolean;
-  career: { games: number; totals: Stats; tiles: Array<{ label: string; value: string | null }>; clips: Stats };
-  seasons: Array<{ key: string; games: number; totals: Stats; from: string | null; to: string | null; tiles: Array<{ label: string; value: string | null }>; clips: Stats }>;
+  /** `bestIn`: for a column that is a best, the game it was set in — what the number opens. */
+  career: { games: number; totals: Stats; bestIn: Record<string, string>; tiles: Array<{ label: string; value: string | null }>; clips: Stats };
+  seasons: Array<{ key: string; games: number; totals: Stats; bestIn: Record<string, string>; from: string | null; to: string | null; tiles: Array<{ label: string; value: string | null }>; clips: Stats }>;
   games: SportProfileGameRow[];
   /** Games in the totals whose own line this viewer has not chosen to see. */
   held: number;
@@ -359,17 +362,23 @@ export function sportProfilePayload(read: SportProfileRead, showHeld: boolean): 
     return schema.profileTiles.map(t => ({ label: t.label, value: lines.length === 0 ? null : computeProfileTile(t, lines) }));
   };
   const seasonOf = (g: ProfileGame): string | null => (g.date ? read.seasonKeyOf(g.date) : null);
-  const career = careerOf(read.games, read.statKeys);
+  // Each column by its own rule (one wave, phase 4): a sport that adds up sums every column — the numbers it always had.
+  const sums = sportSums(read.sportKey);
+  const ruleOf = (key: string) => columnRule(key, sums);
+  // A best opens the game it was set in — only when that game's row is one this viewer is sent.
+  const sent = new Set(shown.map(cutHeld).filter(g => !g.concealed).map(g => g.key));
+  const openable = (a: { games: number; totals: Stats; bestIn: Record<string, string> }) => ({ ...a, bestIn: Object.fromEntries(Object.entries(a.bestIn).filter(([, key]) => sent.has(key))) });
+  const career = openable(aggregateOf(read.games, read.statKeys, ruleOf));
   const used = new Set(Object.keys(career.totals));
   return {
     sport: read.sportKey,
-    columns: schema.fields.filter(f => used.has(f.key)).map(f => ({ key: f.key, label: f.label, short: f.shortLabel })),
+    columns: schema.fields.filter(f => used.has(f.key)).map(f => ({ key: f.key, label: f.label, short: f.shortLabel, rule: ruleOf(f.key), format: statFormatOf(f.key) })),
     period: sheet ? { noun: sheet.period.noun, short: sheet.period.short } : null,
-    sums: sportSums(read.sportKey),
+    sums,
     career: { ...career, tiles: tilesOf(read.games), clips: clipCounts(shown) },
     seasons: seasonsOf(read.games, read.seasonKeyOf, read.statKeys).map(s => {
       const inSeason = (g: ProfileGame) => (seasonOf(g) ?? 'undated') === s.key;
-      return { ...s, tiles: tilesOf(read.games.filter(inSeason)), clips: clipCounts(shown.filter(inSeason)) };
+      return { ...s, ...openable(aggregateOf(read.games.filter(inSeason), read.statKeys, ruleOf)), tiles: tilesOf(read.games.filter(inSeason)), clips: clipCounts(shown.filter(inSeason)) };
     }),
     games: shown.map(cutHeld).map((g, i) => ({ g, i })).filter(({ g }) => !g.concealed).map(({ g, i }) => ({
       key: g.key, source: g.source, date: g.date, season: seasonOf(g), title: g.title, opponent: g.opponent, stats: g.stats, counted: g.counted,

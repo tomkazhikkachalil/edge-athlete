@@ -30,17 +30,22 @@ export default function CareerView({ profileId, data, basePath, sportLabel }: Pr
       />
     );
   }
+  // A best (a pace, a race time) opens the game it was set in — at its own season.
+  const bestDoor = (gameKey: string | undefined): string | null => {
+    const g = gameKey ? data.games.find(x => x.key === gameKey) : null;
+    return g ? `${basePath}${sportViewSearch({ season: g.season ?? 'undated', game: g.key })}` : null;
+  };
   return (
     <section className="space-y-6" data-sport-level="career">
       <Tiles tiles={data.career.tiles} />
       <div>
         <h2 className="mb-3 text-lg font-bold text-primary">Career</h2>
-        {!data.sums && <p className="mb-3 text-sm text-muted" data-sport-no-sums="">Times and marks are not added up: each season shows how many were raced, each race its own numbers, and the bests are below.</p>}
+        {!data.sums && <p className="mb-3 text-sm text-muted" data-sport-no-sums="">A race does not add up as a whole: distance and time are totals, a pace or a race time is the best of the season — tap it to open the race it was set in.</p>}
         <StatTable
           caption={`${sportLabel} career, by season`}
           leadLabel="Season"
           countLabel="GP"
-          columns={data.sums ? data.columns : []}
+          columns={data.columns}
           rows={data.seasons.map(s => ({
             id: s.key,
             lead: (
@@ -50,10 +55,10 @@ export default function CareerView({ profileId, data, basePath, sportLabel }: Pr
             ),
             count: s.games,
             stats: s.totals,
-            // A number with clips behind it is a door: that stat, that season, as a reel.
-            door: (k: string) => ((s.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season: s.key, stat: k })}` : null),
+            // A number is a door: a best opens the game it was set in; a number with clips behind it opens that stat, that season, as a reel.
+            door: (k: string) => bestDoor(s.bestIn[k]) ?? ((s.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season: s.key, stat: k })}` : null),
           }))}
-          foot={{ id: 'career', lead: 'Career', count: data.career.games, stats: data.career.totals, door: k => ((data.career.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ stat: k })}` : null) }}
+          foot={{ id: 'career', lead: 'Career', count: data.career.games, stats: data.career.totals, door: k => bestDoor(data.career.bestIn[k]) ?? ((data.career.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ stat: k })}` : null) }}
         />
       </div>
       {/* Head-to-head in this sport (Play, 244) — moved here from the Sports tab's layer; the athlete chooses what shows. */}
