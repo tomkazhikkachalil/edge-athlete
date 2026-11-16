@@ -12,6 +12,11 @@ import { withSentryConfig } from "@sentry/nextjs";
 const SHARP_FILES = ['./node_modules/sharp/**', './node_modules/@img/**', './node_modules/detect-libc/**'];
 
 const nextConfig: NextConfig = {
+  // The BUILD type-checks what it builds (Nov 16 2026): the app's own code. It used to check the whole repository —
+  // 458 browser-test files and 684 unit-test files it never ships — and ran out of the 4 GB heap on CI three times
+  // in a row. Nothing lost: `npm run typecheck` (tsc --noEmit over tsconfig.json) still checks every file, first
+  // in `npm run verify` and in CI. The program was split; the heap number was not raised.
+  typescript: { tsconfigPath: 'tsconfig.build.json' },
   // The media worker (video posters PR 7, Oct 13 2026): ffmpeg-static is a
   // platform BINARY — kept out of the bundler and traced into the two routes
   // that run it (and nowhere else: the function that carries it is ~80 MB).
