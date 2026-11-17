@@ -93,6 +93,7 @@ describe('findOfficialSheet — every other provider, until the card lacks nothi
     expect(r.course.courseRating).toEqual({ blue: 71, white: 70 });
     expect(r.course.slopeRating).toEqual({ blue: 128, white: 127 });
     expect(updates).toHaveLength(1);
+    expect(updates[0].sheet_sources).toEqual({ pars: 'opengolfapi', strokeIndex: 'golfcourseapi', tees: { white: 'opengolfapi', blue: 'golfcourseapi' }, ratings: { blue: 'golfcourseapi', white: 'golfcourseapi' } });
     expect(keys[0]).toBe('golf-sheet-ask:c1');
   });
 

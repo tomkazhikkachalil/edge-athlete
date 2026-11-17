@@ -48,7 +48,7 @@ import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
-import { mergeSheets, sheetComplete, sheetGaps, type Sheet } from '@/lib/golf/sheet-merge';
+import { creditSources, mergeSheets, sheetComplete, sheetGaps, type Sheet, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
@@ -382,6 +382,16 @@ async function readMapSheet(admin: SupabaseClient, id: string): Promise<MapSheet
   const { data } = await admin.from('golf_courses').select('hole_geometry').eq('id', id).maybeSingle();
   const geometry = (data as { hole_geometry?: { holes?: MapSheetLine[] } | null } | null)?.hole_geometry;
   return sheetFromGeometry(geometry?.holes, line => polylineYards(line as [number, number][]) ?? 0);
+}
+
+/** The card's credits (313), read by a writer just before it writes: the column
+ *  is NOT in CATALOG_ROW_COLUMNS (that list feeds the pickers and the search
+ *  function and must not grow). `undefined` = the column could not be read (a
+ *  database without 313): the writer then leaves it out and the card still saves. */
+async function readSheetSources(admin: SupabaseClient, id: string): Promise<SheetSources | null | undefined> {
+  const { data, error } = await admin.from('golf_courses').select('sheet_sources').eq('id', id).maybeSingle();
+  if (error) return undefined;
+  return (data as { sheet_sources?: SheetSources | null } | null)?.sheet_sources ?? null;
 }
 
 export async function withMapSheet(admin: SupabaseClient, course: GolfCourse): Promise<GolfCourse> {
@@ -1175,6 +1185,8 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     slope_rating: row.slope_rating,
   };
   const from: string[] = [];
+  // Read only when something is about to be written (the loop's first fill).
+  let sources: SheetSources | null | undefined;
   let why: OfficialSheetResult['outcome'] = 'no_match';
   for (const provider of providers) {
     if (sheetComplete(card)) break;
@@ -1199,13 +1211,15 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       continue;
     }
     if (merged.changed) {
+      if (from.length === 0) sources = await readSheetSources(admin, row.id);
+      if (sources !== undefined) sources = creditSources(sources, card, merged.sheet, provider.source);
       card = merged.sheet;
       from.push(`${provider.source}:${pick.id}`);
     }
   }
   if (from.length === 0) return miss(why);
 
-  const sheet = { ...card, hydrated_at: new Date().toISOString() };
+  const sheet = { ...card, ...(sources === undefined ? {} : { sheet_sources: sources }), hydrated_at: new Date().toISOString() };
   const { error } = await admin.from('golf_courses').update(sheet).eq('id', row.id);
   if (error) {
     console.error(`[course-catalog] official sheet write failed for ${row.id}:`, error.message);
@@ -1549,6 +1563,7 @@ export async function hydrateCourseDetailed(
   // this provider's thinner answer; an answer that looks like a different
   // course is refused whole.
   const merged = mergeSheets(row, normalized);
+  const credits = merged.changed ? await readSheetSources(admin, row.id) : undefined;
   if (merged.refused) {
     console.warn(`[course-catalog] hydrate: ${row.id} "${row.name}" kept its card, ${row.external_source}:${row.external_id} disagrees with it`);
   }
@@ -1579,6 +1594,7 @@ export async function hydrateCourseDetailed(
       hole_data: merged.sheet.hole_data,
       course_rating: merged.sheet.course_rating,
       slope_rating: merged.sheet.slope_rating,
+      ...(credits === undefined ? {} : { sheet_sources: creditSources(credits, row, merged.sheet, row.external_source) }),
       lat: refined?.lat ?? providerCoords.lat,
       lng: refined?.lng ?? providerCoords.lng,
       description: normalized.description,
