@@ -88,16 +88,8 @@ export default function GolfBreakdown({ profileId }: { profileId: string }) {
 
   return (
     <div>
-      {/* Summary tiles — same five as the trends page, same formatting. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-        <div className="bg-surface-sunken rounded-lg border border-border p-3 text-center">
-          <div className="text-xl font-bold text-green-700 dark:text-green-300">
-            {summary.handicapIndex !== null ? formatHandicapIndex(summary.handicapIndex) : '—'}
-          </div>
-          <div className="text-xs text-muted uppercase mt-1">
-            Handicap est.{summary.handicapIndex !== null ? ` · ${summary.handicapRounds} rd${summary.handicapRounds === 1 ? '' : 's'}${summary.handicapProvisional ? ' · provisional' : ''}` : ''}
-          </div>
-        </div>
+      {/* Summary tiles. The handicap is NOT repeated here (Nov 16 2026): golf's Career shows it as its first tile, right above. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <div className="bg-surface-sunken rounded-lg border border-border p-3 text-center">
           <div className={`text-xl font-bold ${toParColorClass(summary.avgToParLast5)}`}>
             {summary.avgToParLast5 !== null

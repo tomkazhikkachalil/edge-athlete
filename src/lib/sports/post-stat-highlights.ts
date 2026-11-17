@@ -21,6 +21,8 @@
  */
 
 import { getStatSchema, isStatLineData } from './stat-schemas';
+import { gameTitle } from '../sport-profile/view';
+import { gameHasSides } from '../videos/game-rules';
 import { buildPostHeadline } from './post-headline';
 import { asGameFormat, GAME_FORMAT_LABELS } from '../golf/formats';
 import { holePar } from '../golf/scoring';
@@ -432,9 +434,7 @@ export function buildStatHighlights(input: BuildInput): StatHighlights | null {
     hero = { value: String(stats[firstRecorded.key]), label: firstRecorded.label };
   }
 
-  const moment = statsData.opponent
-    ? `vs ${statsData.opponent}`
-    : schema.activityNoun;
+  const moment = gameTitle(gameHasSides(statsData.sport_key), statsData.opponent, schema.activityNoun);
 
   return {
     moment,

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
+import { statTitle, seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
 import ClipReel from './ClipReel';
 import type { SportProfileData } from './types';
 import { useClips } from './useClips';
@@ -34,7 +34,7 @@ export default function StatReel({ data, profileId, season, stat, period = null,
   const reel = event ? narrowed : whole;
   const column = stat ? data.columns.find(c => c.key === stat) : null;
   const scope = season ? seasonTitle(season) : 'career';
-  const what = stat ? column?.label ?? 'Clips' : `${data.period?.noun ?? 'Period'} ${period}`;
+  const what = stat ? (column ? statTitle(column.label, column.format) : 'Clips') : `${data.period?.noun ?? 'Period'} ${period}`;
   const heading = `${what}${event ? ` · ${eventLabel(event) ?? event}` : ''} — ${scope}`;
   // The kinds of play among the stat's clips (the first page is enough to name them); one kind needs no chips.
   const kinds = stat ? [...new Set(whole.clips.map(c => c.eventKey).filter((k): k is string => !!k))] : [];

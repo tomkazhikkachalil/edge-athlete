@@ -6,6 +6,7 @@
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { gameHasSides } from '@/lib/videos/game-rules';
+import { sportNoun, type SportNoun } from './view';
 
 /**
  * Every sport with a stat sheet, and golf — which has no stat sheet and its
@@ -25,4 +26,9 @@ export function hasSportProfile(sportKey: string): boolean {
  */
 export function sportSums(sportKey: string): boolean {
   return gameHasSides(sportKey);
+}
+
+/** What one entry of this sport is called on its pages: "game" where there are two sides, else the sheet's noun ("race", "run"). */
+export function nounOf(sportKey: string): SportNoun {
+  return sportNoun(sportSums(sportKey), getStatSchema(sportKey as SportKey)?.activityNoun);
 }

@@ -10,7 +10,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
 import { NO_SEASON, type ReelClip } from '@/lib/sport-profile/rules';
-import { seasonTitle, sportViewSearch, type SportView } from '@/lib/sport-profile/view';
+import { gameTitle, seasonTitle, sportViewSearch, type SportView } from '@/lib/sport-profile/view';
 import { gameSheetFor } from '@/lib/videos/game-sheets';
 import ClipReel from './ClipReel';
 import { formatDateShort } from './format';
@@ -79,7 +79,7 @@ export default function ClipsBrowser({ data, profileId, view: opened, basePath, 
           Game
           <select className={`mt-1 ${SELECT}`} value={view.game ?? ''} onChange={e => set({ game: e.target.value || null })} data-clips-filter="game">
             <option value="">Every game</option>
-            {games.map(g => <option key={g.key} value={g.key}>{[g.opponent ? `vs ${g.opponent}` : g.title, g.date ? formatDateShort(g.date) : null, g.standing === 'recreational' ? 'Recreational' : null].filter(Boolean).join(' · ')}</option>)}
+            {games.map(g => <option key={g.key} value={g.key}>{[gameTitle(data.sums, g.opponent, g.title), g.date ? formatDateShort(g.date) : null, g.standing === 'recreational' ? 'Recreational' : null].filter(Boolean).join(' · ')}</option>)}
           </select>
         </label>
         <label className="block text-sm text-secondary">

@@ -33,7 +33,7 @@ import { readFilmHidden } from './film-hide-server';
 import { sportSums } from './has-profile';
 import { unclaimedPageOpen } from './unclaimed-open-server';
 import { aggregateOf, clipCounts, clipCountsOfGame, columnRule, cutHeld, filmOfGame, forViewer, seasonsOf, type ColumnRule, type ProfileClip, type ProfileGame, type Stats } from './rules';
-import { statFormatOf, type StatFormat } from './view';
+import { gameTitle, statFormatOf, type StatFormat } from './view';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the admin client is untyped across the app
 type Admin = SupabaseClient<any, 'public', any>;
@@ -293,7 +293,7 @@ export async function readSportProfile(admin: Admin, profileId: string, sportKey
       ...verdictOf(gameKey.film(f.videoId), countable.includes(f)),
     })),
     ...posts.map(p => ({
-      key: gameKey.post(p.id), source: 'post' as const, date: p.date, title: p.line.opponent ? `vs ${p.line.opponent}` : schema.activityNoun,
+      key: gameKey.post(p.id), source: 'post' as const, date: p.date, title: gameTitle(gameHasSides(sportKey), p.line.opponent, schema.activityNoun),
       opponent: p.line.opponent ?? null, stats: p.line.stats as Stats, href: null, ...empty, result: formatResult(p.line) || null,
       ...verdictOf(gameKey.post(p.id), true),
     })),

@@ -127,3 +127,33 @@ export function statCell(n: number | undefined, format: StatFormat = 'number'): 
   const sec = String(total % 60).padStart(2, '0');
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
+
+/**
+ * A game's title from who it was against (Nov 16 2026). "vs" belongs to a sport with two sides; a race's
+ * "opponent" is its meet or its place, so it reads as its own name — "Spring Open", never "vs Spring Open".
+ */
+export function gameTitle(sides: boolean, opponent: string | null | undefined, fallback: string): string {
+  const name = (opponent ?? '').trim();
+  if (!name) return fallback;
+  return sides ? `vs ${name}` : name;
+}
+
+/**
+ * A stat's name on a page. The stat sheet's label is the ENTRY form's ("100m time (s)", "Pace (s /km)"): the
+ * seconds are what you type. A race time or a clock is shown formatted (11.85, 4:40), so the "s" goes and
+ * what is left of the unit stays — "100m time", "Pace /km". A plain number keeps its unit ("Distance (km)").
+ */
+export function statTitle(label: string, format: StatFormat): string {
+  if (format === 'number') return label;
+  return label.replace(/\s*\(s\s*([^)]*)\)\s*$/, (_m, rest: string) => (rest.trim() ? ` ${rest.trim()}` : ''));
+}
+
+/** What one entry of a sport is called, lower case: a "game" where there are two sides, else the sheet's own noun (race, run, ride). */
+export interface SportNoun { one: string; many: string }
+export function sportNoun(sides: boolean, activityNoun: string | null | undefined): SportNoun {
+  const one = sides || !activityNoun ? 'game' : activityNoun.trim().toLowerCase();
+  return { one, many: /(s|x|ch|sh)$/.test(one) ? `${one}es` : `${one}s` };
+}
+
+/** The first letter up: "race" → "Race". */
+export const capitalized = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);

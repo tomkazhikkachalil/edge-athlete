@@ -1,5 +1,23 @@
 # Development Log
 
+## November 16, 2026 (19:30) — Sport pages: the wording and layout that assumed a team game
+
+Tom, on the track sample screenshots: "fix the track wording and layout items, wherever they may be". Each one was a shared rule, so the same fault showed on running, cycling, swimming and rowing.
+
+- **"vs Spring Open"** — "vs" is now only for a sport with two sides (`gameTitle`); a meet or a place reads as its own name. Fixed on the sport pages and, by the same rule, the post's stat card, the feed's summary line, the calendar and the sport's log page.
+- **"100m time (s)"** — the entry form's seconds are dropped where the value is shown formatted (`statTitle`): "100m time", "Pace /km".
+- **Bests read as their column does** — "24.10", "4:40" (they printed the raw 24.1; a pace would have read 280).
+- **"Game log", "GP", "counted games"** on a race — the sport's own noun (`nounOf`): "Race log", "Races", "Runs".
+- **A line through different events** — track's trend joined 100 m, 200 m and 400 m times; a sheet whose hero varies per entry (`heroVaries`) has no trend.
+- **Not recorded** — "0" for an event not raced is a dash; "800m PB –" tiles for events never raced are not drawn.
+- **Running's tiles** — "Avg heart rate" averaged in a run with no reading as zero (103 for 150 and 160): now over the runs that carry one (155). "Best pace 4:40.00" is "4:40".
+- **Rivals** — below the numbers on every sport; the empty invitation is not drawn on a sport without sides.
+- **Golf** — the Trends block repeated Career's handicap tile; shown once.
+
+Proof: 6,469 unit tests; staging at phone width — `sport-profile-race` (2), `sport-profile`, `golf-profile`, `skill-cards-mobile` (2), `stats-hub-mobile` (2), `performance-rollups`, `play-rivals`; desktop `play-rivals`. No migration. Spec: `docs/specs/sport-profile.md`, "Wording that does not assume a team game".
+
+Owed from the Next bump (#1546, `2e20c07a`), now recorded: production passed on that commit — desktop `health`, `sport-profile-api`, `training`; phone `sport-profile`, `feed-toggle` (2), `training-timeline`.
+
 ## November 16, 2026 (18:46) — Next 16.4.2 → 16.4.6: the advisory closed, the build no longer stops
 
 `npm audit --omit=dev` reported one moderate advisory on Next 16.3.0–16.4.4 (GHSA-mfr8-8qww-v76h: information disclosure when a `'use cache'` function is called through `unstable_cache()`). The app has no `'use cache'` site, so it was not exposed — but `next build` had begun stopping on some runs to print the notice (once in the gate, twice under the e2e web server), which reads as "webServer was not able to start".

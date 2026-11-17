@@ -100,6 +100,15 @@ test('track\'s profile: each event\'s season best and personal best, an event\'s
     await expect(career.locator('[data-stat-row="2026"] [data-stat="time_100m"]')).toHaveText('11.85', { timeout: 40_000 });
     await expect(career.locator('[data-stat-row="2025"] [data-stat="time_100m"]')).toHaveText('12.10');
     await expect(career.locator('[data-stat-row="career"] [data-stat="time_200m"]')).toHaveText('24.10');
+    // The wording does not assume a team game (Nov 16 2026): races are counted as races, a best reads as its column does,
+    // no line is drawn through different events, and no empty Rivals card sits on a sport without sides.
+    await expect(career.locator('thead')).toContainText('Races');
+    const bests = career.locator('[data-rollups-bests]');
+    await expect(bests).toContainText('200m time', { timeout: 20_000 });
+    await expect(bests).toContainText('24.10');
+    await expect(bests).not.toContainText('(s)');
+    await expect(career).not.toContainText('last 4 events');
+    await expect(career.locator('[data-rivals]')).toHaveCount(0);
 
     // The event is a pivot: every 100 m, newest first, the ones that were a best at the time marked.
     await career.locator('[data-stat-head-door="time_100m"]').click();
@@ -108,6 +117,9 @@ test('track\'s profile: each event\'s season best and personal best, an event\'s
     await expect(history.locator('[data-best-history-row]')).toHaveCount(4, { timeout: 20_000 });
     await expect(history.locator('[data-best-history-record]')).toHaveCount(3);
     await expect(history.locator('[data-best-history-row]').first()).toContainText('12.00');
+    await expect(history.locator('h2')).toHaveText('100m time — career');
+    await expect(history.locator('[data-best-history-row]').first()).toContainText('QA Open');
+    await expect(history).not.toContainText('vs QA Open');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     // A row is the door to its race; Back returns to the event.
     await history.locator(`[data-best-history-row="post:${best}"]`).click();
@@ -116,6 +128,15 @@ test('track\'s profile: each event\'s season best and personal best, an event\'s
     await expect(history.locator('[data-best-history-row]')).toHaveCount(4, { timeout: 20_000 });
     await history.locator('[data-best-history-close]').click();
     await expect(page.locator('[data-best-history]')).toHaveCount(0);
+    // The season's log is a race log, each row its meet's own name.
+    await career.locator('[data-season-link="2026"]').click();
+    const season = page.locator('[data-sport-level="season"]');
+    await expect(season.locator('[data-game-log-heading]')).toHaveText('Race log', { timeout: 20_000 });
+    await expect(season.locator('[data-sport-game-log]')).toContainText('QA Open');
+    await expect(season.locator('[data-sport-game-log]')).not.toContainText('vs QA Open');
+    await expect(season.locator('[data-sport-game-log]')).toContainText('counted races');
+    // An event not raced that day is a dash, never a zero.
+    await expect(season.locator('[data-sport-game-log] [data-stat="time_200m"]').first()).toHaveText('–');
   } finally {
     await ctx.close();
     await api.dispose();

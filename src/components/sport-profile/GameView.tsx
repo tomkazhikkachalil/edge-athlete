@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
+import { gameTitle, statTitle, seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
+import { nounOf } from '@/lib/sport-profile/has-profile';
 import { recapPath } from '@/lib/videos/game-view';
 import ClipReel from './ClipReel';
 import { formatDateShort } from './format';
@@ -41,12 +42,12 @@ export default function GameView({ data, profileId, season, gameKey, stat, baseP
   if (!game) {
     return (
       <section className="space-y-4" data-sport-level="game">
-        <p className="text-secondary">That game is not on this profile.</p>
+        <p className="text-secondary">That {nounOf(data.sport).one} is not on this profile.</p>
         <Link href={up} className="ea-cta inline-flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold text-white">Back to {season ? `the ${seasonTitle(season)} season` : 'the career'}</Link>
       </section>
     );
   }
-  const title = game.opponent ? `vs ${game.opponent}` : game.title;
+  const title = gameTitle(data.sums, game.opponent, game.title);
   const column = stat ? data.columns.find(c => c.key === stat) : null;
   const periods = Object.entries(game.byPeriod).map(([p, stats]) => ({ period: Number(p), stats })).sort((a, b) => a.period - b.period);
 
@@ -99,7 +100,7 @@ export default function GameView({ data, profileId, season, gameKey, stat, baseP
             {reel.state === 'ready' && (
               <ClipReel
                 key={`${gameKey}|${stat ?? ''}`}
-                heading={column ? `${column.label} — the clips` : 'Clips from this game'}
+                heading={column ? `${statTitle(column.label, column.format)} — the clips` : `Clips from this ${nounOf(data.sport).one}`}
                 clips={reel.clips}
                 total={reel.total}
                 onLoadMore={reel.more}
@@ -110,7 +111,7 @@ export default function GameView({ data, profileId, season, gameKey, stat, baseP
             )}
           </div>
         ) : (
-          <p className="text-secondary" data-game-no-film="">{film ? 'The film of this game is spoiler-free.' : 'There is no game film of this game, so there are no clips.'}</p>
+          <p className="text-secondary" data-game-no-film="">{film ? `The film of this ${nounOf(data.sport).one} is spoiler-free.` : data.sums ? 'There is no game film of this game, so there are no clips.' : `There is no film of this ${nounOf(data.sport).one}, so there are no clips.`}</p>
         )
       )}
 

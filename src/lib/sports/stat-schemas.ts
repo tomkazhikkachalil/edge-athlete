@@ -53,8 +53,8 @@ export interface StatFieldDef {
 export type ProfileTileComputation =
   | { kind: 'count' }                          // number of entries (Games/Matches)
   | { kind: 'sum'; keys: string[] }            // total across entries (Goals, Points)
-  | { kind: 'avg'; keys: string[]; decimals?: number }  // per-entry average (PPG, AVG)
-  | { kind: 'min'; keys: string[]; decimals?: number; format?: 'race_time' } // best-is-lowest (race PBs; times as m:ss.hh)
+  | { kind: 'avg'; keys: string[]; decimals?: number; recordedOnly?: boolean }  // per-entry average (PPG, AVG); `recordedOnly`: over the entries that CARRY the reading (a heart rate — a run without one is not a run at 0 bpm)
+  | { kind: 'min'; keys: string[]; decimals?: number; format?: 'race_time' | 'clock' } // best-is-lowest (race PBs; times as m:ss.hh; a pace as a clock, 4:40)
   | { kind: 'ratio'; num: string[]; den: string[]; decimals?: number; format?: 'batting' } // Σnum / Σden (AVG = H/AB — a ratio of two SUMS, never an average of per-game averages)
   // Combat sports (Oct 16 2026): from the lines' bouts (bout.ts), not from stats.
   | { kind: 'record' }                         // "3-1-1 (1 NC)"
@@ -69,6 +69,8 @@ export interface SportStatSchema {
   sport_key: SportKey;
   /** Noun for one entry: "Game", "Match" */
   activityNoun: string;
+  /** The hero number is a DIFFERENT measure from one entry to the next (track: the 100 m one day, the 400 m the next), so a line through them means nothing — no trend is drawn. */
+  heroVaries?: boolean;
   /** Label for the opposition input: "Opponent", vs etc. */
   opponentLabel: string;
   /** Stat fields shown in the composer and rendered in cards, in order. */
@@ -235,8 +237,8 @@ export function enduranceSchema(
     profileTiles: [
       { label: `Distance (${unitWord})`, compute: { kind: 'sum', keys: [distanceKey] } },
       { label: 'Sessions', compute: { kind: 'count' } },
-      { label: 'Best pace', compute: { kind: 'min', keys: [paceKey], format: 'race_time' } },
-      { label: 'Avg heart rate', compute: { kind: 'avg', keys: ['avg_hr'], decimals: 0 } },
+      { label: 'Best pace', compute: { kind: 'min', keys: [paceKey], format: 'clock' } },
+      { label: 'Avg heart rate', compute: { kind: 'avg', keys: ['avg_hr'], decimals: 0, recordedOnly: true } },
     ],
     headline: stats => {
       const d = stats[distanceKey];
@@ -486,6 +488,7 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
   track_field: {
     sport_key: 'track_field',
     activityNoun: 'Race',
+    heroVaries: true,
     opponentLabel: 'Meet',
     // Times in SECONDS (11.85, or 245.30 for a 4:05.30 1500m). One race post
     // usually fills exactly one event.
@@ -578,6 +581,7 @@ export const computeProfileTile = (
       }
     }
     if (best === null) return '-';
+    if (c.format === 'clock') return formatSessionTime(best);
     return c.format === 'race_time' ? formatRaceTime(best) : best.toFixed(c.decimals ?? 2);
   }
 
@@ -602,12 +606,16 @@ export const computeProfileTile = (
   // avg: mean per entry across the summed keys
   if (lines.length === 0) return '0';
   let total = 0;
+  let carrying = 0;
   for (const line of lines) {
+    let has = false;
     for (const key of c.keys) {
       const v = line.stats[key];
-      if (typeof v === 'number' && Number.isFinite(v)) total += v;
+      if (typeof v === 'number' && Number.isFinite(v)) { total += v; if (v > 0) has = true; }
     }
+    if (has) carrying += 1;
   }
+  if (c.recordedOnly) return carrying === 0 ? '-' : (total / carrying).toFixed(c.decimals ?? 1);
   const avg = total / lines.length;
   return avg.toFixed(c.decimals ?? 1);
 };

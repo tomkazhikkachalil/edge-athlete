@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { landingSport, parseSportView, seasonTitle, sportViewLevel, sportViewSearch, statCell, statFormatOf, statText, switcherSports } from '../view';
+import { capitalized as cap, gameTitle as gt, landingSport, parseSportView, seasonTitle, sportNoun as sn, sportViewLevel, sportViewSearch, statCell, statFormatOf, statText, statTitle as st, switcherSports } from '../view';
 
 const q = (s: string) => new URLSearchParams(s);
 const GAME = 'film:11111111-2222-3333-4444-555555555555';
@@ -87,5 +87,32 @@ describe('how a column reads', () => {
     expect([statCell(11.85, 'race_time'), statCell(245.3, 'race_time'), statCell(60, 'race_time')]).toEqual(['11.85', '4:05.30', '1:00.00']);
     expect([statCell(280, 'clock'), statCell(3725, 'clock'), statCell(59.6, 'clock')]).toEqual(['4:40', '1:02:05', '1:00']);
     expect([statCell(12, 'number'), statCell(155.5), statCell(0, 'clock'), statCell(undefined, 'race_time')]).toEqual(['12', '155.5', '0', '–']);
+  });
+});
+
+// ── Wording that does not assume a team game (Nov 16 2026) ──────────────
+
+describe('the wording of a sport without sides', () => {
+  it('"vs" belongs to a sport with two sides; a meet or a place reads as its own name', () => {
+    expect(gt(true, 'QA Owls', 'Match')).toBe('vs QA Owls');
+    expect(gt(false, 'Spring Open', 'Race')).toBe('Spring Open');
+    expect(gt(false, '  ', 'Race')).toBe('Race');
+    expect(gt(true, null, 'Game')).toBe('Game');
+  });
+
+  it('a formatted time drops the entry form\'s seconds and keeps the rest of the unit; a plain number keeps its unit', () => {
+    expect(st('100m time (s)', 'race_time')).toBe('100m time');
+    expect(st('Moving time (s)', 'clock')).toBe('Moving time');
+    expect(st('Pace (s /km)', 'clock')).toBe('Pace /km');
+    expect(st('Distance (km)', 'number')).toBe('Distance (km)');
+    expect(st('Goals', 'number')).toBe('Goals');
+  });
+
+  it('one entry is a "game" where there are sides, else the sheet\'s own noun', () => {
+    expect(sn(true, 'Match')).toEqual({ one: 'game', many: 'games' });
+    expect(sn(false, 'Race')).toEqual({ one: 'race', many: 'races' });
+    expect(sn(false, 'Run')).toEqual({ one: 'run', many: 'runs' });
+    expect(sn(false, null)).toEqual({ one: 'game', many: 'games' });
+    expect(cap('race')).toBe('Race');
   });
 });

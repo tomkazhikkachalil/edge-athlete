@@ -12,6 +12,8 @@
  */
 
 import { getStatSchema, isStatLineData, formatResult } from '@/lib/sports/stat-schemas';
+import { gameTitle } from '@/lib/sport-profile/view';
+import { gameHasSides } from '@/lib/videos/game-rules';
 import { formatDuration, formatVolume } from '@/lib/workouts/summary';
 
 /** The subset of a golf round row the summary needs. TaggedTile's rows carry
@@ -109,7 +111,7 @@ function genericStatsSummary(statsData: Record<string, unknown> | null): StatsSu
     if (schema) {
       const headline = schema.headline(statsData.stats);
       const result = formatResult(statsData);
-      const context = [result, statsData.opponent ? `vs ${statsData.opponent}` : null]
+      const context = [result, statsData.opponent ? gameTitle(gameHasSides(statsData.sport_key), statsData.opponent, '') : null]
         .filter(Boolean)
         .join(' ');
       if (headline || context) {
