@@ -1,5 +1,7 @@
 # Golf Course Hybrid Search System 🏌️‍♂️
 
+> **Superseded (Aug 22 2026, PR #199).** The providers described here (GolfAPI.io, iGolf, Zyla) were never switched on and their code is gone. The catalog today is OpenStreetMap + OpenGolfAPI + GolfCourseAPI: see `docs/GOLF_COURSE_DATA.md` and `docs/specs/golf-course-data.md`. Kept for history only.
+
 ## Overview
 
 The golf course search system uses a **hybrid architecture** that combines a local database with external API integration capabilities. This provides the best of both worlds: fast local search with the option to expand to worldwide coverage when needed.

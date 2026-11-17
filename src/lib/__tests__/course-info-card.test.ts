@@ -37,8 +37,14 @@ describe('CourseInfoCard — honest scorecard states', () => {
     expect(composer).toMatch(/autoFindSheet\n/);
     const catalog = fs.readFileSync(path.join(process.cwd(), 'src/lib/golf/course-catalog.ts'), 'utf8');
     expect(catalog).toContain('golf-sheet-ask:${row.id}');
-    expect(catalog).toMatch(/sheetAgreesWithMap\(normalized\.hole_data, await readMapSheet\(admin, row\.id\)\)/);
+    expect(catalog).toContain('const mapSheet = hadCard ? null : await readMapSheet(admin, row.id);');
+    expect(catalog).toContain('sheetAgreesWithMap(normalized.hole_data, mapSheet) ? mergeSheets(card, normalized) : null');
     expect(src).toMatch(/sheetFindable \|\| course\.sheetSource === 'map'/);
+  });
+  it('an official card that still lacks something asks quietly; a complete one only counts the pick (Nov 16 2026)', () => {
+    expect(src).toContain('const officialHasGaps = sheetGaps({ hole_data: course.holes, course_rating: course.courseRating, slope_rating: course.slopeRating }).length > 0;');
+    expect(src).toMatch(/if \(officialHasGaps\) \{\n\s+queueMicrotask/);
+    expect(src).toContain("const upgrading = course.sheetSource === 'map' || course.holes.length > 0;");
   });
   it('one panel at a time: Show Map | Official Scorecard over one `open` state', () => {
     expect(src).toMatch(/useState<'map' \| 'scorecard' \| null>/);

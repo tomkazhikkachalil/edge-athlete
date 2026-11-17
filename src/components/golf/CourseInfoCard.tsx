@@ -20,6 +20,7 @@ import { faHouseFlag } from '@/lib/icons/fa/house-flag';
 import { faMap } from '@/lib/icons/fa/map';
 import { faSpinner } from '@/lib/icons/fa/spinner';
 import { faTableList } from '@/lib/icons/fa/table-list';
+import { sheetGaps } from '@/lib/golf/sheet-merge';
 
 /**
  * About-this-course card under the composer's selected-course badge:
@@ -176,7 +177,8 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const findSheetRef = useRef<() => Promise<void>>(async () => {});
   const findSheet = async () => {
     if (sheetAsk === 'asking') return;
-    const upgrading = course.sheetSource === 'map';
+    // Quiet too when an official card is only being topped up (Nov 16 2026).
+    const upgrading = course.sheetSource === 'map' || course.holes.length > 0;
     setSheetAsk('asking');
     try {
       const res = await fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&sheet=1`, { credentials: 'include' });
@@ -245,6 +247,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // other provider's name).
   const sheetFindable = !scorecardPossible && UUID_SHAPE.test(course.id);
   const autoAskedFor = useRef<string | null>(null);
+  const officialHasGaps = sheetGaps({ hole_data: course.holes, course_rating: course.courseRating, slope_rating: course.slopeRating }).length > 0;
   useEffect(() => {
     // A map card asks too (Oct 31 2026): a provider card adds tees, handicaps
     // and ratings. Silent; on a miss the map card simply stays.
@@ -252,13 +255,20 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
     // An official card needs no ask, but the pick is counted (294).
     if (course.holes.length > 0 && course.sheetSource !== 'map' && UUID_SHAPE.test(course.id)) {
       autoAskedFor.current = course.id;
+      // Nov 16 2026: an official card that still lacks something (a tee's
+      // yardages, stroke indexes, ratings) asks the other providers to fill
+      // it. Silent, and that door counts the pick itself.
+      if (officialHasGaps) {
+        queueMicrotask(() => { void findSheetRef.current(); });
+        return;
+      }
       void fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&picked=1`, { credentials: 'include' }).catch(() => undefined);
       return;
     }
     if (!(sheetFindable || course.sheetSource === 'map')) return;
     autoAskedFor.current = course.id;
     queueMicrotask(() => { void findSheetRef.current(); });
-  }, [autoFindSheet, sheetFindable, course.sheetSource, course.holes.length, course.id]);
+  }, [autoFindSheet, sheetFindable, officialHasGaps, course.sheetSource, course.holes.length, course.id]);
   // The panel was opened on a promise the detail then broke: close it.
   if (open === 'scorecard' && !scorecardPossible) setOpen(null);
   const metaBits = [

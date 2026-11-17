@@ -48,7 +48,7 @@ import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
-import { mergeSheets } from '@/lib/golf/sheet-merge';
+import { mergeSheets, sheetComplete, sheetGaps, type Sheet } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
@@ -779,7 +779,7 @@ const gcaConfigured = () => !!process.env.GOLF_COURSE_API_KEY;
 
 /** The GolfCourseAPI plan the key is on (Oct 2026). `/v1/proximity` is Pro /
  *  Enterprise only; on Free the endpoint answers an error AND would burn the
- *  35/day budget, so the plan is read BEFORE any budget RPC. Unset or
+ *  45/day budget, so the plan is read BEFORE any budget RPC. Unset or
  *  unrecognised → 'free' (fail closed). */
 export type GcaPlan = 'free' | 'pro' | 'enterprise';
 export function gcaPlan(): GcaPlan {
@@ -1084,64 +1084,135 @@ export interface OfficialSheetResult {
   course: GolfCourse;
 }
 
-/** Only ever for a person who picked this course: GolfCourseAPI's terms allow
+/** One source of official cards (Nov 16 2026). `search` answers the provider's
+ *  candidates for a name, `detail` one candidate's card; null is "the provider
+ *  had trouble", never "nothing found". A third provider is one more entry in
+ *  SHEET_PROVIDERS: its own daily budget in DEFAULT_BUDGETS, its two calls. */
+export interface SheetProvider {
+  source: 'opengolfapi' | 'golfcourseapi';
+  configured(): boolean;
+  search(query: string): Promise<SheetCandidate[] | null>;
+  detail(id: string): Promise<{ row: NewRow | null } | null>;
+}
+
+const candidateOf = (id: string, n: NewRow): SheetCandidate => ({
+  id,
+  name: n.name,
+  city: n.city,
+  region_code: n.region_code,
+  country_code: n.country_code,
+});
+
+const openGolfSheets: SheetProvider = {
+  source: 'opengolfapi',
+  configured: openGolfConfigured,
+  async search(query) {
+    const r = await fetchJsonResult(`https://api.opengolfapi.org/api/v1/courses/search?q=${encodeURIComponent(query)}`);
+    if (!r.ok) return null;
+    return ((r.body as { courses?: OpenGolfSummary[] } | null)?.courses ?? []).map(s => candidateOf(s.id, normalizeOpenGolfSummary(s)));
+  },
+  async detail(id) {
+    const r = await fetchJsonResult(`https://api.opengolfapi.org/api/v1/courses/${encodeURIComponent(id)}`);
+    if (!r.ok) return null;
+    const d = r.body as OpenGolfDetail | null;
+    return { row: d?.id ? normalizeOpenGolfDetail(d) : null };
+  },
+};
+
+const gcaSheets: SheetProvider = {
+  source: 'golfcourseapi',
+  configured: gcaConfigured,
+  async search(query) {
+    const r = await fetchJsonResult(`https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(query)}`, gcaHeaders());
+    if (!r.ok) return null;
+    return ((r.body as { courses?: GcaSummary[] } | null)?.courses ?? []).map(s => candidateOf(s.id, normalizeGcaSummary(s)));
+  },
+  async detail(id) {
+    const r = await fetchJsonResult(`https://api.golfcourseapi.com/v1/courses/${encodeURIComponent(id)}`, gcaHeaders());
+    if (!r.ok) return null;
+    // LIVE shape: detail nests under `course`.
+    const d = (r.body as { course?: GcaDetail } | null)?.course;
+    return { row: d?.id ? normalizeGcaDetail(d) : null };
+  },
+};
+
+/** The order they are asked in: the keyless one with the large budget first,
+ *  so GolfCourseAPI's 50 a day are spent only on what is still missing. */
+export const SHEET_PROVIDERS: ReadonlyArray<SheetProvider> = [openGolfSheets, gcaSheets];
+
+/** Only ever for a person who picked this course: the providers' terms allow
  *  caching what serves a user and ban harvesting a copy, so there is no bulk
- *  caller (Oct 31 2026). One ask per course per day, whoever asks. */
+ *  caller (Oct 31 2026). One ask per course per day, whoever asks.
+ *
+ *  Nov 16 2026: EVERY provider that is not the row's own is asked by name (the
+ *  row's own was asked by id when it was hydrated), until the card lacks
+ *  nothing. Each answer fills the card through mergeSheets: a card with pars
+ *  from one source takes tees, stroke indexes and ratings from another, and an
+ *  answer that disagrees with the card (or with the map card) is refused. */
 export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow): Promise<OfficialSheetResult> {
   const answer = (outcome: OfficialSheetResult['outcome'], r: CatalogRow = row): OfficialSheetResult => ({
     found: outcome === 'already' || outcome === 'found',
     outcome,
     course: rowToCourse(r),
   });
-  if ((row.hole_data?.length ?? 0) > 0) return answer('already');
-  if (!gcaConfigured()) return answer('not_configured');
-  if (!(await hitBudget(admin, `golf-sheet-ask:${row.id}`, 1))) return answer('no_match');
-  if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return answer('budget_refused');
+  const hadCard = (row.hole_data?.length ?? 0) > 0;
+  /** No answer came: a card the row already holds is still a card. */
+  const miss = (outcome: OfficialSheetResult['outcome']) => answer(hadCard ? 'already' : outcome);
+  if (sheetComplete(row)) return answer('already');
+  // A test row's card is whatever its spec seeded: never topped up from outside.
+  if (hadCard && (row.external_source as string) === 'qa-e2e') return answer('already');
+  const providers = SHEET_PROVIDERS.filter(p => p.source !== row.external_source && p.configured());
+  if (providers.length === 0) return miss('not_configured');
+  if (!(await hitBudget(admin, `golf-sheet-ask:${row.id}`, 1))) return miss('no_match');
 
-  const search = await fetchJsonResult(
-    `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(sheetSearchQuery(row.name))}`,
-    gcaHeaders()
-  );
-  if (!search.ok) return answer('provider_error');
-  const summaries = ((search.body as { courses?: GcaSummary[] } | null)?.courses ?? []).map(s => {
-    const n = normalizeGcaSummary(s);
-    return { id: s.id, name: n.name, city: n.city, region_code: n.region_code, country_code: n.country_code } satisfies SheetCandidate;
-  });
-  const pick = pickSheetCandidate(row, summaries);
-  if (!pick) {
-    console.warn(`[course-catalog] official sheet: no match for ${row.id} "${row.name}" among ${summaries.length}`);
-    return answer('no_match');
-  }
-
-  if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return answer('budget_refused');
-  const detail = await fetchJsonResult(`https://api.golfcourseapi.com/v1/courses/${encodeURIComponent(pick.id)}`, gcaHeaders());
-  if (!detail.ok) return answer('provider_error');
-  const d = (detail.body as { course?: GcaDetail } | null)?.course;
-  const normalized = d?.id ? normalizeGcaDetail(d) : null;
-  if (!normalized?.hole_data?.length) {
-    await admin.from('golf_courses').update({ hydrated_at: new Date().toISOString() }).eq('id', row.id);
-    return answer('no_sheet');
-  }
   // A map card is protected: a wrong same-named course must not replace it.
-  if (!sheetAgreesWithMap(normalized.hole_data, await readMapSheet(admin, row.id))) {
-    console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}" refused, golfcourseapi:${pick.id} disagrees with the map`);
-    return answer('map_disagrees');
-  }
-  const sheet = {
-    total_par: normalized.total_par,
-    holes_count: normalized.holes_count,
-    hole_data: normalized.hole_data,
-    course_rating: normalized.course_rating,
-    slope_rating: normalized.slope_rating,
-    hydrated_at: new Date().toISOString(),
+  const mapSheet = hadCard ? null : await readMapSheet(admin, row.id);
+  let card: Sheet = {
+    total_par: row.total_par,
+    holes_count: row.holes_count,
+    hole_data: row.hole_data,
+    course_rating: row.course_rating,
+    slope_rating: row.slope_rating,
   };
+  const from: string[] = [];
+  let why: OfficialSheetResult['outcome'] = 'no_match';
+  for (const provider of providers) {
+    if (sheetComplete(card)) break;
+    if (!(await consumeProviderBudget(admin, provider.source))) { why = 'budget_refused'; continue; }
+    const candidates = await provider.search(sheetSearchQuery(row.name));
+    if (!candidates) { why = 'provider_error'; continue; }
+    const pick = pickSheetCandidate(row, candidates);
+    if (!pick) {
+      console.warn(`[course-catalog] official sheet: no ${provider.source} match for ${row.id} "${row.name}" among ${candidates.length}`);
+      continue;
+    }
+    if (!(await consumeProviderBudget(admin, provider.source))) { why = 'budget_refused'; continue; }
+    const detail = await provider.detail(pick.id);
+    if (!detail) { why = 'provider_error'; continue; }
+    const normalized = detail.row;
+    // Holes are what an answer is checked by: one without them adds nothing.
+    if (!normalized?.hole_data?.length) { why = 'no_sheet'; continue; }
+    const merged = sheetAgreesWithMap(normalized.hole_data, mapSheet) ? mergeSheets(card, normalized) : null;
+    if (!merged || merged.refused) {
+      console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}" refused, ${provider.source}:${pick.id} disagrees with the ${merged ? 'card' : 'map'}`);
+      why = 'map_disagrees';
+      continue;
+    }
+    if (merged.changed) {
+      card = merged.sheet;
+      from.push(`${provider.source}:${pick.id}`);
+    }
+  }
+  if (from.length === 0) return miss(why);
+
+  const sheet = { ...card, hydrated_at: new Date().toISOString() };
   const { error } = await admin.from('golf_courses').update(sheet).eq('id', row.id);
   if (error) {
     console.error(`[course-catalog] official sheet write failed for ${row.id}:`, error.message);
-    return answer('provider_error');
+    return miss('provider_error');
   }
-  console.warn(`[course-catalog] official sheet: ${row.external_source}:${row.external_id} "${row.name}" ← golfcourseapi:${pick.id} (${normalized.hole_data.length} holes)`);
-  return answer('found', { ...row, ...sheet });
+  console.warn(`[course-catalog] official sheet: ${row.external_source}:${row.external_id} "${row.name}" ← ${from.join(' + ')} (${card.hole_data?.length ?? 0} holes, still missing: ${sheetGaps(card).join(', ') || 'nothing'})`);
+  return answer('found', { ...row, ...sheet } as CatalogRow);
 }
 
 // ── Proximity (GolfCourseAPI v1.3.0, Pro/Enterprise; dormant on Free) ────────
