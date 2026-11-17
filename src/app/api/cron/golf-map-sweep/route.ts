@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { WORK_BUDGET_MS } from '@/lib/golf/map-sweep';
 import { planSweepCells, readSweepProgress, runElevationBatch, runGeometryBatch, runHydrationBatch } from '@/lib/golf/map-sweep-server';
+import { cardLinkDue, runCardFillBatch, runCardLink } from '@/lib/golf/card-fill-server';
 import { reportRouteError } from '@/lib/observability/report';
 import { recordJobSummary } from '@/lib/platform-jobs/record';
 
@@ -16,6 +17,9 @@ export const maxDuration = 60;
 //   2. geometry — up to four cells (the time guard usually allows 2–4)
 //   3. elevation — with whatever time is left (≈ 20 courses)
 //   4. hydration — three provider rows
+//   5. cards — the scorecard fill (migration 314): the monthly link when it
+//      is due and half a minute is left, else two linked rows' cards. Its own
+//      daily cap ('card-fill') is what paces it, not this number.
 // Nothing here is a schedule of its own: without CRON_SECRET it answers 401.
 export async function POST(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -58,6 +62,14 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     reportRouteError('[map-sweep] hydration phase failed:', e);
     summary.hydration = { ok: false };
+  }
+  try {
+    const left = WORK_BUDGET_MS - (Date.now() - t0);
+    if (left > 30_000 && (await cardLinkDue(admin))) summary.cardLink = await runCardLink(admin, { dryRun: false });
+    else if (left > 10_000) summary.cards = await runCardFillBatch(admin, { rows: 2, dryRun: false, deadlineMs: left });
+  } catch (e) {
+    reportRouteError('[map-sweep] card fill phase failed:', e);
+    summary.cards = { ok: false };
   }
   summary.elapsedMs = Date.now() - t0;
   await recordJobSummary(admin, 'golf-map-sweep', new Date(t0), summary);

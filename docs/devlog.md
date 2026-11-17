@@ -1,5 +1,28 @@
 # Development Log
 
+## November 17, 2026 (07:58) — Golf scorecards: a background fill from the open source, so a pick finds its card already there
+
+Tom: "figure out how to connect multiple APIs, make it run fast so we can start building our own history of golf courses and get the map and scorecard correct."
+
+What was measured first (production, read-only):
+
+- **28,987 courses, 78 with a scorecard.** 15,674 have map lines. The catalog was a map with almost no cards; a pick waited on two provider calls and usually found nothing.
+- **No card was lost.** Six rounds on four courses; no course row is poorer than the copy a round stored (the round copies hold par and one yardage per hole, no tee sets).
+- **OpenGolfAPI** is ODbL. Its live detail answers a whole card (18 holes, every tee's yardages, ratings) in about 0.4 s; its published file (15,667 US courses) is useless for cards (22 carry all eighteen holes) but gives every course an id, a name and a point. Its live answers are not always whole either (a nine-hole course answered ten holes).
+- **GolfCourseAPI**'s terms allow caching what an ordinary request returns and forbid building a copy. Free plan: 35 requests a day.
+
+Tom's decisions: background fill from OpenGolfAPI (lifting "no bulk fill" for that source only); stay on GolfCourseAPI's free plan; no player-entered cards.
+
+What was built (migration 314; `card-fill.ts`, `card-fill-server.ts`, the cron tick's fifth phase, `/api/admin/golf-card-fill`, the **Scorecard fill** panel):
+
+- **Link**: a US row takes an OpenGolfAPI id only when one same-named entry lies within 2 km and no other row claims it. On production's rows: 7,713 of 11,770 link, 1,434 ambiguous stay unlinked.
+- **Fill**: one detail call per linked row with no card. The card is saved only when it is whole and agrees with its own totals, our row and the map; otherwise it is refused with a stamped reason. Fifteen linked courses sampled live: 11 saved, 4 refused (two with no yardage, two with a wrong hole count).
+- **Pace**: 800 a day under the provider's 1,000 keyless limit, so about ten days for the linked rows. Speed for the player comes from the card already being in our table: no provider call on the pick.
+
+Not done, on purpose: nothing outside the US (only GolfCourseAPI has those courses, and only on a pick); the 4,000 US rows that did not link (they keep the on-pick lookup); pars-only cards are refused rather than saved.
+
+Proof: 28 new tests (the link, the verdict, the writer against a recorded database); the link counts and the 15-course sample above ran against production rows and the live provider, read-only.
+
 ## November 16, 2026 (22:12) — Golf scorecards: a card is filled, never replaced, and both providers are asked
 
 Tom: "I think I know what went wrong with the golf API… we swapped to a new API which made us drop stats from the old one. Would it be possible to use multiple APIs?" He had seen whole scorecards gone and tee sets / yardages missing.

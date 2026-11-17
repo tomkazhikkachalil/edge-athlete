@@ -378,7 +378,7 @@ async function searchCatalogFallback(admin: SupabaseClient, q: string, limit: nu
 /** A course with no provider card takes its card from its CACHED map lines
  *  (map-sheet.ts). Read-time only: nothing is written, nothing external is
  *  called, and a provider card always wins. */
-async function readMapSheet(admin: SupabaseClient, id: string): Promise<MapSheetHole[] | null> {
+export async function readMapSheet(admin: SupabaseClient, id: string): Promise<MapSheetHole[] | null> {
   const { data } = await admin.from('golf_courses').select('hole_geometry').eq('id', id).maybeSingle();
   const geometry = (data as { hole_geometry?: { holes?: MapSheetLine[] } | null } | null)?.hole_geometry;
   return sheetFromGeometry(geometry?.holes, line => polylineYards(line as [number, number][]) ?? 0);
@@ -388,7 +388,7 @@ async function readMapSheet(admin: SupabaseClient, id: string): Promise<MapSheet
  *  is NOT in CATALOG_ROW_COLUMNS (that list feeds the pickers and the search
  *  function and must not grow). `undefined` = the column could not be read (a
  *  database without 313): the writer then leaves it out and the card still saves. */
-async function readSheetSources(admin: SupabaseClient, id: string): Promise<SheetSources | null | undefined> {
+export async function readSheetSources(admin: SupabaseClient, id: string): Promise<SheetSources | null | undefined> {
   const { data, error } = await admin.from('golf_courses').select('sheet_sources').eq('id', id).maybeSingle();
   if (error) return undefined;
   return (data as { sheet_sources?: SheetSources | null } | null)?.sheet_sources ?? null;
@@ -414,7 +414,12 @@ export async function getCatalogRow(admin: SupabaseClient, id: string): Promise<
 // ── Budget guard (fail-closed) ───────────────────────────────────────────────
 
 const DEFAULT_BUDGETS: Record<string, number> = {
-  opengolfapi: 1000,
+  // OpenGolfAPI's published limit is 1,000 a day without a key and 10,000 with
+  // its free one: raise this only together with a key.
+  opengolfapi: Number(process.env.GOLF_OPENGOLFAPI_DAILY_BUDGET) || 1000,
+  // The scorecard fill (Nov 17 2026): its OWN cap, spent BEFORE the shared
+  // opengolfapi key, so the background fill always leaves room for a pick.
+  'card-fill': Number(process.env.GOLF_CARD_FILL_DAILY_BUDGET) || 800,
   golfcourseapi: Number(process.env.GOLF_PROVIDER_DAILY_BUDGET) || 45,
   // GolfCourseAPI v1.3.0 `/v1/proximity` (Pro/Enterprise only, Oct 2026):
   // its OWN cap, consumed BEFORE the shared golfcourseapi key, so a burst of

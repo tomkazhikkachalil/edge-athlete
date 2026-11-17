@@ -56,12 +56,12 @@ export function sweepMirrors(): string[] {
 
 // ── Meta ──────────────────────────────────────────────────────────────────────
 
-async function readMeta<T>(admin: SupabaseClient, key: string): Promise<T | null> {
+export async function readMeta<T>(admin: SupabaseClient, key: string): Promise<T | null> {
   const { data } = await admin.from('golf_map_sweep_meta').select('value').eq('key', key).maybeSingle();
   return ((data as { value?: T } | null)?.value ?? null) as T | null;
 }
 
-async function writeMeta(admin: SupabaseClient, key: string, value: unknown): Promise<void> {
+export async function writeMeta(admin: SupabaseClient, key: string, value: unknown): Promise<void> {
   await admin.from('golf_map_sweep_meta').upsert({ key, value, updated_at: nowIso() }, { onConflict: 'key' });
 }
 
