@@ -362,6 +362,28 @@ describe('normalizeGcaDetail (live detail shape — nests under `course`)', () =
     expect(row.hole_data?.[1].yardage).toEqual({ blue: 380, white: 362 });
   });
 
+  // Nov 16 2026: never a guessed par, and no tee's yardages dropped.
+  const box = (tee_name: string, holes: Array<{ par?: number | null; yardage?: number; handicap?: number }>) => ({ tee_name, course_rating: 70, slope_rating: 120, number_of_holes: holes.length, par_total: 8, holes });
+
+  it('a par the reference box lacks comes from another box, and so does a stroke index', () => {
+    const row = normalizeGcaDetail({ id: 'x', club_name: 'QA', tees: { male: [box('blue', [{ yardage: 355 }, { par: 5, yardage: 510 }]), box('white', [{ par: 3, yardage: 150, handicap: 17 }, { par: 5, yardage: 490, handicap: 1 }])] } });
+    expect(row.hole_data).toEqual([
+      { number: 1, par: 3, yardage: { blue: 355, white: 150 }, handicap: 17 },
+      { number: 2, par: 5, yardage: { blue: 510, white: 490 }, handicap: 1 },
+    ]);
+  });
+
+  it('a hole no box knows the par of is not a card — never a guessed 4', () => {
+    const row = normalizeGcaDetail({ id: 'x', club_name: 'QA', tees: { male: [box('blue', [{ yardage: 355 }, { par: 5, yardage: 510 }])] } });
+    expect(row.hole_data).toBeNull();
+    expect(row.course_rating).toEqual({ blue: 70 });
+  });
+
+  it("a women's box named like a men's keeps its yardages under the (f) key", () => {
+    const row = normalizeGcaDetail({ id: 'x', club_name: 'QA', tees: { male: [box('blue', [{ par: 4, yardage: 355 }])], female: [box('blue', [{ par: 4, yardage: 300 }]), box('red', [{ par: 4, yardage: 280 }])] } });
+    expect(row.hole_data?.[0].yardage).toEqual({ blue: 355, 'blue (f)': 300, red: 280 });
+  });
+
   it('folds ratings male-first with (f) suffix on collision', () => {
     const row = normalizeGcaDetail(course);
     expect(row.course_rating).toEqual({ blue: 69.1, white: 67.9, 'blue (f)': 71.2 });
