@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeSheets, sheetsAgree, sheetGaps, sheetComplete, type Sheet, type SheetHole } from '../sheet-merge';
+import { creditSources, mergeSheets, sheetsAgree, sheetGaps, sheetComplete, type Sheet, type SheetHole } from '../sheet-merge';
 
 const hole = (number: number, par: number, yardage: Record<string, number> = {}, handicap = 0): SheetHole => ({ number, par, yardage, handicap });
 const nine = (yardage: (n: number) => Record<string, number>, handicap = 0, par = 4): SheetHole[] =>
@@ -97,5 +97,25 @@ describe('sheetGaps', () => {
     expect(sheetGaps(sheet({ hole_data: nine(() => ({})) }))).toEqual(['yardage', 'strokeIndex', 'ratings']);
     expect(sheetGaps(sheet({ hole_data: nine(() => ({ white: 380 }), 1), course_rating: { white: 69.8 } }))).toEqual(['ratings']);
     expect(sheetComplete(sheet({ hole_data: nine(() => ({ white: 380 }), 1), course_rating: { white: 69.8 }, slope_rating: { white: 122 } }))).toBe(true);
+  });
+});
+
+describe('creditSources — which source supplied what (313)', () => {
+  it('credits only what an answer added; a value keeps its first source', () => {
+    const empty = sheet({ course_rating: null, slope_rating: null });
+    const first = mergeSheets(empty, sheet({ hole_data: nine(n => ({ white: 380 + n })) })).sheet;
+    const a = creditSources(null, empty, first, 'opengolfapi');
+    expect(a).toEqual({ pars: 'opengolfapi', tees: { white: 'opengolfapi' } });
+    const second = mergeSheets(first, sheet({ hole_data: nine(n => ({ white: 1, blue: 400 + n }), 1), course_rating: { blue: 71 }, slope_rating: { blue: 128, white: 122 } })).sheet;
+    expect(creditSources(a, first, second, 'golfcourseapi')).toEqual({
+      pars: 'opengolfapi',
+      strokeIndex: 'golfcourseapi',
+      tees: { white: 'opengolfapi', blue: 'golfcourseapi' },
+      ratings: { blue: 'golfcourseapi', white: 'golfcourseapi' },
+    });
+  });
+  it('an answer that added nothing changes no credit', () => {
+    const card = sheet({ hole_data: nine(() => ({ white: 380 }), 1) });
+    expect(creditSources({ pars: 'seed' }, card, mergeSheets(card, sheet()).sheet, 'golfcourseapi')).toEqual({ pars: 'seed' });
   });
 });

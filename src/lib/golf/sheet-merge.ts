@@ -122,3 +122,33 @@ export function sheetGaps(sheet: Pick<Sheet, 'hole_data' | 'course_rating' | 'sl
 export function sheetComplete(sheet: Pick<Sheet, 'hole_data' | 'course_rating' | 'slope_rating'>): boolean {
   return sheetGaps(sheet).length === 0;
 }
+
+/** Which source supplied what on a card (migration 313): one name for the
+ *  pars and for the stroke indexes, one per tee's yardages, one per rated tee.
+ *  Lets one vendor's data be found, and removed, if its terms ever require it. */
+export interface SheetSources {
+  pars?: string;
+  strokeIndex?: string;
+  tees?: Record<string, string>;
+  ratings?: Record<string, string>;
+}
+
+/** The credits after `source`'s answer turned `before` into `after`. Only what
+ *  is NEW is credited: a value the card already held keeps its first source. */
+export function creditSources(prev: SheetSources | null | undefined, before: Sheet, after: Sheet, source: string): SheetSources {
+  const out: SheetSources = { ...(prev ?? {}), tees: { ...(prev?.tees ?? {}) }, ratings: { ...(prev?.ratings ?? {}) } };
+  const was = holesOf(before);
+  const now = holesOf(after);
+  if (now.length > was.length && !out.pars) out.pars = source;
+  const indexed = (holes: SheetHole[]) => holes.filter(h => positive(h.handicap)).length;
+  if (indexed(now) > indexed(was) && !out.strokeIndex) out.strokeIndex = source;
+  const teeKeys = (holes: SheetHole[]) => new Set(holes.flatMap(h => Object.entries(h.yardage ?? {}).filter(([, v]) => positive(v)).map(([k]) => k)));
+  const hadTees = teeKeys(was);
+  for (const k of teeKeys(now)) if (!hadTees.has(k) && !out.tees![k]) out.tees![k] = source;
+  const rated = (s: Sheet) => new Set([...Object.keys(s.course_rating ?? {}), ...Object.keys(s.slope_rating ?? {})]);
+  const hadRated = rated(before);
+  for (const k of rated(after)) if (!hadRated.has(k) && !out.ratings![k]) out.ratings![k] = source;
+  if (Object.keys(out.tees!).length === 0) delete out.tees;
+  if (Object.keys(out.ratings!).length === 0) delete out.ratings;
+  return out;
+}
