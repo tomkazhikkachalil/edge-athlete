@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 
-/** The headline tiles of a level (career or a season) — the sport's own profile tiles, computed over the counted games. A tile with an `href` is a door (its stat's clips). */
+/**
+ * The headline tiles of a level (career or a season) — the sport's own profile tiles, computed over the counted games.
+ * A tile with an `href` is a door (its stat's clips). A tile with nothing to say ("-": a track event never raced) is not drawn; a real zero is.
+ */
 export default function Tiles({ tiles }: { tiles: Array<{ label: string; value: string | null; href?: string | null }> }) {
-  const shown = tiles.filter(t => t.value !== null);
+  const shown = tiles.filter(t => t.value !== null && t.value.trim() !== '-' && t.value.trim() !== '–');
   if (shown.length === 0) return null;
   return (
     <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-sport-tiles="">

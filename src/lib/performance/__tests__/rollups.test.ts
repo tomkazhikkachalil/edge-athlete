@@ -80,4 +80,11 @@ describe('computeRollups', () => {
     expect(e).toMatchObject({ events: 0, seasons: [], trend: [], career: { from: null, to: null } });
     expect(e.career.tiles.every(t => t.value === null)).toBe(true);
   });
+
+  it('a hero that is a different event from one race to the next has no trend (track): the event\'s own history is its progression', () => {
+    const track = getStatSchema('track_field')!;
+    const t = computeRollups(track, [row('2026-05-09', { time_100m: 11.92 }), row('2026-05-30', { time_400m: 56.1 }), row('2026-06-13', { time_100m: 11.85 })]);
+    expect(t.trend).toEqual([]);
+    expect(t.career.bests.find(b => b.key === 'time_100m')?.value).toBe(11.85);
+  });
 });

@@ -9,7 +9,7 @@
  */
 import Link from 'next/link';
 import { progressionOf } from '@/lib/sport-profile/rules';
-import { seasonTitle, sportViewSearch, statCell } from '@/lib/sport-profile/view';
+import { gameTitle, statTitle, seasonTitle, sportViewSearch, statCell } from '@/lib/sport-profile/view';
 import type { SportProfileData } from './types';
 
 interface Props { data: SportProfileData; season: string | null; stat: string; basePath: string }
@@ -26,7 +26,7 @@ export default function BestHistory({ data, season, stat, basePath }: Props) {
   return (
     <div className="mb-8 border-b border-border-subtle pb-8" data-best-history={stat}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-bold text-primary">{column.label} — {season ? seasonTitle(season) : 'career'}</h2>
+        <h2 className="text-lg font-bold text-primary">{statTitle(column.label, column.format)} — {season ? seasonTitle(season) : 'career'}</h2>
         <Link href={`${basePath}${sportViewSearch({ season })}`} scroll={false} className="ea-interactive inline-flex min-h-[44px] items-center rounded-lg border border-border px-4 text-sm font-medium text-primary" data-best-history-close="">Close</Link>
       </div>
       {points.length === 0 ? (
@@ -39,7 +39,7 @@ export default function BestHistory({ data, season, stat, basePath }: Props) {
               <li key={p.key}>
                 <Link href={`${basePath}${sportViewSearch({ season: g.season ?? 'undated', game: g.key })}`} className="ea-interactive flex min-h-[52px] items-center justify-between gap-3 rounded px-1" data-best-history-row={p.key}>
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-primary">{g.title}</span>
+                    <span className="block truncate font-medium text-primary">{gameTitle(data.sums, g.opponent, g.title)}</span>
                     <span className="block text-xs text-muted">{day(p.date)}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">

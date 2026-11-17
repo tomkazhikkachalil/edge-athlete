@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { statCell } from '@/lib/sport-profile/view';
+import { statCell, statTitle } from '@/lib/sport-profile/view';
 import type { StatColumn } from './types';
 
 export interface StatTableRow {
@@ -54,7 +54,7 @@ export default function StatTable({ caption, leadLabel, countLabel, columns, row
                   <Link href={href} scroll={false} className="ea-interactive -mx-2 -my-1 inline-block min-w-[2.75rem] rounded px-2 py-1 text-brand underline decoration-border underline-offset-4" aria-label={`${statCell(r.stats[c.key], c.format)} ${c.label}: watch the clips`} data-stat-door={c.key}>
                     {statCell(r.stats[c.key], c.format)}
                   </Link>
-                ) : statCell(r.stats[c.key] ?? 0, c.format)}
+                ) : c.rule !== 'sum' && !((r.stats[c.key] ?? 0) > 0) ? '–' : statCell(r.stats[c.key] ?? 0, c.format)}
               </td>
             );
           })}
@@ -69,10 +69,11 @@ export default function StatTable({ caption, leadLabel, countLabel, columns, row
             <th scope="col" className="sticky left-0 bg-surface py-2 pr-3 text-left font-medium">{leadLabel}</th>
             {countLabel && <th scope="col" className="px-2 py-2 text-right font-medium">{countLabel}</th>}
             {columns.map(c => {
-              const title = `${c.label}${c.rule === 'low' || c.rule === 'high' ? ' — best' : c.rule === 'avg' ? ' — average' : ''}`;
+              const name = statTitle(c.label, c.format);
+              const title = `${name}${c.rule === 'low' || c.rule === 'high' ? ' — best' : c.rule === 'avg' ? ' — average' : ''}`;
               const href = headDoor?.(c.key) ?? null;
               return (
-                <th key={c.key} scope="col" className="px-2 py-2 text-right font-medium" title={c.label}>
+                <th key={c.key} scope="col" className="px-2 py-2 text-right font-medium" title={name}>
                   {href ? (
                     <Link href={href} scroll={false} className="ea-interactive -mx-2 -my-1 inline-block min-w-[2.75rem] rounded px-2 py-1 text-brand underline decoration-border underline-offset-4" aria-label={`${title}: every one, in order`} data-stat-head-door={c.key}>{c.short}</Link>
                   ) : (

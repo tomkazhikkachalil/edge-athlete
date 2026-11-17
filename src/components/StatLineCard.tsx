@@ -7,6 +7,8 @@ import { getStatSchema, formatResult, formatRaceTime, type StatLineData } from '
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { boutHeadline, isCombatSport } from '@/lib/sports/bout';
 import FaIcon from '@/components/FaIcon';
+import { gameTitle } from '@/lib/sport-profile/view';
+import { gameHasSides } from '@/lib/videos/game-rules';
 import { sportIcon } from '@/lib/sports/sport-icons';
 
 /** Race times read as times ("11.85s", "4:05.30"), not bare numbers. Every
@@ -40,7 +42,7 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
           <FaIcon icon={sportIcon(sportDef.sport_key)} className="text-brand-fg-strong" />
           <div className="min-w-0">
             <div className="font-bold text-slate-900 dark:text-primary text-sm truncate">
-              {line.opponent ? `vs ${line.opponent}` : `${sportDef.display_name} ${schema.activityNoun}`}
+              {gameTitle(gameHasSides(sportDef.sport_key), line.opponent, `${sportDef.display_name} ${schema.activityNoun}`)}
             </div>
             {(() => {
               if (!line.date) return null;

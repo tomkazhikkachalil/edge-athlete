@@ -5,7 +5,8 @@ import { useMemo, useState } from 'react';
 import { useToast } from '@/components/Toast';
 import { saveDistinctGames } from '@/lib/performance/game-distinct-client';
 import { NO_SEASON, sameOpponent, splitByOpponent, splitByPeriod, totalsOf, type ProfileGame } from '@/lib/sport-profile/rules';
-import { seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
+import { capitalized, gameTitle, seasonTitle, sportViewSearch } from '@/lib/sport-profile/view';
+import { nounOf } from '@/lib/sport-profile/has-profile';
 import SeasonRollups from '@/components/stats/SeasonRollups';
 import { PROVENANCE_LABEL, UNCONFIRMED_LABEL, UNCONFIRMED_TITLE } from '@/lib/sports/provenance-copy';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
@@ -45,6 +46,7 @@ export default function SeasonView({ data, season, opponent = null, basePath, sp
   const opponents = useMemo(() => splitByOpponent(games, keys), [games, keys]);
   const periods = useMemo(() => splitByPeriod(games, keys), [games, keys]);
   const heldHere = games.filter(g => g.held).length;
+  const noun = nounOf(data.sport);
   // "These are two different games" (309) — the athlete's own word on two games joined by the date alone; the server decides who may say it.
   const { showError } = useToast();
   const [saving, setSaving] = useState(false);
@@ -81,7 +83,7 @@ export default function SeasonView({ data, season, opponent = null, basePath, sp
     else if (!g.counted && g.source === 'film' && !g.date) marks.push('No date played — not counted');
     else if (!g.counted) marks.push('Not counted');
     if (row.hidden) marks.push('Hidden from your page');
-    const title = g.opponent ? `vs ${g.opponent}` : g.title;
+    const title = gameTitle(data.sums, g.opponent, g.title);
     return {
       id: g.key,
       muted: !g.counted,
@@ -133,7 +135,7 @@ export default function SeasonView({ data, season, opponent = null, basePath, sp
       {(data.sums || data.columns.length > 0) && (
       <div data-sport-season-totals="">
         <h3 className="mb-3 text-lg font-bold text-primary">{data.sums ? 'Season totals' : 'Season totals and bests'}</h3>
-        <StatTable caption={`${sportLabel} ${seasonTitle(season)} totals`} leadLabel="" countLabel="GP" columns={data.columns} headDoor={k => (data.columns.find(c => c.key === k && (c.rule === 'low' || c.rule === 'high')) ? `${basePath}${sportViewSearch({ season, stat: k })}` : null)} rows={[{ id: 'totals', lead: seasonTitle(season), count: summary.games, stats: summary.totals, door: k => (summary.bestIn[k] && data.games.some(g => g.key === summary.bestIn[k]) ? `${basePath}${sportViewSearch({ season, game: summary.bestIn[k] })}` : (summary.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season, stat: k })}` : null) }]} />
+        <StatTable caption={`${sportLabel} ${seasonTitle(season)} totals`} leadLabel="" countLabel={data.sums ? 'GP' : capitalized(noun.many)} columns={data.columns} headDoor={k => (data.columns.find(c => c.key === k && (c.rule === 'low' || c.rule === 'high')) ? `${basePath}${sportViewSearch({ season, stat: k })}` : null)} rows={[{ id: 'totals', lead: seasonTitle(season), count: summary.games, stats: summary.totals, door: k => (summary.bestIn[k] && data.games.some(g => g.key === summary.bestIn[k]) ? `${basePath}${sportViewSearch({ season, game: summary.bestIn[k] })}` : (summary.clips[k] ?? 0) > 0 ? `${basePath}${sportViewSearch({ season, stat: k })}` : null) }]} />
       </div>
       )}
 
@@ -182,7 +184,7 @@ export default function SeasonView({ data, season, opponent = null, basePath, sp
 
       <div data-sport-game-log="">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-bold text-primary" data-game-log-heading="">{opponent ? `Games against ${opponent}` : 'Game log'}</h3>
+          <h3 className="text-lg font-bold text-primary" data-game-log-heading="">{opponent ? `Games against ${opponent}` : `${capitalized(noun.one)} log`}</h3>
           {opponent && <Link href={`${basePath}${sportViewSearch({ season })}`} scroll={false} className="ea-interactive inline-flex min-h-[44px] items-center rounded-lg border border-border px-4 text-sm font-medium text-primary" data-opponent-clear="">All games</Link>}
         </div>
         {games.some(g => g.source === 'official') && (
@@ -190,12 +192,12 @@ export default function SeasonView({ data, season, opponent = null, basePath, sp
         )}
         {heldHere > 0 && (
           <p className="mb-3 flex flex-wrap items-center gap-3 text-sm text-secondary" data-sport-held="">
-            <span>{heldHere === 1 ? 'One game is' : `${heldHere} games are`} spoiler-free: counted above, the line kept back.</span>
+            <span>{heldHere === 1 ? `One ${noun.one} is` : `${heldHere} ${noun.many} are`} spoiler-free: counted above, the line kept back.</span>
             <button type="button" onClick={onShowHeld} className="ea-interactive rounded px-2 py-1 font-medium text-primary underline decoration-border underline-offset-4" data-show-held="">Show the results</button>
           </p>
         )}
-        <StatTable caption={`${sportLabel} ${seasonTitle(season)} game log`} leadLabel="Game" columns={data.columns} rows={opponent ? log.filter(r => sameOpponent(rowOf.get(r.id)?.opponent ?? null, opponent)) : log} />
-        <p className="mt-3 text-xs text-muted">Season totals are {totalsOf(games, keys).games === 1 ? 'one counted game' : `${totalsOf(games, keys).games} counted games`}. One game is counted once: an official line, then a club&apos;s or league&apos;s game film, then the athlete&apos;s own post.</p>
+        <StatTable caption={`${sportLabel} ${seasonTitle(season)} ${noun.one} log`} leadLabel={capitalized(noun.one)} columns={data.columns} rows={opponent ? log.filter(r => sameOpponent(rowOf.get(r.id)?.opponent ?? null, opponent)) : log} />
+        <p className="mt-3 text-xs text-muted">Season totals are {totalsOf(games, keys).games === 1 ? `one counted ${noun.one}` : `${totalsOf(games, keys).games} counted ${noun.many}`}. {data.sums ? <>One game is counted once: an official line, then a club&apos;s or league&apos;s game film, then the athlete&apos;s own post.</> : <>One {noun.one} is counted once: an official line comes before the athlete&apos;s own post.</>}</p>
       </div>
     </section>
   );

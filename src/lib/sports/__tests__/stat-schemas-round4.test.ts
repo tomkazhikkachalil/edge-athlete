@@ -47,3 +47,24 @@ describe('the new fields', () => {
     expect(STAT_SCHEMAS.ice_hockey!.fields.find(f => f.key === 'goals')!.decimal).toBeUndefined();
   });
 });
+
+// Nov 16 2026 — a race sport's tiles read true: a pace as a clock, a heart rate over the runs that carry one.
+describe('the endurance tiles', () => {
+  const run = (stats: Record<string, number>): StatLineData => ({ type: 'stat_line', sport_key: 'running', stats });
+  const tile = (label: string) => getStatSchema('running')!.profileTiles.find(t => t.label === label)!;
+  const runs = [run({ distance_km: 10, pace_s_per_km: 300, avg_hr: 150 }), run({ distance_km: 5, pace_s_per_km: 280, avg_hr: 160 }), run({ distance_km: 21, pace_s_per_km: 340 })];
+
+  it('the best pace is a clock (4:40), not a race time (4:40.00)', () => {
+    expect(computeProfileTile(tile('Best pace'), runs)).toBe('4:40');
+  });
+
+  it('the average heart rate is over the runs that have one — a run without a reading is not a run at 0', () => {
+    expect(computeProfileTile(tile('Avg heart rate'), runs)).toBe('155');
+    expect(computeProfileTile(tile('Avg heart rate'), [run({ distance_km: 5 })])).toBe('-');
+  });
+
+  it('a per-game average still counts every game (a scoreless game is a game)', () => {
+    const ppg = getStatSchema('basketball')!.profileTiles.find(t => t.label === 'PPG')!;
+    expect(computeProfileTile(ppg, [line('basketball', { points: 20 }), line('basketball', { points: 0 })])).toBe('10.0');
+  });
+});

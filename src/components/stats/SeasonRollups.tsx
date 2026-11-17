@@ -15,6 +15,11 @@ import { useEffect, useState } from 'react';
 import type { Rollups } from '@/lib/performance/rollups';
 import { onStatGamesChanged } from '@/lib/performance/game-distinct-client';
 import { PROVENANCE_LABEL } from '@/lib/sports/provenance-copy';
+import { statCell, statFormatOf, statTitle } from '@/lib/sport-profile/view';
+
+// A best reads as its column does in the tables: "24.10", "4:40" — and its name without the entry form's "(s)".
+const bestValue = (b: { key: string; value: number }) => statCell(b.value, statFormatOf(b.key));
+const bestName = (b: { key: string; label: string }) => statTitle(b.label, statFormatOf(b.key));
 
 const shortDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -111,14 +116,14 @@ export default function SeasonRollups({ profileId, sportKey, heroLabel, mode = '
                 const href = bestHref?.(b) ?? null;
                 const body = (
                   <>
-                    <span className="text-secondary">{b.label}</span>
-                    <span className="tabular-nums text-primary">{b.value} <span className="text-xs text-tertiary">{shortDate(b.date)}</span>{href && <span aria-hidden="true" className="ml-1 text-brand-fg">›</span>}</span>
+                    <span className="text-secondary">{bestName(b)}</span>
+                    <span className="tabular-nums text-primary">{bestValue(b)} <span className="text-xs text-tertiary">{shortDate(b.date)}</span>{href && <span aria-hidden="true" className="ml-1 text-brand-fg">›</span>}</span>
                   </>
                 );
                 return (
                   <li key={b.key}>
                     {href ? (
-                      <Link href={href} className="ea-interactive flex min-h-[44px] items-center justify-between gap-3 rounded" aria-label={`${b.label} ${b.value}: open that game`} data-rollups-best-door={b.key}>{body}</Link>
+                      <Link href={href} className="ea-interactive flex min-h-[44px] items-center justify-between gap-3 rounded" aria-label={`${bestName(b)} ${bestValue(b)}: open it`} data-rollups-best-door={b.key}>{body}</Link>
                     ) : (
                       <span className="flex justify-between gap-3 py-1">{body}</span>
                     )}
@@ -183,9 +188,9 @@ export default function SeasonRollups({ profileId, sportKey, heroLabel, mode = '
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm" data-rollups-bests="">
             {bests.map(b => (
               <li key={b.key} className="flex justify-between gap-3">
-                <span className="text-secondary">{b.label}</span>
+                <span className="text-secondary">{bestName(b)}</span>
                 <span className="text-primary tabular-nums">
-                  {b.value} <span className="text-xs text-tertiary">{shortDate(b.date)}</span>
+                  {bestValue(b)} <span className="text-xs text-tertiary">{shortDate(b.date)}</span>
                 </span>
               </li>
             ))}

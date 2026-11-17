@@ -159,4 +159,19 @@ Golf does not fit the stat-line payload — its numbers are scores against par, 
 - My call: the owner's trends page (four charts) and rounds list (search, filters) stay — the profile links to them ("Open full trends", "Edit this round"); redirecting them would drop things the profile does not have.
 - Pinned by `golf-profile-rules.test.ts`, `view.test.ts`, `e2e/golf-profile-api.spec.ts`, `e2e/golf-profile.spec.ts`.
 
+## Wording that does not assume a team game (Nov 16 2026)
+
+A sport without two sides (`sportSums` false: track, running, cycling, swimming, rowing) reads in its own words. Each is one rule, used at every site:
+
+- **"vs" only where there are sides** — `gameTitle(sides, opponent, fallback)` (`view.ts`). A race's "opponent" is its meet or its place: "Spring Open", never "vs Spring Open". Also on the post's stat card, the feed's summary line, the calendar and the sport's log page.
+- **A stat's name without the entry form's seconds** — `statTitle(label, format)`: "100m time (s)" → "100m time", "Pace (s /km)" → "Pace /km"; a plain number keeps its unit ("Distance (km)").
+- **A best reads as its column does** — the bests list formats through `statCell` ("24.10", "4:40"), never the raw number.
+- **The sport's own noun** — `nounOf(sport)` (`has-profile.ts`): "Race log", "Races", "4 counted races"; a sport with sides keeps "game".
+- **No trend through different measures** — a stat sheet whose hero number is a different event per entry says `heroVaries` (track); `computeRollups` then returns no trend. An event's own history is its progression.
+- **Not recorded is a dash** — in a column that is a best or an average, zero means not recorded and shows "–"; a tile with nothing to say is not drawn. A real zero in a total stays.
+- **An average of a reading is over the entries that carry it** — `recordedOnly` on a tile (heart rate): a run without a reading is not a run at 0. A per-game average still counts every game.
+- **Rivals sits below the numbers**, and on a sport without sides the empty invitation is not drawn.
+- **Golf's handicap is shown once** — Career's first tile; the Trends block no longer repeats it.
+- Pinned by `view.test.ts`, `rollups.test.ts`, `stat-schemas-round4.test.ts`, `e2e/sport-profile-race.spec.ts`.
+
 **Pinned by** `src/lib/sport-profile/__tests__/rules.test.ts`, `view.test.ts`, `e2e/sport-profile.spec.ts` (375 px, both routes), `e2e/sport-profile-split.spec.ts`, `e2e/sport-profile-unclaimed.spec.ts`, `unclaimed.test.ts`, `e2e/video-placeholder.spec.ts` (the short name, and "Player 1" when kept private), `src/lib/videos/__tests__/game-derive.test.ts` ("the tags behind a stat"), `e2e/sport-profile-api.spec.ts`.

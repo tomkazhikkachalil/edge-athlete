@@ -15,6 +15,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
+import { gameHasSides } from '@/lib/videos/game-rules';
 import { getSportDefinition, getSportAdapter, type SportKey } from '@/lib/sports';
 import { pluralNoun } from '@/lib/sports/adapters/StatLinePostAdapter';
 import { UNCONFIRMED_LABEL, UNCONFIRMED_TITLE } from '@/lib/sports/provenance-copy';
@@ -136,7 +137,7 @@ export default function SportLogPage() {
                 <ul className="bg-surface rounded-lg shadow-sm border border-border divide-y divide-border">
                   {official.map(o => (
                     <li key={o.contestId} className="px-4 py-3 text-sm flex flex-wrap justify-between gap-2">
-                      <span><Link href={o.href} className="text-primary font-medium">{o.date ? shortDate(o.date) : '—'}</Link> <span className="text-secondary">· {o.competitionName}{o.opponent ? ` vs ${o.opponent}` : ''}</span></span>
+                      <span><Link href={o.href} className="text-primary font-medium">{o.date ? shortDate(o.date) : '—'}</Link> <span className="text-secondary">· {o.competitionName}{o.opponent ? (gameHasSides(sportKey) ? ` vs ${o.opponent}` : ` · ${o.opponent}`) : ''}</span></span>
                       <span className="text-primary">{o.disputed ? <span title={UNCONFIRMED_TITLE} className="text-tertiary">{UNCONFIRMED_LABEL}</span> : o.keyStat ?? '—'}</span>
                     </li>
                   ))}

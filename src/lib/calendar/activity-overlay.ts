@@ -13,6 +13,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isStatLineData } from '@/lib/sports/stat-schemas';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
+import { gameTitle } from '@/lib/sport-profile/view';
+import { gameHasSides } from '@/lib/videos/game-rules';
 import { utcDay } from './day';
 
 /** A calendar range's rows from one table, at most (Nov 2026): PostgREST cuts an unbounded read at 1,000 silently — a month of one athlete's training posts or game logs is far under this. */
@@ -197,8 +199,9 @@ export function statLinePostToItem(
   const startMs = Date.UTC(y, m - 1, d);
   const sportName =
     SPORT_REGISTRY[line.sport_key as SportKey]?.display_name ?? 'Game';
+  // "vs" only where there are two sides: a race's "opponent" is its meet.
   const title = line.opponent
-    ? `✓ vs ${line.opponent}${line.result ? ` (${line.result})` : ''}`
+    ? `✓ ${gameTitle(gameHasSides(line.sport_key), line.opponent, sportName)}${line.result ? ` (${line.result})` : ''}`
     : `✓ ${sportName}`;
   return {
     ...baseItem,

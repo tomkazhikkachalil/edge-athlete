@@ -128,7 +128,8 @@ export function computeRollups(schema: SportStatSchema, rows: RollupRow[], opts:
       };
     });
 
-  const trend = clean
+  // A hero that is a different measure per entry (track's events) has no trend: an event's own history is its progression.
+  const trend = schema.heroVaries ? [] : clean
     .slice(0, Math.max(1, opts.trendLength ?? TREND_LENGTH))
     .reverse()
     .map(r => ({ date: r.date, value: schema.heroStat.compute(r.stats) }))

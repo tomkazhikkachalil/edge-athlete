@@ -58,7 +58,7 @@ function RecordSummary({ record }: { record: HeadToHead }) {
   );
 }
 
-export default function RivalsPanel({ profileId, sportKey }: { profileId: string; sportKey: string }) {
+export default function RivalsPanel({ profileId, sportKey, hideEmpty = false }: { profileId: string; sportKey: string; /** Draw nothing while there is no rival — not even the owner's invitation (a sport without sides). */ hideEmpty?: boolean }) {
   const { showError } = useToast();
   const [view, setView] = useState<RivalsView | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -83,6 +83,7 @@ export default function RivalsPanel({ profileId, sportKey }: { profileId: string
 
   if (!view) return null;
   if (!view.selfView && view.rivals.length === 0 && !view.yours) return null;
+  if (hideEmpty && view.rivals.length === 0 && !view.yours) return null;
 
   const toggle = async (opponentId: string, shown: boolean) => {
     setBusy(opponentId);
