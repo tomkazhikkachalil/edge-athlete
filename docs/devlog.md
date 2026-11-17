@@ -1,5 +1,25 @@
 # Development Log
 
+## November 16, 2026 (22:12) — Golf scorecards: a card is filled, never replaced, and both providers are asked
+
+Tom: "I think I know what went wrong with the golf API… we swapped to a new API which made us drop stats from the old one. Would it be possible to use multiple APIs?" He had seen whole scorecards gone and tee sets / yardages missing.
+
+What the history and the code showed:
+
+- **No swap dropped data.** The providers before Aug 22 (GolfAPI.io, iGolf, Zyla) never ran: no key was ever set (PR #199 removed them).
+- **The weekly refresh replaced a card wholesale.** `hydrateCourseDetailed` kept the stored card only against an EMPTY answer. A card found by name on GolfCourseAPI, sitting on a row whose identity is OpenGolfAPI, was overwritten a week later by OpenGolfAPI's thinner answer. Not yet confirmed on a named course.
+- **A partial card was never topped up** (`findOfficialSheet` stopped at "has holes"), and only GolfCourseAPI was ever asked by name.
+- **GolfCourseAPI's normaliser guessed a par of 4** for a hole whose reference tee box had none, and dropped the yardages of a women's box named like a men's.
+
+What changed (zero DDL, two PRs):
+
+- **#1548** — `src/lib/golf/sheet-merge.ts` (pure): `mergeSheets` fills a stored card and removes nothing; `sheetsAgree` refuses an answer that is a different course (more than 2 pars apart); the refresh writes the merged card. The normaliser takes a par or stroke index from another tee box or gives no card, and keeps women's yardages under the `(f)` key.
+- **This PR** — `findOfficialSheet` is a loop over `SHEET_PROVIDERS`: every provider that is not the row's own, OpenGolfAPI first, GolfCourseAPI for what is still missing, until `sheetComplete`. One provider's error or spent budget does not stop the next. The course card asks quietly when an official card has gaps. Still only on a pick, one ask per course per day, no bulk caller. A third provider is one more entry.
+
+Decisions kept: nothing bought, no third provider, no estimates, no manual pars. Not done here: cards already lost are not restored (a read-only comparison against the copies rounds stored comes first; restoring is Tom's call); the per-field source column is the next PR (a migration).
+
+Proof: `npm run verify` exit 0 (6,498 unit tests, build, check:syntax), guardrails, blocklists. New tests: `sheet-merge.test.ts`, `official-sheet.test.ts` (ask order, stop when complete, top-up, refusal, budgets), the hydration and normaliser cases. Spec: `docs/specs/golf-course-data.md` (the Nov 16 note). Staging and production proofs are recorded in the entry that closes the round.
+
 ## November 16, 2026 (19:30) — Sport pages: the wording and layout that assumed a team game
 
 Tom, on the track sample screenshots: "fix the track wording and layout items, wherever they may be". Each one was a shared rule, so the same fault showed on running, cycling, swimming and rowing.

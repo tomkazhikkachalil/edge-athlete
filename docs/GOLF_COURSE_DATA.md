@@ -13,7 +13,7 @@ convention 36, migration 255) is the layer on top — "The sweep" below.
 | --- | --- | --- | --- | --- |
 | `seed` (migration 100) | 7 courses with full tee sheets | — | — | — |
 | OpenStreetMap (bulk import, `osm`) | 29k courses with coordinates; **hole lines** (`golf=hole` ways), **green outlines** (`golf=green`), numbered **tees and fairways** (`golf=tee` / `golf=fairway` + `ref`) and the named course boundaries, through Overpass | — | `overpass` 200 (the lazy path) · `sweep-overpass` 1,500 (the sweep, its own key) | "© OpenStreetMap contributors" (ODbL) wherever the lines render |
-| OpenGolfAPI (`opengolfapi`) | tee sheets, ratings, descriptions (CC BY-SA, the attribution line rides the description) | `OPENGOLFAPI_KEY` | `opengolfapi` | the description's own line |
+| OpenGolfAPI (`opengolfapi`) | tee sheets, ratings, descriptions (CC BY-SA, the attribution line rides the description) | none (keyless; `GOLF_OPENGOLFAPI_DISABLED=1` turns it off) | `opengolfapi` | the description's own line |
 | GolfCourseAPI (`golfcourseapi`) | tee sheets, ratings; `/v1/proximity` on Pro (coordinates) | `GOLF_COURSE_API_KEY` + `GOLF_COURSE_API_PLAN` | `golfcourseapi` (`GOLF_PROVIDER_DAILY_BUDGET`), `golfcourseapi-proximity` | — |
 | Nominatim | coordinate refinement, reverse geocoding | — | `nominatim` | OSM's |
 | **Terrain Tiles** (AWS Open Data / Mapzen) | **elevation**, free, no key — 3DEP 10 m (US), CDEM (Canada), SRTM 30 m elsewhere | — | `terrain-tiles` 400 (the lazy path) · `sweep-terrain` 3,000 (the sweep's elevation phase) — one hit per course per 30 days | see below |
