@@ -48,6 +48,7 @@ import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
+import { mergeSheets } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
@@ -690,15 +691,29 @@ export function normalizeGcaDetail(d: GcaDetail): NewRow {
   const refHoles = reference?.holes ?? [];
   // Holes are POSITIONAL (no number field) — number them 1..n; only boxes
   // with the same hole count contribute per-hole yardage.
-  const holes: CourseHole[] = refHoles.map((h, i) => {
+  const sameCount = boxes.filter(b => b.holes?.length === refHoles.length);
+  // Nov 16 2026: a women's box named like a men's one keeps its yardages under
+  // the same "(f)" key its rating and slope already use (they were dropped).
+  const maleKeys = new Set(male.map(t => (t.tee_name ?? '').toLowerCase().trim()));
+  const yardageKey = (box: GcaTeeBox): string => {
+    const key = (box.tee_name ?? '').toLowerCase().trim();
+    return key && female.includes(box) && maleKeys.has(key) ? `${key} (f)` : key;
+  };
+  const built = refHoles.map((h, i) => {
     const yardage: Record<string, number> = {};
-    for (const box of boxes) {
-      const key = (box.tee_name ?? '').toLowerCase().trim();
-      const y = box.holes?.length === refHoles.length ? box.holes?.[i]?.yardage : null;
+    for (const box of sameCount) {
+      const key = yardageKey(box);
+      const y = box.holes?.[i]?.yardage;
       if (key && y != null && !(key in yardage)) yardage[key] = y;
     }
-    return { number: i + 1, par: h.par ?? 4, yardage, handicap: h.handicap ?? 0 };
+    // Nov 16 2026: a par the reference box lacks comes from another box of the
+    // same course, and a stroke index likewise. Never a guessed 4.
+    const par = h.par ?? sameCount.map(b => b.holes?.[i]?.par).find(p => p != null) ?? null;
+    const handicap = h.handicap || sameCount.map(b => b.holes?.[i]?.handicap).find(v => !!v) || 0;
+    return { number: i + 1, par, yardage, handicap };
   });
+  // A hole no box knows the par of: this is not a card (the caller reports no_tees).
+  const holes: CourseHole[] = built.every(h => h.par != null) ? (built as CourseHole[]) : [];
 
   const base = normalizeGcaSummary(d);
   return {
@@ -1458,6 +1473,15 @@ export async function hydrateCourseDetailed(
     providerCoords
   );
 
+  // Nov 16 2026: the answer FILLS the stored card and never replaces it. A
+  // card found by name on the other provider used to be overwritten here by
+  // this provider's thinner answer; an answer that looks like a different
+  // course is refused whole.
+  const merged = mergeSheets(row, normalized);
+  if (merged.refused) {
+    console.warn(`[course-catalog] hydrate: ${row.id} "${row.name}" kept its card, ${row.external_source}:${row.external_id} disagrees with it`);
+  }
+
   const { data: updated } = await admin
     .from('golf_courses')
     .update({
@@ -1477,12 +1501,13 @@ export async function hydrateCourseDetailed(
             location_source: normalized.country_code || normalized.region ? 'provider' : row.location_source,
           }),
       // Oct 31 2026: an empty provider answer never erases a sheet the row
-      // already holds (the refresh runs again every 7 days).
-      total_par: normalized.total_par ?? row.total_par,
-      holes_count: normalized.holes_count ?? row.holes_count,
-      hole_data: normalized.hole_data?.length ? normalized.hole_data : row.hole_data,
-      course_rating: Object.keys(normalized.course_rating ?? {}).length ? normalized.course_rating : row.course_rating,
-      slope_rating: Object.keys(normalized.slope_rating ?? {}).length ? normalized.slope_rating : row.slope_rating,
+      // already holds (the refresh runs again every 7 days). Nov 16: nor does
+      // a thinner one — see mergeSheets.
+      total_par: merged.sheet.total_par,
+      holes_count: merged.sheet.holes_count,
+      hole_data: merged.sheet.hole_data,
+      course_rating: merged.sheet.course_rating,
+      slope_rating: merged.sheet.slope_rating,
       lat: refined?.lat ?? providerCoords.lat,
       lng: refined?.lng ?? providerCoords.lng,
       description: normalized.description,

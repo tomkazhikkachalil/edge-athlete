@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { hydrateCourseDetailed, hydrationDue, sheetFromRow, type CatalogRow } from '../course-catalog';
 
@@ -154,11 +152,40 @@ describe('sheetFromRow — what is missing', () => {
 });
 
 // Oct 31 2026: an empty provider answer never erases a sheet the row holds.
+// Nov 16 2026: nor does a thinner one — the answer fills, it never replaces.
 describe('hydration keeps an existing sheet', () => {
-  it('the writer falls back to the row for holes, ratings and par', () => {
-    const src = readFileSync(join(process.cwd(), 'src/lib/golf/course-catalog.ts'), 'utf8');
-    expect(src).toContain('hole_data: normalized.hole_data?.length ? normalized.hole_data : row.hole_data');
-    expect(src).toContain('course_rating: Object.keys(normalized.course_rating ?? {}).length ? normalized.course_rating : row.course_rating');
-    expect(src).toContain('total_par: normalized.total_par ?? row.total_par');
+  const stored = {
+    total_par: 36, holes_count: 9,
+    hole_data: Array.from({ length: 9 }, (_, i) => ({ number: i + 1, par: 4, yardage: { blue: 400 + i, white: 380 + i }, handicap: i + 1 })),
+    course_rating: { blue: 71.2, white: 69.8 }, slope_rating: { blue: 128, white: 122 },
+  };
+
+  it('a thinner provider answer leaves every tee, yardage and rating in place', async () => {
+    const thin = { tee_name: 'White', par_total: 36, number_of_holes: 9, holes: Array.from({ length: 9 }, () => ({ par: 4, yardage: 300 })) };
+    stubFetch(async () => ({ ok: true, json: async () => gca({ id: '42', club_name: 'QA Links', tees: { male: [thin] } }) }));
+    const { admin, updates } = fakeAdmin();
+    await hydrateCourseDetailed(admin, row(stored));
+    const write = updates.find(u => 'hole_data' in u)!;
+    expect(write.hole_data).toEqual(stored.hole_data);
+    expect(write.course_rating).toEqual(stored.course_rating);
+    expect(write.slope_rating).toEqual(stored.slope_rating);
+    expect(write.total_par).toBe(36);
+  });
+
+  it('an answer adds the tee the card lacked', async () => {
+    stubFetch(async () => ({ ok: true, json: async () => gca({ id: '42', club_name: 'QA Links', tees: { male: [teeBox('Gold', [340, 341, 342, 343, 344, 345, 346, 347, 348])] } }) }));
+    const { admin, updates } = fakeAdmin();
+    await hydrateCourseDetailed(admin, row(stored));
+    const write = updates.find(u => 'hole_data' in u)! as { hole_data: Array<{ yardage: Record<string, number> }>; course_rating: Record<string, number> };
+    expect(write.hole_data[0].yardage).toEqual({ blue: 400, white: 380, gold: 340 });
+    expect(write.course_rating).toEqual({ blue: 71.2, white: 69.8, gold: 70.1 });
+  });
+
+  it('a different course under the same id is refused: the card stays', async () => {
+    const other = { tee_name: 'Red', par_total: 45, number_of_holes: 9, holes: Array.from({ length: 9 }, () => ({ par: 5, yardage: 250 })) };
+    stubFetch(async () => ({ ok: true, json: async () => gca({ id: '42', club_name: 'QA Links', tees: { male: [other] } }) }));
+    const { admin, updates } = fakeAdmin();
+    await hydrateCourseDetailed(admin, row(stored));
+    expect(updates.find(u => 'hole_data' in u)!.hole_data).toEqual(stored.hole_data);
   });
 });
