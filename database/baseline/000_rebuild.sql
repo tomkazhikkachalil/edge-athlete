@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-15T20:52:30.379047+00:00 from server 17.6 by
+-- Generated 2026-11-17T12:41:14.427533+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 312.
+-- public.schema_dump() (migration 227). Ledger head at generation: 313.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -6036,7 +6036,8 @@ CREATE TABLE IF NOT EXISTS public.golf_courses (
   section_name text,
   section_kind text,
   hole_elevation jsonb,
-  hole_elevation_at timestamp with time zone
+  hole_elevation_at timestamp with time zone,
+  sheet_sources jsonb
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_hole_scores (
@@ -20493,6 +20494,7 @@ COMMENT ON COLUMN public.conversations.frozen_ticket_id IS 'The ticket that froz
 COMMENT ON TABLE public.golf_course_picks IS 'Picks per course and the card each had at the latest pick (294). No user ids. Service role only.';
 COMMENT ON COLUMN public.golf_courses.hole_elevation IS 'Elevation profile along each hole (254): {holes:[{hole, pts:[[lat,lng]…], elev:[metres…]}], sampled:''line10'', source:''open-meteo''}; NULL = no geometry or no answer. Sampled from hole_geometry; 30-day cache keyed by hole_elevation_at. Written only by src/lib/golf/elevation-server.ts.';
 COMMENT ON COLUMN public.golf_courses.hole_elevation_at IS 'When hole_elevation was last ATTEMPTED (254) — a null answer is stamped too; recomputed after 30 days or when hole_geometry_at is newer.';
+COMMENT ON COLUMN public.golf_courses.sheet_sources IS 'Which source supplied what on the scorecard: {pars, strokeIndex, tees:{tee:source}, ratings:{tee:source}}. NULL = written before migration 313.';
 COMMENT ON TABLE public.golf_hole_scores IS 'Per-hole detailed scores for golf participants';
 COMMENT ON COLUMN public.golf_hole_scores.strokes IS 'Total strokes taken on this hole (1-15)';
 COMMENT ON COLUMN public.golf_hole_scores.putts IS 'Number of putts (must be <= strokes)';
@@ -21214,7 +21216,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (309, '309_stat_game_distinct.sql', 'rebuild-000'),
   (310, '310_pulse_signal_revoke.sql', 'rebuild-000'),
   (311, '311_profile_film_hidden.sql', 'rebuild-000'),
-  (312, '312_unclaimed_profiles.sql', 'rebuild-000')
+  (312, '312_unclaimed_profiles.sql', 'rebuild-000'),
+  (313, '313_golf_course_sheet_sources.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21223,12 +21226,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 151 | 146 | 145 | 312
+-- Expected: 000 REBUILT | 151 | 146 | 145 | 313
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_151,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_146,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_312;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_313;
 
