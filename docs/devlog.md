@@ -23,6 +23,8 @@ Not done, on purpose: nothing outside the US (only GolfCourseAPI has those cours
 
 Proof: 28 new tests (the link, the verdict, the writer against a recorded database); the link counts and the 15-course sample above ran against production rows and the live provider, read-only.
 
+One real pass on staging (migration 314 applied there, `314 APPLIED | 3 | 1 | false | 314`, `check:schema` exit 0): a seeded Pebble Beach row was linked from the real file in 0.85 s and filled from the real provider in 1.7 s — 18 holes, par 72, six tees' yardages, nine ratings, every credit `opengolfapi` — and was not due again afterwards. `npm run verify` exit 0 (6,528 tests), guardrails 0, blocklists 0. Production waits on Tom's SQL; nothing has been linked or filled there.
+
 ## November 16, 2026 (22:12) — Golf scorecards: a card is filled, never replaced, and both providers are asked
 
 Tom: "I think I know what went wrong with the golf API… we swapped to a new API which made us drop stats from the old one. Would it be possible to use multiple APIs?" He had seen whole scorecards gone and tee sets / yardages missing.
