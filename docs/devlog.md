@@ -1,5 +1,24 @@
 # Development Log
 
+## November 17, 2026 (23:17) — A stored course map opens at once: 52 seconds became half a second for a stale stamp
+
+Measured on production through the product's own request (`GET /api/golf/courses?id=…&holes=1`), two mapped courses, minutes apart:
+
+| Course | Map stamp | Time |
+| --- | --- | --- |
+| Muskoka Lakes Golf and Country Club | Nov 17 (fresh) | **0.49 s** |
+| Club de Golf Gatineau | Oct 8 (41 days) | **52.45 s** |
+
+Both answers were the map the row already held. `getCourseHoleGeometry` treated a stamp older than 30 days as "ask Overpass again" and waited for it: two mirrors, 26 s each, both timing out on servers that now queue for half a minute. With the re-sweep stalled, **27,815 of 28,983 stamps are past the 30 days**, so this was nearly every course; the same request also carries the scorecard and the elevation profile, so the whole course card waited.
+
+- **The rule now:** a stored map WITH lines (and the greens key) is served at once at any age. Refreshing it is the regional sweep's job. No budget call, no fetch, no write on that path.
+- **Unchanged:** a row never asked is asked here; the pre-greens shape is refetched once; a no-coverage answer stands 30 days and is asked again on the next open after that.
+- `hole-geometry-cache.test.ts`: a stale map with lines is served with no fetch; a stale null, an empty hole list and a never-asked row are still asked.
+
+Left as it is, and worth a decision: **a course with NO map and a stale stamp still waits on Overpass when opened** (about 13,000 rows; the same 52 s on a slow day, to learn again that there is no map). Serving that null at once and leaving the retry to the sweep would end the wait; the cost is that a course newly drawn in OpenStreetMap appears only when the sweep reaches its cell. Tom's call.
+
+Not proven until deployed: the same Gatineau request on production.
+
 ## November 17, 2026 (22:59) — The map sweep's tick: every phase gets its turn, and the sweep waits long enough for a queueing Overpass
 
 Measured on production (read-only) before changing anything: the re-sweep had finished **1 to 13 cells a day for eight days**, with 5,947 of 6,325 cells due. Two causes, both found in the data:

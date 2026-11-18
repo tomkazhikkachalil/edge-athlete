@@ -1192,9 +1192,12 @@ export function resolveCourseTiers(
 
 const GEOMETRY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** The cache layer the API serves: 30-day cache in golf_courses (attempted
- *  marker included — a no-coverage answer is an answer), budget-gated fetch,
- *  transport failures never stamped so they retry on a later request. */
+const hasStoredLines = (g: HoleGeometry | null): g is HoleGeometry => !!g && Array.isArray(g.holes) && g.holes.length > 0;
+
+/** The cache layer the API serves. A stored map with lines is served at once
+ *  at any age (the sweep refreshes it); a no-coverage answer is an answer for
+ *  30 days and is asked again here after that; budget-gated fetch, transport
+ *  failures never stamped so they retry on a later request. */
 export async function getCourseHoleGeometry(
   admin: SupabaseClient,
   courseId: string,
@@ -1225,6 +1228,14 @@ export async function getCourseHoleGeometry(
   ) {
     return row.hole_geometry;
   }
+  // A stored map with lines opens AT ONCE, whatever its age (Nov 17 2026):
+  // refreshing it is the regional sweep's job, not the player's wait. Measured
+  // on production with 27,815 of 28,983 stamps past the 30 days and the public
+  // Overpass servers queueing: the same request took 0.5 s for a fresh stamp
+  // and 52.5 s for a stale one (two mirrors timing out at 26 s each) before
+  // answering with the very map the row already held. The pre-greens shape is
+  // still refetched once (above), and a row with NO lines still asks here.
+  if (hasStoredLines(row.hole_geometry) && 'greens' in row.hole_geometry) return row.hole_geometry;
   if (typeof row.lat !== 'number' || typeof row.lng !== 'number') return row.hole_geometry;
   if (!(await consumeBudget())) return row.hole_geometry; // no stamp — retry later
   const result = await fetchHoleGeometry(row.lat, row.lng, row.name);
