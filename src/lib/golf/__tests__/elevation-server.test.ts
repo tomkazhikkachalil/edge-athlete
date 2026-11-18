@@ -170,6 +170,19 @@ describe('getCourseHoleElevation', () => {
     expect(terrain).not.toHaveBeenCalled();
     expect(b.updates).toEqual([]);
   });
+  it('a map with no hole lines (greens only) is stamped as "nothing to sample": no budget, no provider, and not due again', async () => {
+    // Production, Nov 17 2026: the first twenty courses of the sweep's queue
+    // were greens-only maps; unstamped, they were the queue's head for ever.
+    const greensOnly = { source: 'osm', holes: [], greens: [{ ring: [[45.3, -75.7], [45.3001, -75.7], [45.3001, -75.6999]] }] };
+    const { admin, updates } = fakeAdmin({ hole_geometry: greensOnly, hole_geometry_at: '2026-10-01T00:00:00Z', hole_elevation: null, hole_elevation_at: null });
+    const budget = vi.fn(async () => true);
+    const terrain = vi.fn(ok(80));
+    expect(await getCourseHoleElevation(admin, 'c1', budget, now, { terrain, openMeteo: down })).toBeNull();
+    expect(budget).not.toHaveBeenCalled();
+    expect(terrain).not.toHaveBeenCalled();
+    expect(updates).toEqual([{ hole_elevation: null, hole_elevation_at: new Date(now).toISOString() }]);
+  });
+
   it('the geometry newer than the profile → refetched', async () => {
     const stale = { holes: [{ hole: 1, pts: [[45, -75], [45.001, -75]], elev: [10, 12] }], sampled: 'line10', source: 'open-meteo' };
     const { admin, updates } = fakeAdmin({ hole_geometry: geometry, hole_geometry_at: new Date(now - 100).toISOString(), hole_elevation: stale, hole_elevation_at: new Date(now - 1000).toISOString() });
