@@ -1,5 +1,14 @@
 # Development Log
 
+## November 17, 2026 (21:51) — The scorecard fill on production: 7,711 courses linked; the first batches asked nobody (my time cap was shorter than the row reserve)
+
+After #1554 deployed (`cb27950f`) the link ran on its first tick: **7,711 US courses linked in 7.5 s** (2,625 unmatched, 1,434 ambiguous; the dry run had said 7,713). Then fourteen minutes of ticks saved nothing. The job's summary in `platform_jobs` said why: `cards: { due: 2, outcomes: {}, elapsedMs: 98 }`. #1554 gave the cards phase 6 s; `runCardFillBatch` starts a row only with 7 s left, so every batch ended before its first row. My error, the second on this path: #1554's cap was never run against the batch's own guard.
+
+- The reserve is a named constant (`ROW_START_RESERVE_MS`, 7 s) and the tick's allowance is built from it (`CRON_CARD_PHASE_MS` = reserve + 5 s), so the two cannot drift apart again.
+- `card-fill-server.test.ts` runs a batch with exactly what the tick passes and expects a card saved; a second test pins that no row starts inside the reserve.
+
+Not proven before merge: the tick itself against a database (staging has no schedule). The proof is production's `platform_jobs` summary after the deploy.
+
 ## November 17, 2026 (21:02) — The advisory gate: one named exemption for picomatch (no patched version), ending by itself
 
 The guardrails check began failing on every pull request: `GHSA-fc5q-39xc-vjpf`, high, on `picomatch` (a crafted glob PATTERN hangs it). Every version through the latest (4.0.7) is affected, so there is nothing to upgrade to. Tom approved an exemption on two conditions; both were checked before it was built.
