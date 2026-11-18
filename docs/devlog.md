@@ -1,5 +1,16 @@
 # Development Log
 
+## November 17, 2026 (22:43) — Golf elevation was dead on production: the tile decoder was sharp, and sharp is not in those functions; decoded with node:zlib now
+
+Asked to look at the map job's starved phases, measured on production (read-only): **228 elevation profiles for 15,735 mapped courses**, and the `sweep-terrain` budget row showed 692 attempts on Nov 17 with not one stamp. The phase was not only short of time; every attempt failed.
+
+- **Cause:** `elevation-server.ts` decoded each terrain tile with `sharp`, imported lazily. The Nov 7 function diet removed sharp from every function except the media worker and the org cards. A production build's traces: 0 sharp files in `/api/cron/golf-map-sweep`, `/api/admin/golf-map-sweep` and `/api/golf/courses`, 102 in `/api/cron/media-jobs`. The import threw, the catch called it a transport failure, nothing was stamped, nothing was reported. The tile host itself answers in 0.4 s.
+- **Fix:** `src/lib/golf/png-decode.ts`, a decoder for exactly what the tiles are (eight-bit RGB or RGBA, not interlaced) on `node:zlib`: no native binding, nothing to trace, no 28 MB added to the hot course route. Anything else throws, which the caller already treats as a transport failure.
+- **Proof before merge:** `png-decode.test.ts` decodes two real tiles (north of Ottawa, San Francisco) and an adaptive-filtered RGBA image byte-for-byte equal to sharp's output, names each of the five row filters, and pins the refusals. One live run through the default decoder against the real tile host reached and answered four points.
+- Not yet proven: production. The proof is `hole_elevation_at` stamps appearing after the deploy.
+
+Also measured, for the next pull requests: the provider refresh is NOT starved (92 provider rows, none due; I had said it probably was); the map re-sweep has finished 1 to 13 cells a day for eight days with 5,947 of 6,325 due (public Overpass answering in 28 s against our 22 s limit, and 184 chronically failing cells retried four times a day at the head of the queue).
+
 ## November 17, 2026 (21:51) — The scorecard fill on production: 7,711 courses linked; the first batches asked nobody (my time cap was shorter than the row reserve)
 
 After #1554 deployed (`cb27950f`) the link ran on its first tick: **7,711 US courses linked in 7.5 s** (2,625 unmatched, 1,434 ambiguous; the dry run had said 7,713). Then fourteen minutes of ticks saved nothing. The job's summary in `platform_jobs` said why: `cards: { due: 2, outcomes: {}, elapsedMs: 98 }`. #1554 gave the cards phase 6 s; `runCardFillBatch` starts a row only with 7 s left, so every batch ended before its first row. My error, the second on this path: #1554's cap was never run against the batch's own guard.

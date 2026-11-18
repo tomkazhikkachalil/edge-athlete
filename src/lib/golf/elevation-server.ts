@@ -1,8 +1,8 @@
 // ── The elevation cache (PR C, Oct 2026): fetch once, keep 30 days ──────────
 // TWO providers since T2 (course flow fixes, Oct 2026), tried in order:
 //   1. Terrain Tiles (AWS Open Data / Mapzen) — free, no key, 10–30 m: each
-//      z14 PNG tile a course spans (1–4) is fetched ONCE and read with sharp
-//      (server-only; the decoder is injectable so unit tests never load it).
+//      z14 PNG tile a course spans (1–4) is fetched ONCE and decoded by
+//      png-decode.ts (node:zlib; the decoder is injectable for unit tests).
 //   2. Open-Meteo's Elevation API through its COMMERCIAL host only (the free
 //      host is for non-commercial use) — only when OPEN_METEO_API_KEY is set
 //      AND the tiles failed at the transport level.
@@ -22,6 +22,7 @@ import {
   type LatLng,
 } from '@/lib/golf/elevation';
 import { groupByTile, pixelIn, sampleBilinear, terrainTileUrl } from '@/lib/golf/terrain-tiles';
+import { decodePng } from '@/lib/golf/png-decode';
 
 export const ELEVATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const OPEN_METEO_MAX_COORDS = 100;
@@ -47,19 +48,17 @@ export interface RawImage {
 
 export type PngDecoder = (png: Uint8Array) => Promise<RawImage>;
 
-/** The default decoder — sharp, imported lazily so this module stays
- *  importable where the native binding is absent (vitest). */
-const sharpDecode: PngDecoder = async png => {
-  const sharp = (await import('sharp')).default;
-  const { data, info } = await sharp(Buffer.from(png)).raw().toBuffer({ resolveWithObject: true });
-  return { data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength), width: info.width, height: info.height, channels: info.channels };
-};
+/** The default decoder: `decodePng` (png-decode.ts), node:zlib and nothing
+ *  else. It was sharp until Nov 17 2026; sharp is not in the functions that
+ *  sample elevation (the Nov 7 function diet), so every attempt on production
+ *  failed here and stamped nothing. */
+const builtinDecode: PngDecoder = async png => decodePng(png);
 
 /** Elevations from Terrain Tiles, in order: every tile the coordinates
  *  span is fetched once, in parallel; a non-2xx, a bad PNG or a non-finite
  *  sample fails the whole fetch (the bucket is global at z14, so a 404 is a
  *  transport fact, not "no data here"). */
-export async function fetchElevationsTerrain(coords: LatLng[], decode: PngDecoder = sharpDecode): Promise<ElevationFetch> {
+export async function fetchElevationsTerrain(coords: LatLng[], decode: PngDecoder = builtinDecode): Promise<ElevationFetch> {
   if (coords.length === 0) return { reached: false, elev: null };
   const groups = groupByTile(coords);
   const out: number[] = new Array(coords.length).fill(NaN);
