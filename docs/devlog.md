@@ -1,5 +1,32 @@
 # Development Log
 
+## November 18, 2026 (08:04) — Tom's own courses: the lookup's search is widened when it finds nothing, and one whole provider card may stand against the map
+
+Tom: "I'm still missing scorecards from the courses I had originally" (he pays for GolfCourseAPI; `GOLF_COURSE_API_PLAN` set to `pro` on Vercel today). Ten real picks of Ottawa-area courses through `?sheet=1` on production, read through the new trace:
+
+| Course | Outcome | The trace |
+| --- | --- | --- |
+| Camelot Golf & Country Club | filled, 18 holes, 22 tees | GolfCourseAPI |
+| Kanata Golf Club | filled, 18 holes, 11 tees | GolfCourseAPI |
+| Club de Golf Gatineau | refused | GolfCourseAPI has the card; the map's pars disagree |
+| Ottawa Hunt (North / South / West nine) | nothing | BOTH providers: 0 candidates |
+| Greensmere (Legacy / Premier) | nothing | BOTH providers: 0 candidates |
+| Carleton Golf & Yacht Club | nothing | BOTH providers: 0 candidates |
+
+The zero-candidate rows were our wording, checked on OpenGolfAPI's keyless search: "ottawa hunt north nine" 0, "ottawa hunt" 1; "greensmere legacy" 0, "greensmere" 1; "carleton yacht" 0, "carleton" 3.
+
+What Tom's originals actually held, from the record: Ottawa Hunt's seed card was FABRICATED (an 18-hole card for a 27-hole club) and was nulled on purpose on Aug 26 (migration 125's curation); Greensmere was built then with no card; The Marshes never had one. No real card was lost.
+
+**The search is widened** (`sheetSearchQueries`, at most three, each budgeted, the next only when the last returned nothing): the distinctive words → the name without its section → fewer words. A wider search only finds candidates; the pick still decides.
+
+**A section takes its own card only** (`pickSheetCandidate`): a row with a `section_name` needs a candidate that names that section ("Legacy", "North"; "nine" says nothing), and a nine does not take an eighteen (`wrong_holes`). So the wider search cannot put a club's card, or a sibling's, on a section row.
+
+**One provider against the map** (Tom's decision, for Gatineau): when a single answer with holes was refused for the map, it is taken if the card is whole and agrees with itself (`sheetSelfConsistent`: a nine or an eighteen numbered through, pars 3–6 adding up to its own total, a yardage) and has the map's hole count; `sheet_sources.mapOverruled` is set. Accepted cost, said to Tom before he chose: a wrong same-named course could replace a correct map card. The background fill is unchanged (it still stamps `map_disagrees`); this is a pick only.
+
+Tests: `official-sheet.test.ts` (the wordings, the second search and its budget, section picks, a nine and an eighteen, the single-provider cases), `sheet-merge.test.ts` (`sheetSelfConsistent`).
+
+Not proven until deployed, and not today: each of these courses was asked today and the one-ask-per-course-per-day key holds until tomorrow. Expected then: Gatineau and Carleton filled; Greensmere only if GolfCourseAPI lists its two courses by name; Ottawa Hunt's nines only if it holds nines (an 18-hole combination is refused, correctly; mapping combinations onto nines is not built).
+
 ## November 18, 2026 (00:44) — The scorecard lookup on a pick: two providers that agree outvote the map, and a miss says why
 
 Two of Tom's choices, both in `findOfficialSheet` (`?sheet=1`, a person's pick):

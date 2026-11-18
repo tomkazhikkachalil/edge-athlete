@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { creditSources, mergeSheets, providersConfirm, sheetsAgree, sheetGaps, sheetComplete, type Sheet, type SheetHole } from '../sheet-merge';
+import { creditSources, mergeSheets, providersConfirm, sheetSelfConsistent, sheetsAgree, sheetGaps, sheetComplete, type Sheet, type SheetHole } from '../sheet-merge';
 
 const hole = (number: number, par: number, yardage: Record<string, number> = {}, handicap = 0): SheetHole => ({ number, par, yardage, handicap });
 const nine = (yardage: (n: number) => Record<string, number>, handicap = 0, par = 4): SheetHole[] =>
@@ -130,5 +130,21 @@ describe('providersConfirm — strong enough to outvote a map card', () => {
   it('a nine does not confirm an eighteen, and nothing confirms nothing', () => {
     expect(providersConfirm(holes([4, 4, 3]), holes([4, 4, 3, 5]))).toBe(false);
     expect(providersConfirm([], [])).toBe(false);
+  });
+});
+
+describe('sheetSelfConsistent — what one provider\'s card must be to stand against a map', () => {
+  const card = (pars: number[], total: number | null, yard = true) => ({ total_par: total, hole_data: pars.map((par, i) => ({ number: i + 1, par, handicap: i + 1, yardage: yard ? { white: 350 } : {} })) });
+  const nine = [4, 4, 3, 5, 4, 4, 3, 5, 4];
+  it('whole, numbered, pars adding up to its own total, with a yardage', () => {
+    expect(sheetSelfConsistent(card(nine, 36) as never)).toBe(true);
+    expect(sheetSelfConsistent(card([...nine, ...nine], 72) as never)).toBe(true);
+  });
+  it('refuses a wrong total, no total, an odd hole count, a par out of range, or no yardage', () => {
+    expect(sheetSelfConsistent(card(nine, 35) as never)).toBe(false);
+    expect(sheetSelfConsistent(card(nine, null) as never)).toBe(false);
+    expect(sheetSelfConsistent(card(nine.slice(0, 8), 32) as never)).toBe(false);
+    expect(sheetSelfConsistent(card([7, ...nine.slice(1)], 39) as never)).toBe(false);
+    expect(sheetSelfConsistent(card(nine, 36, false) as never)).toBe(false);
   });
 });
