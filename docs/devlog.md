@@ -1,5 +1,14 @@
 # Development Log
 
+## November 17, 2026 (21:02) — The advisory gate: one named exemption for picomatch (no patched version), ending by itself
+
+The guardrails check began failing on every pull request: `GHSA-fc5q-39xc-vjpf`, high, on `picomatch` (a crafted glob PATTERN hangs it). Every version through the latest (4.0.7) is affected, so there is nothing to upgrade to. Tom approved an exemption on two conditions; both were checked before it was built.
+
+- **It does not run in production on user input.** The flagged package arrives only through `@sentry/nextjs` → `@rollup/plugin-commonjs` (Sentry's build-time loader). In a production build: none of the 698 function traces includes it, no server or client bundle contains it, no app code imports it. (Next carries its own separate compiled copy inside the Next server, which `npm audit` does not flag; it matches the fixed patterns in `next.config.ts`, never a pattern from a request.)
+- **One advisory id, and it ends on its own** (`scripts/audit-gate-rules.mjs`, run by `scripts/audit-gate.mjs` from guardrail 6): the id and the package must both match; it expires on **December 17, 2026**; and it lapses the day the registry's latest `picomatch` is no longer 4.0.7, which makes the gate fail until someone upgrades and removes it. An unreadable audit or registry is a failure, never a pass. The exemption is printed on every guardrails run.
+- `audit-gate.test.ts` pins it: any other high or critical advisory still fails, another advisory in the same package fails, the date and the release both end it.
+
+Follow-up owed: remove the entry when a patched picomatch ships (the gate will say so).
 ## November 17, 2026 (19:42) — The scorecard fill never ran on production: the map phase left it no time; it now runs first
 
 After migration 314 ran on production and #1552 deployed (`d19295c8`), the fill linked nothing for twenty minutes. Found by reading the job's own record, not guessed: `golf_map_sweep_meta.last_run` showed the geometry phase alone at **45.7 s of the 42 s budget**, so the fill, written as the tick's fifth phase with "half a minute left" as its condition, could never start. (The elevation and hydration phases sit behind the same wall; not touched here.)
