@@ -93,22 +93,34 @@ describe('getCourseHoleGeometry — a stored map opens at once', () => {
     expect(updates).toHaveLength(0);
   });
 
-  it('a STALE null (no coverage, over 30 days ago) is still asked again here', async () => {
+  it('a STALE null (no coverage, over 30 days ago) is served at once: the sweep re-asks, not the player', async () => {
     const fetch = okFetch();
     vi.stubGlobal('fetch', fetch);
-    const { admin, updates } = fakeAdmin({ name: 'Rideau View', lat: 45.2, lng: -75.68, hole_geometry: null, hole_geometry_at: stale, club_id: null });
-    const g = await getCourseHoleGeometry(admin, 'c1', async () => true);
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(updates).toHaveLength(1);
-    expect(g?.holes).toHaveLength(18);
+    const { admin, updates } = fakeAdmin({ name: 'Chelmsford', lat: 46.58, lng: -81.2, hole_geometry: null, hole_geometry_at: stale, club_id: null });
+    const budget = vi.fn(async () => true);
+    expect(await getCourseHoleGeometry(admin, 'c1', budget)).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(budget).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
   });
 
-  it('a STALE geometry with an empty hole list is not "a map": it is asked again', async () => {
+  it('a STALE greens-only map (no hole lines) is served at once', async () => {
     const fetch = okFetch();
     vi.stubGlobal('fetch', fetch);
-    const { admin } = fakeAdmin({ name: 'Rideau View', lat: 45.2, lng: -75.68, hole_geometry: { holes: [], source: 'osm', greens: [] }, hole_geometry_at: stale, club_id: null });
+    const stored = { holes: [], source: 'osm', greens: [] };
+    const { admin, updates } = fakeAdmin({ name: 'X', lat: 45.2, lng: -75.68, hole_geometry: stored, hole_geometry_at: stale, club_id: null });
+    expect(await getCourseHoleGeometry(admin, 'c1', async () => true)).toBe(stored);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
+  });
+
+  it('a STALE pre-greens geometry is still refetched once', async () => {
+    const fetch = okFetch();
+    vi.stubGlobal('fetch', fetch);
+    const { admin, updates } = fakeAdmin({ name: 'Rideau View', lat: 45.2, lng: -75.68, hole_geometry: { holes, source: 'osm' }, hole_geometry_at: stale, club_id: null });
     await getCourseHoleGeometry(admin, 'c1', async () => true);
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(updates).toHaveLength(1);
   });
 
   it('a never-attempted row is asked', async () => {

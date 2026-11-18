@@ -1,5 +1,23 @@
 # Development Log
 
+## November 18, 2026 (00:27) — A course with no map opens at once too
+
+Tom's decision (Nov 18) on the gap #1559 left: a course whose stored answer is "no coverage" or greens only still waited on Overpass when its stamp was past 30 days. Measured on production before the change, through `?holes=1`:
+
+| Course | Stored answer | Time |
+| --- | --- | --- |
+| Chelmsford Golf Course (Ontario) | no coverage, stamped Oct 9 | **52.5 s** |
+| Golf Bluegreen Saint-Laurent | no hole lines, stamped Oct 11 | **52.4 s** |
+
+About 17,600 rows are of these two kinds.
+
+- `getCourseHoleGeometry` is now one rule: **a row that has been asked answers at once with what it holds, at any age.** Only a row never asked, and the pre-greens shape (refetched once), still ask on the open.
+- Retries belong to the regional sweep, checked in the code before the lazy retry was removed: `sweepCellCourses` runs every course of a cell through the pipeline, unmapped ones included, and stamps each.
+- The cost, accepted: a course newly drawn in OpenStreetMap appears when the sweep reaches its cell, not on the next open. At today's pace (about one cell a tick at best) a full pass is over a week.
+- `hole-geometry-cache.test.ts`: the stale null and the stale greens-only map are served with no fetch, no budget call, no write; the stale pre-greens shape is still refetched.
+
+Not proven until deployed: the same two requests on production.
+
 ## November 18, 2026 (00:13) — Golf course data: the background job on production, proven phase by phase; the gaps that are left
 
 Tom asked for the starved phases to be looked at, everything on production and proven, and the gaps named. Five pull requests, no migration: #1557 (tile decoder), #1558 (the tick), #1559 (a stored map opens at once), #1560 (the elevation queue's head), and this one (the admin door's browser tests). Production is on `ee267eef`.
