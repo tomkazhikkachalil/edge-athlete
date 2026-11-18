@@ -147,7 +147,7 @@ is THE point every "to green" number and the flag stand on; `LiveLine`
 carries `front` / `back` (a fix + an outline, never on the green);
 `HoleLine.green?` is a runtime carrier the live page attaches. **Free
 elevation (T1–T2):** `terrain-tiles.ts` (pure z14 maths, Terrarium) +
-`fetchElevationsTerrain` (each tile once, `sharp` injectable) — **Terrain
+`fetchElevationsTerrain` (each tile once; decoded by `png-decode.ts` on node:zlib since Nov 17 2026, the decoder injectable) — **Terrain
 Tiles FIRST, Open-Meteo only behind its key when the tiles fail**
 (`fetchElevationsAny`); budget key `terrain-tiles`; `source` widens; the
 attribution line lives in the doc. **Coverage (H1–H2):** `fetchJsonResult`

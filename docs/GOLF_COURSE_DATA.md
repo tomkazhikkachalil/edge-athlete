@@ -160,7 +160,7 @@ has no profile (null, stamped).
 each hole line (`sampleHoleLine`), metres, 30 days, recomputed when the
 geometry is newer. Providers in order (`fetchElevationsAny`): **Terrain
 Tiles first** (each z14 tile a course spans is fetched once, 1–4 per course,
-decoded with `sharp` server-side), **Open-Meteo second** only when its key
+decoded server-side by `png-decode.ts` on node:zlib; it was `sharp` until Nov 17 2026, which the functions that sample elevation do not carry), **Open-Meteo second** only when its key
 is set AND the tiles failed at the transport level. The rule of thumb
 (`playsLikeYards`): +1 yd per yard uphill, −2/3 yd per yard downhill; every
 number wears "≈". `source` is `terrain-tiles` or `open-meteo`.
