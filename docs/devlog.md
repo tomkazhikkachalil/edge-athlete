@@ -1,5 +1,43 @@
 # Development Log
 
+## November 18, 2026 (00:44) — The scorecard lookup on a pick: two providers that agree outvote the map, and a miss says why
+
+Two of Tom's choices, both in `findOfficialSheet` (`?sheet=1`, a person's pick):
+
+**Two providers against the map.** The map card is protected: a provider card that differs from the map's pars on more than two holes is refused, so one wrong same-named course cannot replace it. On production that refused BOTH providers for Lost Marsh Golf Course (Indiana) and left it with no card. Now: when no answer was accepted and two DIFFERENT providers were each refused for the map, and their cards confirm each other (`providersConfirm`: the same holes, at most two pars apart; a nine does not confirm an eighteen), their card is taken and `sheet_sources.mapOverruled` is set. One provider alone against the map is still refused; two that disagree with each other are both refused. The background fill has one provider, so it still stamps `map_disagrees`; those rows resolve on a pick.
+
+**A miss says why.** The answer carries `trace`: per provider, how many candidates the search returned, how many carry the facility's name, which was picked, and what it came to (`no_candidates`, `no_name_match`, `not_narrowed`, `no_holes`, `map_disagrees`, …). Counts and a reason only, never the provider's data. The Nov 18 pick of Glen Abbey (Oakville) answered `no_sheet` and why GolfCourseAPI matched nothing could not be read afterwards.
+
+Tests: `official-sheet.test.ts` (overrule, lone provider, mutual disagreement, a map the providers agree with, the trace), `sheet-merge.test.ts` (`providersConfirm`).
+
+Not proven until deployed: a real pick of a `map_disagrees` course and of a Canadian course on production, reading the trace. Glen Abbey and Lost Marsh themselves were asked today and their one-ask-per-day key holds until tomorrow.
+
+## November 18, 2026 (00:39) — The scorecard link: duplicate listings are one course, and an id the provider no longer serves is not a failure
+
+Tom chose "link more US courses". Measured first, read-only, production's 4,058 unlinked US rows against OpenGolfAPI's file:
+
+| Why a row does not link | Rows |
+| --- | --- |
+| Nothing in the file within 2 km | 1,849 |
+| An entry within 2 km under a different name | 737 |
+| Same name at SEVERAL points (multi-course clubs) | 1,105 |
+| Same name at ONE point, listed several times | 331 |
+| Same name, 2–10 km away | 36 |
+
+So most of the gap is the source not having the course, or a multi-course club; neither is touched here. What is:
+
+- **Duplicate listings are one candidate** (`linkDataset`): the same name at the same point under several ids (711 groups in the file) is one course. The row links to the first id and the others are kept (`golf_map_sweep_meta` key `card_link_alts`, no migration).
+- **The fill asks a course's ids in turn** (`runCardFillBatch`, at most four) and keeps the first card that passes; that id becomes the row's. Only the last refusal is stamped.
+- **Two spellings** (`linkName`, for this comparison only): the flattened trademark sign ("Pebble Beach Golf Linkstm": five names in the whole file) and a dropped apostrophe ("Falcons Fire").
+- **A 404 from OpenGolfAPI is an answer** (`{ row: null }`), not a failure. Found on the staging run: two of the Olympic Club Lake Course's three ids answer "Course not found". Read as a failure it was never stamped, so a lone dead id would have stayed at the head of the fill's queue (the same class as the three head-of-line faults fixed on Nov 17).
+- **A new rule links again by itself**: `LINK_RULE_VERSION` 2 is written into the link's record and an older record is due (still six hours after any attempt).
+
+**Measured gain:** the real link code as a dry run against production: **380 rows would link, against 29 under the old rule** (2,535 unmatched, 1,144 ambiguous). 7,711 → about 8,090 linked.
+
+**Proof before merge:** the tick through the route against staging, two real courses seeded. Spyglass Hill linked through the spelling rule and its card was saved (18 holes, par 72). The Olympic Club Lake Course linked with two other ids recorded; its first two ids answered 404 and the third was saved (18 holes, par 71), the row's id moved to it. Rows, cells, meta and budget rows removed.
+
+Not proven until deployed: production's linked count after the tick links again.
+
 ## November 18, 2026 (00:27) — A course with no map opens at once too
 
 Tom's decision (Nov 18) on the gap #1559 left: a course whose stored answer is "no coverage" or greens only still waited on Overpass when its stamp was past 30 days. Measured on production before the change, through `?holes=1`:

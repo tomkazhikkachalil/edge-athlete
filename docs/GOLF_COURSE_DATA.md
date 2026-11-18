@@ -79,8 +79,8 @@ are in `docs/specs/golf-course-data.md` (the Nov 17 note); the code is
 
 | Step | What it does | How often |
 | --- | --- | --- |
-| link | reads OpenGolfAPI's published file and writes `opengolf_id` on each US row with exactly one same-named entry within 2 km | monthly (the cron tick), or the panel |
-| cards | one detail call per linked row with no card; the card is checked (`cardFillVerdict`) and saved, or refused with its reason in `sheet_fill_outcome` | two rows per cron tick, capped by the `card-fill` budget (800 a day) |
+| link | reads OpenGolfAPI's published file and writes `opengolf_id` on each US row with exactly one same-named entry within 2 km. One course listed several times (same name, same point) is one entry; its other ids go to `golf_map_sweep_meta` `card_link_alts` (Nov 18 2026) | monthly (the cron tick), when `LINK_RULE_VERSION` rises, or the panel |
+| cards | one detail call per linked row with no card (a multiply-listed course's ids in turn, at most four; a 404 is an answer, not a failure); the card is checked (`cardFillVerdict`) and saved, or refused with its reason in `sheet_fill_outcome` | two rows per cron tick, capped by the `card-fill` budget (800 a day) |
 
 Budgets: `card-fill` 800 (`GOLF_CARD_FILL_DAILY_BUDGET`), spent before the
 shared `opengolfapi` 1,000 (`GOLF_OPENGOLFAPI_DAILY_BUDGET`; raise it only

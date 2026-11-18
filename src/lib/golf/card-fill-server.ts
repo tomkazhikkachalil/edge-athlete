@@ -13,7 +13,7 @@
 import { gunzipSync } from 'zlib';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CATALOG_ROW_COLUMNS, SHEET_PROVIDERS, consumeProviderBudget, readMapSheet, readSheetSources, type CatalogRow } from '@/lib/golf/course-catalog';
-import { FILL_RETRY_MS, cardFillVerdict, linkDataset, linkDue, parseDatasetLine, type CardFillVerdict, type LinkOurs, type LinkTheirs } from '@/lib/golf/card-fill';
+import { FILL_RETRY_MS, LINK_RULE_VERSION, cardFillVerdict, linkDataset, linkDue, linkEntryKey, parseDatasetLine, type CardFillVerdict, type LinkOurs, type LinkTheirs } from '@/lib/golf/card-fill';
 import { readMeta, writeMeta } from '@/lib/golf/map-sweep-server';
 import { creditSources, mergeSheets, type Sheet } from '@/lib/golf/sheet-merge';
 
@@ -52,6 +52,14 @@ async function pages<T>(read: (from: number, to: number) => PromiseLike<{ data: 
   }
   return { rows };
 }
+
+/** golf_map_sweep_meta key: our course id → the OTHER OpenGolfAPI ids of the
+ *  same entry (the file lists some courses several times; card-fill.ts
+ *  linkDataset). A few hundred rows; read once per fill batch. */
+const ALTS_KEY = 'card_link_alts';
+type CardLinkAlts = Record<string, string[]>;
+/** At most this many ids are asked for one course in one batch. */
+const MAX_IDS_PER_ROW = 4;
 
 // ── Phase: link ───────────────────────────────────────────────────────────────
 
@@ -100,8 +108,12 @@ export async function runCardLink(
       .range(from, to)
   );
   if ('ok' in taken) return taken;
-  const used = new Set(taken.rows.flatMap(r => [r.opengolf_id, r.external_id]).filter((v): v is string => !!v));
-  const link = linkDataset(ours.rows, theirs.filter(t => !used.has(t.id)));
+  const alts = (await readMeta<CardLinkAlts>(admin, ALTS_KEY)) ?? {};
+  const used = new Set([...taken.rows.flatMap(r => [r.opengolf_id, r.external_id]), ...Object.values(alts).flat()].filter((v): v is string => !!v));
+  // A course the file lists several times is taken as a whole: once one of
+  // its ids is a row's, its other ids are not offered to another row.
+  const takenEntries = new Set(theirs.filter(t => used.has(t.id)).map(linkEntryKey));
+  const link = linkDataset(ours.rows, theirs.filter(t => !takenEntries.has(linkEntryKey(t))));
 
   const summary: CardLinkSummary = {
     phase: 'link', dryRun: opts.dryRun, dataset: theirs.length, ours: ours.rows.length, matched: link.pairs.length, linked: 0,
@@ -113,7 +125,10 @@ export async function runCardLink(
       if (error) return fail(error);
       summary.linked += typeof data === 'number' ? data : 0;
     }
-    await writeMeta(admin, 'card_link', { at: iso(Date.now()), dataset: summary.dataset, linked: summary.linked, unmatched: summary.unmatched, ambiguous: summary.ambiguous });
+    // The other ids of a course listed several times, for the fill to ask in turn.
+    const fresh = Object.fromEntries(link.pairs.filter(p => p.alts?.length).map(p => [p.id, p.alts!]));
+    if (Object.keys(fresh).length) await writeMeta(admin, ALTS_KEY, { ...alts, ...fresh });
+    await writeMeta(admin, 'card_link', { at: iso(Date.now()), rule: LINK_RULE_VERSION, dataset: summary.dataset, linked: summary.linked, unmatched: summary.unmatched, ambiguous: summary.ambiguous });
   }
   summary.elapsedMs = Date.now() - t0;
   return summary;
@@ -135,10 +150,11 @@ async function fetchDataset(): Promise<LinkTheirs[] | null> {
 /** Is the monthly link due? (The cron asks; the owner's door runs it at will.) */
 export async function cardLinkDue(admin: SupabaseClient, now = Date.now()): Promise<boolean> {
   const [done, tried] = await Promise.all([
-    readMeta<{ at?: string }>(admin, 'card_link'),
+    readMeta<{ at?: string; rule?: number }>(admin, 'card_link'),
     readMeta<{ at?: string }>(admin, 'card_link_try'),
   ]);
-  return linkDue(done?.at, tried?.at, now);
+  // A record written before the rule had a number was rule 1.
+  return linkDue(done?.at, tried?.at, now, done?.at ? done.rule ?? 1 : LINK_RULE_VERSION);
 }
 
 // ── Phase: cards ──────────────────────────────────────────────────────────────
@@ -181,12 +197,23 @@ export async function runCardFillBatch(
   if (!provider?.configured()) return { ok: false, error: 'OpenGolfAPI is turned off' };
   const count = (k: string) => { summary.outcomes[k] = (summary.outcomes[k] ?? 0) + 1; };
   let troubles = 0;
-  for (const row of rows) {
-    if (Date.now() > deadline - ROW_START_RESERVE_MS) break;
-    // The fill's own cap first: it always leaves the shared key room for a pick.
-    if (!(await consumeProviderBudget(admin, 'card-fill')) || !(await consumeProviderBudget(admin, 'opengolfapi'))) { summary.budgetExhausted = true; break; }
-    const detail = await provider.detail(row.opengolf_id);
-    const outcome: CardFillVerdict | 'provider_error' | 'taken' = detail ? await saveCard(admin, row, detail.row) : 'provider_error';
+  const alts = rows.length ? (await readMeta<CardLinkAlts>(admin, ALTS_KEY)) ?? {} : {};
+  batch: for (const row of rows) {
+    // A course the file lists several times: its ids are asked in turn until
+    // one card passes. The last refusal is what is stamped.
+    const ids = [row.opengolf_id, ...(alts[row.id] ?? []).filter(id => id !== row.opengolf_id)].slice(0, MAX_IDS_PER_ROW);
+    let outcome: CardFillVerdict | 'provider_error' | 'taken' = 'provider_error';
+    for (let i = 0; i < ids.length; i++) {
+      if (Date.now() > deadline - ROW_START_RESERVE_MS) break batch;
+      // The fill's own cap first: it always leaves the shared key room for a pick.
+      if (!(await consumeProviderBudget(admin, 'card-fill')) || !(await consumeProviderBudget(admin, 'opengolfapi'))) { summary.budgetExhausted = true; break batch; }
+      const detail = await provider.detail(ids[i]);
+      if (!detail) { outcome = 'provider_error'; break; }
+      const last = i === ids.length - 1;
+      outcome = await saveCard(admin, row, detail.row, { opengolfId: ids[i], stampRefusal: last });
+      if (outcome === 'ok' || outcome === 'taken') break;
+      if (!last) await sleep(CALL_GAP_MS);
+    }
     count(outcome);
     // Two in a row is the provider's bad day: stop, the rows are asked again in a week.
     troubles = outcome === 'provider_error' ? troubles + 1 : 0;
@@ -198,11 +225,18 @@ export async function runCardFillBatch(
 }
 
 /** The verdict, written: the card when it is good, the stamp either way. */
-async function saveCard(admin: SupabaseClient, row: FillRow, card: (Sheet & { lat?: number | null; lng?: number | null }) | null): Promise<CardFillVerdict | 'taken'> {
+async function saveCard(
+  admin: SupabaseClient,
+  row: FillRow,
+  card: (Sheet & { lat?: number | null; lng?: number | null }) | null,
+  /** `opengolfId`: the id this card was asked by (it becomes the row's when the card is saved).
+   *  `stampRefusal: false`: another id of the same course is still to be asked. */
+  opts: { opengolfId: string; stampRefusal: boolean }
+): Promise<CardFillVerdict | 'taken'> {
   const stamp = { sheet_fill_at: iso(Date.now()) };
   const verdict = cardFillVerdict(row, card, card?.hole_data?.length ? await readMapSheet(admin, row.id) : null);
   if (verdict !== 'ok' || !card) {
-    await admin.from('golf_courses').update({ ...stamp, sheet_fill_outcome: verdict }).eq('id', row.id);
+    if (opts.stampRefusal) await admin.from('golf_courses').update({ ...stamp, sheet_fill_outcome: verdict }).eq('id', row.id);
     return verdict;
   }
   const before: Sheet = { total_par: row.total_par, holes_count: row.holes_count, hole_data: row.hole_data, course_rating: row.course_rating, slope_rating: row.slope_rating };
@@ -216,6 +250,7 @@ async function saveCard(admin: SupabaseClient, row: FillRow, card: (Sheet & { la
       ...(credits === undefined ? {} : { sheet_sources: creditSources(credits, before, merged.sheet, 'opengolfapi') }),
       ...stamp,
       sheet_fill_outcome: 'ok',
+      ...(opts.opengolfId !== row.opengolf_id ? { opengolf_id: opts.opengolfId } : {}),
     })
     .eq('id', row.id)
     .is('hole_data', null)

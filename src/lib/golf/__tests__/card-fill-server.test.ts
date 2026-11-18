@@ -208,3 +208,111 @@ describe('runCardLink', () => {
     expect(rpcs).toEqual([]);
   });
 });
+
+// Nov 18 2026: the published file lists some courses several times (the same
+// name at the same point under different ids). They are one candidate; the
+// other ids are kept for the fill to ask in turn.
+describe('a course the file lists several times', () => {
+  const dataset = async () => [
+    { id: 'og-a', name: 'Olympic Club Lake Course', lat: 37.7141, lng: -122.4931 },
+    { id: 'og-b', name: 'Olympic Club Lake Course', lat: 37.7141, lng: -122.4931 },
+    { id: 'og-c', name: 'Olympic Club Lake Course', lat: 37.7141, lng: -122.4931 },
+  ];
+  const ours = [{ id: 'c1', name: 'Olympic Club Lake Course', lat: 37.714, lng: -122.493 }];
+  const metaOf = (c: Call, key: string) => c.table === 'golf_map_sweep_meta' && c.op === 'select' && c.filters.includes(`eq("key","${key}")`);
+
+  it('links to the first id and records the others', async () => {
+    const { admin, rpcs, calls } = fakeAdmin(c => {
+      if (c.columns === 'id, name, lat, lng') return { data: ours };
+      if (c.columns === 'opengolf_id, external_id') return { data: [] };
+      return {};
+    });
+    const r = await runCardLink(admin, { dryRun: false, fetchDataset: dataset });
+    expect(r).toMatchObject({ matched: 1, linked: 1, ambiguous: 0 });
+    expect(rpcs[0].args.p_pairs).toEqual([{ id: 'c1', og: 'og-a', alts: ['og-b', 'og-c'] }]);
+    const alts = calls.find(c => c.op === 'upsert' && (c.fields as { key?: string }).key === 'card_link_alts');
+    expect((alts!.fields as { value: unknown }).value).toEqual({ c1: ['og-b', 'og-c'] });
+  });
+
+  it('an entry one of whose ids is already a row\'s is offered to nobody else', async () => {
+    const { admin, rpcs } = fakeAdmin(c => {
+      if (c.columns === 'id, name, lat, lng') return { data: ours };
+      // og-b is another row's alternate already.
+      if (metaOf(c, 'card_link_alts')) return { data: { value: { other: ['og-b'] } } };
+      if (c.columns === 'opengolf_id, external_id') return { data: [] };
+      return {};
+    });
+    const r = await runCardLink(admin, { dryRun: false, fetchDataset: dataset });
+    expect(r).toMatchObject({ matched: 0, unmatched: 1 });
+    expect(rpcs).toEqual([]);
+  });
+
+  it('the fill asks the ids in turn, saves the first card that passes and makes that id the row\'s', async () => {
+    // og-1 answers ten holes for a nine-hole course (refused); og-b answers a whole card.
+    const ten = Array.from({ length: 10 }, (_, i) => ({ number: i + 1, par: 4, yardages: { white: 300 } }));
+    const fetchMock = vi.fn(async (url: string) => ({ ok: true, status: 200, url, json: async () => (url.endsWith('/og-1') ? detail({ holes: 9, par: 36, holes_data: ten }) : detail({ id: 'og-b' })) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const base = queue([fillRow()]);
+    const { admin, calls } = fakeAdmin(c => (metaOf(c, 'card_link_alts') ? { data: { value: { c1: ['og-b'] } } } : base(c)));
+    const r = await runCardFillBatch(admin, { rows: 2, dryRun: false });
+    expect(r).toMatchObject({ due: 1, outcomes: { ok: 1 } });
+    expect(fetchMock.mock.calls.map(c => String(c[0]).split('/').pop())).toEqual(['og-1', 'og-b']);
+    const writes = calls.filter(c => c.op === 'update');
+    // The first id's refusal is NOT stamped (another id was still to be asked); the card is.
+    expect(writes).toHaveLength(1);
+    expect(writes[0].fields).toMatchObject({ sheet_fill_outcome: 'ok', opengolf_id: 'og-b', holes_count: 18 });
+  });
+
+  it('when every id is refused, the last refusal is stamped once', async () => {
+    const ten = Array.from({ length: 10 }, (_, i) => ({ number: i + 1, par: 4, yardages: { white: 300 } }));
+    const fetchMock = stubDetail(detail({ holes: 9, par: 36, holes_data: ten }));
+    const base = queue([fillRow()]);
+    const { admin, calls } = fakeAdmin(c => (metaOf(c, 'card_link_alts') ? { data: { value: { c1: ['og-b', 'og-c'] } } } : base(c)));
+    const r = await runCardFillBatch(admin, { rows: 2, dryRun: false });
+    expect(r).toMatchObject({ outcomes: { hole_count: 1 } });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const writes = calls.filter(c => c.op === 'update');
+    expect(writes).toHaveLength(1);
+    expect(Object.keys(writes[0].fields!).sort()).toEqual(['sheet_fill_at', 'sheet_fill_outcome']);
+  });
+
+  it('an id the provider no longer serves (404) is passed over for the next one', async () => {
+    const fetchMock = vi.fn(async (url: string) => (url.endsWith('/og-1') || url.endsWith('/og-b')
+      ? { ok: false, status: 404, url, json: async () => ({ error: 'Course not found' }) }
+      : { ok: true, status: 200, url, json: async () => detail({ id: 'og-c' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const base = queue([fillRow()]);
+    const { admin, calls } = fakeAdmin(c => (metaOf(c, 'card_link_alts') ? { data: { value: { c1: ['og-b', 'og-c'] } } } : base(c)));
+    const r = await runCardFillBatch(admin, { rows: 2, dryRun: false });
+    expect(r).toMatchObject({ outcomes: { ok: 1 } });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(calls.filter(c => c.op === 'update').map(c => c.fields!.opengolf_id)).toEqual(['og-c']);
+  });
+
+  it('a lone id that answers 404 is stamped no_card, so it does not lead the queue for ever', async () => {
+    stubDetail({ error: 'Course not found' }, false);
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({ ok: false, status: 404, url, json: async () => ({}) })));
+    const { admin, calls } = fakeAdmin(queue([fillRow()]));
+    const r = await runCardFillBatch(admin, { rows: 2, dryRun: false });
+    expect(r).toMatchObject({ outcomes: { no_card: 1 } });
+    expect(calls.find(c => c.op === 'update')!.fields).toMatchObject({ sheet_fill_outcome: 'no_card' });
+  });
+
+  it('a transport failure (503) is still a provider error: nothing stamped, the other ids not tried', async () => {
+    const fetchMock = stubDetail({}, false);
+    const base = queue([fillRow()]);
+    const { admin, calls } = fakeAdmin(c => (metaOf(c, 'card_link_alts') ? { data: { value: { c1: ['og-b'] } } } : base(c)));
+    const r = await runCardFillBatch(admin, { rows: 2, dryRun: false });
+    expect(r).toMatchObject({ outcomes: { provider_error: 1 } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(calls.filter(c => c.op === 'update')).toEqual([]);
+  });
+
+  it('a row with no other ids is asked once, as before', async () => {
+    const fetchMock = stubDetail(detail());
+    const { admin, calls } = fakeAdmin(queue([fillRow()]));
+    await runCardFillBatch(admin, { rows: 2, dryRun: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(calls.find(c => c.op === 'update')!.fields).not.toHaveProperty('opengolf_id');
+  });
+});
