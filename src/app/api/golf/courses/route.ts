@@ -67,8 +67,9 @@ export async function GET(request: NextRequest) {
     // ── Course by id — the hydration touchpoint ──────────────────────────
     if (courseId) {
       // ?holes=1 — the per-hole OSM geometry cache (live map's hole-by-hole
-      // view). A stored map with lines is served at once at any age (the
-      // sweep refreshes it); a no-coverage answer stands 30 days; a null
+      // view). A row that has been asked answers at once with what it holds,
+      // at any age (the sweep refreshes it); only a row never asked is
+      // fetched here. A null
       // geometry is a real answer (no unambiguous OSM coverage).
       if (searchParams.get('holes') === '1') {
         // H1: a thin provider row that was never asked (or whose 7-day stamp

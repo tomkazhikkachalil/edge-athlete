@@ -1190,14 +1190,11 @@ export function resolveCourseTiers(
   return none(classifyScoped(elements, scoped));
 }
 
-const GEOMETRY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-const hasStoredLines = (g: HoleGeometry | null): g is HoleGeometry => !!g && Array.isArray(g.holes) && g.holes.length > 0;
-
-/** The cache layer the API serves. A stored map with lines is served at once
- *  at any age (the sweep refreshes it); a no-coverage answer is an answer for
- *  30 days and is asked again here after that; budget-gated fetch, transport
- *  failures never stamped so they retry on a later request. */
+/** The cache layer the API serves. A row that has been asked answers at once
+ *  with its stored answer at any age (the sweep refreshes it); a row never
+ *  asked is fetched here, budget-gated; transport failures are never stamped,
+ *  so they retry on a later request. */
 export async function getCourseHoleGeometry(
   admin: SupabaseClient,
   courseId: string,
@@ -1218,24 +1215,17 @@ export async function getCourseHoleGeometry(
     holes_count?: number | null;
   } | null;
   if (!row) return null;
-  if (
-    row.hole_geometry_at &&
-    Date.now() - new Date(row.hole_geometry_at).getTime() < GEOMETRY_TTL_MS &&
-    // A geometry cached before PR G2 carries no `greens` key: refetch it ONCE
-    // (the write below always sets the key, `[]` included). A null answer
-    // keeps its own 30-day TTL — there is nothing to add to "no coverage".
-    (row.hole_geometry == null || 'greens' in row.hole_geometry)
-  ) {
-    return row.hole_geometry;
-  }
-  // A stored map with lines opens AT ONCE, whatever its age (Nov 17 2026):
-  // refreshing it is the regional sweep's job, not the player's wait. Measured
-  // on production with 27,815 of 28,983 stamps past the 30 days and the public
-  // Overpass servers queueing: the same request took 0.5 s for a fresh stamp
-  // and 52.5 s for a stale one (two mirrors timing out at 26 s each) before
-  // answering with the very map the row already held. The pre-greens shape is
-  // still refetched once (above), and a row with NO lines still asks here.
-  if (hasStoredLines(row.hole_geometry) && 'greens' in row.hole_geometry) return row.hole_geometry;
+  // A row that has been ASKED answers at once with what it holds, at any age:
+  // a map with lines, a greens-only map, or "no coverage" (null). Refreshing
+  // is the regional sweep's job (it re-asks every course of a cell, the
+  // unmapped ones included), never the player's wait. Measured on production
+  // with the public Overpass servers queueing for half a minute: a stale
+  // stamp cost 52.5 s (two mirrors timing out at 26 s each) to answer with
+  // what the row already held — Nov 17 2026 for a map with lines, Nov 18 for
+  // a no-coverage row (Chelmsford Golf Course) and a greens-only one.
+  // Two cases still ask here: a row never asked, and a geometry cached before
+  // PR G2 (no `greens` key), which is refetched ONCE and written back with it.
+  if (row.hole_geometry_at && (row.hole_geometry == null || 'greens' in row.hole_geometry)) return row.hole_geometry;
   if (typeof row.lat !== 'number' || typeof row.lng !== 'number') return row.hole_geometry;
   if (!(await consumeBudget())) return row.hole_geometry; // no stamp — retry later
   const result = await fetchHoleGeometry(row.lat, row.lng, row.name);

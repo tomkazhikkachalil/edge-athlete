@@ -99,10 +99,11 @@ WHERE sheet_fill_outcome IS DISTINCT FROM 'ok' AND hole_data IS NULL AND opengol
 
 `golf_courses.hole_geometry` (+ `hole_geometry_at`, migration 102) caches
 ONE answer per course — from the lazy fetch on the first map open, or from
-the sweep (below). A stored map WITH lines is served at once at any age
-(since Nov 17 2026; the sweep refreshes it, the player never waits on
-Overpass for a map the row already holds). A no-coverage answer stands for
-30 days and is asked again on the next open after that. The answer holds: the `golf=hole` ways (tee → green
+the sweep (below). A row that has been asked answers at once with what it
+holds, at any age: a map with lines (since Nov 17 2026), a greens-only map
+or "no coverage" (since Nov 18). The sweep refreshes every course of a cell,
+the unmapped ones included; the player never waits on Overpass for a stored
+answer. Only a row never asked is fetched on the open. The answer holds: the `golf=hole` ways (tee → green
 polylines with `ref` and `par`), the named `leisure=golf_course` boundaries
 that untangle multi-course facilities, the `golf=green` outlines (G2), and
 the numbered `golf=tee` / `golf=fairway` points (map sweep PR 5). The
