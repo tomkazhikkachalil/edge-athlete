@@ -323,6 +323,10 @@ describe('the search is widened when it returns nothing', () => {
     const north = { name: 'Ottawa Hunt and Golf Club (North Nine)', city: 'Ottawa', region_code: 'ON', country_code: 'CA', section_name: 'North Nine' };
     expect(pickSheetCandidate(north, [c('4', 'Ottawa Hunt and Golf Club - North')])?.id).toBe('4');
     expect(pickSheetCandidate(north, [c('5', 'Ottawa Hunt and Golf Club - South/West')])).toBeNull();
+    // A row with no section_name whose NAME carries one ("- East") is held to it too.
+    const east = { name: 'Rockland Golf Club - East', city: 'Rockland', region_code: 'ON', country_code: 'CA' };
+    expect(pickSheetCandidate(east, [c('7', 'Rockland Golf Club')])).toBeNull();
+    expect(pickSheetCandidate(east, [c('7', 'Rockland Golf Club'), c('8', 'Rockland Golf Club - West'), c('9', 'Rockland Golf Club - East')])?.id).toBe('9');
     // A row with no section is matched as before.
     expect(pickSheetCandidate({ name: 'Camelot Golf & Country Club', city: 'Cumberland', region_code: 'ON', country_code: 'CA' }, [c('6', 'Camelot Golf & Country Club')])?.id).toBe('6');
   });

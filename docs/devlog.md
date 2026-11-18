@@ -1,5 +1,14 @@
 # Development Log
 
+## November 18, 2026 (08:19) — The widened search on production, and a section carried in a course's NAME is held to it
+
+#1565 on production (`7537d3ed`; the probe: health + catalog-health, desktop, 2 passed). Three real picks of Ottawa-area courses not asked earlier, through `?sheet=1`:
+
+- **Falcon Ridge Golf Course** and **Hammond Golf & Country Club**: filled by GolfCourseAPI (18 holes; 7 and 8 tee sets).
+- **Rockland Golf Club - East**: the first wording found nothing, the second found 9 (OpenGolfAPI) and 8 (GolfCourseAPI) candidates, 4 carrying the name: the widened search works. GolfCourseAPI's pick was refused for the map, and not overruled, correctly: the row's map is a nine.
+
+That pick showed a hole in #1565's guard. The row has no `section_name`; its section is only in its name ("- East"), so a candidate named for the club alone counted as the same facility, and only the map stood between that row and the club's card. `pickSheetCandidate` now reads the section from the name when the row has no `section_name` (`sectionlessName`): what the name carries beyond the club's must be in the candidate's name. Test: "Rockland Golf Club - East" refuses "Rockland Golf Club" and takes "- East" among three.
+
 ## November 18, 2026 (08:04) — Tom's own courses: the lookup's search is widened when it finds nothing, and one whole provider card may stand against the map
 
 Tom: "I'm still missing scorecards from the courses I had originally" (he pays for GolfCourseAPI; `GOLF_COURSE_API_PLAN` set to `pro` on Vercel today). Ten real picks of Ottawa-area courses through `?sheet=1` on production, read through the new trace:

@@ -1065,6 +1065,12 @@ export function sheetSearchQuery(name: string): string {
   return core || name;
 }
 
+/** A name without its section: "Ottawa Hunt and Golf Club (North Nine)" and
+ *  "Rockland Golf Club - East" → the club's own name. Pure. */
+export function sectionlessName(name: string): string {
+  return name.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+[-–—]\s+.*$/, '').trim();
+}
+
 /** At most this many searches for one course and one provider. */
 export const SHEET_SEARCH_MAX = 3;
 
@@ -1080,7 +1086,7 @@ export function sheetSearchQueries(name: string): string[] {
   const out: string[] = [];
   const add = (q: string) => { if (q && !out.includes(q)) out.push(q); };
   add(sheetSearchQuery(name));
-  const base = name.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+[-–—]\s+.*$/, '').trim();
+  const base = sectionlessName(name);
   if (base && base !== name) add([...nameTokens(base)].join(' '));
   const words = (out[out.length - 1] ?? '').split(' ').filter(Boolean);
   for (let n = words.length - 1; n >= 1; n--) add(words.slice(0, n).join(' '));
@@ -1098,7 +1104,12 @@ export function pickSheetCandidate(
   // A SECTION of a club (Greensmere's Legacy, Ottawa Hunt's North Nine) takes
   // only a candidate that names that section: the club's own card, or a
   // sibling's, on this row would be a wrong card under the right club name.
-  const section = [...nameTokens(row.section_name ?? '')].filter(t => !SECTION_GENERIC.has(t));
+  // The section is the row's `section_name`, or, on a row that has none, what
+  // its NAME carries after the club's ("Rockland Golf Club - East": measured
+  // Nov 18 2026, the widened search found the club and its other nines for it).
+  const base = nameTokens(sectionlessName(row.name));
+  const fromName = [...nameTokens(row.name)].filter(t => !base.has(t));
+  const section = (row.section_name ? [...nameTokens(row.section_name)] : fromName).filter(t => !SECTION_GENERIC.has(t));
   const named = candidates.filter(c => {
     if (!sameFacilityName(row.name, c.name)) return false;
     if (section.length === 0) return true;
