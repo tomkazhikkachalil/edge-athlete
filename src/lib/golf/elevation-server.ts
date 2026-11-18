@@ -191,10 +191,24 @@ export async function getCourseHoleElevation(
   if (elevationFresh(row, now)) return stored;
   const geometry = parseStoredHoleGeometry(row.hole_geometry);
   if (!geometry) return stored;
-  if (!(await consumeBudget())) return stored; // no stamp — retry later
-
   const sampled = geometry.holes.map(h => ({ hole: h.hole, pts: sampleHoleLine(h.line, SAMPLES_PER_HOLE) })).filter(h => h.pts.length >= 2);
   const coords = sampled.flatMap(h => h.pts);
+  // A map with no hole LINES (greens only) has nothing to sample. That is an
+  // answer, stamped like any null, with no budget spent and no provider asked.
+  // Until Nov 17 2026 it was read as a transport failure and never stamped:
+  // on production the first twenty courses of the sweep's queue were all of
+  // this kind, so every tick spent its budget on the same twenty and saved
+  // nothing (692 attempts in a day, 228 profiles for 15,735 mapped courses).
+  if (coords.length === 0) {
+    const { error } = await admin
+      .from('golf_courses')
+      .update({ hole_elevation: null, hole_elevation_at: new Date(now).toISOString() })
+      .eq('id', courseId);
+    if (error) console.error('[elevation] cache write failed:', error.message);
+    return null;
+  }
+  if (!(await consumeBudget())) return stored; // no stamp — retry later
+
   const result = await fetchElevationsAny(coords, providers);
   if (!result.reached || !result.elev || !result.source) return stored; // transport-only failure — no stamp
 
