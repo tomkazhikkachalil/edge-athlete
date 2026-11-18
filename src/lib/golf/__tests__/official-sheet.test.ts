@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { findOfficialSheet, SHEET_PROVIDERS, type CatalogRow } from '../course-catalog';
+import { findOfficialSheet, pickSheetCandidate, sheetSearchQueries, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
 
 // Nov 16 2026: "Find the official scorecard" asks EVERY provider that is not
 // the row's own, by name, until the card lacks nothing; answers fill the card.
@@ -200,9 +200,30 @@ describe('findOfficialSheet — two providers against the map', () => {
     expect(updates[0].sheet_sources).toMatchObject({ pars: 'opengolfapi', mapOverruled: true });
   });
 
-  it('one provider alone against the map is still refused', async () => {
-    stubProviders({ gcaSearch: { courses: [] } });
+  it('ONE provider against the map: taken when it is the only card, whole, and has the map\'s hole count', async () => {
+    // Club de Golf Gatineau, production Nov 18 2026: the paid provider held the card, the map refused it.
+    stubProviders({ openGolfSearch: { courses: [] } });
     const { admin, updates } = fakeAdmin([], par3s);
+    const r = await findOfficialSheet(admin, row());
+    expect(r).toMatchObject({ found: true, outcome: 'found' });
+    expect(r.course.holes.map(h => h.par)).toEqual(NINE.map(() => 4));
+    expect(updates[0].sheet_sources).toMatchObject({ pars: 'golfcourseapi', mapOverruled: true });
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')!.result).toBe('filled');
+  });
+
+  it('ONE provider against the map: refused when its pars do not add up to its own total', async () => {
+    const bad = gcaDetail();
+    for (const tee of bad.course.tees.male) tee.par_total = 35;
+    stubProviders({ openGolfSearch: { courses: [] }, gca: bad });
+    const { admin, updates } = fakeAdmin([], par3s);
+    const r = await findOfficialSheet(admin, row());
+    expect(r).toMatchObject({ found: false, outcome: 'map_disagrees' });
+    expect(updates).toEqual([]);
+  });
+
+  it('ONE provider against the map: refused when the map has a different number of holes', async () => {
+    stubProviders({ openGolfSearch: { courses: [] } });
+    const { admin, updates } = fakeAdmin([], mapOf(Array.from({ length: 18 }, () => 3)));
     const r = await findOfficialSheet(admin, row());
     expect(r).toMatchObject({ found: false, outcome: 'map_disagrees' });
     expect(updates).toEqual([]);
@@ -234,8 +255,8 @@ describe('findOfficialSheet — the trace', () => {
     const r = await findOfficialSheet(admin, row());
     expect(r.found).toBe(false);
     expect(r.trace).toEqual([
-      { source: 'opengolfapi', candidates: 0, named: 0, picked: null, result: 'no_candidates' },
-      { source: 'golfcourseapi', candidates: 1, named: 0, picked: null, result: 'no_name_match' },
+      { source: 'opengolfapi', searches: 1, candidates: 0, named: 0, picked: null, result: 'no_candidates' },
+      { source: 'golfcourseapi', searches: 1, candidates: 1, named: 0, picked: null, result: 'no_name_match' },
     ]);
   });
 
@@ -254,5 +275,64 @@ describe('findOfficialSheet — the trace', () => {
     const { admin } = fakeAdmin();
     const r = await findOfficialSheet(admin, row());
     expect(r.trace!.map(t => t.result)).toEqual(['provider_error', 'no_candidates']);
+  });
+});
+
+// Nov 18 2026: Tom's own courses returned "nothing found" from BOTH providers
+// because of how the search was worded, not because they are missing.
+describe('the search is widened when it returns nothing', () => {
+  it('the wordings: all the distinctive words, then without the section, then fewer words', () => {
+    expect(sheetSearchQueries('Ottawa Hunt and Golf Club (North Nine)')).toEqual(['ottawa hunt north nine', 'ottawa hunt', 'ottawa']);
+    expect(sheetSearchQueries('Greensmere Golf & Country Club (Legacy)')).toEqual(['greensmere legacy', 'greensmere']);
+    expect(sheetSearchQueries('Carleton Golf & Yacht Club')).toEqual(['carleton yacht', 'carleton']);
+    expect(sheetSearchQueries('Rockland Golf Club - East')).toEqual(['rockland east', 'rockland']);
+    expect(sheetSearchQueries('Camelot Golf & Country Club')).toEqual(['camelot']);
+    expect(sheetSearchQueries('The Links at Spanish Bay Resort North Shore Course').length).toBeLessThanOrEqual(SHEET_SEARCH_MAX);
+  });
+
+  it('a second search is made only when the first returns nothing, and it is budgeted', async () => {
+    const queries: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const u = new URL(url);
+      const q = u.searchParams.get('q') ?? u.searchParams.get('search_query');
+      if (q != null) {
+        queries.push(`${url.includes('opengolfapi') ? 'og' : 'gca'}:${q}`);
+        if (url.includes('opengolfapi')) return { ok: true, json: async () => ({ courses: [] }) };
+        return { ok: true, json: async () => ({ courses: q === 'carleton' ? [{ id: 'gca-1', club_name: 'Carleton Golf & Yacht Club', course_name: 'Carleton', location: { city: 'Manotick', state: 'ON', country: 'Canada' } }] : [] }) };
+      }
+      return { ok: true, json: async () => gcaDetail() };
+    }));
+    const { admin, keys } = fakeAdmin();
+    const r = await findOfficialSheet(admin, row({ name: 'Carleton Golf & Yacht Club', city: 'Manotick' }));
+    expect(queries).toEqual(['og:carleton yacht', 'og:carleton', 'gca:carleton yacht', 'gca:carleton']);
+    expect(r.outcome).toBe('found');
+    expect(r.trace!.map(t => `${t.source}:${t.searches}:${t.result}`)).toEqual(['opengolfapi:2:no_candidates', 'golfcourseapi:2:filled']);
+    // One budget unit per search and per detail call.
+    expect(keys.filter(k => k === 'golf-provider:golfcourseapi')).toHaveLength(3);
+    expect(keys.filter(k => k === 'golf-provider:opengolfapi')).toHaveLength(2);
+  });
+
+  it('a section takes only a candidate that names that section', () => {
+    const c = (id: string, name: string) => ({ id, name, city: 'Almonte', region_code: 'ON', country_code: 'CA' });
+    const legacy = { name: 'Greensmere Golf & Country Club (Legacy)', city: 'Almonte', region_code: 'ON', country_code: 'CA', section_name: 'Legacy' };
+    // The club alone, or the sibling, is not this row's card.
+    expect(pickSheetCandidate(legacy, [c('1', 'Greensmere Golf & Country Club')])).toBeNull();
+    expect(pickSheetCandidate(legacy, [c('2', 'Greensmere Golf & Country Club - Premier')])).toBeNull();
+    expect(pickSheetCandidate(legacy, [c('1', 'Greensmere Golf & Country Club'), c('2', 'Greensmere - Premier'), c('3', 'Greensmere - Legacy')])?.id).toBe('3');
+    // "Nine" says nothing about which nine.
+    const north = { name: 'Ottawa Hunt and Golf Club (North Nine)', city: 'Ottawa', region_code: 'ON', country_code: 'CA', section_name: 'North Nine' };
+    expect(pickSheetCandidate(north, [c('4', 'Ottawa Hunt and Golf Club - North')])?.id).toBe('4');
+    expect(pickSheetCandidate(north, [c('5', 'Ottawa Hunt and Golf Club - South/West')])).toBeNull();
+    // A row with no section is matched as before.
+    expect(pickSheetCandidate({ name: 'Camelot Golf & Country Club', city: 'Cumberland', region_code: 'ON', country_code: 'CA' }, [c('6', 'Camelot Golf & Country Club')])?.id).toBe('6');
+  });
+
+  it('a nine does not take an eighteen', async () => {
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: { courses: [{ id: 'gca-1', club_name: 'Ottawa Hunt and Golf Club', course_name: 'North', location: { city: 'Ottawa', state: 'ON', country: 'Canada' } }] }, gca: { course: { ...gcaDetail().course, tees: { male: [{ tee_name: 'Blue', course_rating: 72, slope_rating: 130, number_of_holes: 18, par_total: 72, holes: Array.from({ length: 18 }, (_, i) => ({ par: 4, yardage: 400 + i, handicap: i + 1 })) }] } } } });
+    const { admin, updates } = fakeAdmin();
+    const r = await findOfficialSheet(admin, row({ name: 'Ottawa Hunt and Golf Club (North Nine)', city: 'Ottawa', section_name: 'North Nine', section_kind: 'nine' } as Partial<CatalogRow>));
+    expect(r.found).toBe(false);
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')!.result).toBe('wrong_holes');
+    expect(updates).toEqual([]);
   });
 });

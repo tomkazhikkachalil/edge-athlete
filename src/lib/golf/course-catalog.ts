@@ -48,7 +48,7 @@ import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
-import { creditSources, mergeSheets, providersConfirm, sheetComplete, sheetGaps, type Sheet, type SheetSources } from '@/lib/golf/sheet-merge';
+import { creditSources, mergeSheets, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
@@ -1065,12 +1065,46 @@ export function sheetSearchQuery(name: string): string {
   return core || name;
 }
 
+/** At most this many searches for one course and one provider. */
+export const SHEET_SEARCH_MAX = 3;
+
+/** The searches to try, in order, until one returns something. The providers'
+ *  search answers NOTHING for words they do not hold (measured Nov 18 2026 on
+ *  Tom's own courses: "ottawa hunt north nine" 0, "ottawa hunt" 1;
+ *  "greensmere legacy" 0, "greensmere" 1; "carleton yacht" 0, "carleton" 3).
+ *  So: the distinctive words; then the name without its section ("(North
+ *  Nine)", "- East"); then fewer words from the end. A wider search only
+ *  FINDS candidates: pickSheetCandidate still decides, on the name and the
+ *  place. Pure. */
+export function sheetSearchQueries(name: string): string[] {
+  const out: string[] = [];
+  const add = (q: string) => { if (q && !out.includes(q)) out.push(q); };
+  add(sheetSearchQuery(name));
+  const base = name.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+[-–—]\s+.*$/, '').trim();
+  if (base && base !== name) add([...nameTokens(base)].join(' '));
+  const words = (out[out.length - 1] ?? '').split(' ').filter(Boolean);
+  for (let n = words.length - 1; n >= 1; n--) add(words.slice(0, n).join(' '));
+  return out.slice(0, SHEET_SEARCH_MAX);
+}
+
+/** Words in a section's name that say nothing about WHICH section it is. */
+const SECTION_GENERIC = new Set(['nine', 'eighteen', 'course', 'holes', 'hole', '9', '18']);
+
 /** The one candidate that is this facility, or null. Pure — tests cover it. */
 export function pickSheetCandidate(
-  row: Pick<CatalogRow, 'name' | 'city' | 'region_code' | 'country_code'>,
+  row: Pick<CatalogRow, 'name' | 'city' | 'region_code' | 'country_code'> & { section_name?: string | null },
   candidates: SheetCandidate[]
 ): SheetCandidate | null {
-  const named = candidates.filter(c => sameFacilityName(row.name, c.name));
+  // A SECTION of a club (Greensmere's Legacy, Ottawa Hunt's North Nine) takes
+  // only a candidate that names that section: the club's own card, or a
+  // sibling's, on this row would be a wrong card under the right club name.
+  const section = [...nameTokens(row.section_name ?? '')].filter(t => !SECTION_GENERIC.has(t));
+  const named = candidates.filter(c => {
+    if (!sameFacilityName(row.name, c.name)) return false;
+    if (section.length === 0) return true;
+    const theirs = nameTokens(c.name);
+    return section.every(t => theirs.has(t));
+  });
   const placed = named.filter(
     c =>
       (!row.country_code || !c.country_code || row.country_code === c.country_code) &&
@@ -1106,10 +1140,12 @@ export interface OfficialSheetResult {
 export interface SheetAsk {
   source: SheetProvider['source'];
   /** What the search returned / how many carry this facility's name / the one picked. */
+  /** How many searches were made (the wording is widened when one returns nothing). */
+  searches?: number;
   candidates?: number;
   named?: number;
   picked?: string | null;
-  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'not_narrowed' | 'no_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error';
+  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error';
 }
 
 /** One source of official cards (Nov 16 2026). `search` answers the provider's
@@ -1220,7 +1256,17 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     const ask: SheetAsk = { source: provider.source, result: 'provider_error' };
     trace.push(ask);
     if (!(await consumeProviderBudget(admin, provider.source))) { why = 'budget_refused'; ask.result = 'budget_refused'; continue; }
-    const candidates = await provider.search(sheetSearchQuery(row.name));
+    // The searches in order, each one budgeted, until one returns something.
+    let candidates: SheetCandidate[] | null = [];
+    let refused = false;
+    const queries = sheetSearchQueries(row.name);
+    for (let q = 0; q < queries.length; q++) {
+      if (q > 0 && !(await consumeProviderBudget(admin, provider.source))) { refused = true; break; }
+      candidates = await provider.search(queries[q]);
+      ask.searches = q + 1;
+      if (!candidates || candidates.length > 0) break;
+    }
+    if (refused && !candidates?.length) { why = 'budget_refused'; ask.result = 'budget_refused'; continue; }
     if (!candidates) { why = 'provider_error'; continue; }
     const pick = pickSheetCandidate(row, candidates);
     ask.candidates = candidates.length;
@@ -1237,6 +1283,8 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     const normalized = detail.row;
     // Holes are what an answer is checked by: one without them adds nothing.
     if (!normalized?.hole_data?.length) { why = 'no_sheet'; ask.result = 'no_holes'; continue; }
+    // A nine takes a nine: an eighteen (a combination of two nines) is not this row's card.
+    if (row.section_kind === 'nine' && normalized.hole_data.length !== 9) { why = 'no_sheet'; ask.result = 'wrong_holes'; continue; }
     const agreesWithMap = sheetAgreesWithMap(normalized.hole_data, mapSheet);
     // Kept in case another provider says the same against the map (below).
     if (!agreesWithMap) against.push({ source: provider.source, id: pick.id, sheet: normalized });
@@ -1274,6 +1322,24 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       if (from.length) for (const t of trace) if (t.result === 'map_disagrees') t.result = 'filled';
       if (from.length && sources !== undefined) sources = { ...(sources ?? {}), mapOverruled: true };
       if (from.length) console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${a.source} and ${b.source} agree against the map card; the map is overruled`);
+    }
+  }
+  // ONE provider against the map (Nov 18 2026, Tom, for Club de Golf Gatineau:
+  // the provider he pays for held its card and the map's pars refused it).
+  // Taken only when it is the single answer with holes, its card is whole and
+  // agrees with itself (sheetSelfConsistent) and has the map's hole count. The
+  // candidate was already matched on name and place. Tom accepted the cost: a
+  // wrong same-named course could replace a correct map card.
+  if (from.length === 0 && against.length === 1 && mapSheet && sheetSelfConsistent(against[0].sheet) && against[0].sheet.hole_data?.length === mapSheet.length) {
+    const only = against[0];
+    const merged = mergeSheets(card, only.sheet);
+    if (!merged.refused && merged.changed) {
+      sources = await readSheetSources(admin, row.id);
+      if (sources !== undefined) sources = { ...creditSources(sources, card, merged.sheet, only.source), mapOverruled: true };
+      card = merged.sheet;
+      from.push(`${only.source}:${only.id}`);
+      for (const t of trace) if (t.source === only.source && t.result === 'map_disagrees') t.result = 'filled';
+      console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${only.source} alone against the map card, whole and consistent; the map is overruled`);
     }
   }
   if (from.length === 0) return miss(why, trace);

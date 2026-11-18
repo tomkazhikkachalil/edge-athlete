@@ -136,6 +136,20 @@ export interface SheetSources {
   mapOverruled?: boolean;
 }
 
+/** Is a provider's card whole and in agreement with itself? Holes numbered
+ *  1..n for a nine or an eighteen, every par 3 to 6, the pars adding up to
+ *  the card's OWN stated total, and at least one yardage. What ONE provider's
+ *  card must be before it may stand against a map card (Nov 18 2026). */
+export function sheetSelfConsistent(sheet: Pick<Sheet, 'hole_data' | 'total_par'>): boolean {
+  const holes = holesOf(sheet);
+  const n = holes.length;
+  if (n !== 9 && n !== 18) return false;
+  if (![...holes].map(h => h.number).sort((a, b) => a - b).every((v, i) => v === i + 1)) return false;
+  if (holes.some(h => !Number.isInteger(h.par) || h.par < 3 || h.par > 6)) return false;
+  if (typeof sheet.total_par !== 'number' || holes.reduce((sum, h) => sum + h.par, 0) !== sheet.total_par) return false;
+  return holes.some(h => Object.values(h.yardage ?? {}).some(positive));
+}
+
 /** Do two providers' cards say the same course strongly enough to outvote a
  *  map card? Stricter than sheetsAgree: the SAME holes (a nine does not
  *  confirm an eighteen) and at most two pars apart. */
