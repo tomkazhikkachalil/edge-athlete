@@ -1,5 +1,25 @@
 # Development Log
 
+## November 17, 2026 (22:59) — The map sweep's tick: every phase gets its turn, and the sweep waits long enough for a queueing Overpass
+
+Measured on production (read-only) before changing anything: the re-sweep had finished **1 to 13 cells a day for eight days**, with 5,947 of 6,325 cells due. Two causes, both found in the data:
+
+- **The public Overpass servers queue.** Timed from this machine: overpass-api.de took 24–36 s to its first byte for ANY request, its status page and a one-node query included; the query itself is not slow. overpass.kumi.systems and overpass.private.coffee timed out at 45 s. Our request gave up at 22 s.
+- **Head-of-line blocking.** 184 cells that fail every time (up to 53 attempts) are tier 1; the claim is by priority and the backoff capped at six hours, so they were retried four times a day each and took most of every tick.
+
+What changed (no migration):
+
+- **The clock** (`map-sweep.ts`): the request waits 55 s (the query's own limit 25 s), one invocation works 105 s inside a 120 s function, a cell starts only while a whole request and 12 s of processing still fit, and no second mirror is tried once a worthwhile attempt no longer fits (`fetchCellPayload`'s deadline). The lease is 180 s, longer than an invocation.
+- **The order** (`/api/cron/golf-map-sweep`): plan → cards → elevation (about 12 s) → hydration → **geometry last** with everything left.
+- **Backoff** ends at 1 day, then 3 days. A mirror that times out is cooled for five minutes, so the next tick starts on the other one.
+- **`map-sweep.test.ts` pins the relationships** (function longer than the budget, lease longer than the invocation, geometry able to start a cell after the phases before it, geometry last). Two fixes of mine failed on production today because one number moved without the number it depends on.
+
+Proof before merge, the step I skipped twice: the whole tick run twice through the route against STAGING with two real courses seeded (Pebble Beach, Spyglass Hill). Tick 1: plan 1 cell, geometry **done on a 30.1 s Overpass answer** (it would have timed out at 22 s), 14 and 18 holes mapped, 33.8 s in all. Tick 2: elevation **2 of 2 saved** through the new decoder (14 and 18 profiles, `terrain-tiles`), 2.9 s. Rows, cell, meta and budget rows removed afterwards.
+
+What that run also showed, for the gaps list: neither course LINKED to OpenGolfAPI. Its file spells them "Pebble Beach Golf Linkstm" and "Spyglass Hilltm Golf Course" (a trademark sign flattened to "tm"), and holds 711 groups of entries with the same name and point under different ids (1,656 entries), which the link rule counts as two candidates and refuses. Not changed here; measured first.
+
+Not proven until deployed: production's cells per day. If the public servers stay this slow the ceiling is about one cell a tick (720 a day).
+
 ## November 17, 2026 (22:43) — Golf elevation was dead on production: the tile decoder was sharp, and sharp is not in those functions; decoded with node:zlib now
 
 Asked to look at the map job's starved phases, measured on production (read-only): **228 elevation profiles for 15,735 mapped courses**, and the `sweep-terrain` budget row showed 692 attempts on Nov 17 with not one stamp. The phase was not only short of time; every attempt failed.

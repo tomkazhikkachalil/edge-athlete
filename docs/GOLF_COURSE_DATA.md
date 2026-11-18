@@ -178,8 +178,9 @@ the answers fresh.
   recorded round, 1 Canada, 2 US · GB · IE · AU, 3 the rest — and upserts the
   PLAN columns only, so a cell's state survives a re-plan.
 - **One regional query** per cell (`overpassCellQuery`: the lazy query's
-  selectors over the box plus a cos-scaled 0.03° margin, `[timeout:20]`
-  inside a 22 s request), filtered per course to the elements within
+  selectors over the box plus a cos-scaled 0.03° margin, `[timeout:25]`
+  inside a 55 s request since Nov 17 2026: the public servers queue every
+  request for about half a minute before running it), filtered per course to the elements within
   1,500 m by SEGMENT distance (`elementsNear` — Overpass's `around`
   semantics), then `resolveCourseTiers`. The answer is written exactly as
   the lazy path writes it: `hole_geometry` + `hole_geometry_at`, nulls
@@ -197,7 +198,9 @@ the answers fresh.
   `FOR UPDATE SKIP LOCKED` with a 120 s lease (the cron tick and the
   dashboard's loop may overlap); a cell is `done` for 28 days (two before
   the lazy 30 lapse), or parked `pending` with `attempts + 1` and a backoff
-  of 5 → 15 → 45 → 120 → 360 min — three failures in a row are a Sentry
+  of 5 → 15 → 45 → 120 → 360 min → 1 day → 3 days (the last two since Nov 17
+  2026: 184 chronically failing cells retried every six hours were most of
+  every tick) — three failures in a row are a Sentry
   warning (`[map-sweep]`).
 - **Budgets** (`DEFAULT_BUDGETS`): `sweep-overpass` 1,500 cells a day (≈ 15 %
   of Overpass's fair use at one request in flight with 3 s gaps; the whole
@@ -212,8 +215,11 @@ the answers fresh.
   dryRun}` — **dry run by default**); the schedule `POST
   /api/cron/golf-map-sweep` (`CRON_SECRET`), pg_cron `golf-map-sweep` every
   two minutes on production (staging schedules nothing): re-plan when the
-  plan is a day old → 4 cells → the elevation phase with the time left → 3
-  provider hydrations, each phase in its own try/catch.
+  plan is a day old → the scorecard fill → about twelve seconds of elevation →
+  3 provider hydrations → up to 4 cells with all the time left, each phase in
+  its own try/catch. Geometry is LAST since Nov 17 2026: first, it spent the
+  whole tick on cells that timed out and nothing behind it ran. The clock's
+  numbers depend on each other and `map-sweep.test.ts` pins how.
 
 **Runbook — a fresh database or a new region:** run migration 255 (the
 cells, the meta, the two RPCs, the index, the job); on the dashboard, Plan

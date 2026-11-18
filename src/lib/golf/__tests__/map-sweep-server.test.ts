@@ -179,6 +179,34 @@ describe('fetchCellPayload', () => {
     expect(again.mirror).toBe('c');
     expect(calls[3]).toBe('c');
   });
+
+  it('a mirror that times out is cooled, so the next tick starts on the other one', async () => {
+    const calls: string[] = [];
+    const impl = vi.fn(async (url: string) => {
+      calls.push(url);
+      if (url === 'a') { const e = new Error('timed out'); e.name = 'TimeoutError'; throw e; }
+      return { ok: true, status: 200, json: async () => rideauView };
+    }) as unknown as typeof fetch;
+    const cooldowns: Record<string, string> = {};
+    const r = await fetchCellPayload(CELL, ['a', 'b'], cooldowns, impl, now);
+    expect(r.mirror).toBe('b');
+    expect(Date.parse(cooldowns.a) - now).toBe(5 * 60_000);
+    const again = await fetchCellPayload(CELL, ['a', 'b'], cooldowns, impl, now + 1000);
+    expect(again.mirror).toBe('b');
+    expect(calls).toEqual(['a', 'b', 'b']);
+  });
+
+  it('no mirror is tried once a worthwhile attempt no longer fits before the deadline', async () => {
+    const impl = vi.fn(async () => ({ ok: true, status: 200, json: async () => rideauView })) as unknown as typeof fetch;
+    // Five seconds left: less than MIN_ATTEMPT_MS.
+    const late = await fetchCellPayload(CELL, ['a', 'b'], {}, impl, Date.now(), Date.now() + 5000);
+    expect(late.reached).toBe(false);
+    expect(impl).not.toHaveBeenCalled();
+    // A minute left: tried.
+    const early = await fetchCellPayload(CELL, ['a', 'b'], {}, impl, Date.now(), Date.now() + 60_000);
+    expect(early.reached).toBe(true);
+    expect(impl).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('runElevationBatch', () => {

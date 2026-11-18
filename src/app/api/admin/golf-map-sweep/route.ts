@@ -4,8 +4,10 @@ import { cellBounds } from '@/lib/golf/map-sweep';
 import { planSweepCells, readSweepProgress, runElevationBatch, runGeometryBatch, runHydrationBatch } from '@/lib/golf/map-sweep-server';
 import { reportRouteError } from '@/lib/observability/report';
 
-// One batch of the course-map sweep fits in a minute (map-sweep.ts WORK_BUDGET_MS).
-export const maxDuration = 60;
+// One batch of the course-map sweep runs up to map-sweep.ts WORK_BUDGET_MS
+// (105 s since Nov 17 2026: the public Overpass servers queue for half a
+// minute); map-sweep.test.ts pins that this is longer.
+export const maxDuration = 120;
 
 const PHASES = new Set(['plan', 'geometry', 'elevation', 'hydration']);
 
