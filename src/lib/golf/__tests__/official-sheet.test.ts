@@ -15,12 +15,12 @@ const row = (over: Partial<CatalogRow> = {}): CatalogRow => ({
   ...over,
 } as CatalogRow);
 
-function fakeAdmin(budget: boolean[] = []) {
+function fakeAdmin(budget: boolean[] = [], geometry: unknown = null) {
   const updates: Array<Record<string, unknown>> = [];
   const keys: string[] = [];
   const read: Record<string, unknown> = {};
   for (const m of ['select', 'eq']) read[m] = () => read;
-  read.maybeSingle = async () => ({ data: { hole_geometry: null }, error: null });
+  read.maybeSingle = async () => ({ data: { hole_geometry: geometry }, error: null });
   read.update = (fields: Record<string, unknown>) => {
     updates.push(fields);
     return { eq: async () => ({ error: null }) };
@@ -177,5 +177,82 @@ describe('findOfficialSheet — every other provider, until the card lacks nothi
     const r = await findOfficialSheet(fakeAdmin().admin, row({ external_source: 'qa-e2e' as never, hole_data: stored }));
     expect(r.outcome).toBe('already');
     expect(calls).toEqual([]);
+  });
+});
+
+// Nov 18 2026 (Tom): the map card is protected from ONE wrong same-named
+// course. Two independent providers that agree with each other against it
+// are right and the map is wrong (production: Lost Marsh Golf Course was
+// refused by both and kept no card).
+describe('findOfficialSheet — two providers against the map', () => {
+  /** A map card of nine par 3s: every provider card of par 4s disagrees with it. */
+  const mapOf = (pars: number[]) => ({ source: 'osm', greens: [], holes: pars.map((par, i) => ({ hole: i + 1, par, line: [[45.3 + i * 0.001, -75.7], [45.3004 + i * 0.001, -75.7]] })) });
+  const par3s = mapOf(NINE.map(() => 3));
+
+  it('both providers agree with each other: their card is taken and the map is recorded as overruled', async () => {
+    stubProviders();
+    const { admin, updates } = fakeAdmin([], par3s);
+    const r = await findOfficialSheet(admin, row());
+    expect(r).toMatchObject({ found: true, outcome: 'found' });
+    expect(r.course.holes.map(h => h.par)).toEqual(NINE.map(() => 4));
+    expect(r.course.holes[0].yardage).toEqual({ white: 381, blue: 401 });
+    expect(updates).toHaveLength(1);
+    expect(updates[0].sheet_sources).toMatchObject({ pars: 'opengolfapi', mapOverruled: true });
+  });
+
+  it('one provider alone against the map is still refused', async () => {
+    stubProviders({ gcaSearch: { courses: [] } });
+    const { admin, updates } = fakeAdmin([], par3s);
+    const r = await findOfficialSheet(admin, row());
+    expect(r).toMatchObject({ found: false, outcome: 'map_disagrees' });
+    expect(updates).toEqual([]);
+  });
+
+  it('two providers that disagree with the map AND with each other are both refused', async () => {
+    stubProviders({ gca: gcaDetail(NINE.map(() => 5)) });
+    const { admin, updates } = fakeAdmin([], par3s);
+    const r = await findOfficialSheet(admin, row());
+    expect(r).toMatchObject({ found: false, outcome: 'map_disagrees' });
+    expect(updates).toEqual([]);
+  });
+
+  it('a map the providers agree with is not "overruled"', async () => {
+    stubProviders();
+    const { admin, updates } = fakeAdmin([], mapOf(NINE.map(() => 4)));
+    const r = await findOfficialSheet(admin, row());
+    expect(r.outcome).toBe('found');
+    expect(updates[0].sheet_sources).not.toHaveProperty('mapOverruled');
+  });
+});
+
+// Nov 18 2026: a miss says what each provider's ask came to (counts and a
+// reason, never the provider's data).
+describe('findOfficialSheet — the trace', () => {
+  it('names why each provider gave nothing', async () => {
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: { courses: [{ id: 'gca-9', club_name: 'Some Other Club', course_name: 'Other', location: { city: 'Elsewhere', state: 'ON', country: 'Canada' } }] } });
+    const { admin } = fakeAdmin();
+    const r = await findOfficialSheet(admin, row());
+    expect(r.found).toBe(false);
+    expect(r.trace).toEqual([
+      { source: 'opengolfapi', candidates: 0, named: 0, picked: null, result: 'no_candidates' },
+      { source: 'golfcourseapi', candidates: 1, named: 0, picked: null, result: 'no_name_match' },
+    ]);
+  });
+
+  it('a fill is traced too, and a complete card asks nobody so has no trace', async () => {
+    stubProviders();
+    const { admin } = fakeAdmin();
+    const r = await findOfficialSheet(admin, row());
+    expect(r.trace!.map(t => `${t.source}:${t.result}`)).toEqual(['opengolfapi:filled', 'golfcourseapi:filled']);
+    const again = await findOfficialSheet(fakeAdmin().admin, { ...row(), hole_data: r.course.holes, course_rating: r.course.courseRating, slope_rating: r.course.slopeRating } as CatalogRow);
+    expect(again.outcome).toBe('already');
+    expect(again.trace).toBeUndefined();
+  });
+
+  it('a provider that is down is traced as such', async () => {
+    stubProviders({ fail: 'opengolfapi:search', gcaSearch: { courses: [] } });
+    const { admin } = fakeAdmin();
+    const r = await findOfficialSheet(admin, row());
+    expect(r.trace!.map(t => t.result)).toEqual(['provider_error', 'no_candidates']);
   });
 });

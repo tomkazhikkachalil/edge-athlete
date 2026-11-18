@@ -131,6 +131,19 @@ export interface SheetSources {
   strokeIndex?: string;
   tees?: Record<string, string>;
   ratings?: Record<string, string>;
+  /** True when two providers agreed with each other against the map card
+   *  and their card was taken (Nov 18 2026; course-catalog findOfficialSheet). */
+  mapOverruled?: boolean;
+}
+
+/** Do two providers' cards say the same course strongly enough to outvote a
+ *  map card? Stricter than sheetsAgree: the SAME holes (a nine does not
+ *  confirm an eighteen) and at most two pars apart. */
+export function providersConfirm(
+  a: ReadonlyArray<Pick<SheetHole, 'number' | 'par'>>,
+  b: ReadonlyArray<Pick<SheetHole, 'number' | 'par'>>
+): boolean {
+  return a.length > 0 && a.length === b.length && sheetsAgree(a, b);
 }
 
 /** The credits after `source`'s answer turned `before` into `after`. Only what

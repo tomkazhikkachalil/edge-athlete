@@ -48,7 +48,7 @@ import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
-import { creditSources, mergeSheets, sheetComplete, sheetGaps, type Sheet, type SheetSources } from '@/lib/golf/sheet-merge';
+import { creditSources, mergeSheets, providersConfirm, sheetComplete, sheetGaps, type Sheet, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
@@ -1097,6 +1097,19 @@ export interface OfficialSheetResult {
   found: boolean;
   outcome: 'already' | 'found' | 'no_match' | 'map_disagrees' | 'no_sheet' | 'not_configured' | 'budget_refused' | 'provider_error';
   course: GolfCourse;
+  /** What each provider asked came to (Nov 18 2026): counts and a reason,
+   *  never the provider's data. A miss used to say only "no match", and why
+   *  could not be read afterwards (Glen Abbey, Oakville). */
+  trace?: SheetAsk[];
+}
+
+export interface SheetAsk {
+  source: SheetProvider['source'];
+  /** What the search returned / how many carry this facility's name / the one picked. */
+  candidates?: number;
+  named?: number;
+  picked?: string | null;
+  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'not_narrowed' | 'no_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error';
 }
 
 /** One source of official cards (Nov 16 2026). `search` answers the provider's
@@ -1170,14 +1183,15 @@ export const SHEET_PROVIDERS: ReadonlyArray<SheetProvider> = [openGolfSheets, gc
  *  from one source takes tees, stroke indexes and ratings from another, and an
  *  answer that disagrees with the card (or with the map card) is refused. */
 export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow): Promise<OfficialSheetResult> {
-  const answer = (outcome: OfficialSheetResult['outcome'], r: CatalogRow = row): OfficialSheetResult => ({
+  const answer = (outcome: OfficialSheetResult['outcome'], r: CatalogRow = row, asked?: SheetAsk[]): OfficialSheetResult => ({
     found: outcome === 'already' || outcome === 'found',
     outcome,
     course: rowToCourse(r),
+    ...(asked?.length ? { trace: asked } : {}),
   });
   const hadCard = (row.hole_data?.length ?? 0) > 0;
   /** No answer came: a card the row already holds is still a card. */
-  const miss = (outcome: OfficialSheetResult['outcome']) => answer(hadCard ? 'already' : outcome);
+  const miss = (outcome: OfficialSheetResult['outcome'], asked?: SheetAsk[]) => answer(hadCard ? 'already' : outcome, row, asked);
   if (sheetComplete(row)) return answer('already');
   // A test row's card is whatever its spec seeded: never topped up from outside.
   if (hadCard && (row.external_source as string) === 'qa-e2e') return answer('already');
@@ -1195,31 +1209,45 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     slope_rating: row.slope_rating,
   };
   const from: string[] = [];
+  const trace: SheetAsk[] = [];
+  /** Answers refused for disagreeing with the map card. */
+  const against: Array<{ source: SheetProvider['source']; id: string; sheet: Sheet }> = [];
   // Read only when something is about to be written (the loop's first fill).
   let sources: SheetSources | null | undefined;
   let why: OfficialSheetResult['outcome'] = 'no_match';
   for (const provider of providers) {
     if (sheetComplete(card)) break;
-    if (!(await consumeProviderBudget(admin, provider.source))) { why = 'budget_refused'; continue; }
+    const ask: SheetAsk = { source: provider.source, result: 'provider_error' };
+    trace.push(ask);
+    if (!(await consumeProviderBudget(admin, provider.source))) { why = 'budget_refused'; ask.result = 'budget_refused'; continue; }
     const candidates = await provider.search(sheetSearchQuery(row.name));
     if (!candidates) { why = 'provider_error'; continue; }
     const pick = pickSheetCandidate(row, candidates);
+    ask.candidates = candidates.length;
+    ask.named = candidates.filter(c => sameFacilityName(row.name, c.name)).length;
+    ask.picked = pick?.id ?? null;
     if (!pick) {
+      ask.result = candidates.length === 0 ? 'no_candidates' : ask.named === 0 ? 'no_name_match' : 'not_narrowed';
       console.warn(`[course-catalog] official sheet: no ${provider.source} match for ${row.id} "${row.name}" among ${candidates.length}`);
       continue;
     }
-    if (!(await consumeProviderBudget(admin, provider.source))) { why = 'budget_refused'; continue; }
+    if (!(await consumeProviderBudget(admin, provider.source))) { why = 'budget_refused'; ask.result = 'budget_refused'; continue; }
     const detail = await provider.detail(pick.id);
-    if (!detail) { why = 'provider_error'; continue; }
+    if (!detail) { why = 'provider_error'; ask.result = 'provider_error'; continue; }
     const normalized = detail.row;
     // Holes are what an answer is checked by: one without them adds nothing.
-    if (!normalized?.hole_data?.length) { why = 'no_sheet'; continue; }
-    const merged = sheetAgreesWithMap(normalized.hole_data, mapSheet) ? mergeSheets(card, normalized) : null;
+    if (!normalized?.hole_data?.length) { why = 'no_sheet'; ask.result = 'no_holes'; continue; }
+    const agreesWithMap = sheetAgreesWithMap(normalized.hole_data, mapSheet);
+    // Kept in case another provider says the same against the map (below).
+    if (!agreesWithMap) against.push({ source: provider.source, id: pick.id, sheet: normalized });
+    const merged = agreesWithMap ? mergeSheets(card, normalized) : null;
     if (!merged || merged.refused) {
       console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}" refused, ${provider.source}:${pick.id} disagrees with the ${merged ? 'card' : 'map'}`);
       why = 'map_disagrees';
+      ask.result = merged ? 'card_disagrees' : 'map_disagrees';
       continue;
     }
+    ask.result = merged.changed ? 'filled' : 'nothing_new';
     if (merged.changed) {
       if (from.length === 0) sources = await readSheetSources(admin, row.id);
       if (sources !== undefined) sources = creditSources(sources, card, merged.sheet, provider.source);
@@ -1227,7 +1255,28 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       from.push(`${provider.source}:${pick.id}`);
     }
   }
-  if (from.length === 0) return miss(why);
+  // Two providers against the map (Nov 18 2026, Tom). The map card is
+  // protected from ONE wrong same-named course; when two independent
+  // providers give the same holes and pars, it is the map that is wrong
+  // (measured on production: Lost Marsh Golf Course, refused by both). One
+  // provider alone against the map is still refused.
+  if (from.length === 0 && against.length >= 2) {
+    const [a, b] = against;
+    if (a.source !== b.source && providersConfirm(a.sheet.hole_data ?? [], b.sheet.hole_data ?? [])) {
+      sources = await readSheetSources(admin, row.id);
+      for (const answer of [a, b]) {
+        const merged = mergeSheets(card, answer.sheet);
+        if (merged.refused || !merged.changed) continue;
+        if (sources !== undefined) sources = creditSources(sources, card, merged.sheet, answer.source);
+        card = merged.sheet;
+        from.push(`${answer.source}:${answer.id}`);
+      }
+      if (from.length) for (const t of trace) if (t.result === 'map_disagrees') t.result = 'filled';
+      if (from.length && sources !== undefined) sources = { ...(sources ?? {}), mapOverruled: true };
+      if (from.length) console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${a.source} and ${b.source} agree against the map card; the map is overruled`);
+    }
+  }
+  if (from.length === 0) return miss(why, trace);
 
   const sheet = { ...card, ...(sources === undefined ? {} : { sheet_sources: sources }), hydrated_at: new Date().toISOString() };
   const { error } = await admin.from('golf_courses').update(sheet).eq('id', row.id);
@@ -1236,7 +1285,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     return miss('provider_error');
   }
   console.warn(`[course-catalog] official sheet: ${row.external_source}:${row.external_id} "${row.name}" ← ${from.join(' + ')} (${card.hole_data?.length ?? 0} holes, still missing: ${sheetGaps(card).join(', ') || 'nothing'})`);
-  return answer('found', { ...row, ...sheet } as CatalogRow);
+  return answer('found', { ...row, ...sheet } as CatalogRow, trace);
 }
 
 // ── Proximity (GolfCourseAPI v1.3.0, Pro/Enterprise; dormant on Free) ────────

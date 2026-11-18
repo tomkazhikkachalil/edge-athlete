@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { creditSources, mergeSheets, sheetsAgree, sheetGaps, sheetComplete, type Sheet, type SheetHole } from '../sheet-merge';
+import { creditSources, mergeSheets, providersConfirm, sheetsAgree, sheetGaps, sheetComplete, type Sheet, type SheetHole } from '../sheet-merge';
 
 const hole = (number: number, par: number, yardage: Record<string, number> = {}, handicap = 0): SheetHole => ({ number, par, yardage, handicap });
 const nine = (yardage: (n: number) => Record<string, number>, handicap = 0, par = 4): SheetHole[] =>
@@ -117,5 +117,18 @@ describe('creditSources — which source supplied what (313)', () => {
   it('an answer that added nothing changes no credit', () => {
     const card = sheet({ hole_data: nine(() => ({ white: 380 }), 1) });
     expect(creditSources({ pars: 'seed' }, card, mergeSheets(card, sheet()).sheet, 'golfcourseapi')).toEqual({ pars: 'seed' });
+  });
+});
+
+describe('providersConfirm — strong enough to outvote a map card', () => {
+  const holes = (pars: number[]) => pars.map((par, i) => ({ number: i + 1, par }));
+  it('the same holes, at most two pars apart', () => {
+    expect(providersConfirm(holes([4, 4, 3, 5]), holes([4, 4, 3, 5]))).toBe(true);
+    expect(providersConfirm(holes([4, 4, 3, 5]), holes([5, 5, 3, 5]))).toBe(true);
+    expect(providersConfirm(holes([4, 4, 3, 5]), holes([5, 5, 4, 5]))).toBe(false);
+  });
+  it('a nine does not confirm an eighteen, and nothing confirms nothing', () => {
+    expect(providersConfirm(holes([4, 4, 3]), holes([4, 4, 3, 5]))).toBe(false);
+    expect(providersConfirm([], [])).toBe(false);
   });
 });

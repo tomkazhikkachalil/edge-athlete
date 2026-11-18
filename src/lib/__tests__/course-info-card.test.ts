@@ -38,7 +38,10 @@ describe('CourseInfoCard — honest scorecard states', () => {
     const catalog = fs.readFileSync(path.join(process.cwd(), 'src/lib/golf/course-catalog.ts'), 'utf8');
     expect(catalog).toContain('golf-sheet-ask:${row.id}');
     expect(catalog).toContain('const mapSheet = hadCard ? null : await readMapSheet(admin, row.id);');
-    expect(catalog).toContain('sheetAgreesWithMap(normalized.hole_data, mapSheet) ? mergeSheets(card, normalized) : null');
+    // The map card is checked first, and an answer that disagrees with it is merged only if a second provider confirms it (Nov 18 2026).
+    expect(catalog).toContain('const agreesWithMap = sheetAgreesWithMap(normalized.hole_data, mapSheet);');
+    expect(catalog).toContain('const merged = agreesWithMap ? mergeSheets(card, normalized) : null;');
+    expect(catalog).toContain('a.source !== b.source && providersConfirm(');
     expect(src).toMatch(/sheetFindable \|\| course\.sheetSource === 'map'/);
   });
   it('an official card that still lacks something asks quietly; a complete one only counts the pick (Nov 16 2026)', () => {

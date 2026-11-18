@@ -1,5 +1,17 @@
 # Development Log
 
+## November 18, 2026 (00:44) — The scorecard lookup on a pick: two providers that agree outvote the map, and a miss says why
+
+Two of Tom's choices, both in `findOfficialSheet` (`?sheet=1`, a person's pick):
+
+**Two providers against the map.** The map card is protected: a provider card that differs from the map's pars on more than two holes is refused, so one wrong same-named course cannot replace it. On production that refused BOTH providers for Lost Marsh Golf Course (Indiana) and left it with no card. Now: when no answer was accepted and two DIFFERENT providers were each refused for the map, and their cards confirm each other (`providersConfirm`: the same holes, at most two pars apart; a nine does not confirm an eighteen), their card is taken and `sheet_sources.mapOverruled` is set. One provider alone against the map is still refused; two that disagree with each other are both refused. The background fill has one provider, so it still stamps `map_disagrees`; those rows resolve on a pick.
+
+**A miss says why.** The answer carries `trace`: per provider, how many candidates the search returned, how many carry the facility's name, which was picked, and what it came to (`no_candidates`, `no_name_match`, `not_narrowed`, `no_holes`, `map_disagrees`, …). Counts and a reason only, never the provider's data. The Nov 18 pick of Glen Abbey (Oakville) answered `no_sheet` and why GolfCourseAPI matched nothing could not be read afterwards.
+
+Tests: `official-sheet.test.ts` (overrule, lone provider, mutual disagreement, a map the providers agree with, the trace), `sheet-merge.test.ts` (`providersConfirm`).
+
+Not proven until deployed: a real pick of a `map_disagrees` course and of a Canadian course on production, reading the trace. Glen Abbey and Lost Marsh themselves were asked today and their one-ask-per-day key holds until tomorrow.
+
 ## November 18, 2026 (00:39) — The scorecard link: duplicate listings are one course, and an id the provider no longer serves is not a failure
 
 Tom chose "link more US courses". Measured first, read-only, production's 4,058 unlinked US rows against OpenGolfAPI's file:
