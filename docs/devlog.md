@@ -1,5 +1,17 @@
 # Development Log
 
+## November 17, 2026 (19:42) — The scorecard fill never ran on production: the map phase left it no time; it now runs first
+
+After migration 314 ran on production and #1552 deployed (`d19295c8`), the fill linked nothing for twenty minutes. Found by reading the job's own record, not guessed: `golf_map_sweep_meta.last_run` showed the geometry phase alone at **45.7 s of the 42 s budget**, so the fill, written as the tick's fifth phase with "half a minute left" as its condition, could never start. (The elevation and hydration phases sit behind the same wall; not touched here.)
+
+- **The cards phase runs second, before geometry** (`/api/cron/golf-map-sweep`): the monthly link when due, else two cards capped at 6 s. Geometry's guard counts from the tick's start, so the tick's total does not grow; geometry starts a cell fewer on the one tick a month that links.
+- **A failed link is not retried every tick** (`card-fill.ts linkDue`, `LINK_RETRY_MS` 6 h): the attempt is stamped (`card_link_try`) before the work. Without it a bad download would take the map phases' time every two minutes. A link cut short resumes: the write only fills rows whose `opengolf_id` is null.
+- Measured against production (read-only): the published file downloads and parses in 0.6 s, the 11,770 US rows read in 1.3 s over 12 trips.
+
+My error: the staging proof ran the two steps through the owner's door, never through the tick under production's load, so the placement was not tested.
+
+Also this round: `check:schema:prod` green at ledger 314, the production probe (health + catalog-health, desktop) 2 passed on `d19295c8`, baseline rebuilt at 314 (#1553).
+
 ## November 17, 2026 (07:58) — Golf scorecards: a background fill from the open source, so a pick finds its card already there
 
 Tom: "figure out how to connect multiple APIs, make it run fast so we can start building our own history of golf courses and get the map and scorecard correct."
