@@ -2,14 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { WORK_BUDGET_MS } from '@/lib/golf/map-sweep';
 import { planSweepCells, readSweepProgress, runElevationBatch, runGeometryBatch, runHydrationBatch } from '@/lib/golf/map-sweep-server';
-import { cardLinkDue, runCardFillBatch, runCardLink } from '@/lib/golf/card-fill-server';
+import { CRON_CARD_PHASE_MS, cardLinkDue, runCardFillBatch, runCardLink } from '@/lib/golf/card-fill-server';
 import { reportRouteError } from '@/lib/observability/report';
 import { recordJobSummary } from '@/lib/platform-jobs/record';
 
 export const maxDuration = 60;
-
-/** The most one tick spends on scorecards before the map phases start. */
-const CARD_PHASE_MS = 6000;
 
 // ── POST /api/cron/golf-map-sweep ─────────────────────────────────────────────
 // One tick of the course-map sweep (migration 255 schedules it every two
@@ -50,12 +47,13 @@ export async function POST(request: NextRequest) {
   }
   // Cards run BEFORE the map phases (Nov 17 2026): measured on production, the
   // geometry phase alone spends the whole budget (45.7 s of 42), so a phase
-  // placed after it never ran. Two cards cost about two seconds, capped at
-  // CARD_PHASE_MS; the monthly link takes longer, once. Geometry's own guard
+  // placed after it never ran. Two cards cost about two seconds; their rows may
+  // start within the first five (CRON_CARD_PHASE_MS); the monthly link takes
+  // longer, once. Geometry's own guard
   // counts from t0, so the tick's total does not grow.
   try {
     if (await cardLinkDue(admin)) summary.cardLink = await runCardLink(admin, { dryRun: false });
-    else summary.cards = await runCardFillBatch(admin, { rows: 2, dryRun: false, deadlineMs: CARD_PHASE_MS });
+    else summary.cards = await runCardFillBatch(admin, { rows: 2, dryRun: false, deadlineMs: CRON_CARD_PHASE_MS });
   } catch (e) {
     reportRouteError('[map-sweep] card fill phase failed:', e);
     summary.cards = { ok: false };

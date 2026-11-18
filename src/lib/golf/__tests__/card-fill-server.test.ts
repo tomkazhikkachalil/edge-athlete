@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { runCardFillBatch, runCardLink } from '../card-fill-server';
+import { CRON_CARD_PHASE_MS, ROW_START_RESERVE_MS, runCardFillBatch, runCardLink } from '../card-fill-server';
 
 // Nov 17 2026: the fill's writer against a recorded database. The provider's
 // answer is the live detail shape the normaliser's tests pin.
@@ -96,6 +96,26 @@ describe('runCardFillBatch', () => {
     expect((write.fields!.hole_data as unknown[]).length).toBe(18);
     expect(write.fields!.sheet_sources).toMatchObject({ pars: 'opengolfapi', strokeIndex: 'opengolfapi', tees: { blue: 'opengolfapi' } });
     expect(write.filters).toEqual(expect.arrayContaining(['eq("id","c1")', 'is("hole_data",null)']));
+  });
+
+  it('the time the cron tick gives it is enough to ask its rows', async () => {
+    // Production, Nov 17: the tick passed less than the row reserve and every
+    // batch ended before its first row.
+    expect(CRON_CARD_PHASE_MS).toBeGreaterThan(ROW_START_RESERVE_MS + 2000);
+    const fetchMock = stubDetail(detail());
+    const { admin } = fakeAdmin(queue([fillRow()]));
+    const r = await runCardFillBatch(admin, { rows: 2, dryRun: false, deadlineMs: CRON_CARD_PHASE_MS });
+    expect(r).toMatchObject({ due: 1, outcomes: { ok: 1 } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('no row starts inside the reserve', async () => {
+    const fetchMock = stubDetail(detail());
+    const { admin, rpcs } = fakeAdmin(queue([fillRow()]));
+    const r = await runCardFillBatch(admin, { rows: 2, dryRun: false, deadlineMs: ROW_START_RESERVE_MS - 1 });
+    expect(r).toMatchObject({ due: 1, outcomes: {} });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(rpcs).toEqual([]);
   });
 
   it('a card that fails a check is stamped with its reason and nothing else', async () => {

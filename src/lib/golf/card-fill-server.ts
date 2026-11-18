@@ -24,6 +24,14 @@ export const DATASET_URL = 'https://raw.githubusercontent.com/opengolfapi/data/m
 const PAGE = 1000;
 const LINK_CHUNK = 500;
 const CALL_GAP_MS = 300;
+/** A row is asked only with this long left before the deadline: one slow
+ *  provider answer still fits inside it. */
+export const ROW_START_RESERVE_MS = 7000;
+/** What the cron tick gives the cards phase: the reserve PLUS five seconds in
+ *  which its rows may start. (Nov 17 2026: the tick first passed 6 s, less
+ *  than the reserve, so every batch ended before its first row: `due 2,
+ *  outcomes {}` in 98 ms on production.) */
+export const CRON_CARD_PHASE_MS = ROW_START_RESERVE_MS + 5000;
 const PROVIDER_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const iso = (t: number) => new Date(t).toISOString();
@@ -174,7 +182,7 @@ export async function runCardFillBatch(
   const count = (k: string) => { summary.outcomes[k] = (summary.outcomes[k] ?? 0) + 1; };
   let troubles = 0;
   for (const row of rows) {
-    if (Date.now() > deadline - 7000) break;
+    if (Date.now() > deadline - ROW_START_RESERVE_MS) break;
     // The fill's own cap first: it always leaves the shared key room for a pick.
     if (!(await consumeProviderBudget(admin, 'card-fill')) || !(await consumeProviderBudget(admin, 'opengolfapi'))) { summary.budgetExhausted = true; break; }
     const detail = await provider.detail(row.opengolf_id);
