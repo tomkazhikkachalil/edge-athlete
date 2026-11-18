@@ -98,8 +98,11 @@ WHERE sheet_fill_outcome IS DISTINCT FROM 'ok' AND hole_data IS NULL AND opengol
 ## Hole geometry and green outlines
 
 `golf_courses.hole_geometry` (+ `hole_geometry_at`, migration 102) caches
-ONE answer per course for 30 days — from the lazy fetch on the first map
-open, or from the sweep (below): the `golf=hole` ways (tee → green
+ONE answer per course — from the lazy fetch on the first map open, or from
+the sweep (below). A stored map WITH lines is served at once at any age
+(since Nov 17 2026; the sweep refreshes it, the player never waits on
+Overpass for a map the row already holds). A no-coverage answer stands for
+30 days and is asked again on the next open after that. The answer holds: the `golf=hole` ways (tee → green
 polylines with `ref` and `par`), the named `leisure=golf_course` boundaries
 that untangle multi-course facilities, the `golf=green` outlines (G2), and
 the numbered `golf=tee` / `golf=fairway` points (map sweep PR 5). The

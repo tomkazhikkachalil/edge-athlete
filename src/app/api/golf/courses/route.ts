@@ -67,7 +67,8 @@ export async function GET(request: NextRequest) {
     // ── Course by id — the hydration touchpoint ──────────────────────────
     if (courseId) {
       // ?holes=1 — the per-hole OSM geometry cache (live map's hole-by-hole
-      // view). Served from golf_courses for 30 days per attempt; a null
+      // view). A stored map with lines is served at once at any age (the
+      // sweep refreshes it); a no-coverage answer stands 30 days; a null
       // geometry is a real answer (no unambiguous OSM coverage).
       if (searchParams.get('holes') === '1') {
         // H1: a thin provider row that was never asked (or whose 7-day stamp

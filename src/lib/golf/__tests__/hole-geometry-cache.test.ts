@@ -10,6 +10,7 @@ import rideauView from './fixtures/overpass-rideau-view.json';
 
 const now = Date.now();
 const fresh = new Date(now - 60_000).toISOString();
+const stale = new Date(now - 45 * 24 * 60 * 60 * 1000).toISOString();
 const holes = [{ hole: 1, par: 4, line: [[45.2, -75.68], [45.203, -75.68]] }];
 
 function fakeAdmin(row: Record<string, unknown> | null) {
@@ -74,5 +75,48 @@ describe('getCourseHoleGeometry — greens freshness', () => {
     const failed = fakeAdmin({ name: 'X', lat: 45.2, lng: -75.68, hole_geometry: stored, hole_geometry_at: fresh, club_id: null });
     expect(await getCourseHoleGeometry(failed.admin, 'c1', async () => true)).toBe(stored);
     expect(failed.updates).toHaveLength(0);
+  });
+});
+
+// Nov 17 2026: on production a stale stamp made the player wait 52 s on two
+// timing-out mirrors for the map the row already held.
+describe('getCourseHoleGeometry — a stored map opens at once', () => {
+  it('a STALE geometry with lines is served without a fetch, a budget call or a write', async () => {
+    const fetch = okFetch();
+    vi.stubGlobal('fetch', fetch);
+    const stored = { holes, source: 'osm', greens: [] };
+    const { admin, updates } = fakeAdmin({ name: 'X', lat: 45.2, lng: -75.68, hole_geometry: stored, hole_geometry_at: stale, club_id: null });
+    const budget = vi.fn(async () => true);
+    expect(await getCourseHoleGeometry(admin, 'c1', budget)).toBe(stored);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(budget).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
+  });
+
+  it('a STALE null (no coverage, over 30 days ago) is still asked again here', async () => {
+    const fetch = okFetch();
+    vi.stubGlobal('fetch', fetch);
+    const { admin, updates } = fakeAdmin({ name: 'Rideau View', lat: 45.2, lng: -75.68, hole_geometry: null, hole_geometry_at: stale, club_id: null });
+    const g = await getCourseHoleGeometry(admin, 'c1', async () => true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(updates).toHaveLength(1);
+    expect(g?.holes).toHaveLength(18);
+  });
+
+  it('a STALE geometry with an empty hole list is not "a map": it is asked again', async () => {
+    const fetch = okFetch();
+    vi.stubGlobal('fetch', fetch);
+    const { admin } = fakeAdmin({ name: 'Rideau View', lat: 45.2, lng: -75.68, hole_geometry: { holes: [], source: 'osm', greens: [] }, hole_geometry_at: stale, club_id: null });
+    await getCourseHoleGeometry(admin, 'c1', async () => true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('a never-attempted row is asked', async () => {
+    const fetch = okFetch();
+    vi.stubGlobal('fetch', fetch);
+    const { admin, updates } = fakeAdmin({ name: 'Rideau View', lat: 45.2, lng: -75.68, hole_geometry: null, hole_geometry_at: null, club_id: null });
+    await getCourseHoleGeometry(admin, 'c1', async () => true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(updates).toHaveLength(1);
   });
 });
