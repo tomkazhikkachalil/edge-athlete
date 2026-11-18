@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LINK_REFRESH_MS, LINK_RETRY_MS, cardFillVerdict, distanceKm, linkDataset, linkDue, parseDatasetLine, type FillCard } from '../card-fill';
+import { LINK_REFRESH_MS, LINK_RETRY_MS, LINK_RULE_VERSION, cardFillVerdict, distanceKm, linkDataset, linkDue, linkName, parseDatasetLine, type FillCard } from '../card-fill';
 
 // Nov 17 2026: the scorecard fill. A wrong card is worse than none, so both
 // rules refuse on any doubt.
@@ -128,5 +128,50 @@ describe('linkDue', () => {
   it('is due a month after it finished, never sooner', () => {
     expect(linkDue(ago(24 * 60 * 60 * 1000), ago(24 * 60 * 60 * 1000), now)).toBe(false);
     expect(linkDue(ago(LINK_REFRESH_MS + 1000), ago(LINK_REFRESH_MS + 1000), now)).toBe(true);
+  });
+});
+
+describe('the link, measured against the published file (Nov 18 2026)', () => {
+  it('reads past a flattened trademark sign and a dropped apostrophe', () => {
+    expect(linkName('Pebble Beach Golf Linkstm')).toBe('Pebble Beach Golf Links');
+    expect(linkName('Spyglass Hilltm Golf Course')).toBe('Spyglass Hill Golf Course');
+    expect(linkName("Falcon's Fire Golf Club")).toBe('Falcons Fire Golf Club');
+    // Nothing else moves.
+    expect(linkName('Tatum Ranch Golf Club')).toBe('Tatum Ranch Golf Club');
+    expect(linkName('TM Golf')).toBe('TM Golf');
+    const r = linkDataset(
+      [ours('a', 'Spyglass Hill Golf Course'), ours('b', "Falcon's Fire Golf Club", 28.3, -81.5)],
+      [theirs('og-1', 'Spyglass Hilltm Golf Course'), theirs('og-2', 'Falcons Fire Golf Club', 28.301, -81.501)]
+    );
+    expect(r.pairs).toEqual([{ id: 'a', og: 'og-1' }, { id: 'b', og: 'og-2' }]);
+  });
+
+  it('one course listed several times at one point is one candidate, with its other ids', () => {
+    const r = linkDataset([ours('a', 'Olympic Club Lake Course')], [theirs('og-1', 'Olympic Club Lake Course'), theirs('og-2', 'Olympic Club Lake Course'), theirs('og-3', 'Olympic Club Lake Course')]);
+    expect(r).toMatchObject({ pairs: [{ id: 'a', og: 'og-1', alts: ['og-2', 'og-3'] }], ambiguous: 0 });
+  });
+
+  it('the same name at two different points is still two candidates: no link', () => {
+    const r = linkDataset([ours('a', 'Eagle Creek Golf Club')], [theirs('og-1', 'Eagle Creek Golf Club'), theirs('og-2', 'Eagle Creek Golf Club', 45.006, -75.004)]);
+    expect(r).toMatchObject({ pairs: [], ambiguous: 1 });
+  });
+
+  it('two of our rows on one multiply-listed course link neither', () => {
+    const r = linkDataset([ours('a', 'Eagle Creek Golf Club'), ours('b', 'Eagle Creek Golf Course', 45.0005, -75.0005)], [theirs('og-1', 'Eagle Creek Golf Club'), theirs('og-2', 'Eagle Creek Golf Club')]);
+    expect(r).toMatchObject({ pairs: [], ambiguous: 2 });
+  });
+});
+
+describe('linkDue — a new rule links again', () => {
+  const now = Date.parse('2026-11-18T12:00:00Z');
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+  it('a link finished yesterday under an older rule is due; under this rule it is not', () => {
+    const day = 24 * 60 * 60 * 1000;
+    expect(linkDue(ago(day), ago(day), now, LINK_RULE_VERSION - 1)).toBe(true);
+    expect(linkDue(ago(day), ago(day), now, LINK_RULE_VERSION)).toBe(false);
+    expect(linkDue(ago(day), ago(day), now)).toBe(false);
+  });
+  it('an attempt a minute ago still waits, whatever the rule', () => {
+    expect(linkDue(ago(24 * 60 * 60 * 1000), ago(60_000), now, LINK_RULE_VERSION - 1)).toBe(false);
   });
 });

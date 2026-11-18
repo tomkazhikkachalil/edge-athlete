@@ -1128,7 +1128,12 @@ const openGolfSheets: SheetProvider = {
   },
   async detail(id) {
     const r = await fetchJsonResult(`https://api.opengolfapi.org/api/v1/courses/${encodeURIComponent(id)}`);
-    if (!r.ok) return null;
+    // "Course not found" is an ANSWER (no such course), not a failure: the
+    // published file lists ids the API no longer serves (measured Nov 18 2026:
+    // two of the Olympic Club Lake Course's three ids answer 404). Read as a
+    // failure it was never stamped, and such a row stayed at the head of the
+    // fill's queue.
+    if (!r.ok) return r.status === 404 ? { row: null } : null;
     const d = r.body as OpenGolfDetail | null;
     return { row: d?.id ? normalizeOpenGolfDetail(d) : null };
   },

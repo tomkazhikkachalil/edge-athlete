@@ -22,6 +22,16 @@ export const LINK_MAX_KM = 2;
 export interface LinkOurs { id: string; name: string; lat: number | null; lng: number | null }
 export interface LinkTheirs { id: string; name: string; lat: number; lng: number }
 
+/** A name as the link compares it. Two spellings the published file has and
+ *  the catalog does not (measured Nov 18 2026): a trademark sign flattened
+ *  onto the word ("Pebble Beach Golf Linkstm", "Spyglass Hilltm Golf Course":
+ *  five names in the file, all one company's), and a dropped apostrophe
+ *  ("Falcons Fire" for "Falcon's Fire"). Only for this comparison;
+ *  sameFacilityName itself is not changed (it also guards catalog dedupe). */
+export function linkName(name: string): string {
+  return name.replace(/([A-Za-z]{2,})(tm|sm)\b/g, '$1').replace(/['’`]/g, '');
+}
+
 export function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
   const rad = Math.PI / 180;
   const x = (bLng - aLng) * rad * Math.cos(((aLat + bLat) / 2) * rad);
@@ -45,8 +55,16 @@ export function parseDatasetLine(line: string): LinkTheirs | null {
   }
 }
 
+/** What makes two lines of the file the same entry: the name and the point. */
+export function linkEntryKey(t: { name: string; lat: number; lng: number }): string {
+  return `${linkName(t.name).trim().toLowerCase()}|${t.lat.toFixed(4)}|${t.lng.toFixed(4)}`;
+}
+
 export interface LinkResult {
-  pairs: Array<{ id: string; og: string }>;
+  /** `alts`: the other ids of the SAME entry, when the file lists one course
+   *  several times (the same name at the same point). The fill asks them in
+   *  turn when the first id's card is refused. */
+  pairs: Array<{ id: string; og: string; alts?: string[] }>;
   /** Ours with no candidate at all. */
   unmatched: number;
   /** Ours with two candidates, or sharing its one candidate with another of ours. */
@@ -59,35 +77,49 @@ export interface LinkResult {
  *  a 27-hole club's two rows both matching one entry link neither. */
 export function linkDataset(ours: ReadonlyArray<LinkOurs>, theirs: ReadonlyArray<LinkTheirs>): LinkResult {
   const cell = (lat: number, lng: number) => `${Math.floor(lat * 10)}:${Math.floor(lng * 10)}`;
-  const grid = new Map<string, LinkTheirs[]>();
+  // One course listed several times is ONE candidate: the same name at the
+  // same point (to ~10 m) under different ids. Measured Nov 18 2026: 711 such
+  // groups in the file; counted as rivals they made 271 of our rows
+  // "ambiguous". Entries that differ in name or point stay rivals.
+  interface Entry extends LinkTheirs { ids: string[] }
+  const entries = new Map<string, Entry>();
   for (const t of theirs) {
+    const name = linkName(t.name);
+    const k = linkEntryKey(t);
+    const e = entries.get(k);
+    if (e) e.ids.push(t.id); else entries.set(k, { ...t, name, ids: [t.id] });
+  }
+  const grid = new Map<string, Entry[]>();
+  for (const t of entries.values()) {
     const k = cell(t.lat, t.lng);
     const list = grid.get(k);
     if (list) list.push(t); else grid.set(k, [t]);
   }
   const result: LinkResult = { pairs: [], unmatched: 0, ambiguous: 0, noCoords: 0 };
-  const single: Array<{ id: string; og: string }> = [];
+  const single: Array<{ id: string; entry: Entry }> = [];
   for (const o of ours) {
     if (o.lat == null || o.lng == null) { result.noCoords++; continue; }
     const a = Math.floor(o.lat * 10);
     const b = Math.floor(o.lng * 10);
-    const near: LinkTheirs[] = [];
+    const name = linkName(o.name);
+    const near: Entry[] = [];
     for (let i = -1; i <= 1; i++) {
       for (let j = -1; j <= 1; j++) {
         for (const t of grid.get(`${a + i}:${b + j}`) ?? []) {
-          if (distanceKm(o.lat, o.lng, t.lat, t.lng) <= LINK_MAX_KM && sameFacilityName(o.name, t.name)) near.push(t);
+          if (distanceKm(o.lat, o.lng, t.lat, t.lng) <= LINK_MAX_KM && sameFacilityName(name, t.name)) near.push(t);
         }
       }
     }
     if (near.length === 0) result.unmatched++;
     else if (near.length > 1) result.ambiguous++;
-    else single.push({ id: o.id, og: near[0].id });
+    else single.push({ id: o.id, entry: near[0] });
   }
   const claims = new Map<string, number>();
-  for (const p of single) claims.set(p.og, (claims.get(p.og) ?? 0) + 1);
+  for (const p of single) claims.set(p.entry.id, (claims.get(p.entry.id) ?? 0) + 1);
   for (const p of single) {
-    if (claims.get(p.og) === 1) result.pairs.push(p);
-    else result.ambiguous++;
+    if (claims.get(p.entry.id) !== 1) { result.ambiguous++; continue; }
+    const [og, ...alts] = p.entry.ids;
+    result.pairs.push(alts.length ? { id: p.id, og, alts } : { id: p.id, og });
   }
   return result;
 }
@@ -146,11 +178,16 @@ export const LINK_REFRESH_MS = 30 * 24 * 60 * 60 * 1000;
  *  take their time every two minutes. */
 export const LINK_RETRY_MS = 6 * 60 * 60 * 1000;
 
-/** Is the link due? Never finished, or finished over a month ago; and in
- *  either case not attempted within LINK_RETRY_MS. */
-export function linkDue(finishedAt: string | null | undefined, triedAt: string | null | undefined, now: number): boolean {
+/** Raised when linkDataset's rule changes, so the next tick links again under
+ *  the new rule instead of waiting out the month. 2 = Nov 18 2026 (duplicate
+ *  listings are one candidate; the two name spellings). */
+export const LINK_RULE_VERSION = 2;
+
+/** Is the link due? Never finished, finished over a month ago, or finished
+ *  under an older rule; and in every case not attempted within LINK_RETRY_MS. */
+export function linkDue(finishedAt: string | null | undefined, triedAt: string | null | undefined, now: number, finishedRule: number = LINK_RULE_VERSION): boolean {
   const done = finishedAt ? Date.parse(finishedAt) : NaN;
   const tried = triedAt ? Date.parse(triedAt) : NaN;
   if (Number.isFinite(tried) && now - tried < LINK_RETRY_MS) return false;
-  return !Number.isFinite(done) || now - done > LINK_REFRESH_MS;
+  return !Number.isFinite(done) || now - done > LINK_REFRESH_MS || finishedRule < LINK_RULE_VERSION;
 }
