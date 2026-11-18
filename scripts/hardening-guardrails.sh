@@ -144,12 +144,16 @@ else
   ok "next/og isolated to the card routes"
 fi
 
-# 6. Dependency CVEs — fail on high/critical.
+# 6. Dependency CVEs — fail on high/critical. scripts/audit-gate.mjs reads the
+# report. The only way past it is an entry in scripts/audit-gate-rules.mjs:
+# one advisory id with a reason, which ends by itself on its date or on the
+# package's next release (Nov 17 2026; printed below on every run).
 echo "▸ npm audit (high+)"
-if npm audit --omit=dev --audit-level=high >/tmp/hardening-audit.log 2>&1; then
-  ok "no high/critical advisories"
+if node scripts/audit-gate.mjs >/tmp/hardening-audit.log 2>&1; then
+  ok "no high/critical advisories outside a live exemption"
+  while IFS= read -r line; do note "$line"; done < <(grep '^EXEMPT' /tmp/hardening-audit.log)
 else
-  bad "npm audit found high/critical advisories:"
+  bad "npm audit found high/critical advisories, or an exemption has lapsed:"
   tail -20 /tmp/hardening-audit.log | sed 's/^/      /'
 fi
 
