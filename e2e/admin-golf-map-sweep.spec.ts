@@ -10,7 +10,7 @@ import {
 // (cell c05:61.0:-30.5 — no golf course within a thousand kilometres, so
 // OpenStreetMap answers nothing and every outcome is honest) beside one
 // `qa-e2e` row the planner must ignore. The gate (anonymous 401, a signed-in
-// athlete 403), the plan (dry run writes no cell; live writes ONE cell with
+// athlete 401 too: the console has its own sign-in), the plan (dry run writes no cell; live writes ONE cell with
 // three courses), a dry geometry batch stamps nothing, and a live one-cell
 // run ends in EITHER of its two contracts — `done` with every row stamped
 // as "no coverage", or `pending` with one attempt and NO row stamped (a
@@ -69,8 +69,9 @@ test('admin: the golf map sweep plans a cell, dry-runs nothing, sweeps one cell 
     // The gate.
     const anonGet = await anon.get('/api/admin/golf-map-sweep');
     expect(anonGet.status()).toBe(401);
+    // The app session never grants admin (B3, Oct 19 2026): no console cookie is a 401.
     const denied = await qa.post('/api/admin/golf-map-sweep', { data: { phase: 'plan' } });
-    expect(denied.status()).toBe(403);
+    expect(denied.status()).toBe(401);
     const badPhase = await adminApi.post('/api/admin/golf-map-sweep', { data: { phase: 'everything' } });
     expect(badPhase.status()).toBe(400);
     const badKey = await adminApi.post('/api/admin/golf-map-sweep', { data: { phase: 'geometry', cellKey: 'ottawa' } });
@@ -101,7 +102,8 @@ test('admin: the golf map sweep plans a cell, dry-runs nothing, sweeps one cell 
     expect((await admin.from('golf_map_sweep_cells').select('status').eq('cell_key', CELL).single()).data!.status).toBe('pending');
 
     // The live one-cell run: both contracts are honest.
-    const live = await adminApi.post('/api/admin/golf-map-sweep', { data: { phase: 'geometry', cellKey: CELL, dryRun: false } });
+    // One request waits up to 55 s for a queueing Overpass, and a second mirror may follow (map-sweep.ts, Nov 17 2026).
+    const live = await adminApi.post('/api/admin/golf-map-sweep', { data: { phase: 'geometry', cellKey: CELL, dryRun: false }, timeout: 115_000 });
     expect(live.ok(), await readErrorBody(live)).toBe(true);
     const liveBody = await live.json();
     expect(liveBody.dryRun).toBe(false);

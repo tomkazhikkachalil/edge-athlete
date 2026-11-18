@@ -1,5 +1,41 @@
 # Development Log
 
+## November 18, 2026 (00:13) — Golf course data: the background job on production, proven phase by phase; the gaps that are left
+
+Tom asked for the starved phases to be looked at, everything on production and proven, and the gaps named. Five pull requests, no migration: #1557 (tile decoder), #1558 (the tick), #1559 (a stored map opens at once), #1560 (the elevation queue's head), and this one (the admin door's browser tests). Production is on `ee267eef`.
+
+**The elevation queue's head (#1560, written up here).** After #1557 and #1558 the tick still read `elevation: { due: 20, done: 0 }`. Read from production: the due list is ordered `hole_elevation_at NULLS FIRST, id` and its first twenty courses all held a map with greens and ZERO hole lines. Nothing to sample was read as a transport failure, so nothing was stamped and the same twenty led the queue on every tick. `getCourseHoleElevation` now stamps that case as an answer before any budget call. **4,633 of the 15,735 stored maps have no hole lines; 11,102 do** (US 6,407, Canada 608). "Mapped" in earlier entries counted both.
+
+**Proof on production, each read after its deploy:**
+
+| What | Before | After |
+| --- | --- | --- |
+| Elevation, one tick | `due 20, done 0` (692 attempts on Nov 17, none saved) | `due 20, done 7`; profiles 228 → 235, attempted 228 → 268 |
+| A stale-stamped map, `?holes=1` (Club de Golf Gatineau) | 52.45 s | **0.235 s** |
+| Map cells finished | 1 on Nov 17, at most 13 a day for eight days | 15 in the first five hours of Nov 18 |
+| Scorecards | 78 | 166 (85 of 120 asks saved) |
+| Provider refresh | I said it was probably starved | it was not: 92 provider rows, none due |
+
+**Three real picks through the product's own `?sheet=1` door** (a QA account, production):
+
+- Savannah Golf Club, saved by the fill: `already` in 316 ms, no provider call.
+- Lost Marsh Golf Course (Indiana), refused by the fill as `map_disagrees`: both providers asked, both refused for disagreeing with the map's pars. No card.
+- Glen Abbey (Oakville): OpenGolfAPI and GolfCourseAPI both asked, `no_sheet`. No card. Why GolfCourseAPI matched nothing was not determined (`vercel logs` returned no rows).
+
+**Browser tests (this PR):** `e2e/admin-golf-card-fill.spec.ts` — the gate, the progress answer, a dry link and a dry batch that write nothing, the panel, and the panel at 375 px (inside the screen, no sideways scroll). Everything in it is a read or a dry run, so it is safe on production. Run on staging with a local server: passed, with `admin-golf-map-sweep.spec.ts`, whose gate expectation was stale (a signed-in athlete is a 401 since the console got its own sign-in, not a 403) and whose live request now waits as long as the sweep does. Both specs skip wherever `E2E_ADMIN_EMAIL` is unset, which is CI and production today.
+
+**Gaps, in the order I would take them:**
+
+1. **Outside the US there is no card source.** Canada 1,504 courses / 20 cards, Great Britain 2,861 / 2, Australia 968 / 0. OpenGolfAPI is US only; GolfCourseAPI is 35 requests a day, on a pick, and tonight's Canadian pick found nothing.
+2. **A course with no map lines still waits on Overpass when opened** once its stamp is past 30 days: the ~13,000 no-coverage rows and the 4,633 greens-only ones. #1559 fixed only rows with lines (the plan as approved). Serving the stored answer at once and leaving the retry to the sweep would end it; a newly drawn course would then appear only when the sweep reaches its cell.
+3. **About 4,000 US courses do not link.** Two causes seen in OpenGolfAPI's file: names with a flattened trademark sign ("Pebble Beach Golf Linkstm", "Spyglass Hilltm Golf Course"), and 711 groups of entries with one name and point under several ids (1,656 entries), which the rule reads as two candidates.
+4. **The map can veto two providers that agree** (Lost Marsh). The rule protects a map card from one wrong same-named course; it does not ask whether the two providers agree with each other.
+5. **The map sweep depends on free public Overpass servers that queue for half a minute.** The ceiling is now about one cell a tick; if the servers get slower than 55 s it stalls again.
+6. **About a quarter of fill asks are refused** and stay without a card until a pick.
+7. Optional: the free OpenGolfAPI key (ten days of filling becomes about one).
+
+Not done: the prod probe on a mobile project for this round; the fill's quality sample at ~1,500 asks (it is at 120); the admin specs on production (no `E2E_ADMIN_EMAIL` there).
+
 ## November 17, 2026 (23:17) — A stored course map opens at once: 52 seconds became half a second for a stale stamp
 
 Measured on production through the product's own request (`GET /api/golf/courses?id=…&holes=1`), two mapped courses, minutes apart:
