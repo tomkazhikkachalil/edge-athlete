@@ -70,6 +70,31 @@ WHERE external_source IN ('opengolfapi', 'golfcourseapi')
   AND (hole_data IS NULL OR jsonb_array_length(hole_data) = 0);
 ```
 
+## The scorecard fill (Nov 17 2026, migration 314)
+
+US courses get their card in the background, from OpenGolfAPI only (ODbL;
+GolfCourseAPI's terms allow an ask on a pick and nothing else). The rules
+are in `docs/specs/golf-course-data.md` (the Nov 17 note); the code is
+`card-fill.ts` + `card-fill-server.ts`.
+
+| Step | What it does | How often |
+| --- | --- | --- |
+| link | reads OpenGolfAPI's published file and writes `opengolf_id` on each US row with exactly one same-named entry within 2 km | monthly (the cron tick), or the panel |
+| cards | one detail call per linked row with no card; the card is checked (`cardFillVerdict`) and saved, or refused with its reason in `sheet_fill_outcome` | two rows per cron tick, capped by the `card-fill` budget (800 a day) |
+
+Budgets: `card-fill` 800 (`GOLF_CARD_FILL_DAILY_BUDGET`), spent before the
+shared `opengolfapi` 1,000 (`GOLF_OPENGOLFAPI_DAILY_BUDGET`; raise it only
+together with OpenGolfAPI's free 10,000-a-day key). The door is the admin
+console's **Scorecard fill** panel (`/api/admin/golf-card-fill`, dry run by
+default).
+
+**Runbook — ask again for the refused cards** (the provider fixed its data):
+
+```sql
+UPDATE golf_courses SET sheet_fill_at = NULL
+WHERE sheet_fill_outcome IS DISTINCT FROM 'ok' AND hole_data IS NULL AND opengolf_id IS NOT NULL;
+```
+
 ## Hole geometry and green outlines
 
 `golf_courses.hole_geometry` (+ `hole_geometry_at`, migration 102) caches
