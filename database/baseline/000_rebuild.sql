@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-17T12:41:14.427533+00:00 from server 17.6 by
+-- Generated 2026-11-18T00:20:16.654005+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 313.
+-- public.schema_dump() (migration 227). Ledger head at generation: 314.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -44,7 +44,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (146; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (147; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2261,6 +2261,25 @@ BEGIN
 
   RETURN COALESCE(v_count, 0);
 END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.golf_card_fill_link(p_pairs jsonb)
+ RETURNS integer
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  WITH done AS (
+    UPDATE public.golf_courses g
+       SET opengolf_id = x.og
+      FROM jsonb_to_recordset(p_pairs) AS x(id uuid, og text)
+     WHERE g.id = x.id
+       AND g.opengolf_id IS NULL
+       AND x.og IS NOT NULL
+    RETURNING 1
+  )
+  SELECT count(*)::integer FROM done;
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -6037,7 +6056,10 @@ CREATE TABLE IF NOT EXISTS public.golf_courses (
   section_kind text,
   hole_elevation jsonb,
   hole_elevation_at timestamp with time zone,
-  sheet_sources jsonb
+  sheet_sources jsonb,
+  opengolf_id text,
+  sheet_fill_at timestamp with time zone,
+  sheet_fill_outcome text
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_hole_scores (
@@ -12886,6 +12908,7 @@ CREATE INDEX IF NOT EXISTS idx_follows_follower_status ON public.follows USING b
 CREATE INDEX IF NOT EXISTS idx_follows_following_status ON public.follows USING btree (following_id, status);
 CREATE INDEX IF NOT EXISTS idx_golf_clubs_place_id ON public.golf_clubs USING btree (place_id);
 CREATE INDEX IF NOT EXISTS golf_course_picks_card_picks_idx ON public.golf_course_picks USING btree (card, picks DESC);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_card_fill ON public.golf_courses USING btree (sheet_fill_at NULLS FIRST) WHERE ((opengolf_id IS NOT NULL) AND (hole_data IS NULL));
 CREATE INDEX IF NOT EXISTS idx_golf_courses_city_raw_trgm ON public.golf_courses USING gin (city extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_id ON public.golf_courses USING btree (club_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_club_trgm ON public.golf_courses USING gin (club_name extensions.gin_trgm_ops);
@@ -13305,7 +13328,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (146) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (147) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -15417,6 +15440,23 @@ BEGIN
 
   RETURN COALESCE(v_count, 0);
 END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.golf_card_fill_link(p_pairs jsonb)
+ RETURNS integer
+ LANGUAGE sql
+ SET search_path TO 'public'
+AS $function$
+  WITH done AS (
+    UPDATE public.golf_courses g
+       SET opengolf_id = x.og
+      FROM jsonb_to_recordset(p_pairs) AS x(id uuid, og text)
+     WHERE g.id = x.id
+       AND g.opengolf_id IS NULL
+       AND x.og IS NOT NULL
+    RETURNING 1
+  )
+  SELECT count(*)::integer FROM done;
 $function$;
 
 CREATE OR REPLACE FUNCTION public.golf_course_location_facets(p_country_code text DEFAULT NULL::text)
@@ -20261,6 +20301,8 @@ REVOKE EXECUTE ON FUNCTION public.get_unread_message_count(p_user_id uuid) FROM 
 GRANT EXECUTE ON FUNCTION public.get_unread_message_count(p_user_id uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.get_unread_notification_count(user_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_unread_notification_count(user_id uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.golf_card_fill_link(p_pairs jsonb) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.golf_card_fill_link(p_pairs jsonb) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_course_location_facets(p_country_code text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.golf_course_location_facets(p_country_code text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_course_pick_hit(p_course_id uuid, p_card text) FROM PUBLIC, anon, authenticated, service_role;
@@ -20495,6 +20537,9 @@ COMMENT ON TABLE public.golf_course_picks IS 'Picks per course and the card each
 COMMENT ON COLUMN public.golf_courses.hole_elevation IS 'Elevation profile along each hole (254): {holes:[{hole, pts:[[lat,lng]…], elev:[metres…]}], sampled:''line10'', source:''open-meteo''}; NULL = no geometry or no answer. Sampled from hole_geometry; 30-day cache keyed by hole_elevation_at. Written only by src/lib/golf/elevation-server.ts.';
 COMMENT ON COLUMN public.golf_courses.hole_elevation_at IS 'When hole_elevation was last ATTEMPTED (254) — a null answer is stamped too; recomputed after 30 days or when hole_geometry_at is newer.';
 COMMENT ON COLUMN public.golf_courses.sheet_sources IS 'Which source supplied what on the scorecard: {pars, strokeIndex, tees:{tee:source}, ratings:{tee:source}}. NULL = written before migration 313.';
+COMMENT ON COLUMN public.golf_courses.opengolf_id IS 'The OpenGolfAPI course id this row was linked to from its published ODbL file (migration 314). NULL = not linked.';
+COMMENT ON COLUMN public.golf_courses.sheet_fill_at IS 'When the scorecard fill last asked for this row''s card (migration 314). NULL = never asked.';
+COMMENT ON COLUMN public.golf_courses.sheet_fill_outcome IS 'What the scorecard fill''s last ask came to: ok, or why the card was refused (migration 314).';
 COMMENT ON TABLE public.golf_hole_scores IS 'Per-hole detailed scores for golf participants';
 COMMENT ON COLUMN public.golf_hole_scores.strokes IS 'Total strokes taken on this hole (1-15)';
 COMMENT ON COLUMN public.golf_hole_scores.putts IS 'Number of putts (must be <= strokes)';
@@ -21217,7 +21262,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (310, '310_pulse_signal_revoke.sql', 'rebuild-000'),
   (311, '311_profile_film_hidden.sql', 'rebuild-000'),
   (312, '312_unclaimed_profiles.sql', 'rebuild-000'),
-  (313, '313_golf_course_sheet_sources.sql', 'rebuild-000')
+  (313, '313_golf_course_sheet_sources.sql', 'rebuild-000'),
+  (314, '314_golf_card_fill.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21226,12 +21272,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 151 | 146 | 145 | 313
+-- Expected: 000 REBUILT | 151 | 147 | 145 | 314
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_151,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_146,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_147,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_313;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_314;
 
