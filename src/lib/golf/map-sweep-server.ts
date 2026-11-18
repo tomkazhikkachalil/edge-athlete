@@ -20,7 +20,9 @@ import {
 } from '@/lib/golf/hole-geometry';
 import {
   CELL_GAP_MS,
+  CELL_PROCESS_RESERVE_MS,
   CELL_START_RESERVE_MS,
+  MIN_ATTEMPT_MS,
   CELL_TTL_MS,
   COURSE_GAP_MS,
   CELL_ELEMENTS_WARN,
@@ -143,7 +145,9 @@ export async function fetchCellPayload(
   mirrors: string[],
   cooldowns: Record<string, string>,
   fetchImpl: typeof fetch = fetch,
-  now: number = Date.now()
+  now: number = Date.now(),
+  /** No attempt runs past this (the invocation's end minus the processing reserve). */
+  deadline?: number
 ): Promise<CellFetch> {
   const bbox = cellQueryBbox(cellKey);
   if (!bbox) return { reached: false, error: 'bad cell key', ms: 0 };
@@ -151,12 +155,15 @@ export async function fetchCellPayload(
   const t0 = Date.now();
   let lastError = 'no mirror answered';
   for (const mirror of pickMirror(mirrors, cooldowns, now)) {
+    // The next mirror is tried only while a worthwhile attempt still fits.
+    const room = deadline == null ? REQUEST_TIMEOUT_MS : Math.min(REQUEST_TIMEOUT_MS, deadline - Date.now());
+    if (room < MIN_ATTEMPT_MS) break;
     try {
       const res = await fetchImpl(mirror, {
         method: 'POST',
         headers: { 'User-Agent': OVERPASS_UA, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(room),
       });
       if (!res.ok) {
         cooldowns[mirror] = nowIso(now + (res.status === 429 ? MIRROR_COOLDOWN_MS[429] : MIRROR_COOLDOWN_MS.other));
@@ -168,6 +175,8 @@ export async function fetchCellPayload(
       if (isOverpassPartial(payload)) { lastError = `${mirror.split('/')[2]} partial`; continue; }
       return { reached: true, payload: payload as { elements: OverpassElement[] }, mirror, ms: Date.now() - t0 };
     } catch (e) {
+      // A timeout cools the mirror too, so the next tick starts on the other one.
+      cooldowns[mirror] = nowIso(now + MIRROR_COOLDOWN_MS.other);
       lastError = `${mirror.split('/')[2]} ${(e as Error)?.name ?? 'error'}`;
     }
   }
@@ -279,7 +288,7 @@ export async function runGeometryBatch(admin: SupabaseClient, opts: GeometryBatc
       summary.budgetExhausted = true;
       break;
     }
-    const fetched = await fetchCellPayload(cell.cell_key, mirrors, cooldowns, opts.fetchImpl ?? fetch, Date.now());
+    const fetched = await fetchCellPayload(cell.cell_key, mirrors, cooldowns, opts.fetchImpl ?? fetch, Date.now(), t0 + WORK_BUDGET_MS - CELL_PROCESS_RESERVE_MS);
     await writeMeta(admin, 'mirrors', cooldowns);
     if (!fetched.reached || !fetched.payload) {
       await park(admin, cell, fetched.error ?? 'transport', Date.now());

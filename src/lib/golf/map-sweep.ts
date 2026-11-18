@@ -21,17 +21,37 @@ export const CELL_MARGIN_LAT_DEG = 0.03;
 export const COURSE_RADIUS_M = 1500;
 /** A cell is re-swept two days BEFORE the lazy path's 30-day TTL lapses. */
 export const CELL_TTL_MS = 28 * 24 * 60 * 60 * 1000;
-export const OVERPASS_QUERY_TIMEOUT_S = 20;
-export const REQUEST_TIMEOUT_MS = 22_000;
-/** One invocation works this long (Vercel's 60 s minus headroom)… */
-export const WORK_BUDGET_MS = 42_000;
-/** …and starts a cell only while this much of it is left. */
-export const CELL_START_RESERVE_MS = 30_000;
+// ── The tick's clock (re-measured Nov 17 2026) ──────────────────────────────
+// The public Overpass servers answer ANY request, their status page included,
+// in 24–36 s (they queue), and the old 22 s limit failed nearly every cell:
+// 1–13 cells a day for eight days, 5,947 of 6,325 due. The wait is the queue,
+// not the query, so the request waits longer and the query's own limit stays
+// short. The numbers below depend on each other; map-sweep.test.ts pins the
+// relationships so one cannot be changed alone.
+/** The query's own execution limit, in-band. */
+export const OVERPASS_QUERY_TIMEOUT_S = 25;
+/** One request: the server's queue plus the query. */
+export const REQUEST_TIMEOUT_MS = 55_000;
+/** A mirror attempt shorter than this is not worth starting. */
+export const MIN_ATTEMPT_MS = 15_000;
+/** Kept after the last fetch for the pipeline and the stamps of one cell. */
+export const CELL_PROCESS_RESERVE_MS = 12_000;
+/** One invocation works this long (the routes' maxDuration is 120 s)… */
+export const WORK_BUDGET_MS = 105_000;
+/** …and starts a cell only while one whole request and its processing still fit. */
+export const CELL_START_RESERVE_MS = REQUEST_TIMEOUT_MS + CELL_PROCESS_RESERVE_MS;
+/** What the cron tick gives the elevation phase before geometry (its loop
+ *  stops six seconds before this, so about twelve seconds of courses). */
+export const CRON_ELEVATION_PHASE_MS = 18_000;
 export const CELL_GAP_MS = 3_000;
 export const COURSE_GAP_MS = 250;
-export const LEASE_SECONDS = 120;
-/** Consecutive transport failures → minutes until the next try (capped at the last). */
-export const RETRY_DELAYS_MIN = [5, 15, 45, 120, 360];
+/** Longer than one invocation, so two overlapping ticks never hold one cell. */
+export const LEASE_SECONDS = 180;
+/** Consecutive transport failures → minutes until the next try (capped at the
+ *  last). The ladder ends at three days: capped at six hours, 184 chronically
+ *  failing cells were retried four times a day each, ahead of every healthy
+ *  cell (the claim is by priority), which was most of every tick. */
+export const RETRY_DELAYS_MIN = [5, 15, 45, 120, 360, 1440, 4320];
 export const MIRROR_COOLDOWN_MS = { 429: 15 * 60_000, other: 5 * 60_000 } as const;
 /** Tom's courses first. */
 export const OTTAWA_BOX = { south: 45.1, north: 45.6, west: -76.2, east: -75.3 };
@@ -92,7 +112,8 @@ export function cellQueryBbox(key: string): Bbox | null {
 
 /** The regional query: the five selectors of the lazy query over a bbox,
  *  `out geom` for lines / rings / boundaries, `out center` for the tee and
- *  fairway points. The 20 s in-band timeout lands inside the request's 22 s. */
+ *  fairway points. The in-band limit is the query's execution time; the
+ *  request's own limit is longer because the server queues first. */
 export function overpassCellQuery(bbox: Bbox): string {
   const b = `(${bbox.south},${bbox.west},${bbox.north},${bbox.east})`;
   return (

@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   cellBounds, cellKeyFor, cellPriority, cellQueryBbox, cellTier, elementsNear, holesUnchanged, metresToElement, overpassCellQuery,
   pickMirror, planCells, retryDelayMs, CELL_SIZE_DEG, CELL_TTL_MS, COURSE_RADIUS_M, OTTAWA_BOX, RETRY_DELAYS_MIN,
+  CELL_PROCESS_RESERVE_MS, CELL_START_RESERVE_MS, CRON_ELEVATION_PHASE_MS, LEASE_SECONDS, MIN_ATTEMPT_MS, OVERPASS_QUERY_TIMEOUT_S,
+  REQUEST_TIMEOUT_MS, WORK_BUDGET_MS,
 } from '../map-sweep';
 import { isOverpassAnswer, resolveCourseTiers, resolveHoleGeometry, withGreens, type OverpassElement } from '../hole-geometry';
 import rideauView from './fixtures/overpass-rideau-view.json';
@@ -47,7 +51,7 @@ describe('cell keys and bounds', () => {
     expect(b.west).toBeLessThan(-76.03);
     expect(b.east - b.west).toBeGreaterThan(0.5 + 0.06);
     const q = overpassCellQuery(b);
-    expect(q).toContain('[timeout:20]');
+    expect(q).toContain(`[timeout:${OVERPASS_QUERY_TIMEOUT_S}]`);
     expect(q).toContain('way["golf"="hole"]');
     expect(q).toContain('relation["golf"="green"]');
     expect(q).toContain('way["leisure"="golf_course"]["name"]');
@@ -186,5 +190,52 @@ describe('bookkeeping', () => {
     const now = Date.now();
     expect(pickMirror(['a', 'b', 'c'], { a: new Date(now + 60_000).toISOString(), c: new Date(now - 1).toISOString() }, now)).toEqual(['b', 'c', 'a']);
     expect(CELL_TTL_MS).toBeLessThan(30 * 24 * 60 * 60 * 1000);
+  });
+});
+
+// Nov 17 2026: two of my own fixes failed on production because one number
+// was changed without the number it depends on (a phase behind a phase that
+// spent the tick; a 6 s allowance under a 7 s reserve). These are the
+// relationships, so the next change fails here instead.
+describe("the tick's clock", () => {
+  const maxDuration = (route: string) => {
+    const src = fs.readFileSync(path.join(__dirname, '../../../app/api', route, 'route.ts'), 'utf8');
+    return Number(/export const maxDuration = (\d+);/.exec(src)?.[1]) * 1000;
+  };
+  const CARD_PHASE_MS = 12_000; // card-fill-server.ts CRON_CARD_PHASE_MS, pinned in its own test
+
+  it('the functions outlive the work budget, with room to answer', () => {
+    for (const route of ['cron/golf-map-sweep', 'admin/golf-map-sweep']) {
+      expect(maxDuration(route)).toBeGreaterThanOrEqual(WORK_BUDGET_MS + 10_000);
+    }
+  });
+
+  it('a request waits longer than the query may run, and a cell starts only when both still fit', () => {
+    expect(REQUEST_TIMEOUT_MS).toBeGreaterThan(OVERPASS_QUERY_TIMEOUT_S * 1000 + 20_000); // the server queues ~30 s first
+    expect(CELL_START_RESERVE_MS).toBe(REQUEST_TIMEOUT_MS + CELL_PROCESS_RESERVE_MS);
+    expect(MIN_ATTEMPT_MS).toBeLessThan(REQUEST_TIMEOUT_MS);
+  });
+
+  it('after the phases before it, geometry can still start a cell', () => {
+    const before = CARD_PHASE_MS + CRON_ELEVATION_PHASE_MS + 3000; // cards, elevation, plan + hydration
+    expect(WORK_BUDGET_MS - before).toBeGreaterThan(CELL_START_RESERVE_MS);
+  });
+
+  it('the lease outlives one invocation, so overlapping ticks never share a cell', () => {
+    expect(LEASE_SECONDS * 1000).toBeGreaterThan(WORK_BUDGET_MS + 30_000);
+  });
+
+  it('a chronically failing cell is retried at most every three days', () => {
+    expect(retryDelayMs(6)).toBe(24 * 60 * 60_000);
+    expect(retryDelayMs(53)).toBe(3 * 24 * 60 * 60_000);
+    expect([...RETRY_DELAYS_MIN]).toEqual([...RETRY_DELAYS_MIN].sort((a, b) => a - b));
+  });
+
+  it('geometry runs last in the cron tick', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../../app/api/cron/golf-map-sweep/route.ts'), 'utf8');
+    const at = (name: string) => src.indexOf(`await ${name}(`);
+    const order = ['runCardFillBatch', 'runElevationBatch', 'runHydrationBatch', 'runGeometryBatch'].map(at);
+    expect(order.every(i => i > 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 });
