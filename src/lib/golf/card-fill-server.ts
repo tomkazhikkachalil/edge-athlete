@@ -13,7 +13,7 @@
 import { gunzipSync } from 'zlib';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CATALOG_ROW_COLUMNS, SHEET_PROVIDERS, consumeProviderBudget, readMapSheet, readSheetSources, type CatalogRow } from '@/lib/golf/course-catalog';
-import { FILL_RETRY_MS, LINK_REFRESH_MS, cardFillVerdict, linkDataset, parseDatasetLine, type CardFillVerdict, type LinkOurs, type LinkTheirs } from '@/lib/golf/card-fill';
+import { FILL_RETRY_MS, cardFillVerdict, linkDataset, linkDue, parseDatasetLine, type CardFillVerdict, type LinkOurs, type LinkTheirs } from '@/lib/golf/card-fill';
 import { readMeta, writeMeta } from '@/lib/golf/map-sweep-server';
 import { creditSources, mergeSheets, type Sheet } from '@/lib/golf/sheet-merge';
 
@@ -64,6 +64,9 @@ export async function runCardLink(
   opts: { dryRun: boolean; fetchDataset?: () => Promise<LinkTheirs[] | null> }
 ): Promise<CardLinkSummary | { ok: false; error: string }> {
   const t0 = Date.now();
+  // The attempt is stamped before the work: a link that fails or is cut short
+  // is not due again on the next tick (card-fill.ts linkDue).
+  if (!opts.dryRun) await writeMeta(admin, 'card_link_try', { at: iso(t0) });
   const theirs = await (opts.fetchDataset ?? fetchDataset)();
   if (!theirs) return { ok: false, error: 'the OpenGolfAPI file could not be read' };
 
@@ -123,8 +126,11 @@ async function fetchDataset(): Promise<LinkTheirs[] | null> {
 
 /** Is the monthly link due? (The cron asks; the owner's door runs it at will.) */
 export async function cardLinkDue(admin: SupabaseClient, now = Date.now()): Promise<boolean> {
-  const at = (await readMeta<{ at?: string }>(admin, 'card_link'))?.at;
-  return !at || now - Date.parse(at) > LINK_REFRESH_MS;
+  const [done, tried] = await Promise.all([
+    readMeta<{ at?: string }>(admin, 'card_link'),
+    readMeta<{ at?: string }>(admin, 'card_link_try'),
+  ]);
+  return linkDue(done?.at, tried?.at, now);
 }
 
 // ── Phase: cards ──────────────────────────────────────────────────────────────

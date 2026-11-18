@@ -171,7 +171,9 @@ describe('runCardLink', () => {
     const r = await runCardLink(admin, { dryRun: false, fetchDataset: dataset });
     expect(r).toMatchObject({ matched: 1, linked: 1 });
     expect(rpcs).toEqual([{ fn: 'golf_card_fill_link', args: { p_pairs: [{ id: 'c1', og: 'og-1' }] } }]);
-    expect(calls.find(c => c.op === 'upsert')).toMatchObject({ table: 'golf_map_sweep_meta', fields: { key: 'card_link' } });
+    const stamps = calls.filter(c => c.op === 'upsert').map(c => (c.fields as { key?: string }).key);
+    // The attempt is stamped first, the finish last.
+    expect(stamps).toEqual(['card_link_try', 'card_link']);
   });
 
   it('only US rows that are not already linked or OpenGolfAPI\'s own are read', async () => {

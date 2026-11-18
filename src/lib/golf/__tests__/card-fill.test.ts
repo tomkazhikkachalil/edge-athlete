@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cardFillVerdict, distanceKm, linkDataset, parseDatasetLine, type FillCard } from '../card-fill';
+import { LINK_REFRESH_MS, LINK_RETRY_MS, cardFillVerdict, distanceKm, linkDataset, linkDue, parseDatasetLine, type FillCard } from '../card-fill';
 
 // Nov 17 2026: the scorecard fill. A wrong card is worse than none, so both
 // rules refuse on any doubt.
@@ -108,5 +108,25 @@ describe('cardFillVerdict', () => {
   it('a card the map disagrees with is refused', () => {
     expect(cardFillVerdict(row, card(), map(18, 5))).toBe('map_disagrees');
     expect(cardFillVerdict(row, card(), map(9))).toBe('map_disagrees');
+  });
+});
+
+describe('linkDue', () => {
+  const now = Date.parse('2026-11-18T00:00:00Z');
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+
+  it('is due when the link never finished and was never tried', () => {
+    expect(linkDue(null, null, now)).toBe(true);
+    expect(linkDue(undefined, undefined, now)).toBe(true);
+  });
+
+  it('is not due again right after an attempt that did not finish', () => {
+    expect(linkDue(null, ago(2 * 60 * 1000), now)).toBe(false);
+    expect(linkDue(null, ago(LINK_RETRY_MS + 1000), now)).toBe(true);
+  });
+
+  it('is due a month after it finished, never sooner', () => {
+    expect(linkDue(ago(24 * 60 * 60 * 1000), ago(24 * 60 * 60 * 1000), now)).toBe(false);
+    expect(linkDue(ago(LINK_REFRESH_MS + 1000), ago(LINK_REFRESH_MS + 1000), now)).toBe(true);
   });
 });

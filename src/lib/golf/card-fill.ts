@@ -141,3 +141,16 @@ export function cardFillVerdict(
 export const FILL_RETRY_MS = 90 * 24 * 60 * 60 * 1000;
 /** The published file is read again after this long (new courses join). */
 export const LINK_REFRESH_MS = 30 * 24 * 60 * 60 * 1000;
+/** A link that failed or was cut short is not tried again before this long:
+ *  the cron runs it ahead of the map phases, and a retry on every tick would
+ *  take their time every two minutes. */
+export const LINK_RETRY_MS = 6 * 60 * 60 * 1000;
+
+/** Is the link due? Never finished, or finished over a month ago; and in
+ *  either case not attempted within LINK_RETRY_MS. */
+export function linkDue(finishedAt: string | null | undefined, triedAt: string | null | undefined, now: number): boolean {
+  const done = finishedAt ? Date.parse(finishedAt) : NaN;
+  const tried = triedAt ? Date.parse(triedAt) : NaN;
+  if (Number.isFinite(tried) && now - tried < LINK_RETRY_MS) return false;
+  return !Number.isFinite(done) || now - done > LINK_REFRESH_MS;
+}
