@@ -433,6 +433,9 @@ const DEFAULT_BUDGETS: Record<string, number> = {
   // opengolfapi key, so the background fill always leaves room for a pick.
   'card-fill': Number(process.env.GOLF_CARD_FILL_DAILY_BUDGET) || 800,
   golfcourseapi: Number(process.env.GOLF_PROVIDER_DAILY_BUDGET) || 45,
+  // The website scorecard reader (Nov 18 2026): course-site visits a day. No
+  // provider is called; the cap is manners (a full pass takes about three weeks).
+  'site-card': 600,
   // GolfCourseAPI v1.3.0 `/v1/proximity` (Pro/Enterprise only, Oct 2026):
   // its OWN cap, consumed BEFORE the shared golfcourseapi key, so a burst of
   // "near me" taps can never starve hydration-on-selection (the more

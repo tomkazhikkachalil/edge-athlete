@@ -14,6 +14,7 @@ export type JobName =
   | 'storage-sweep'
   | 'media-jobs'
   | 'golf-map-sweep'
+  | 'golf-site-cards'
   | 'reminders'
   | 'urgent-emails'
   | 'notification-digest'

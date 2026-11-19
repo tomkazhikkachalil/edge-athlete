@@ -1,5 +1,15 @@
 # Development Log
 
+## November 18, 2026 (22:44) — The free scorecard reader, part 2: the scheduled job and migration 315
+
+The reader is given its visits. Nothing here calls a model or a paid service.
+
+- **Migration 315** (both databases): `golf_courses.site_card_at` / `site_card_outcome` / `site_card_url`; the queue (`idx_golf_courses_site_card`, `golf_site_card_due(p_limit)`: a website, no card, never visited or over 90 days ago, courses people picked first; `service_role` only); `golf_course_picks.card` gains `'estimated'` (owed from #1567: an estimated map card is its own kind in the tracker, and the admin list shows it); the pg_cron job `golf-site-cards` every five minutes, created only where `urgent-emails` already runs (production). Result row on production: `315 APPLIED | 3 | 1 | false | true | 1 | 315` (staging: the job column reads 0).
+- **`src/lib/golf/site-card-server.ts`** `visitCourseSite`: robots.txt first and obeyed; the home page; `scorecardLinks`, strong ones first, one level deeper for what names a scorecard; a page's tables through `htmlTableLines`, a PDF through `pdfTextLines`; **a picture is never downloaded** (`picture_only`). At most 9 fetches and 40 s a course. A card with no printed name is this course's only when no other catalog course keeps its website on the same host (`hostIsShared`); two courses' cards on one sheet are refused before that matters. The map's evidence is its tagged pars and its measured lines (`mapEvidence`); an estimate is never evidence.
+- `runSiteCardBatch`: its own daily cap (`site-card`, 600 visits: a full pass of the ~13,000 sites takes about three weeks); the card is written with `hole_data IS NULL` in the write (a pick may have filled it), credited to `website` in `sheet_sources`, with where it was read. Every visit is stamped: `ok`, `no_site`, `robots`, `unreachable`, `no_card`, `picture_only`, `several_cards`, `taken`, or the check that refused it.
+- **`POST /api/cron/golf-site-cards`**: `CRON_SECRET`, `maxDuration = 120`, two courses a tick inside 90 s, recorded as the job `golf-site-cards`. A route of its own: the map tick's clocks are untouched. The clock's relationships are pinned by a test.
+- Tests: 16 for the visit (injected resolver, fetch and PDF reader): robots, dead home page, a card on the home page, one level deeper to a PDF, the unnamed card with and without the site confirmed, a picture never fetched, two courses on a page, the fetch limit, the time limit, another site's page never followed.
+
 ## November 18, 2026 (22:38) — The free scorecard reader, part 1: text read by rule (Tom: build it)
 
 Shown the measurement below, Tom: "Do the website work and pull from the internet without cost, and the free reader." Built in two parts; this is the part with no migration and nothing scheduled.

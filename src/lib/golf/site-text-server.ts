@@ -16,6 +16,13 @@ interface TextItem { str?: string; transform?: number[] }
 export async function pdfTextLines(bytes: Uint8Array): Promise<string[][]> {
   let task: { promise: Promise<unknown>; destroy: () => Promise<void> } | null = null;
   const read = async (): Promise<string[][]> => {
+    // pdf.js in Node runs its worker on the main thread and would load it by a
+    // relative path at run time ("./pdf.worker.mjs"), which a bundled function
+    // does not have. It first looks for the worker on globalThis: both modules
+    // are imported here by name, so the bundler carries both.
+    const g = globalThis as { pdfjsWorker?: unknown };
+    // @ts-expect-error the worker build ships no types; only its presence on globalThis matters
+    g.pdfjsWorker ??= await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
     // A copy: pdf.js takes ownership of the buffer it is given.
     task = getDocument({ data: bytes.slice(), isEvalSupported: false, useSystemFonts: false, disableFontFace: true, verbosity: 0 }) as unknown as typeof task;

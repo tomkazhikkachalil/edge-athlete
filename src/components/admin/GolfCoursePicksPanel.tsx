@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 interface Row { card: string; picks: number; golf_courses: { name: string; city: string | null; region: string | null } | null }
 interface Answer { totals: Record<string, { courses: number; picks: number }>; top: Row[] }
 
-const LABEL: Record<string, string> = { provider: 'Official card', map: 'Map card', none: 'No card' };
+const LABEL: Record<string, string> = { provider: 'Official card', map: 'Map card', estimated: 'Estimated map card', none: 'No card' };
 
 export default function GolfCoursePicksPanel() {
   const [answer, setAnswer] = useState<Answer | null>(null);
