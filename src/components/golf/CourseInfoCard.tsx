@@ -21,6 +21,7 @@ import { faMap } from '@/lib/icons/fa/map';
 import { faSpinner } from '@/lib/icons/fa/spinner';
 import { faTableList } from '@/lib/icons/fa/table-list';
 import { sheetGaps } from '@/lib/golf/sheet-merge';
+import { isMapSheet } from '@/lib/golf/map-sheet';
 
 /**
  * About-this-course card under the composer's selected-course badge:
@@ -178,7 +179,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const findSheet = async () => {
     if (sheetAsk === 'asking') return;
     // Quiet too when an official card is only being topped up (Nov 16 2026).
-    const upgrading = course.sheetSource === 'map' || course.holes.length > 0;
+    const upgrading = isMapSheet(course.sheetSource) || course.holes.length > 0;
     setSheetAsk('asking');
     try {
       const res = await fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&sheet=1`, { credentials: 'include' });
@@ -253,7 +254,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
     // and ratings. Silent; on a miss the map card simply stays.
     if (!autoFindSheet || autoAskedFor.current === course.id) return;
     // An official card needs no ask, but the pick is counted (294).
-    if (course.holes.length > 0 && course.sheetSource !== 'map' && UUID_SHAPE.test(course.id)) {
+    if (course.holes.length > 0 && !isMapSheet(course.sheetSource) && UUID_SHAPE.test(course.id)) {
       autoAskedFor.current = course.id;
       // Nov 16 2026: an official card that still lacks something (a tee's
       // yardages, stroke indexes, ratings) asks the other providers to fill
@@ -265,7 +266,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       void fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&picked=1`, { credentials: 'include' }).catch(() => undefined);
       return;
     }
-    if (!(sheetFindable || course.sheetSource === 'map')) return;
+    if (!(sheetFindable || isMapSheet(course.sheetSource))) return;
     autoAskedFor.current = course.id;
     queueMicrotask(() => { void findSheetRef.current(); });
   }, [autoFindSheet, sheetFindable, officialHasGaps, course.sheetSource, course.holes.length, course.id]);
@@ -383,7 +384,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
               }`}
             >
               <FaIcon icon={showScorecard ? faChevronUp : faTableList} />
-              {showScorecard ? 'Hide' : 'Official Scorecard'}
+              {showScorecard ? 'Hide' : scorecardSource?.sheetSource === 'map_estimated' ? 'Scorecard' : 'Official Scorecard'}
             </button>
           )}
         </div>

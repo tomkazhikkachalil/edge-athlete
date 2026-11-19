@@ -42,12 +42,12 @@ describe('CourseInfoCard — honest scorecard states', () => {
     expect(catalog).toContain('const agreesWithMap = sheetAgreesWithMap(normalized.hole_data, mapSheet);');
     expect(catalog).toContain('const merged = agreesWithMap ? mergeSheets(card, normalized) : null;');
     expect(catalog).toContain('a.source !== b.source && providersConfirm(');
-    expect(src).toMatch(/sheetFindable \|\| course\.sheetSource === 'map'/);
+    expect(src).toMatch(/sheetFindable \|\| isMapSheet\(course\.sheetSource\)/); // both map sources (Nov 18 2026)
   });
   it('an official card that still lacks something asks quietly; a complete one only counts the pick (Nov 16 2026)', () => {
     expect(src).toContain('const officialHasGaps = sheetGaps({ hole_data: course.holes, course_rating: course.courseRating, slope_rating: course.slopeRating }).length > 0;');
     expect(src).toMatch(/if \(officialHasGaps\) \{\n\s+queueMicrotask/);
-    expect(src).toContain("const upgrading = course.sheetSource === 'map' || course.holes.length > 0;");
+    expect(src).toContain("const upgrading = isMapSheet(course.sheetSource) || course.holes.length > 0;");
   });
   it('one panel at a time: Show Map | Official Scorecard over one `open` state', () => {
     expect(src).toMatch(/useState<'map' \| 'scorecard' \| null>/);

@@ -37,6 +37,9 @@ export interface DerivedRoundHole {
   par: number;
   yardage?: number;
   handicap?: number;
+  /** The par is estimated from the hole's mapped length (map-sheet.ts,
+   *  Nov 18 2026); it rides into the round so the round can say so. */
+  parEstimated?: true;
 }
 
 /**
@@ -51,7 +54,7 @@ export interface DerivedRoundHole {
  * A catalog handicap of 0 is unknown and is left out.
  */
 export function deriveCourseHoles(
-  courseHoles: Array<{ number: number; par: number; yardage: Record<string, number>; handicap?: number }>,
+  courseHoles: Array<{ number: number; par: number; yardage: Record<string, number>; handicap?: number; parEstimated?: true }>,
   teeColor: string,
   holes: number,
   start: number
@@ -65,6 +68,7 @@ export function deriveCourseHoles(
         par: hole.par,
         ...(typeof y === 'number' && Number.isFinite(y) && y > 0 ? { yardage: y } : {}),
         ...(typeof hole.handicap === 'number' && hole.handicap > 0 ? { handicap: hole.handicap } : {}),
+        ...(hole.parEstimated ? { parEstimated: true as const } : {}),
       };
     });
 }

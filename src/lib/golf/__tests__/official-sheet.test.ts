@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { findOfficialSheet, pickSheetCandidate, sheetSearchQueries, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
+import { findOfficialSheet, pickSheetCandidate, readMapSheet, sheetSearchQueries, withMapSheet, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
 
 // Nov 16 2026: "Find the official scorecard" asks EVERY provider that is not
 // the row's own, by name, until the card lacks nothing; answers fill the card.
@@ -248,6 +248,45 @@ describe('findOfficialSheet — two providers against the map', () => {
 
 // Nov 18 2026: a miss says what each provider's ask came to (counts and a
 // reason, never the provider's data).
+// Nov 18 2026: lines without pars give an ESTIMATED card to show, and the
+// estimate is never evidence against a provider's card.
+describe('a map with lines but no pars', () => {
+  const ID = '11111111-1111-4111-8111-111111111111';
+  // Each line is about 49 yards long: every estimated par is a 3.
+  const noPars = { source: 'osm', greens: [], holes: NINE.map((n, i) => ({ hole: n, line: [[45.3 + i * 0.001, -75.7], [45.3004 + i * 0.001, -75.7]] })) };
+  const course = { id: ID, name: 'Camelot', holes: [], totalPar: 0, courseRating: {}, slopeRating: {} } as never;
+
+  it('withMapSheet shows the estimated card, marked hole by hole', async () => {
+    const { admin, updates } = fakeAdmin([], noPars);
+    const c = await withMapSheet(admin, course);
+    expect(c.sheetSource).toBe('map_estimated');
+    expect(c.holes).toHaveLength(9);
+    expect(c.holes.every(h => h.par === 3 && h.parEstimated === true)).toBe(true);
+    expect(c.totalPar).toBe(27);
+    expect(updates).toHaveLength(0); // read time only: nothing is saved
+  });
+
+  it('withMapSheet prefers tagged pars: one untagged hole makes the whole card estimated, none makes it a map card', async () => {
+    const tagged = { ...noPars, holes: noPars.holes.map(h => ({ ...h, par: 4 })) };
+    expect((await withMapSheet(fakeAdmin([], tagged).admin, course)).sheetSource).toBe('map');
+    const oneMissing = { ...noPars, holes: tagged.holes.map((h, i) => (i === 2 ? noPars.holes[2] : h)) };
+    const c = await withMapSheet(fakeAdmin([], oneMissing).admin, course);
+    expect(c.sheetSource).toBe('map_estimated');
+    expect(c.holes.map(h => h.par)).toEqual([4, 4, 3, 4, 4, 4, 4, 4, 4]);
+    expect(c.holes.filter(h => h.parEstimated).map(h => h.number)).toEqual([3]);
+  });
+
+  it('the guards read no card there: a provider card of nine par 4s is taken, and no map is recorded as overruled', async () => {
+    expect(await readMapSheet(fakeAdmin([], noPars).admin, ID)).toBeNull();
+    stubProviders({ openGolfSearch: { courses: [] } });
+    const { admin, updates } = fakeAdmin([], noPars);
+    const r = await findOfficialSheet(admin, row());
+    expect(r).toMatchObject({ found: true, outcome: 'found' });
+    expect(r.course.holes.map(h => h.par)).toEqual(NINE.map(() => 4));
+    expect((updates[0].sheet_sources as { mapOverruled?: boolean }).mapOverruled).toBeUndefined();
+  });
+});
+
 describe('findOfficialSheet — the trace', () => {
   it('names why each provider gave nothing', async () => {
     stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: { courses: [{ id: 'gca-9', club_name: 'Some Other Club', course_name: 'Other', location: { city: 'Elsewhere', state: 'ON', country: 'Canada' } }] } });

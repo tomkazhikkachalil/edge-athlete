@@ -94,13 +94,13 @@ export default function CourseScorecardTable({ course }: { course: GolfCourse })
     >
       <th scope="row" className={`${cell} text-left font-semibold sticky left-0 ${tone === 'hcp' ? 'bg-brand-soft' : 'bg-surface'}`}>{label}</th>
       {front.map(h => (
-        <td key={h.number} className={cell}>{get(h) ?? '—'}</td>
+        <td key={h.number} className={cell}>{get(h) ?? '—'}{tone === 'par' && h.parEstimated ? '*' : ''}</td>
       ))}
       {sumTd(eighteen ? 'out' : 'total', sum(front, get))}
       {eighteen && (
         <>
           {back.map(h => (
-            <td key={h.number} className={cell}>{get(h) ?? '—'}</td>
+            <td key={h.number} className={cell}>{get(h) ?? '—'}{tone === 'par' && h.parEstimated ? '*' : ''}</td>
           ))}
           {sumTd('in', sum(back, get))}
           {sumTd('total', sum(holes, get))}
@@ -114,6 +114,11 @@ export default function CourseScorecardTable({ course }: { course: GolfCourse })
     {course.sheetSource === 'map' && (
       <p className="mb-2 text-xs text-tertiary" data-course-scorecard-map="">
         Pars and yardage from the course map, not the official card.
+      </p>
+    )}
+    {course.sheetSource === 'map_estimated' && (
+      <p className="mb-2 text-xs text-tertiary" data-course-scorecard-map="estimated">
+        Yardage from the course map. Pars marked * are estimated from the hole&apos;s length, not the official card.
       </p>
     )}
     <div className="overflow-x-auto rounded-lg border border-border" data-course-scorecard-table="">

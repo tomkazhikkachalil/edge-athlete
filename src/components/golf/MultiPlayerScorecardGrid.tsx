@@ -39,7 +39,7 @@ interface MultiPlayerScorecardGridProps {
   editable: boolean; // Can scores be edited?
   showDetailedStats?: boolean; // Show FIR, GIR, putts columns
   onScoreChange?: (playerId: string, holeNum: number, data: Partial<PlayerHoleScore>) => void;
-  holeData?: { hole: number; par: number; yardage?: number; handicap?: number }[]; // Par, yardage and stroke index per hole
+  holeData?: { hole: number; par: number; yardage?: number; handicap?: number; parEstimated?: boolean }[]; // Par, yardage and stroke index per hole
   /** First hole number (10 for back-9 solo rounds). Defaults to 1. */
   startingHoleNumber?: number;
   /** Course name forwarded to the quick-entry stepper's context line. */
@@ -213,7 +213,8 @@ function MultiPlayerScorecardGrid({
             {holeData && holeData.length > 0 && (
               <tr className="bg-brand-soft border-t border-border-strong">
                 <th className="sticky left-0 z-10 bg-brand-soft px-2 sm:px-4 py-2 text-left text-xs font-semibold text-primary uppercase tracking-wider border-r border-border-strong">
-                  Par
+                  {/* A map card with pars estimated from hole length (Nov 18 2026) says so. */}
+                  {holeData.some(h => h.parEstimated) ? <span data-scorecard-par-estimated="">Par (est.)</span> : 'Par'}
                 </th>
                 {displayHoles.map(holeNum => {
                   const par = getHolePar(holeNum);

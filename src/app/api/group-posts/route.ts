@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
     const sanitizedComposition = parseComposition(golf_data?.course_composition);
 
     const sanitizedHoleData = Array.isArray(golf_data?.hole_data)
-      ? (golf_data.hole_data as Array<{ hole?: unknown; par?: unknown; yardage?: unknown; handicap?: unknown }>)
+      ? (golf_data.hole_data as Array<{ hole?: unknown; par?: unknown; yardage?: unknown; handicap?: unknown; parEstimated?: unknown }>)
           .filter(h =>
             typeof h?.hole === 'number' && h.hole >= 1 && h.hole <= 18 &&
             typeof h?.par === 'number' && h.par >= 3 && h.par <= 6
@@ -210,6 +210,9 @@ export async function POST(request: NextRequest) {
             // it, so a live board can allocate net strokes per hole. Used to
             // be stripped here — the one reason net never worked live.
             ...(typeof h.handicap === 'number' && Number.isInteger(h.handicap) && h.handicap >= 1 && h.handicap <= 18 ? { handicap: h.handicap } : {}),
+            // Nov 18 2026: a par estimated from the map's hole length stays marked
+            // on the round (map-sheet.ts); only the literal true is kept.
+            ...(h.parEstimated === true ? { parEstimated: true } : {}),
           }))
       : null;
 
