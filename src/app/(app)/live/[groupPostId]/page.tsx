@@ -824,6 +824,7 @@ export default function LiveRoundPage() {
         <ScoreEntryModal
           key={`${scoringParticipantId}:${scoringHole ?? 'resume'}`}
           groupPostId={scorecard.group_post.id}
+          roundStatus={scorecard.group_post.status}
           participantId={scoringParticipantId}
           initialHole={scoringHole ?? undefined}
           holesPlayed={scorecard.golf_data.holes_played}

@@ -1,5 +1,18 @@
 # Development Log
 
+## November 19, 2026 (07:58) — Golf leftovers, phase 1 of 4: the Live Now answer is never kept, the scorer's badge follows the round, yardage on the round's detail page
+
+Tom asked for the known gaps in one phased plan (plan: phases 1 small leftovers, 2 the estimated-par mark on saved rounds, 3 multi-course clubs narrowed automatically, 4 a chooser for what is left). This is phase 1. No migration.
+
+- **`/api/live-now` answers `private, no-store`** (was `private, max-age=10`). Part 4 left the header alone and made the forced read ask past it; the plan Tom approved said the route itself should not be kept, and the convention says a viewer-dependent payload is `no-store`. The strip's own ten-second read cache still spares the repeat call inside one page; what changes is a full reload within ten seconds, which now asks again.
+- **The scorer's badge** (`ScoreEntryModal`) took LIVE from "this scorer saves per hole", so a scorer opened on a finished round to fix a card still said LIVE. New optional `roundStatus` from both callers (the live page, `PostCard`): Final when the round is completed, LIVE otherwise, `data-scorer-status`. `isLive` (which drives saving) is untouched.
+- **The round's own detail page** (`/app/sport/golf/rounds/[id]`) had `distance_yards` on every hole and never drew it. A Yds column beside Par, in view and in edit, only when the round kept a yardage.
+- **Found while reading:** the admin pick tracker's totals had no `estimated` kind, so that total always read 0 although picks have been counted under it since migration 315; the round-setup spec still said such picks count under `map`.
+
+**Proof.** Unit: `open-path-cache.test.ts` pin moved to `no-store`; three new source pins in `round-layout-nov19.test.ts`. Staging: new `e2e/round-detail-yardage.spec.ts` (nine stored yardages read back cell by cell, no sideways overflow, and no column for a round without yardage) 1 passed on `desktop` and 1 on `mobile`; `e2e/live-scoring-group.spec.ts` 5 passed on `desktop`, now also reading the LIVE badge before the round is finished elsewhere.
+
+**Limits.** The Final badge is pinned at source only: on the live page the scorer closes when the round goes final, so a browser sees Final only through the fix-my-card door, which no spec opens. The yardage column shows yards as stored (no metres), like the posted card.
+
 ## November 19, 2026 (01:45) — Tom's round on the course, part 4 of 4: a round finished on one device stops showing live on the other
 
 With the round open on web and phone, closing and posting it on one left the other showing it live. Three places kept it, for three reasons:

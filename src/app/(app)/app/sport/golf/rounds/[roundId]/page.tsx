@@ -312,6 +312,10 @@ export default function GolfRoundDetailPage() {
   }
 
   const holes = round.golf_holes || [];
+  // The stored yardage per hole (Nov 19 2026): drawn only when the round kept
+  // one (a map-only course with no measured holes keeps none).
+  const hasYardage = holes.some(h => typeof h.distance_yards === 'number' && h.distance_yards > 0);
+  const yardsByHole = new Map(holes.map(h => [h.hole_number, h.distance_yards]));
   const holesPlayed = holes.length;
   const grossScore = round.gross_score ?? holes.reduce((sum, h) => sum + (h.strokes || 0), 0);
   const parPlayed = holes.reduce((sum, h) => sum + (h.par || 0), 0) || round.par;
@@ -544,6 +548,7 @@ export default function GolfRoundDetailPage() {
                 <thead className="bg-surface-muted">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs text-muted uppercase">Hole</th>
+                    {hasYardage && <th data-round-detail-yds-head className="px-3 py-2 text-center text-xs text-muted uppercase">Yds</th>}
                     <th className="px-3 py-2 text-center text-xs text-muted uppercase">Par</th>
                     <th className="px-3 py-2 text-center text-xs text-muted uppercase">Score</th>
                     <th className="px-3 py-2 text-center text-xs text-muted uppercase">+/-</th>
@@ -559,6 +564,7 @@ export default function GolfRoundDetailPage() {
                       return (
                         <tr key={eh.hole_number}>
                           <td className="px-3 py-2 text-sm font-medium text-primary">{eh.hole_number}</td>
+                          {hasYardage && <td className="px-3 py-2 text-sm text-secondary text-center">{yardsByHole.get(eh.hole_number) ?? '–'}</td>}
                           <td className="px-3 py-2 text-sm text-primary text-center">{eh.par ?? '—'}</td>
                           <td className="px-2 py-1 text-center">
                             <input
@@ -631,6 +637,7 @@ export default function GolfRoundDetailPage() {
                     return (
                       <tr key={h.hole_number} className="hover:bg-surface-muted">
                         <td className="px-3 py-2 text-sm font-medium text-primary">{h.hole_number}</td>
+                        {hasYardage && <td data-round-detail-yds={h.hole_number} className="px-3 py-2 text-sm text-secondary text-center">{h.distance_yards ?? '–'}</td>}
                         <td className="px-3 py-2 text-sm text-primary text-center">{h.par ?? '—'}</td>
                         <td className="px-3 py-2 text-sm text-primary text-center font-medium">{h.strokes}</td>
                         <td className={`px-3 py-2 text-sm text-center font-medium ${

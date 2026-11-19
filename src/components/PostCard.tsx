@@ -1351,6 +1351,7 @@ function PostCard({
         <ScoreEntryModal
           key={`${scoreEntryParticipantId}:${scoreEntryHole ?? 'resume'}`}
           groupPostId={groupScorecard.group_post.id}
+          roundStatus={groupScorecard.group_post.status}
           participantId={scoreEntryParticipantId}
           initialHole={scoreEntryHole ?? undefined}
           holesPlayed={groupScorecard.golf_data.holes_played}

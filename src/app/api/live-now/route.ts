@@ -12,7 +12,9 @@ import { GET as videosLiveNow } from '@/app/api/videos/live-now/route';
 // calling the three handlers in-process with the same request: their auth,
 // limiter and privacy decisions are theirs, byte for byte — this file adds
 // no rule. Signed out, the rounds are `[]` (the golf route answers 401) and
-// the two public lists still answer. `private, max-age=10` like its parts.
+// the two public lists still answer. `private, no-store` (Nov 19 2026): the
+// answer depends on the viewer and a live signal must never meet a kept copy;
+// the strip's own ten-second read cache is what spares the repeat call.
 //
 // The three routes stay: `?count=1` callers, the pulse's parity spec and the
 // e2e suite read them directly.
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
   ]);
   return NextResponse.json(
     { rounds: rounds?.rounds ?? [], events: events?.events ?? [], videos: videos?.videos ?? [] },
-    { headers: { 'Cache-Control': 'private, max-age=10' } }
+    { headers: { 'Cache-Control': 'private, no-store' } }
   );
 }
 
