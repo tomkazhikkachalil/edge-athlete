@@ -94,81 +94,109 @@ export async function notifyAttestation(
   }
 }
 
+// ── Milestones only (Nov 19 2026) ─────────────────────────────────────────────
+// Tom's group round sent him 20+ notifications: every hole saved inserted a
+// "posted scores for your shared round" row for the round's creator, named
+// after the card's OWNER (so entering a friend's scores notified him about
+// himself), with no dedupe, and each row also went out as a push. His rule:
+// milestones only. A round now says three things and nothing per hole:
+//   • you are invited                      (notifyGroupInvites, unchanged)
+//   • a golfer finished their card         (once per card; never to the person
+//                                           who entered it)
+//   • the round is final, with the board   (once per round, when it completes)
+
+/** Does this save earn the creator a "finished their card" notice? Pure. */
+export function cardMilestone(input: {
+  /** Who is signed in and entered the score. */
+  actorId: string;
+  creatorId: string;
+  /** Whose card it is. */
+  cardOwnerId: string;
+  holesCompleted: number | null | undefined;
+  holesPlayed: number | null | undefined;
+}): boolean {
+  const { holesCompleted, holesPlayed } = input;
+  if (typeof holesPlayed !== 'number' || holesPlayed <= 0) return false;
+  if (typeof holesCompleted !== 'number' || holesCompleted < holesPlayed) return false; // not a full card yet
+  if (input.actorId === input.creatorId) return false; // the creator entered it: nothing to tell them
+  if (input.cardOwnerId === input.creatorId) return false; // the creator's own card
+  return true;
+}
+
+async function alreadySent(supabase: Admin, marker: Record<string, string>): Promise<boolean> {
+  const { data } = await supabase.from('notifications').select('id').eq('type', 'group_update').contains('metadata', marker).limit(1);
+  return !!data && data.length > 0;
+}
+
 /**
- * Scores posted: tell the creator (when someone else posted), and when EVERY
- * confirmed participant now has a score, tell all confirmed participants the
- * leaderboard is final.
+ * A score was saved. At most two notices come of it, each once: the card's
+ * owner finished their card (to the creator), and the round is final (to every
+ * golfer but the one whose save finished it). A hole on its own says nothing.
  */
 export async function notifyScoresPosted(
   ctx: GroupNotifyContext,
-  creatorId: string,
-  scorerProfileId: string
+  input: { creatorId: string; cardOwnerId: string; actorId: string; holesCompleted: number | null | undefined }
 ): Promise<void> {
   try {
-    const name = await actorName(ctx.supabase, scorerProfileId);
-
-    if (scorerProfileId !== creatorId) {
-      const { error } = await ctx.supabase.from('notifications').insert({
-        user_id: creatorId,
-        type: 'group_update',
-        actor_id: scorerProfileId,
-        title: `${name} posted scores for your shared round`,
-        message: ctx.title,
-        action_url: ctx.actionUrl,
-        is_read: false,
-        metadata: { group_post_id: ctx.groupPostId, event: 'scores_posted' },
-      });
-      if (error) console.error('[GROUP NOTIFY] scores-posted failed:', error);
+    const { data: card } = await ctx.supabase.from('golf_scorecard_data').select('holes_played').eq('group_post_id', ctx.groupPostId).maybeSingle();
+    const holesPlayed = (card as { holes_played?: number | null } | null)?.holes_played ?? null;
+    if (cardMilestone({ ...input, holesPlayed })) {
+      const marker = { group_post_id: ctx.groupPostId, event: 'card_complete', card_owner: input.cardOwnerId };
+      if (!(await alreadySent(ctx.supabase, marker))) {
+        const name = await actorName(ctx.supabase, input.cardOwnerId);
+        const { error } = await ctx.supabase.from('notifications').insert({
+          user_id: input.creatorId,
+          type: 'group_update',
+          actor_id: input.cardOwnerId,
+          title: `${name} finished their card`,
+          message: ctx.title,
+          action_url: ctx.actionUrl,
+          is_read: false,
+          metadata: marker,
+        });
+        if (error) console.error('[GROUP NOTIFY] card-complete failed:', error);
+      }
     }
+    await notifyRoundFinal(ctx, input.actorId);
+  } catch (e) {
+    console.error('[GROUP NOTIFY] scores-posted failed:', e);
+  }
+}
 
-    // Completion check: all confirmed participants have a total_score
-    const { data: participants } = await ctx.supabase
-      .from('group_post_participants')
-      .select('profile_id, status, scores:golf_participant_scores (total_score)')
-      .eq('group_post_id', ctx.groupPostId);
-
-    // Same playing-roster rule as everywhere else: everyone but 'declined'
-    // counts (legacy pre-033 'pending'/'maybe' rows CAN score, so gating the
-    // completion check on 'confirmed' would fire "final leaderboard" early —
-    // and the dedupe marker makes that one-shot).
-    const confirmed = (participants || []).filter(p => isActiveParticipant(p.status));
-    if (confirmed.length < 2) return; // solo "groups" don't get a leaderboard moment
-
-    const allScored = confirmed.every(p => {
-      const scores = Array.isArray(p.scores) ? p.scores[0] : p.scores;
-      return scores && scores.total_score !== null;
-    });
-    if (!allScored) return;
-
-    // Notify every confirmed participant except the final scorer (they just
-    // watched it complete). Deduped against a prior completion notification
-    // via metadata marker — one leaderboard moment per round.
-    const { data: existing } = await ctx.supabase
-      .from('notifications')
-      .select('id')
-      .eq('type', 'group_update')
-      .contains('metadata', { group_post_id: ctx.groupPostId, event: 'leaderboard_final' })
-      .limit(1);
-    if (existing && existing.length > 0) return;
-
-    const rows = confirmed
-      .filter(p => p.profile_id !== scorerProfileId)
+/**
+ * The round is final: once per round, when its status is `completed` (by the
+ * last card filling or by Finish round), to every golfer who has not declined
+ * except the one whose action finished it. A solo round has no leaderboard
+ * moment. (Until Nov 19 2026 this fired when every golfer had ANY total, which
+ * is after their first hole.)
+ */
+export async function notifyRoundFinal(ctx: GroupNotifyContext, actorId: string): Promise<void> {
+  try {
+    const { data: round } = await ctx.supabase.from('group_posts').select('status').eq('id', ctx.groupPostId).maybeSingle();
+    if ((round as { status?: string } | null)?.status !== 'completed') return;
+    const { data: participants } = await ctx.supabase.from('group_post_participants').select('profile_id, status').eq('group_post_id', ctx.groupPostId);
+    const golfers = (participants || []).filter(p => isActiveParticipant(p.status));
+    if (golfers.length < 2) return;
+    const marker = { group_post_id: ctx.groupPostId, event: 'leaderboard_final' };
+    if (await alreadySent(ctx.supabase, marker)) return;
+    const rows = golfers
+      .filter(p => p.profile_id !== actorId)
       .map(p => ({
         user_id: p.profile_id,
         type: 'group_update',
-        actor_id: scorerProfileId,
+        actor_id: actorId,
         title: 'Final leaderboard is in for your shared round',
         message: ctx.title,
         action_url: ctx.actionUrl,
         is_read: false,
-        metadata: { group_post_id: ctx.groupPostId, event: 'leaderboard_final' },
+        metadata: marker,
       }));
     if (rows.length > 0) {
       const { error } = await ctx.supabase.from('notifications').insert(rows);
       if (error) console.error('[GROUP NOTIFY] leaderboard-final failed:', error);
     }
   } catch (e) {
-    console.error('[GROUP NOTIFY] scores-posted failed:', e);
+    console.error('[GROUP NOTIFY] round-final failed:', e);
   }
 }
 
