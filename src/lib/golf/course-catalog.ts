@@ -377,11 +377,22 @@ async function searchCatalogFallback(admin: SupabaseClient, q: string, limit: nu
 
 /** A course with no provider card takes its card from its CACHED map lines
  *  (map-sheet.ts). Read-time only: nothing is written, nothing external is
- *  called, and a provider card always wins. */
+ *  called, and a provider card always wins.
+ *  TAGGED pars only: this is what the guards compare a provider's card with
+ *  (findOfficialSheet, the background fill), and an estimate is never evidence. */
 export async function readMapSheet(admin: SupabaseClient, id: string): Promise<MapSheetHole[] | null> {
+  return (await readMapSheets(admin, id)).tagged;
+}
+
+const measureLine = (line: ReadonlyArray<readonly [number, number]>) => polylineYards(line as [number, number][]) ?? 0;
+
+/** One read of the lines, both cards: the tagged one, and (only when there is
+ *  no tagged one) the one with missing pars estimated from length. */
+async function readMapSheets(admin: SupabaseClient, id: string): Promise<{ tagged: MapSheetHole[] | null; estimated: MapSheetHole[] | null }> {
   const { data } = await admin.from('golf_courses').select('hole_geometry').eq('id', id).maybeSingle();
   const geometry = (data as { hole_geometry?: { holes?: MapSheetLine[] } | null } | null)?.hole_geometry;
-  return sheetFromGeometry(geometry?.holes, line => polylineYards(line as [number, number][]) ?? 0);
+  const tagged = sheetFromGeometry(geometry?.holes, measureLine);
+  return { tagged, estimated: tagged ? null : sheetFromGeometry(geometry?.holes, measureLine, { estimate: true }) };
 }
 
 /** The card's credits (313), read by a writer just before it writes: the column
@@ -396,9 +407,10 @@ export async function readSheetSources(admin: SupabaseClient, id: string): Promi
 
 export async function withMapSheet(admin: SupabaseClient, course: GolfCourse): Promise<GolfCourse> {
   if (course.holes.length > 0 || !UUID_RE.test(course.id)) return course;
-  const holes = await readMapSheet(admin, course.id);
+  const { tagged, estimated } = await readMapSheets(admin, course.id);
+  const holes = tagged ?? estimated;
   if (!holes) return course;
-  return { ...course, holes, totalPar: holes.reduce((s, h) => s + h.par, 0), holesCount: holes.length, sheetSource: 'map' };
+  return { ...course, holes, totalPar: holes.reduce((s, h) => s + h.par, 0), holesCount: holes.length, sheetSource: tagged ? 'map' : 'map_estimated' };
 }
 
 export async function getCatalogRow(admin: SupabaseClient, id: string): Promise<CatalogRow | null> {

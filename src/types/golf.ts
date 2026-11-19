@@ -66,6 +66,9 @@ export interface CourseHole {
   par: number;
   yardage: Record<string, number>;
   handicap: number;
+  /** Map card only (Nov 18 2026): the map had no par for this hole, so `par`
+   *  is estimated from its length. */
+  parEstimated?: true;
 }
 
 // Golf course definition
@@ -89,8 +92,10 @@ export interface GolfCourse {
    *  provider had nothing; the picker says so instead of promising a load. */
   hydratedAt?: string;
   holes: CourseHole[];
-  /** 'map': the holes are built from the course's map lines, not a provider card. */
-  sheetSource?: 'map';
+  /** The holes are built from the course's map lines, not a provider card:
+   *  'map' = every par is tagged on the map; 'map_estimated' = at least one
+   *  par is estimated from the hole's length (Nov 18 2026). */
+  sheetSource?: 'map' | 'map_estimated';
   totalPar: number;
   /** Course length from the catalog (9 or 18) — sizes the composer grid. */
   holesCount?: number;

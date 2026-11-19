@@ -576,3 +576,59 @@ test('a course with map lines and no card: the scorecard comes from the map and 
     ]);
   }
 });
+
+// Nov 18 2026 (Tom: guess the card where the map has yardage but no pars): every
+// line drawn, no par tagged. The card shows, says its pars are estimated, marks
+// each one, and the round keeps the mark. Lines of ~160 / ~365 / ~550 yards.
+test('a course with map lines and NO pars: the card is shown with estimated pars, marked, and the round keeps the mark @mobile', async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = adminClient();
+  const api = await apiAs('state.json');
+  const stamp = Date.now();
+  const name = `QA Map Estimate Links ${stamp}`;
+  let courseId = '';
+  let groupPostId = '';
+  try {
+    const want = [4, 5, 3, 5, 3, 4, 4, 3, 5, 5, 4, 3, 4, 5, 3, 5, 3, 4];
+    const span = { 3: 0.0013, 4: 0.003, 5: 0.0045 } as Record<number, number>;
+    const holes = want.map((par, i) => ({ hole: i + 1, line: [[45.4 + i * 0.01, -75.7], [45.4 + i * 0.01 + span[par], -75.7]] }));
+    const seeded = await admin.from('golf_courses').insert({ external_source: 'qa-e2e', external_id: `mapest-${stamp}`, name, holes_count: 18, lat: 45.43, lng: -75.73, hydrated_at: new Date().toISOString(), hole_geometry: { holes, greens: [], source: 'osm' }, hole_geometry_at: new Date().toISOString() }).select('id').single();
+    expect(seeded.error, seeded.error?.message).toBeNull();
+    courseId = seeded.data!.id as string;
+    const flow = await openGolf(page);
+    await next(flow, /Step 2 of 7/);
+    await page.getByPlaceholder(/search for a golf course/i).fill('QA Map Estimate Links');
+    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    const show = page.locator('[data-course-show-scorecard]');
+    await expect(show).toBeVisible({ timeout: 15_000 });
+    await expect(show).toHaveText(/^\s*Scorecard\s*$/); // not "Official"
+    await show.click();
+    const note = page.locator('[data-course-scorecard-map="estimated"]');
+    await expect(note).toBeVisible();
+    await expect(note).toContainText('estimated');
+    // The note fits the phone's width (no sideways page scroll).
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    const parRow = page.locator('[data-course-scorecard-row="par"]').first();
+    await expect(parRow.locator('[data-course-scorecard-sum="total"]')).toHaveText('72');
+    await expect(parRow.locator('td', { hasText: '*' })).toHaveCount(18);
+    await next(flow, /Step 3 of 7/);
+    await next(flow, /Step 4 of 7/);
+    await next(flow, /Step 5 of 7/);
+    await next(flow, /Step 6 of 7/);
+    await next(flow, /Step 7 of 7/);
+    await flow.locator('[data-step-finish]').click();
+    await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
+    groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
+    const body = await (await api.get(`/api/group-posts/${groupPostId}/scorecard`)).json();
+    const stored = body.scorecard?.golf_data?.hole_data as Array<{ hole: number; par: number; parEstimated?: boolean }>;
+    expect(stored).toHaveLength(18);
+    expect(stored.map(h => h.par)).toEqual(want);
+    expect(stored.every(h => h.parEstimated === true)).toBe(true);
+  } finally {
+    await cleanup('golf-map-estimate', [
+      () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),
+      () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      () => api.dispose(),
+    ]);
+  }
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_TEE, countsAsPick, sheetAgreesWithMap, sheetFromGeometry } from '../map-sheet';
+import { MAP_TEE, PAR_CUTS_YARDS, countsAsPick, estimatePar, isMapSheet, sheetAgreesWithMap, sheetFromGeometry } from '../map-sheet';
 
 const line: [number, number][] = [[45, -75], [45.001, -75]];
 const measure = () => 399;
@@ -25,6 +25,40 @@ describe('sheetFromGeometry: a card only when complete', () => {
     expect(sheetFromGeometry(holes(13), measure)).toBeNull();
     expect(sheetFromGeometry(null, measure)).toBeNull();
     expect(sheetFromGeometry(holes(18), () => 0)).toBeNull();
+  });
+});
+
+// Nov 18 2026 (Tom): lines without pars get a card with the pars estimated from
+// length, each one marked. Fitted on production's tagged holes that day.
+describe('estimated pars: only when asked, only where the map has none, always marked', () => {
+  it('the cut-offs: under 240 is a 3, under 460 a 4, under 720 a 5, then a 6', () => {
+    expect(PAR_CUTS_YARDS).toEqual([240, 460, 720]);
+    expect([90, 239, 240, 459, 460, 719, 720].map(estimatePar)).toEqual([3, 3, 4, 4, 5, 5, 6]);
+  });
+  it('without `estimate` a missing par is still no card (what the guards read)', () => {
+    const bare = holes(18).map(h => ({ hole: h.hole, line: h.line }));
+    expect(sheetFromGeometry(bare, measure)).toBeNull();
+    expect(sheetFromGeometry(bare, measure, {})).toBeNull();
+  });
+  it('with `estimate`: a tagged par is kept unmarked, a missing or absurd one is estimated and marked', () => {
+    const lengths = [150, 400, 520];
+    const mixed = holes(9).map((h, i) => (i === 0 ? { ...h, par: 5 } : i === 1 ? { ...h, par: 9 } : { hole: h.hole, line: h.line }));
+    let n = 0;
+    const s = sheetFromGeometry(mixed, () => lengths[n++ % 3], { estimate: true })!;
+    expect(s[0]).toEqual({ number: 1, par: 5, yardage: { [MAP_TEE]: 150 }, handicap: 0 }); // tagged 5 on a 150-yard line: the tag stands
+    expect(s[1]).toEqual({ number: 2, par: 4, yardage: { [MAP_TEE]: 400 }, handicap: 0, parEstimated: true });
+    expect(s[2]).toEqual({ number: 3, par: 5, yardage: { [MAP_TEE]: 520 }, handicap: 0, parEstimated: true });
+    expect(s.filter(h => h.parEstimated)).toHaveLength(8);
+  });
+  it('an estimate still needs every line: a hole count, a gap or an unmeasured hole is no card', () => {
+    const bare = (n: number) => holes(n).map(h => ({ hole: h.hole, line: h.line }));
+    expect(sheetFromGeometry(bare(13), measure, { estimate: true })).toBeNull();
+    expect(sheetFromGeometry(bare(18).map((h, i) => (i === 3 ? { hole: h.hole, line: null } : h)), measure, { estimate: true })).toBeNull();
+    expect(sheetFromGeometry(bare(18).map((h, i) => (i === 3 ? { ...h, hole: 20 } : h)), measure, { estimate: true })).toBeNull();
+    expect(sheetFromGeometry(bare(18), () => 0, { estimate: true })).toBeNull();
+  });
+  it('isMapSheet names both map sources and nothing else', () => {
+    expect([isMapSheet('map'), isMapSheet('map_estimated'), isMapSheet('golfcourseapi'), isMapSheet(undefined)]).toEqual([true, true, false, false]);
   });
 });
 

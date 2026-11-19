@@ -1,5 +1,30 @@
 # Development Log
 
+## November 18, 2026 (21:21) — Lines without pars get a card: the missing pars are estimated from the hole's length, and marked
+
+Tom, Nov 18: "make sure we have that system in place that guess the score card based on yardage we see from the maps." The map card (Oct 31) was live for courses whose lines all carry a par (8,522 on production today). A course with every line drawn but a par missing showed no card, and scoring then assumed par 4 on every hole without saying so. Asked which he wanted for those, Tom chose **"Guess par, marked estimated"**: the Oct 31 "no estimates" rule is reversed for this one case, by him, with the numbers below in front of him.
+
+**Measured first** (read-only, production, 11,231 courses with lines; 10,662 whole 9 / 18 with every line measured; 8,522 fully tagged = 148,330 holes of known par). Cut-offs fitted on half and checked on the other half, choosing the pair that puts the most courses entirely right: **under 240 yd a 3, under 460 a 4, under 720 a 5, then a 6.**
+
+| | |
+| --- | --- |
+| Holes right | 93.8 % (fit half 93.9, check half 93.6) |
+| Courses with every hole right | 45.1 % |
+| Courses with at most one hole wrong | 74.9 % |
+| Commonest slips | a 5 read as a 4 (3,637), a 4 as a 5 (2,961), a 4 as a 3 (1,132), a 3 as a 4 (697) |
+
+Two refinements were measured and not built: requiring the estimated total to fall in 69–73 keeps 75 % of courses and lifts all-right only to 51 %; refusing any course with a hole within 15 yd of a cut lifts it to 68 % but keeps a third. Neither earns its refusals. Against the 48 such courses that also hold a provider card: 88.9 % of holes, 21 courses entirely right. **The target: 2,042 courses with a par missing (1,381 with none tagged), 1,993 of them without any card.**
+
+**Built** (no migration):
+
+- `map-sheet.ts`: `estimatePar`, `PAR_CUTS_YARDS`, `sheetFromGeometry(…, { estimate: true })`. A tagged par is kept as it is; a missing or out-of-range one is estimated and the hole carries `parEstimated`. Still only a whole card: 9 or 18 numbered holes, every one measured.
+- **An estimate is never evidence.** `readMapSheet`, which `findOfficialSheet` and the background fill use to compare a provider's card with the map, still reads tagged pars only. A provider card therefore replaces an estimated one freely, and nothing is recorded as "map overruled". Pinned by a test.
+- `withMapSheet` reads the lines once: the tagged card, else the estimated one → `sheetSource: 'map_estimated'`. Read time only; nothing is written to the catalog.
+- Said on screen: the table's line "Yardage from the course map. Pars marked * are estimated from the hole's length, not the official card." with a * on each such par; the course card's button reads "Scorecard" rather than "Official Scorecard"; the score grid's row reads "Par (est.)". The mark rides into the round (`deriveCourseHoles` → the group-post route keeps the literal `parEstimated: true` in `hole_data`). Screens that show a saved round do not read the mark yet.
+- The pick tracker counts these under `map` (a kind of its own would need the table's check changed; it waits for the next migration).
+
+**Proof before merge:** `npm run verify` exit 0 (6,603 tests), guardrails pass. A new browser test at phone width against staging (`golf-quick-entry.spec.ts`, `@mobile`, 1 passed): a seeded course with 18 lines and no pars shows the card with the estimate line, 18 marked pars totalling 72, the button reading "Scorecard", no sideways page scroll, and the started round's `hole_data` holds the 18 pars each with `parEstimated: true`.
+
 ## November 18, 2026 (08:19) — The widened search on production, and a section carried in a course's NAME is held to it
 
 #1565 on production (`7537d3ed`; the probe: health + catalog-health, desktop, 2 passed). Three real picks of Ottawa-area courses not asked earlier, through `?sheet=1`:

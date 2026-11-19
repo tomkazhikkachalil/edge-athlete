@@ -35,6 +35,7 @@ import TagPeopleModal from '@/components/TagPeopleModal';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
 import type { GolfCourse } from '@/types/golf';
 import { deriveCourseHoles as deriveCourseHolesPure } from '@/lib/golf/holes';
+import { isMapSheet } from '@/lib/golf/map-sheet';
 import { composeCourses, buildComposition, type CourseComposition } from '@/lib/golf/course-sections';
 import { courseSummary, teeChoiceLabel } from '@/lib/golf/course-summary';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
@@ -1318,7 +1319,7 @@ export default function GolfComposerSection({
                 {/* A catalog tee shows its yardage, rating and slope beside
                     its name (teeChoiceLabel); a custom course's classic
                     colours stay names. */}
-                {(selectedCourse?.sheetSource === 'map' ? FALLBACK_TEES : courseTeeOptions(selectedCourse)).map(key => {
+                {(isMapSheet(selectedCourse?.sheetSource) ? FALLBACK_TEES : courseTeeOptions(selectedCourse)).map(key => {
                   const total = teeTotals.find(t => t.key === key);
                   return (
                     <option key={key} value={key}>{total ? teeChoiceLabel(total) : teeLabel(key)}</option>

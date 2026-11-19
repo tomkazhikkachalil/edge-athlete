@@ -54,6 +54,16 @@ describe('deriveCourseHoles (H2 — an unknown yardage stays unknown)', () => {
   it('the hole range and an empty tee key', () => {
     expect(deriveCourseHoles(course, '', 9, 10)).toEqual([{ hole: 10, par: 4, yardage: 400 }]);
   });
+  it('an estimated par rides into the round marked; a tagged one carries no mark (Nov 18 2026)', () => {
+    const map = [
+      { number: 1, par: 4, yardage: { map: 390 }, handicap: 0, parEstimated: true as const },
+      { number: 2, par: 3, yardage: { map: 160 }, handicap: 0 },
+    ];
+    expect(deriveCourseHoles(map, 'white', 9, 1)).toEqual([
+      { hole: 1, par: 4, yardage: 390, parEstimated: true },
+      { hole: 2, par: 3, yardage: 160 },
+    ]);
+  });
 });
 
 describe('roundHoleNumbers + stepRoundHole (M1 — the chip walks the round)', () => {
