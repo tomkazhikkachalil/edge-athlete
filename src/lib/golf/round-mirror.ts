@@ -35,10 +35,12 @@ export interface MirrorHoleInput {
  *  rows (par from hole_data, par-4 fallback). Exported for tests. */
 export function buildMirrorHoles(
   holeScores: MirrorHoleInput[],
-  holeData: { hole: number; par: number; yardage?: number }[] | null
+  holeData: { hole: number; par: number; yardage?: number; parEstimated?: boolean }[] | null
 ): Array<{
   hole_number: number;
   par: number;
+  /** The par was estimated from the map's hole length (migration 316). */
+  par_estimated: boolean;
   distance_yards: number | null;
   strokes: number;
   putts: number | null;
@@ -51,6 +53,7 @@ export function buildMirrorHoles(
     return {
       hole_number: h.hole_number,
       par: course?.par ?? 4,
+      par_estimated: course?.parEstimated === true,
       distance_yards: course?.yardage ?? null,
       strokes: h.strokes,
       putts: h.putts,
@@ -225,7 +228,7 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
 
     const golfData = Array.isArray(round.golf_data) ? round.golf_data[0] : round.golf_data;
     if (!golfData) return;
-    const holeData = (golfData.hole_data ?? null) as { hole: number; par: number; yardage?: number }[] | null;
+    const holeData = (golfData.hole_data ?? null) as { hole: number; par: number; yardage?: number; parEstimated?: boolean }[] | null;
     const holesPlayed: number = golfData.holes_played ?? 18;
     const coursePar = holeData && holeData.length > 0
       ? holeData.reduce((sum, h) => sum + h.par, 0)

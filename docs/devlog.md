@@ -1,5 +1,20 @@
 # Development Log
 
+## November 19, 2026 (09:08) — Golf leftovers, phase 2b: the profile copy of a round keeps the estimated-par mark (migration 316)
+
+Phase 2a marked estimated pars on the group round's screens, which read the round's own `hole_data`. The profile copy of a round (`golf_holes`, written by the round mirror) had no place for the flag, so the round detail page, the round card on a post and the golf profile still showed a guessed par as the course's own. Tom chose a column over looking the flag up through the group round on every read.
+
+- **Migration 316:** `golf_holes.par_estimated boolean NOT NULL DEFAULT false`, plus a backfill for rounds already mirrored from a group round whose `hole_data` carries `parEstimated`. A column on an existing table: no new grants.
+- **The one writer:** `buildMirrorHoles` carries the hole's `parEstimated` (only the literal `true`).
+- **The three reads** ask for the column: `/api/golf/rounds/[roundId]` (GET and both PATCH re-reads), `post-read.ts`, `golf-profile-server.ts` (`parEst` on `GolfHoleRow`).
+- **The three screens:** round detail page "4 (est.)" per hole; `GolfRoundCard` **PAR (est.)** on each nine; golf profile "Par 4 (est.)" in the hole title and "4 (est.)" in the scorecard table.
+
+**Order.** The reads name the column, so the code must not reach production before the SQL: Tom runs 316 in the SQL editor, then merges the pull request by hand.
+
+**Proof.** Staging: `316 APPLIED | 1 | false | 0 | 316`. The backfill, in a rolled-back transaction on staging: one mirrored round's `hole_data` flagged on holes 1 and 2 → exactly 2 holes marked, holes [1, 2], 1 round; after the rollback 0. Unit: `round-mirror.test.ts` (flag carried, a non-boolean ignored), two source pins in `round-layout-nov19.test.ts`. Browser, staging: `e2e/round-detail-yardage.spec.ts` (holes 1 to 3 flagged: three marks, "4 (est.)" and "3 (est.)", none on the unflagged round) 1 passed on `desktop`, 1 on `mobile`; `e2e/golf-profile.spec.ts` + `e2e/round-details.spec.ts` 3 passed on `desktop`, 2 on `mobile` against the new column. `check:schema` clean.
+
+**Limits.** The round card's and the golf profile's marks are pinned at source, not driven in a browser. A solo round typed in before group rounds existed has no source for the flag and reads false.
+
 ## November 19, 2026 (08:34) — Golf leftovers, phase 2a: a round played on estimated pars keeps saying so (posted card, live page, scorer)
 
 A course whose map has lines but no pars gets pars estimated from each hole's length (Nov 18), and the setup screens mark them. Once the round started, nothing did: the scorer, the live page and the posted scorecard showed the guessed pars as if they were the course's. The mark was already in the round's own `hole_data` (`parEstimated`, kept by the group-posts route); the screens never read it. No migration.

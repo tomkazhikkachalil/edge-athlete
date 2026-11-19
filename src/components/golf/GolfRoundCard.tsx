@@ -219,7 +219,7 @@ export default function GolfRoundCard({
                       </tr>
                       {/* Par Row */}
                       <tr className="border-b border-border-strong bg-yellow-50 dark:bg-yellow-950/40">
-                        <td className="py-1.5 px-2 font-bold text-primary">PAR</td>
+                        <td className="py-1.5 px-2 font-bold text-primary whitespace-nowrap">{round.golf_holes.some(h => h.par_estimated === true) ? <span data-round-card-par-estimated="">PAR (est.)</span> : 'PAR'}</td>
                         {round.golf_holes
                           .filter((h) => h.hole_number <= 9)
                           .map((hole) => (
@@ -319,7 +319,7 @@ export default function GolfRoundCard({
                       </tr>
                       {/* Par */}
                       <tr className="border-b border-border-strong bg-yellow-50 dark:bg-yellow-950/40">
-                        <td className="py-1.5 px-2 font-bold text-primary">PAR</td>
+                        <td className="py-1.5 px-2 font-bold text-primary whitespace-nowrap">{round.golf_holes.some(h => h.par_estimated === true) ? <span data-round-card-par-estimated="">PAR (est.)</span> : 'PAR'}</td>
                         {round.golf_holes
                           .filter((h) => h.hole_number > 9)
                           .map((hole) => (

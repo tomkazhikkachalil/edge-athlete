@@ -18,6 +18,8 @@
 export interface GolfHoleRow {
   n: number;
   par: number | null;
+  /** The par was estimated from the map's hole length (migration 316). */
+  parEst?: true;
   strokes: number | null;
   putts: number | null;
   fairway: boolean | null;

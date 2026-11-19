@@ -26,6 +26,8 @@ export interface HoleData {
 export interface GolfHole {
   hole_number: number;
   par: number;
+  /** The par was estimated from the map's hole length (migration 316). */
+  par_estimated?: boolean;
   distance_yards?: number;
   strokes?: number; // Optional - may not be entered yet
   putts?: number;
