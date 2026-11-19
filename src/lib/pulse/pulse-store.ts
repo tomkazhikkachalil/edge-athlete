@@ -139,6 +139,41 @@ function stopIfUnused(): void {
   }
 }
 
+// ── The live signal itself (Nov 19 2026) ─────────────────────────────────────
+// The numbers above say HOW MANY things are live. Some screens hold a thing
+// that was live (the resume pill and the Drafts entry hold the viewer's own
+// round; the Live Now list holds cards) and must drop it when it ends on
+// another device: a round finished on the phone left the laptop's pill red
+// until a reload, and the list refetched only when the TOTAL changed (one
+// round ending as another starts changes nothing). They listen to the signal
+// directly. One tick per burst, spread like the pulse's own fetch.
+type LiveListener = () => void;
+const liveListeners = new Set<LiveListener>();
+let liveTimer: ReturnType<typeof setTimeout> | null = null;
+export const LIVE_SIGNAL_DELAY_MS = 1_500;
+export const LIVE_SIGNAL_JITTER_MS = 3_000;
+
+/** A round, an event or a broadcast entered or left "live" somewhere. */
+export function emitLiveSignal(): void {
+  if (liveTimer || liveListeners.size === 0) return;
+  liveTimer = setTimeout(() => {
+    liveTimer = null;
+    if (!visible() || !getOnline()) return; // a hidden tab catches up on return
+    for (const fn of [...liveListeners]) fn();
+  }, LIVE_SIGNAL_DELAY_MS + Math.random() * LIVE_SIGNAL_JITTER_MS);
+}
+
+export function subscribeLiveSignal(listener: LiveListener): () => void {
+  liveListeners.add(listener);
+  return () => {
+    liveListeners.delete(listener);
+    if (liveListeners.size === 0 && liveTimer) {
+      clearTimeout(liveTimer);
+      liveTimer = null;
+    }
+  };
+}
+
 /**
  * Subscribe to the numbers. The first subscriber starts the timer and the
  * resume catch-up; the last one leaving stops them. Returns the cleanup.
