@@ -43,11 +43,25 @@ describe('resolveRoundStatus', () => {
     ).toBe('completed');
   });
 
-  it('sends a full after-the-fact batch straight to completed (never lingers as LIVE)', () => {
-    // Creator posts a finished round with only their own scorecard filled in.
+  it('an ALREADY PLAYED round with only the creator\'s card goes straight to completed (never lingers as LIVE)', () => {
+    // Creator logs a finished round with only their own scorecard filled in: the composer says so.
     expect(
-      resolveRoundStatus({ status: 'pending', holesPlayed: 18, participants: [p(true, 18), p(true, 0), p(true, 0)] })
+      resolveRoundStatus({ status: 'pending', holesPlayed: 18, participants: [p(true, 18), p(true, 0), p(true, 0)], completeOn: 'scored' })
     ).toBe('completed');
+  });
+
+  // Nov 19 2026 (Tom): scoring a group, the round ended as soon as ONE golfer
+  // had 18, and locked the scorer out. A live round waits for every golfer.
+  it('a LIVE round does not finish while another golfer has no scores: one full card moves it to active, no further', () => {
+    const three = [p(true, 18), p(true, 0), p(true, 0)];
+    expect(resolveRoundStatus({ status: 'pending', holesPlayed: 18, participants: three })).toBe('active');
+    expect(resolveRoundStatus({ status: 'active', holesPlayed: 18, participants: three })).toBeNull();
+    expect(resolveRoundStatus({ status: 'active', holesPlayed: 18, participants: three, completeOn: 'everyone' })).toBeNull();
+  });
+
+  it('a LIVE round finishes when the LAST golfer\'s card fills', () => {
+    expect(resolveRoundStatus({ status: 'active', holesPlayed: 18, participants: [p(true, 18), p(true, 18), p(true, 17)] })).toBeNull();
+    expect(resolveRoundStatus({ status: 'active', holesPlayed: 18, participants: [p(true, 18), p(true, 18), p(true, 18)] })).toBe('completed');
   });
 
   it('waits for a second scorer who is mid-round', () => {
@@ -56,8 +70,8 @@ describe('resolveRoundStatus', () => {
     ).toBeNull();
   });
 
-  it('ignores unconfirmed participants entirely', () => {
-    // A pending invitee with no scores can't hold the round open…
+  it('ignores a golfer who DECLINED entirely', () => {
+    // Someone who declined has no card to wait for…
     expect(
       resolveRoundStatus({ status: 'active', holesPlayed: 18, participants: [p(true, 18), p(false, 0)] })
     ).toBe('completed');

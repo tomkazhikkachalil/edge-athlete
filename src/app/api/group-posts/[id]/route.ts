@@ -198,10 +198,12 @@ export async function PATCH(
     // FINISH: the one writer (round-finish.ts) mirrors every player's scores
     // into golf_rounds and the media onto the post. The status itself was
     // written above under RLS (creator-only); the writer's own guarded
-    // update is then a no-op and it mirrors. The post stays a DRAFT (253):
-    // Post — from the review screen — publishes it and stamps its timestamp.
+    // update is then a no-op, and `statusWritten` tells it to write the
+    // record all the same (until Nov 19 2026 it returned before mirroring).
+    // The post stays a DRAFT (253): Post — from the review screen —
+    // publishes it and stamps its timestamp.
     if (status === 'completed') {
-      await finishRound(getSupabaseAdmin(), id);
+      await finishRound(getSupabaseAdmin(), id, { statusWritten: true });
     }
 
     return NextResponse.json({

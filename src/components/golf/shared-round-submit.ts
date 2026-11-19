@@ -163,6 +163,8 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
         credentials: 'include',
         body: JSON.stringify({
           group_post_id: groupPostId,
+          // An already-played round is finished by its entered cards (round-status.ts).
+          already_played: sharedRoundDetails.alreadyPlayed === true,
           participant_scores: playerScores.map(player => ({
             participant_id: player.participant_id,
             hole_scores: player.hole_scores

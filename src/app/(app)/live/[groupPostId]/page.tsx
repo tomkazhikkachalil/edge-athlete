@@ -856,7 +856,7 @@ export default function LiveRoundPage() {
                   }))
               : undefined
           }
-          onSwitchPlayer={isCreator ? id => setScoringParticipantId(id) : undefined}
+          onSwitchPlayer={isCreator ? (id, hole) => { setScoringHole(hole); setScoringParticipantId(id); } : undefined}
           playerName={(() => {
             const p = scorecard.participants.find(
               x => x.participant.id === scoringParticipantId

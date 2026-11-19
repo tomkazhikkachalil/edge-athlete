@@ -134,6 +134,27 @@ describe('resolveRoundEntry', () => {
     expect(out).toEqual({ mode: 'watch', reason: 'card-complete', postId: 'post1' });
   });
 
+  // Nov 19 2026 (Tom): the round's creator scores for the group. Their own card
+  // being full must not take the scorer away while a partner's is not.
+  describe('the creator, own card complete', () => {
+    const me = { participant: { id: 'p-me', profile_id: ME, status: 'confirmed' }, scores: { holes_completed: 18 } };
+    const partner = (id: string, done: number | null, status = 'confirmed') => ({ participant: { id, profile_id: `u-${id}`, status }, scores: done == null ? null : { holes_completed: done } });
+    const entry = (participants: unknown[], creator = ME) =>
+      resolveRoundEntry({ scorecard: card({ group_post: { ...card().group_post, creator_id: creator }, participants: participants as never }), viewerId: ME, now: NOW });
+
+    it('keeps the scorer, opening on the first golfer whose card is not full', () => {
+      expect(entry([me, partner('p-a', 18), partner('p-b', 7), partner('p-c', null)])).toEqual({ mode: 'score', participantId: 'p-b', isCreator: true, postId: 'post1' });
+      expect(entry([me, partner('p-c', null)])).toEqual({ mode: 'score', participantId: 'p-c', isCreator: true, postId: 'post1' });
+    });
+    it('watches once every other golfer is full, and a golfer who declined is not waited for', () => {
+      expect(entry([me, partner('p-a', 18)])).toEqual({ mode: 'watch', reason: 'card-complete', postId: 'post1' });
+      expect(entry([me, partner('p-a', 3, 'declined')])).toEqual({ mode: 'watch', reason: 'card-complete', postId: 'post1' });
+    });
+    it('a golfer who is NOT the creator still watches with a full card, whatever the others have', () => {
+      expect(entry([me, partner('p-b', 7)], 'someone-else')).toEqual({ mode: 'watch', reason: 'card-complete', postId: 'post1' });
+    });
+  });
+
   it('reports isCreator false for a non-creator participant', () => {
     const out = resolveRoundEntry({
       scorecard: card({ group_post: { ...card().group_post, creator_id: 'someone-else' } }),

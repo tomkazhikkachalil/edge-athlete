@@ -88,7 +88,10 @@ interface ScoreEntryModalProps {
   /** All players in the round (creator view) — renders the switcher chips.
    *  The current hole is persisted before any switch. */
   players?: ScoreEntryPlayer[];
-  onSwitchPlayer?: (participantId: string) => void;
+  /** `holeNumber`: the hole on screen when the chip was tapped. The next
+   *  player's card opens on THAT hole (Nov 19 2026), not on their first
+   *  unscored one. */
+  onSwitchPlayer?: (participantId: string, holeNumber: number) => void;
   /** Session user id — required for hole photo/video uploads. */
   uploaderId?: string;
   /** Whose scorecard this is — shown in the header when the creator enters
@@ -508,10 +511,22 @@ export default function ScoreEntryModal({
   // Player switching (creator view): NEVER lose typed input — the current
   // hole persists before the switch; the parent remounts the modal keyed by
   // participant so the next player's card seeds fresh.
+  //
+  // Nov 19 2026 (Tom: "switching players resets to hole 1"). Two faults, both
+  // here. (1) The switch told the parent WHO but not WHERE, so the next
+  // player's card opened on their first unscored hole: any gap earlier in
+  // their card, and the scorer jumped back to it. The hole on screen now
+  // travels with the switch. (2) A hole left by a chip was saved without the
+  // resting wheel being committed, where Next commits it: set strokes, leave
+  // putts, tap another player, and that hole was never written, which made
+  // the very gap that (1) then jumped to. A switch is a confirmation of the
+  // hole exactly as Next is (an untouched hole still records nothing).
   const handleSwitchPlayer = async (nextParticipantId: string) => {
     if (!onSwitchPlayer || nextParticipantId === participantId) return;
+    const holeOnScreen = holeNumberAtPosition(startingHoleNumber, currentHole);
     if (isLive) {
-      if (!(await persistHole(currentHole))) return;
+      const committedLive = commitRestingScores();
+      if (!(await persistHole(currentHole, committedLive))) return;
     } else {
       // Batch mode (composer grid): the parent only receives scores through
       // onSave, and the switch remounts the modal — flush everything entered
@@ -535,7 +550,7 @@ export default function ScoreEntryModal({
         }
       }
     }
-    onSwitchPlayer(nextParticipantId);
+    onSwitchPlayer(nextParticipantId, holeOnScreen);
   };
 
   // Hole photos/videos (live rounds only): upload → attach to this hole.
@@ -822,6 +837,8 @@ export default function ScoreEntryModal({
                   key={p.participantId}
                   onClick={() => handleSwitchPlayer(p.participantId)}
                   disabled={savingHole !== null}
+                  data-scorer-player={p.participantId}
+                  aria-pressed={active}
                   className={`flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 min-h-[44px] rounded-full text-xs font-bold whitespace-nowrap transition-all border-2 disabled:opacity-60 ${
                     active
                       ? 'bg-green-600 text-white border-green-700 shadow'
