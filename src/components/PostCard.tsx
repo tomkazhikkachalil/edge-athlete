@@ -299,6 +299,8 @@ function PostCard({
     if (liveEnabled !== next) setLiveEnabled(next);
   }
   const [scoreEntryParticipantId, setScoreEntryParticipantId] = useState<string | null>(null);
+  // The hole a player switch carries over (Nov 19 2026); null = resume at the first unscored hole.
+  const [scoreEntryHole, setScoreEntryHole] = useState<number | null>(null);
   const [commentSectionOpen, setCommentSectionOpen] = useState(false);
 
   // Resume-banner deep link: open the viewer's own score entry once, as soon
@@ -1335,6 +1337,7 @@ function PostCard({
             // On refresh failure we proceed with cached data: entering scores
             // offline-ish still works, the upsert reconciles.
             await refreshScorecard();
+            setScoreEntryHole(null);
             setScoreEntryParticipantId(participantId);
             setShowFullScorecard(false);
             setShowScoreEntry(true);
@@ -1346,9 +1349,10 @@ function PostCard({
           remounts with that player's card (and their resume position) */}
       {showScoreEntry && groupScorecard && scoreEntryParticipantId && (
         <ScoreEntryModal
-          key={scoreEntryParticipantId}
+          key={`${scoreEntryParticipantId}:${scoreEntryHole ?? 'resume'}`}
           groupPostId={groupScorecard.group_post.id}
           participantId={scoreEntryParticipantId}
+          initialHole={scoreEntryHole ?? undefined}
           holesPlayed={groupScorecard.golf_data.holes_played}
           startingHoleNumber={startingHoleNumber(
             groupScorecard.golf_data.hole_data ?? null,
@@ -1378,7 +1382,7 @@ function PostCard({
           }
           onSwitchPlayer={
             groupScorecard.group_post.creator_id === currentUserId
-              ? (id) => setScoreEntryParticipantId(id)
+              ? (id, hole) => { setScoreEntryHole(hole); setScoreEntryParticipantId(id); }
               : undefined
           }
           playerName={(() => {

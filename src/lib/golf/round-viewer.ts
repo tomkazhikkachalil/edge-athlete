@@ -105,7 +105,17 @@ export function resolveRoundEntry({
   }
 
   if (ownCardComplete(mine, scorecard.golf_data?.holes_played)) {
-    return recorder ? { mode: 'record', postId } : { mode: 'watch', reason: 'card-complete', postId };
+    if (recorder) return { mode: 'record', postId };
+    // Nov 19 2026 (Tom: the round locked once one golfer had 18). The round's
+    // creator scores for the group: with their own card full they keep the
+    // scorer while another golfer's card is not, opening on that golfer.
+    if (isCreator) {
+      const unfinished = (scorecard.participants ?? []).find(
+        p => p.participant.id !== mine.participant.id && isActiveParticipant(p.participant.status) && !ownCardComplete(p, scorecard.golf_data?.holes_played)
+      );
+      if (unfinished) return { mode: 'score', participantId: unfinished.participant.id, isCreator, postId };
+    }
+    return { mode: 'watch', reason: 'card-complete', postId };
   }
 
   return { mode: 'score', participantId: mine.participant.id, isCreator, postId };

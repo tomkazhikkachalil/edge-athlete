@@ -542,8 +542,8 @@ function MultiPlayerScorecardGrid({
                     holesCompleted: p.hole_scores.filter(s => typeof s.strokes === 'number').length,
                     isSelf: idx === 0,
                   })),
-                  onSwitchPlayer: (pid: string) =>
-                    setEntrySession(s => (s ? { playerId: pid, hole: null, focusPenalties: false } : s)),
+                  onSwitchPlayer: (pid: string, hole: number) =>
+                    setEntrySession(s => (s ? { playerId: pid, hole, focusPenalties: false } : s)),
                 }
               : {})}
             existingScores={entryPlayer.hole_scores.filter(s => typeof s.strokes === 'number') as unknown as GolfHoleScore[]}

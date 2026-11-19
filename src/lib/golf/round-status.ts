@@ -74,17 +74,25 @@ export function resolveRoundStatus(input: {
    *  rule is gone — the 7-day sweep is `abandonedRoundAction`). */
   lastActivityAt?: number | null;
   now?: number;
+  /** Whose cards must be full for the round to finish on its own.
+   *  'everyone' (the default; Tom, Nov 19 2026): every golfer on the round who
+   *  has not declined. One full card beside untouched ones used to end the
+   *  round and lock the scorer out mid-group.
+   *  'scored': only the cards that hold a score. For a round logged as ALREADY
+   *  PLAYED, where the person entering it may have only their own card. */
+  completeOn?: 'everyone' | 'scored';
 }): RoundStatus | null {
   const { status, holesPlayed, participants } = input;
 
   if (status === 'completed' || status === 'cancelled') return null;
 
-  // Only active (non-declined) participants who have actually entered
-  // something count — invitees who never score shouldn't hold the round open.
-  const scoring = participants.filter(p => p.confirmed && p.holesCompleted > 0);
+  const active = participants.filter(p => p.confirmed); // not declined
+  const scoring = active.filter(p => p.holesCompleted > 0);
+  // Nothing entered yet: nothing to advance.
   if (scoring.length === 0) return null;
 
-  if (holesPlayed > 0 && scoring.every(p => p.holesCompleted >= holesPlayed)) {
+  const mustBeFull = input.completeOn === 'scored' ? scoring : active;
+  if (holesPlayed > 0 && mustBeFull.every(p => p.holesCompleted >= holesPlayed)) {
     return 'completed';
   }
   return status === 'pending' ? 'active' : null;
@@ -196,7 +204,8 @@ export function shouldShowStaleNotice(input: { stale: boolean; live: boolean }):
  */
 export async function advanceRoundStatus(
   admin: SupabaseClient,
-  groupPostId: string
+  groupPostId: string,
+  opts: { completeOn?: 'everyone' | 'scored' } = {}
 ): Promise<void> {
   try {
     const { data: round, error } = await admin
@@ -244,6 +253,7 @@ export async function advanceRoundStatus(
       status: round.status as RoundStatus,
       holesPlayed: golfData.holes_played ?? 0,
       participants,
+      completeOn: opts.completeOn,
       lastActivityAt,
     });
 

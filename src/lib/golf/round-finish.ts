@@ -21,7 +21,13 @@ export type FinishOutcome =
   | { status: 'already' }
   | { status: 'error'; message: string };
 
-export async function finishRound(admin: Admin, groupPostId: string): Promise<FinishOutcome> {
+/** `statusWritten`: the caller has ALREADY set the round to completed (the
+ *  creator's PATCH writes it under RLS, which is its permission check). The
+ *  guarded update below then matches nothing, and until Nov 19 2026 that
+ *  returned 'already' BEFORE the record was written: a round finished by hand
+ *  never reached golf_rounds (found on staging while tracing Tom's list). With
+ *  the flag the record is written whenever the round is completed. */
+export async function finishRound(admin: Admin, groupPostId: string, opts: { statusWritten?: boolean } = {}): Promise<FinishOutcome> {
   const { data: rows, error } = await admin
     .from('group_posts')
     .update({ status: 'completed' })
@@ -32,7 +38,13 @@ export async function finishRound(admin: Admin, groupPostId: string): Promise<Fi
     console.error('[FINISH] status write failed:', error.message);
     return { status: 'error', message: 'Could not finish the round' };
   }
-  if (!rows || rows.length === 0) return { status: 'already' };
+  if (!rows || rows.length === 0) {
+    if (!opts.statusWritten) return { status: 'already' };
+    // The mirror gates itself on 'completed', so a cancelled round writes nothing.
+    await mirrorCompletedRound(admin, groupPostId);
+    await mirrorRoundMedia(admin, groupPostId);
+    return { status: 'finished' };
+  }
   // The record: every scoring player's golf_rounds row, then the round's
   // media onto its (draft) post. Best-effort, self-gated on 'completed'.
   await mirrorCompletedRound(admin, groupPostId);

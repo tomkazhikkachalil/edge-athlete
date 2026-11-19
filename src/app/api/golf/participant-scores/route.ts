@@ -56,6 +56,8 @@ export async function POST(request: NextRequest) {
     }
 
     const isCreator = groupPost.creator_id === user.id;
+    // Only the round's creator may say the round was already played.
+    const alreadyPlayed = isCreator && body.already_played === true;
 
     // Get all participants for this group post
     const { data: participants, error: participantsError } = await supabase
@@ -227,7 +229,9 @@ export async function POST(request: NextRequest) {
     // scorecard goes straight to 'completed'; partial entry marks it 'active').
     // Best-effort — never fails the save.
     if (results.length > 0) {
-      await advanceRoundStatus(getSupabaseAdmin(), group_post_id);
+      // A round logged as ALREADY PLAYED finishes on the cards that were entered
+      // (the composer says so); a live round waits for every golfer (Nov 19 2026).
+      await advanceRoundStatus(getSupabaseAdmin(), group_post_id, { completeOn: alreadyPlayed ? 'scored' : 'everyone' });
       // Keep the golf_rounds mirror in sync (no-op unless completed)
       await mirrorCompletedRound(getSupabaseAdmin(), group_post_id);
       await mirrorRoundMedia(getSupabaseAdmin(), group_post_id);
