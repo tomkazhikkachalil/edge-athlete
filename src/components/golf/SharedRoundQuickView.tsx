@@ -148,10 +148,10 @@ export default function SharedRoundQuickView({
 
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <FaIcon icon={faUsers} className="text-decor text-base" />
-            <span className="font-bold text-primary text-base">{golf_data.course_name}</span>
+            <span className="font-bold text-primary text-base min-w-0 break-words">{golf_data.course_name}</span>
 
             {/* Round lifecycle badge: LIVE while scores are streaming in,
                 FINAL once everyone who scored has finished */}

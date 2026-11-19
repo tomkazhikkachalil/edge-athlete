@@ -169,7 +169,10 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
               >
                 <td className="sticky left-0 bg-surface pl-4 sm:pl-2 pr-2 py-2 font-bold text-primary">{r.rankLabel}</td>
                 <td className="px-2 py-2 text-primary whitespace-nowrap">
-                  {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg" onClick={e => e.stopPropagation()}>{r.name}</Link> : r.name}
+                  {/* Nov 19 2026: a long name is cut with an ellipsis so the score columns stay on the screen. */}
+                  <span className="inline-block max-w-[9rem] truncate align-bottom sm:max-w-[18rem]" title={r.name} data-board-name="">
+                    {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg" onClick={e => e.stopPropagation()}>{r.name}</Link> : r.name}
+                  </span>
                   {r.flight && <span className="ml-1.5 px-1.5 py-0.5 rounded-md border border-border text-[10px] text-secondary">{r.flight}</span>}
                   {r.cardStatus === 'final' && <span className="ml-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">final</span>}
                 </td>

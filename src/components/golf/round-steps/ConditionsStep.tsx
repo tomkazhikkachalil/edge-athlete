@@ -134,10 +134,24 @@ export default function ConditionsStep({ value, onChange, sys = 'imperial', onUn
           </select>
         </div>
         <div>
-          <div className="flex items-end justify-between gap-2">
-            <label className={GOLF_LABEL} htmlFor="golf-temperature">Temperature ({tempUnit})</label>
+          {/* Nov 19 2026 (Tom: the toggle pushed the box out of line on web): the
+              label row is the label alone, like Weather and Wind, so the three
+              controls share one top edge; the unit toggle rides beside the input. */}
+          <label className={GOLF_LABEL} htmlFor="golf-temperature">Temperature ({tempUnit})</label>
+          <div className="flex items-center gap-2">
+            <input
+              id="golf-temperature"
+              type="number"
+              value={tempShown(value.temperature, sys)}
+              onChange={e => onChange({ temperature: tempStored(e.target.value, sys) })}
+              className={`${GOLF_INPUT} min-w-0 flex-1`}
+              placeholder={placeholder}
+              min={min}
+              max={max}
+              data-golf-temperature-unit={tempUnit}
+            />
             {onUnit && (
-              <div className="mb-1 inline-flex rounded-full border border-border p-0.5" role="group" aria-label="Temperature unit" data-golf-temp-units="">
+              <div className="inline-flex shrink-0 rounded-full border border-border p-0.5" role="group" aria-label="Temperature unit" data-golf-temp-units="">
                 {(['°F', '°C'] as const).map(u => {
                   const pressed = tempUnit === u;
                   return (
@@ -156,17 +170,6 @@ export default function ConditionsStep({ value, onChange, sys = 'imperial', onUn
               </div>
             )}
           </div>
-          <input
-            id="golf-temperature"
-            type="number"
-            value={tempShown(value.temperature, sys)}
-            onChange={e => onChange({ temperature: tempStored(e.target.value, sys) })}
-            className={GOLF_INPUT}
-            placeholder={placeholder}
-            min={min}
-            max={max}
-            data-golf-temperature-unit={tempUnit}
-          />
         </div>
         <div>
           <label className={GOLF_LABEL} htmlFor="golf-wind">Wind</label>

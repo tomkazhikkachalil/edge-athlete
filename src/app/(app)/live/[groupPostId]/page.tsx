@@ -457,14 +457,14 @@ export default function LiveRoundPage() {
       <div className="w-full max-w-2xl mx-auto px-4 pt-3 pb-2 flex items-center justify-between gap-3">
         <Link
           href={scorecard.sport_event ? `/events/${scorecard.sport_event.id}?tab=${scorecard.sport_event.match ? 'matches' : 'leaderboard'}` : '/live'}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
+          className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
           data-live-back=""
         >
-          <FaIcon icon={faChevronLeft} className="text-xs" />
-          {scorecard.sport_event ? scorecard.sport_event.name : 'Live Now'}
+          <FaIcon icon={faChevronLeft} className="text-xs shrink-0" />
+          <span className="min-w-0 truncate">{scorecard.sport_event ? scorecard.sport_event.name : 'Live Now'}</span>
         </Link>
         {mapAvailable && (
-          <div role="tablist" aria-label="Round views" className="flex items-center gap-2">
+          <div role="tablist" aria-label="Round views" className="flex shrink-0 items-center gap-2">
             {([['score', 'Scorecard'], ['map', 'Map']] as const).map(([id, label]) => (
               <button
                 key={id}

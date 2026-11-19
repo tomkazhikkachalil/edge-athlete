@@ -395,6 +395,16 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     // Step 4: no "Optional" line; °C flips the field's unit and lands on the account.
     await next(flow, /Step 4 of 7 · Conditions/);
     await expect(page.getByText(/skip if you/)).toHaveCount(0);
+    // Nov 19 2026 (Tom: the unit toggle pushed the temperature box out of line on
+    // web): the three controls share one top edge, and the toggle sits beside the box.
+    const tops = await Promise.all(['#golf-weather', '#golf-temperature', '#golf-wind'].map(async sel => (await page.locator(sel).boundingBox())!.y));
+    expect(Math.abs(tops[1] - tops[0]), `temperature ${tops[1]} vs weather ${tops[0]}`).toBeLessThanOrEqual(2);
+    expect(Math.abs(tops[2] - tops[0])).toBeLessThanOrEqual(2);
+    const tempBox = (await page.locator('#golf-temperature').boundingBox())!;
+    const unitBox = (await page.locator('[data-golf-temp-units]').boundingBox())!;
+    expect(unitBox.x).toBeGreaterThanOrEqual(tempBox.x + tempBox.width - 1);
+    expect(unitBox.y + unitBox.height / 2).toBeGreaterThan(tempBox.y);
+    expect(unitBox.y + unitBox.height / 2).toBeLessThan(tempBox.y + tempBox.height);
     await page.locator('[data-golf-temp-unit="°C"]').click();
     await expect(page.locator('[data-golf-temp-unit="°C"]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('label[for="golf-temperature"]')).toHaveText('Temperature (°C)');
@@ -482,6 +492,8 @@ test('a course with no sheet: the preview and the full scorecard before any scor
     await expect(panel.locator('table')).toHaveCount(2, { timeout: 15_000 });
     await expect(panel).toContainText('OUT');
     await expect(panel).toContainText('18');
+    // No yardage is known for this course: no yardage row is drawn (never a row of dashes).
+    await expect(panel.locator('[data-round-yardage-row]')).toHaveCount(0);
   } finally {
     await cleanup('golf-no-sheet', [
       () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),
@@ -568,6 +580,24 @@ test('a course with map lines and no card: the scorecard comes from the map and 
     const stored = body.scorecard?.golf_data?.hole_data as Array<{ hole: number; par: number }>;
     expect(stored).toHaveLength(18);
     expect(stored.find(h => h.hole === 2)?.par).toBe(5);
+    // Nov 19 2026 (Tom: the posted card showed no yardages): the full scorecard
+    // draws the round's yardage on each nine, with its sum.
+    await page.waitForTimeout(2500);
+    const closeScorer = page.getByRole('button', { name: /^close/i }).last();
+    if (await closeScorer.count()) await closeScorer.click();
+    await page.getByRole('button', { name: /View Full Scorecard/i }).first().click();
+    const tab = page.getByRole('tab', { name: /Full Scorecard/i });
+    if (await tab.count()) await tab.first().click();
+    const panel = page.locator('#round-panel-scorecard');
+    await expect(panel.locator('[data-round-yardage-row]')).toHaveCount(2, { timeout: 15_000 });
+    const yards = stored as Array<{ hole: number; yardage?: number }>;
+    await expect(panel.locator('[data-round-yardage="2"]')).toHaveText(String(yards.find(h => h.hole === 2)!.yardage));
+    const front = yards.filter(h => h.hole <= 9).reduce((n, h) => n + (h.yardage ?? 0), 0);
+    await expect(panel.locator('[data-round-yardage-sum]').first()).toHaveText(String(front));
+    // The yardage row sits above PAR, and no media row is inside the tables.
+    const labels = await panel.locator('table').first().locator('tbody tr td:first-child').allInnerTexts();
+    expect(labels.slice(0, 2).map(t => t.trim())).toEqual(['YDS', 'PAR']);
+    expect(labels.map(t => t.trim().toLowerCase())).not.toContain('media');
   } finally {
     await cleanup('golf-map-card', [
       () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),

@@ -164,10 +164,10 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
     <div className="flex flex-col h-full" data-group-score-card="">
       {event && (
         <div className="px-4 pt-3 pb-1 flex items-center justify-between gap-2">
-          <Link href={`/events/${event.id}?tab=${match ? 'matches' : 'leaderboard'}`} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-gsc-back="">
-            <FaIcon icon={faChevronLeft} className="text-xs" />{event.name}
+          <Link href={`/events/${event.id}?tab=${match ? 'matches' : 'leaderboard'}`} className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-gsc-back="">
+            <FaIcon icon={faChevronLeft} className="text-xs shrink-0" /><span className="min-w-0 truncate">{event.name}</span>
           </Link>
-          <span className="text-xs text-muted">{group?.name ?? (group ? `Group ${group.sequence}` : '')}</span>
+          <span className="shrink-0 text-xs text-muted">{group?.name ?? (group ? `Group ${group.sequence}` : '')}</span>
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">

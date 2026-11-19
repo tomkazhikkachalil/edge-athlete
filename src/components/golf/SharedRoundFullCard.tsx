@@ -236,6 +236,11 @@ export default function SharedRoundFullCard({
   // for legacy rounds.
   const roundHoleData = golf_data.hole_data ?? null;
   const parFor = (holeNum: number) => holePar(holeNum, roundHoleData);
+  const yardsFor = (holeNum: number): number | null => {
+    const y = roundHoleData?.find(h => h.hole === holeNum)?.yardage;
+    return typeof y === 'number' && y > 0 ? y : null;
+  };
+  const roundHasYardage = allHoleNumbers.some(h => yardsFor(h) != null);
 
   // Find current user's participant record
   const currentUserParticipant = participants.find(
@@ -306,6 +311,23 @@ export default function SharedRoundFullCard({
                 </tr>
               </thead>
               <tbody>
+                {/* Yardage Row (Nov 19 2026, Tom: the posted card showed no yards). The
+                    round already carries each hole's yardage; it was never drawn.
+                    Only when the round has one: an unknown yardage is a dash. */}
+                {roundHasYardage && (
+                  <tr className="border-b border-border bg-surface" data-round-yardage-row="">
+                    <td className="py-2 px-2 sm:px-3 font-bold text-muted sticky left-0 bg-surface z-10">YDS</td>
+                    {holeNumbers.map(holeNum => (
+                      <td key={holeNum} className="text-center py-2 px-2 text-secondary" data-round-yardage={holeNum}>
+                        {yardsFor(holeNum) ?? '–'}
+                      </td>
+                    ))}
+                    <td className="text-center py-2 px-3 font-bold text-secondary bg-surface-sunken" data-round-yardage-sum="">
+                      {holeNumbers.reduce((sum, h) => sum + (yardsFor(h) ?? 0), 0) || '–'}
+                    </td>
+                  </tr>
+                )}
+
                 {/* Par Row */}
                 <tr className="border-b border-border bg-surface-muted">
                   <td className="py-2 px-2 sm:px-3 font-bold text-secondary sticky left-0 bg-surface-muted z-10">PAR</td>
@@ -318,57 +340,6 @@ export default function SharedRoundFullCard({
                     {holeNumbers.reduce((sum, h) => sum + parFor(h), 0)}
                   </td>
                 </tr>
-
-                {/*
-                  MEDIA ROW — a photo from hole 3 appears ON hole 3.
-
-                  This table is players-as-ROWS x holes-as-COLUMNS, so there is
-                  no "hole row" to hang a thumbnail on, and a 40px hole column
-                  cannot host one. A dedicated band beneath PAR reuses the
-                  existing column grid instead, which is why the same code
-                  works for an innings or lap band — only segmentLabel changes.
-
-                  Restructuring to hole-per-row was the alternative and was
-                  rejected: it would destroy the multi-player comparison this
-                  layout exists for.
-                */}
-                {segmentsWithMedia.size > 0 && (
-                  <tr className="border-b border-border">
-                    <td className="py-1.5 px-2 sm:px-3 font-bold text-muted text-[11px] uppercase tracking-wide sticky left-0 bg-surface z-10">
-                      Media
-                    </td>
-                    {holeNumbers.map(holeNum => {
-                      const group = segmentsWithMedia.get(holeNum);
-                      return (
-                        <td key={holeNum} className="py-1.5 px-1 align-middle">
-                          {group && group.length > 0 ? (
-                            <MediaTile
-                              src={group[0].url}
-                              thumbnailUrl={group[0].thumbnailUrl}
-                              kind={group[0].kind}
-                              alt={`${segmentLabel('golf', holeNum)} media`}
-                              className="aspect-square w-9 rounded mx-auto"
-                              sizes="36px"
-                              onClick={() =>
-                                setLightboxIndex(
-                                  roundMediaItems.findIndex(m => m.id === group[0].id)
-                                )
-                              }
-                              overlay={
-                                group.length > 1 ? (
-                                  <span className="absolute bottom-0 right-0 rounded-tl bg-black/70 px-1 text-[9px] font-bold text-white">
-                                    +{group.length - 1}
-                                  </span>
-                                ) : undefined
-                              }
-                            />
-                          ) : null}
-                        </td>
-                      );
-                    })}
-                    <td className="bg-surface-sunken"></td>
-                  </tr>
-                )}
 
                 {/* Player Rows */}
                 {participants
@@ -555,9 +526,11 @@ export default function SharedRoundFullCard({
             the overflow instead — without it a tall header squeezes `flex-1`. */}
         <div className="shrink-0 bg-gray-900 text-white p-4 sm:p-6">
           <div className="flex items-start justify-between">
-            <div className="flex-1">
+            {/* `min-w-0` + `break-words`: a long course name wraps inside the
+                card on a phone instead of pushing the buttons off it. */}
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
-                <h2 className="text-2xl font-black">{golf_data.course_name}</h2>
+                <h2 className="text-2xl font-black min-w-0 break-words" data-round-course-name="">{golf_data.course_name}</h2>
                 {roundLive && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-600 text-white text-xs font-bold rounded-full">
                     <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" aria-hidden="true"></span>
@@ -608,7 +581,7 @@ export default function SharedRoundFullCard({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 ml-4">
+            <div className="flex shrink-0 items-center gap-2 ml-4">
               {isCreator && group_post.status === 'active' && (
                 <button
                   onClick={() => setShowEndConfirm(true)}
@@ -815,7 +788,7 @@ export default function SharedRoundFullCard({
 
                           {/* Name */}
                           <div className="flex-1 min-w-0">
-                            <div className={`font-black text-base ${isCurrentUser ? 'text-brand-fg-strong' : 'text-primary'}`}>
+                            <div className={`font-black text-base break-words ${isCurrentUser ? 'text-brand-fg-strong' : 'text-primary'}`}>
                               {displayName}
                               {isCurrentUser && <span className="ml-2 text-sm inline-block">(You)</span>}
                             </div>
@@ -1066,6 +1039,45 @@ export default function SharedRoundFullCard({
                   <span>Penalty count (hover a score for the breakdown)</span>
                 </div>
               </div>
+
+              {/*
+                HOLE MEDIA — its own strip BELOW the scorecard (Nov 19 2026, Tom:
+                the Media band sat inside the table between PAR and the scores,
+                on both nines, and broke up the card). One tile per hole that
+                has media, in hole order, opening the same lightbox. The
+                Overview collage and the Media tab are unchanged.
+              */}
+              {segmentsWithMedia.size > 0 && (
+                <div className="mb-4" data-round-hole-media="">
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted">Media</div>
+                  <div className="flex flex-wrap gap-3">
+                    {[...segmentsWithMedia.entries()]
+                      .filter(([, group]) => group.length > 0)
+                      .sort(([a], [b]) => a - b)
+                      .map(([holeNum, group]) => (
+                        <div key={holeNum} className="w-14 text-center" data-round-hole-media-tile={holeNum}>
+                          <MediaTile
+                            src={group[0].url}
+                            thumbnailUrl={group[0].thumbnailUrl}
+                            kind={group[0].kind}
+                            alt={`${segmentLabel('golf', holeNum)} media`}
+                            className="aspect-square w-14 rounded"
+                            sizes="56px"
+                            onClick={() => setLightboxIndex(roundMediaItems.findIndex(m => m.id === group[0].id))}
+                            overlay={
+                              group.length > 1 ? (
+                                <span className="absolute bottom-0 right-0 rounded-tl bg-black/70 px-1 text-[9px] font-bold text-white">
+                                  +{group.length - 1}
+                                </span>
+                              ) : undefined
+                            }
+                          />
+                          <div className="mt-1 text-[11px] text-tertiary">{segmentLabel('golf', holeNum)}</div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

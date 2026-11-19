@@ -79,9 +79,9 @@ export default function EventLiveScreen({ eventId, initialView, token, roundPara
     <div className="min-h-screen bg-canvas">
       <AppHeader />
       <main className={`max-w-2xl mx-auto px-4 py-4 ${selectedLine ? 'pb-48' : 'pb-8'}`} data-live-stats="">
-        <Link href={`/events/${eventId}?tab=stats`} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-live-stats-back="">
-          <FaIcon icon={faChevronLeft} className="text-xs" />
-          {view?.event.name ?? 'Event'}
+        <Link href={`/events/${eventId}?tab=stats`} className="flex max-w-full min-w-0 items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-live-stats-back="">
+          <FaIcon icon={faChevronLeft} className="text-xs shrink-0" />
+          <span className="min-w-0 truncate">{view?.event.name ?? 'Event'}</span>
         </Link>
         {body}
       </main>
@@ -137,8 +137,8 @@ export default function EventLiveScreen({ eventId, initialView, token, roundPara
   return shell(
     <div className="mt-3 space-y-4">
       <div>
-        <h1 className="text-h3 font-bold text-primary">{round.name?.trim() || (rounds.length > 1 ? `Round ${round.sequence}` : view.event.shape === 'game' ? 'The game' : 'The session')}</h1>
-        <p className="text-xs text-muted">{formatDateOnly(round.scheduled_on, { weekday: true })} · {round.course_name}{round.starts_at ? ` · ${startTimeLine(round.starts_at, round.timezone)}` : ''}{live ? ' · live' : round.status === 'completed' ? ' · final' : ' · not started'}</p>
+        <h1 className="text-h3 font-bold text-primary break-words">{round.name?.trim() || (rounds.length > 1 ? `Round ${round.sequence}` : view.event.shape === 'game' ? 'The game' : 'The session')}</h1>
+        <p className="text-xs text-muted break-words">{formatDateOnly(round.scheduled_on, { weekday: true })} · {round.course_name}{round.starts_at ? ` · ${startTimeLine(round.starts_at, round.timezone)}` : ''}{live ? ' · live' : round.status === 'completed' ? ' · final' : ' · not started'}</p>
       </div>
       {/* Play (244): cheers on the live round — every sport's. */}
       {roundId && <LiveCheers contextKey={`sport_event_round:${roundId}`} signedIn={!!user} />}
