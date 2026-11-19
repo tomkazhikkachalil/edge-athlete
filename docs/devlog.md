@@ -1,5 +1,17 @@
 # Development Log
 
+## November 18, 2026 (22:38) — The free scorecard reader, part 1: text read by rule (Tom: build it)
+
+Shown the measurement below, Tom: "Do the website work and pull from the internet without cost, and the free reader." Built in two parts; this is the part with no migration and nothing scheduled.
+
+- **`src/lib/golf/site-card-parse.ts`** (pure, no model): `htmlTableLines` (a page's table rows and its title), `parseCardLines` (the par row, tee rows with their printed totals, the stroke index; cells split into tokens so a merged cell, a rating beside a tee's name and a label repeated mid-row are read through; row shapes by length: 9, 10, 11, 12, 18, 20, 21; front and back nines joined by label), `nameInText`. Nothing is repaired: a row of another length is not a row of the card.
+- **Two courses on one sheet are not read** (`several_cards`): par rows of eighteen differing on more than `SAME_COURSE_PAR_DIFF = 3` holes. Found while porting: the prototype counted Sweetwater Country Club as unconfirmed only for lack of a name; its sheet carries two courses whose pars differ on five holes, and with the site confirmed one of them would have been saved. A second par row differing on a few holes is the ladies' par and the first is read.
+- **`siteCardVerdict`** takes `{ singleReading, nameConfirmed }`: a rule-based reader has one reading (the two-readings check applies only when two are given), and the caller may confirm whose card it is by other means (part 2: no other catalog course shares the site). Confirmation never overrides a printed name that is another course's, the arithmetic or the map.
+- **`src/lib/golf/site-text-server.ts`** `pdfTextLines`: `pdfjs-dist` 4.10.38 (pinned; free; text only, no canvas, no eval, no fonts), four pages, an eight-second limit, any failure is no text.
+- Tests (28 + 4, and the verdict's): the sample's fifteen text cards as fixtures of extracted lines (the rows a course published; no PDF or picture is committed). **Ten are read, each adding up to its printed par and every tee to its printed total; five are refused** (a course-map PDF, a column layout, two two-course sheets, a nine read out of an eighteen that the map stops).
+
+`npm audit --omit=dev`: 0. Part 2 is the scheduled job and migration 315.
+
 ## November 18, 2026 (22:29) — No AI in the app (Tom): the hosted scorecard reader is cancelled, and a free reader of text cards is measured
 
 Asked for an API key, a model and a spending cap for the hosted reader, Tom: **"I don't want use tokens, what ever is free, I don't want to include AI as a feature in the app."** The reader planned in the entry below is cancelled: no model key, no AI SDK, no model call anywhere in the app. What #1568 merged (the rules and the fetcher) calls no model and runs nowhere. Its `siteCardVerdict` asks for two readings because a model can misread; a deterministic reader has one, and that gate would be dropped if one is ever built.

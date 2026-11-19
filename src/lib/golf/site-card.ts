@@ -2,16 +2,17 @@
 // Tom: build our own scorecard database from the web, from each course's own
 // site only (never a directory site: their terms forbid copying), "production
 // ready and hardened so it's accurate". Pars, yardages and ratings are facts a
-// course publishes about itself; most publish them as a picture or a PDF, so a
-// model reads them, and a model can misread. Everything here is therefore a
-// check of the reading against something it did not come from:
+// course publishes about itself. Whatever reads them can misread, so everything
+// here is a check of the reading against something it did not come from.
+// (Later the same day Tom ruled out AI in the app: the reader is plain rules
+// over text, site-card-parse.ts, and a card published as a picture is not read.)
 //   robotsAllows      the site's robots.txt is obeyed
 //   isPublicAddress   the fetcher never leaves the public internet
 //   scorecardLinks    which of a page's links may lead to the card
-//   parseSiteRead     the model's answer is numbers in a fixed shape, or nothing
-//   siteCardVerdict   two independent readings agree, the card's own printed
-//                     totals add up, the name on it is this course's, and it
-//                     agrees with our row and the map
+//   parseSiteRead     a reading is numbers in a fixed shape, or nothing
+//   siteCardVerdict   the card's own printed totals add up, the name on it is
+//                     this course's, and it agrees with our row and the map
+//                     (and, when there are two readings, they are equal)
 // A wrong card is worse than none: every doubt is a refusal, stamped with why.
 //
 // Measured that day on 150 course sites (100 with a card we already hold): a
@@ -284,17 +285,25 @@ export function yardsAgreement(longest: number[], mapYards: ReadonlyArray<number
  *  `first` / `second`: two independent readings of the same file (null = that
  *  reading found no card). `mapPars`: the course's TAGGED map card, never an
  *  estimated one. `mapYards`: the measured length of each hole line in order,
- *  when the map has every line. */
+ *  when the map has every line.
+ *  `opts.singleReading`: the reader is deterministic (site-card-parse.ts), so
+ *  there is one reading and no second to compare.
+ *  `opts.nameConfirmed`: something other than a printed name says the card is
+ *  this course's (the caller's rule: no other catalog course shares the site). */
 export function siteCardVerdict(
   row: { name: string; club_name?: string | null; lat: number | null; lng: number | null; holes_count: number | null },
   first: SiteRead | null,
   second: SiteRead | null,
   mapPars: ReadonlyArray<{ number: number; par: number }> | null,
-  mapYards: ReadonlyArray<number> | null
+  mapYards: ReadonlyArray<number> | null,
+  opts: { singleReading?: boolean; nameConfirmed?: boolean } = {}
 ): { verdict: SiteCardVerdict; card: SiteCard | null } {
   const no = (verdict: SiteCardVerdict) => ({ verdict, card: null });
-  if (!first || !second) return no('no_site_card');
-  if (!siteReadsAgree(first, second)) return no('reads_disagree');
+  if (!first) return no('no_site_card');
+  if (!opts.singleReading) {
+    if (!second) return no('no_site_card');
+    if (!siteReadsAgree(first, second)) return no('reads_disagree');
+  }
   const read = first;
   // The card against its own arithmetic. A tee row whose holes do not add up
   // to its printed total is not saved; at least one must.
@@ -309,7 +318,7 @@ export function siteCardVerdict(
   if (read.printedName) {
     const names = [row.name, row.club_name].filter((v): v is string => !!v);
     if (!names.some(name => sameFacilityName(name, read.printedName as string))) return no('name_mismatch');
-  } else if (agreement == null || agreement < SITE_YARDS_CONFIRM) {
+  } else if (!opts.nameConfirmed && (agreement == null || agreement < SITE_YARDS_CONFIRM)) {
     return no('name_unconfirmed');
   }
   if (agreement != null && agreement < SITE_YARDS_REFUSE) return no('yardage_disagrees');
