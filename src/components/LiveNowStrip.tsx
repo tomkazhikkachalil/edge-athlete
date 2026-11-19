@@ -10,7 +10,7 @@ import type { LiveEventCard } from '@/lib/sport-events/live-now';
 import type { VideoView } from '@/lib/videos/types';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { shouldPoll } from '@/lib/net/online';
-import { getPulse, subscribePulse } from '@/lib/pulse/pulse-store';
+import { getPulse, subscribeLiveSignal, subscribePulse } from '@/lib/pulse/pulse-store';
 import { fetchJson, readCached } from '@/lib/net/query-cache';
 import FaIcon from '@/components/FaIcon';
 import { faFilm } from '@/lib/icons/fa/film';
@@ -88,7 +88,8 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       try {
         const data = await readCached<LiveNowPayload>(
           LIVE_NOW_KEY,
-          () => fetchJson<LiveNowPayload>(LIVE_NOW_KEY),
+          // A forced read is a live signal: past the browser's ten-second copy too.
+          () => fetchJson<LiveNowPayload>(LIVE_NOW_KEY, force ? { cache: 'no-store' } : undefined),
           { staleMs: 10_000, force }
         );
         if (cancelled) return;
@@ -118,6 +119,9 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
           if (shouldPoll()) run(true);
         })
       : null;
+    // The signal itself (Nov 19 2026): one round ending as another starts leaves
+    // the TOTAL unchanged, and the list kept the finished one.
+    const offSignal = user ? subscribeLiveSignal(() => { if (shouldPoll()) run(true); }) : null;
     const interval = user ? null : setInterval(() => { if (shouldPoll()) run(); }, GUEST_REFRESH_MS);
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onVisible);
@@ -125,6 +129,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible);
       cancelled = true;
       unsubscribe?.();
+      offSignal?.();
       if (interval) clearInterval(interval);
     };
   }, [user]);

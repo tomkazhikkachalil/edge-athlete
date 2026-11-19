@@ -100,6 +100,9 @@ export default function LiveRoundPage() {
   // the better fit anyway — it resets on unmount, so leaving the page and
   // coming back re-arms the auto-open, which is the behaviour asked for.
   const [autoOpened, setAutoOpened] = useState(false);
+  // The round's mode as last rendered, and whether it became final under an open scorer.
+  const [lastEntryMode, setLastEntryMode] = useState<string | null>(null);
+  const [finishedElsewhere, setFinishedElsewhere] = useState(false);
 
   // Events phase 4: no sign-in redirect up front — a PUBLIC round is a place
   // anyone can watch. The scorecard fetch decides: a 401/404 for a signed-out
@@ -308,6 +311,19 @@ export default function LiveRoundPage() {
     setAutoOpened(true);
     setScoringParticipantId(entry.participantId);
   }
+  // Nov 19 2026 (Tom: finished on one device, still live on the other). The
+  // round went from live to final while this screen had the scorer open: it
+  // was finished somewhere else. The scorer closes on the round as it now
+  // is, instead of sitting there LIVE and taking more saves. (Opening the
+  // scorer from a round that is ALREADY final, to fix one's own card, is a
+  // different door and stays open.)
+  if (entry.mode !== lastEntryMode) {
+    setLastEntryMode(entry.mode);
+    if (entry.mode === 'final' && (lastEntryMode === 'score' || lastEntryMode === 'record') && scoringParticipantId) {
+      setScoringParticipantId(null);
+      setFinishedElsewhere(true);
+    }
+  }
 
   const shell = (body: React.ReactNode) => (
     <div className="min-h-screen bg-canvas">
@@ -506,6 +522,9 @@ export default function LiveRoundPage() {
         <div className="mb-4 bg-surface rounded-lg border border-border p-4 flex items-center justify-between gap-3">
           <div>
             <p className="font-bold text-primary">This round is final</p>
+            {finishedElsewhere && (
+              <p className="text-sm text-secondary" data-live-finished-elsewhere="">It was finished while you were scoring, so the scorer has closed.</p>
+            )}
             <p className="text-sm text-tertiary">
               {entry.participantId
                 ? 'View the scorecard — or open the full card to fix a score.'

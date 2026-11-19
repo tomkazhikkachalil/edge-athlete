@@ -170,7 +170,8 @@ describe('migration 301: the change signals — the database broadcasts, the cli
     expect(notifications).toContain(".on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))");
     const host = read('src/lib/pulse/PulseHost.tsx');
     expect(host).toContain(".channel('live-now', { config: { private: true } })"); // private since 304
-    expect(host).toContain(".on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))");
+    // Nov 19 2026: the host also passes the signal itself on (round-finish-sync.test.ts).
+    expect(host).toMatch(/\.on\('broadcast', \{ event: 'pulse' \}, \(\) => \{\s+requestPulse\('signal'\);/);
     expect(read('src/app/(app)/layout.tsx')).toContain('<PulseHost />');
     expect(read('src/lib/pulse/pulse-rules.ts')).toContain('export const PULSE_REFRESH_MS = 600_000;');
     const provider = read('src/lib/messages.tsx');

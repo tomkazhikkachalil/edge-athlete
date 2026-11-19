@@ -1,5 +1,21 @@
 # Development Log
 
+## November 19, 2026 (01:45) — Tom's round on the course, part 4 of 4: a round finished on one device stops showing live on the other
+
+With the round open on web and phone, closing and posting it on one left the other showing it live. Three places kept it, for three reasons:
+
+- **The resume pill, the reopen prompt and the Drafts entry** read `useDrafts`, which loads once per page and refreshed only after something done on THAT device ("a draft changes only when the viewer acts" was true of one device). An installed app rarely reloads, so the red dot stayed. While the device holds something in progress, the cache now refreshes on the platform's live signal and on coming back to the tab (15 s stale). Holding nothing, it fetches nothing: the signal is platform-wide.
+- **An open scorer** stayed open, badge LIVE, and kept taking saves after the round was final elsewhere. The live page now closes it when the round goes from live to final under it, with one line saying why. Opening the scorer from an already-final round to fix one's own card is a different door and is unchanged.
+- **The Live Now list** refetched only when the pulse's TOTAL changed, so one round ending as another started left the finished one on the list; and a forced refetch could be answered from the browser's ten-second copy. It now refetches on the signal itself, with `cache: 'no-store'` for that read. (The route's `private, max-age=10` is a deliberate part of the open path and is unchanged.)
+
+The signal: `pulse-store.ts` gains `emitLiveSignal` / `subscribeLiveSignal`. The one `live-now` host (`PulseHost`) calls it beside the pulse fetch; a burst is one tick after 1.5 s plus up to 3 s of spread, a hidden or offline tab is not woken, and nobody listening starts no timer. No migration: a round leaving live already broadcasts on that topic (`pulse_golf`, 301).
+
+**Proof.** `round-finish-sync.test.ts`, 7 tests (the burst, the spread, the hidden tab, and who listens). On staging, `e2e/live-scoring-group.spec.ts`, new test, the page being the second device and the API the first: with the round's pill showing on `/feed`, a finish through the API removes the pill within 20 s without a reload; with the scorer open on hole 3 of `/live/[id]`, a finish closes it and the page reads "This round is final" with the line. **With `useDrafts`' change removed the same test fails with the pill still there**, which is what Tom saw. The whole spec: 5 passed.
+
+**One test re-run on a quiet staging.** `e2e/pulse.spec.ts` (mobile), which counts pulse fetches per signal, was red during this work, at a different step each time, with this change and without it, while CI's smoke runs were also using staging: the `live-now` topic is platform-wide, so another run's rounds are signals here too. Re-run from this branch once CI was idle: 2 passed, twice. **Production after parts 1 to 3 (`f7e0d4a9`), one spec and project at a time: 23 passed, none failed** (desktop: health, catalog-health, golf-quick-entry 7, round-lifecycle, live-scoring-group 4, round-invite 2; mobile: golf-quick-entry 3, long-names 2, drafts 2).
+
+**Tom's eight items, where each landed:** temperature row, posted yardages, media below the scorecard, long names (#1574); player switch, round ending early, and the hand-finish record found on the way (#1575); notifications (#1576); cross-device finish (this PR). Still owed after all four are live: one real three-golfer round on production with QA accounts.
+
 ## November 19, 2026 (01:37) — Tom's round on the course, part 3 of 4: a round's notifications are milestones, nothing per hole
 
 Tom's group round sent him more than twenty notifications. The cause, `notifyScoresPosted` (`group-notifications.ts`): EVERY score save inserted a `group_update` row "posted scores for your shared round" for the round's creator. It named the card's OWNER as the sender, so the creator entering a friend's scores was notified about himself on every hole; it checked no status and had no dedupe; and every row went out as a push (pushes of this type do not collapse). Three golfers scored by one person is up to 54 rows. The design dates from when scores were posted as one batch, before per-hole live saves. A second fault sat beside it: "Final leaderboard is in" fired when every golfer had ANY total, which is after the last golfer's first hole.

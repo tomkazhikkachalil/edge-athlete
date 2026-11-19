@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { hydratePulse, requestPulse } from '@/lib/pulse/pulse-store';
+import { emitLiveSignal, hydratePulse, requestPulse } from '@/lib/pulse/pulse-store';
 
 /**
  * The public `live-now` topic (the cost program PR C, Nov 6 2026; migration
@@ -24,7 +24,11 @@ export default function PulseHost() {
     hydratePulse(user.id);
     const channel = supabase
       .channel('live-now', { config: { private: true } })
-      .on('broadcast', { event: 'pulse' }, () => requestPulse('signal'))
+      .on('broadcast', { event: 'pulse' }, () => {
+        requestPulse('signal');
+        // …and the screens that hold a live thing hear the signal itself (Nov 19 2026).
+        emitLiveSignal();
+      })
       .subscribe((status: string) => {
         // (Re)joined: close the gap a dropped socket may have opened — the
         // rules reuse an answer younger than 30 s, so a fresh mount is free.

@@ -210,3 +210,46 @@ test('a round\'s notifications are milestones: nothing per hole, one when a frie
   }
 });
 
+// Nov 19 2026 (Tom: closing and posting the round on one device left the other
+// showing it live). The page here is the SECOND device; the API is the first.
+test('a round finished on another device: the resume pill goes and an open scorer closes, without a reload', async ({ page }) => {
+  test.setTimeout(180_000);
+  const userA = loadQaUser('user.json');
+  const api = await apiAs('state.json');
+  const admin = adminClient();
+  const ids: string[] = [];
+  const start = async (label: string) => {
+    const id = await startRound(api, [], label);
+    ids.push(id);
+    const card = await readCard(api, id);
+    expect((await api.post(`/api/golf/scorecards/${rowOf(card, userA.id).participant.id}/scores`, { data: { scores: holes(1, 2) } })).status()).toBe(201);
+    return id;
+  };
+  try {
+    // 1. The pill: the second device is on the feed with the round in progress.
+    const first = await start('Other Device Pill');
+    await page.goto('/feed');
+    const pill = page.locator(`[data-resume-pill*="${first}"]`);
+    await expect(pill).toBeVisible({ timeout: 30_000 });
+    expect((await api.patch(`/api/group-posts/${first}`, { data: { status: 'completed' } })).ok()).toBe(true);
+    await expect(pill).toHaveCount(0, { timeout: 20_000 });
+
+    // 2. The scorer: the second device has it open on hole 3.
+    const second = await start('Other Device Scorer');
+    await page.goto(`/live/${second}`);
+    await expect(page.getByText('Hole 3 of 9')).toBeVisible({ timeout: 30_000 });
+    expect((await api.patch(`/api/group-posts/${second}`, { data: { status: 'completed' } })).ok()).toBe(true);
+    await expect(page.locator('[data-live-finished-elsewhere]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Hole 3 of 9')).toHaveCount(0);
+    await expect(page.getByText('This round is final')).toBeVisible();
+  } finally {
+    await cleanup('live-scoring-other-device', [
+      ...ids.flatMap(id => [
+        () => admin.from('golf_rounds').delete().eq('group_post_id', id),
+        () => api.delete(`/api/group-posts/${id}`),
+      ]),
+      () => api.dispose(),
+    ]);
+  }
+});
+
