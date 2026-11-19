@@ -6,6 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import NumberWheel from '@/components/golf/NumberWheel';
 import { useScoreOutbox } from '@/hooks/useScoreOutbox';
 import { cardComplete } from '@/lib/golf/score-entry';
+import { holeParEstimated } from '@/lib/golf/holes';
 import { cellState, overlayOutbox } from '@/lib/golf/score-outbox';
 import { eventApi } from '@/lib/sport-events/client';
 import { matchColumns } from '@/lib/sport-events/match-view';
@@ -69,6 +70,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
   }, [scorecard.participants, groupProfileIds, orderedMembers]);
   const holes = useMemo(() => Array.from({ length: holesPlayed }, (_, i) => startingHole + i), [holesPlayed, startingHole]);
   const parOf = (hole: number) => scorecard.golf_data.hole_data?.find(h => h.hole === hole)?.par ?? 4;
+  const estOf = (hole: number) => (holeParEstimated(scorecard.golf_data.hole_data, hole) ? ' (est.)' : '');
 
   const { entries, commit, resolveConflict, retry } = useScoreOutbox(scorecard.group_post.id, () => { void onRefresh(); });
   const [sel, setSel] = useState<Sel>(null);
@@ -194,7 +196,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
             </div>
           ))}
           {holes.map(hole => (
-            <HoleRow key={hole} hole={hole} par={parOf(hole)} conceded={conceded.has(hole)} cols={columns} sel={sel} entries={entries} valueAt={valueAt} onSelect={select} />
+            <HoleRow key={hole} hole={hole} par={parOf(hole)} parEst={holeParEstimated(scorecard.golf_data.hole_data, hole)} conceded={conceded.has(hole)} cols={columns} sel={sel} entries={entries} valueAt={valueAt} onSelect={select} />
           ))}
           {holesPlayed === 18 && <TotalsRow label="Out" cols={columns} value={c => sum(c, startingHole, startingHole + 8)} />}
           {holesPlayed === 18 && <TotalsRow label="In" cols={columns} value={c => sum(c, startingHole + 9, startingHole + 17)} />}
@@ -210,7 +212,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
       {sel && selected ? (
         <div className="shrink-0 border-t border-border bg-surface px-4 pt-3 pb-3 safe-bottom" data-gsc-editor={`${selected.participant.profile_id}:${sel.hole}`}>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-bold text-primary">Hole {sel.hole} · Par {parOf(sel.hole)} · {nameOf(selected)}</p>
+            <p className="text-sm font-bold text-primary">Hole {sel.hole} · Par {parOf(sel.hole)}{estOf(sel.hole)} · {nameOf(selected)}</p>
             <button type="button" onClick={() => setSel(null)} className="text-sm text-secondary min-h-[44px] px-2" aria-label="Close the editor">Done</button>
           </div>
           <div className="flex items-stretch gap-3">
@@ -227,7 +229,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
         </div>
       ) : match && matchLive && match.state.needsExtraHole && match.state.nextExtraHole ? (
         <div className="shrink-0 border-t border-border bg-surface px-4 pt-3 pb-3 safe-bottom" data-extra-hole-editor={match.state.nextExtraHole.n}>
-          <p className="text-sm font-bold text-primary mb-2">All square — extra hole {match.state.nextExtraHole.n} · hole {match.state.nextExtraHole.hole_number} · par {parOf(match.state.nextExtraHole.hole_number)}</p>
+          <p className="text-sm font-bold text-primary mb-2">All square — extra hole {match.state.nextExtraHole.n} · hole {match.state.nextExtraHole.hole_number} · par {parOf(match.state.nextExtraHole.hole_number)}{estOf(match.state.nextExtraHole.hole_number)}</p>
           <div className="flex items-stretch gap-3 overflow-x-auto">
             {match.sides.flatMap(s => s.card_participant_ids.map(id => ({ id, name: s.members.find(m => m.participant_id === id)?.name ?? 'Player' }))).map(p => (
               <div key={p.id} data-extra-hole-wheel={p.id}>
@@ -308,12 +310,12 @@ export function conflictCopy(entry: { strokes: number; current?: { strokes: numb
 
 type Col = CompleteGolfScorecard['participants'][number];
 
-function HoleRow({ hole, par, conceded = false, cols, sel, entries, valueAt, onSelect }: { hole: number; par: number; conceded?: boolean; cols: Col[]; sel: Sel; entries: ReturnType<typeof useScoreOutbox>['entries']; valueAt: (c: Col, hole: number) => { strokes: number | null } | null; onSelect: (c: Col, hole: number) => void }) {
+function HoleRow({ hole, par, parEst = false, conceded = false, cols, sel, entries, valueAt, onSelect }: { hole: number; par: number; parEst?: boolean; conceded?: boolean; cols: Col[]; sel: Sel; entries: ReturnType<typeof useScoreOutbox>['entries']; valueAt: (c: Col, hole: number) => { strokes: number | null } | null; onSelect: (c: Col, hole: number) => void }) {
   return (
     <>
       <div className="bg-surface px-2 py-1 min-h-[44px] flex flex-col justify-center" data-gsc-hole={hole} data-gsc-conceded={conceded ? '' : undefined}>
         <span className="text-sm font-bold text-primary leading-none">{hole}</span>
-        <span className="text-[10px] text-muted leading-none mt-1">par {par}{conceded ? ' · conceded' : ''}</span>
+        <span className="text-[10px] text-muted leading-none mt-1">par {par}{parEst ? ' est.' : ''}{conceded ? ' · conceded' : ''}</span>
       </div>
       {cols.map(c => {
         const v = valueAt(c, hole);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveCourseHoles, roundHoleNumbers, startingHoleNumber, stepRoundHole } from '../holes';
+import { deriveCourseHoles, holeParEstimated, roundHoleNumbers, roundParsEstimated, startingHoleNumber, stepRoundHole } from '../holes';
 
 const holes = (...nums: number[]) => nums.map(hole => ({ hole }));
 
@@ -83,5 +83,23 @@ describe('roundHoleNumbers + stepRoundHole (M1 — the chip walks the round)', (
     expect(stepRoundHole(list, 14, 1)).toBe(1);
     expect(stepRoundHole(list, null, -1)).toBe(1);
     expect(stepRoundHole([], 1, 1)).toBeNull();
+  });
+});
+
+describe('the estimated-par mark on a saved round (Nov 19 2026)', () => {
+  const data = [{ hole: 1, par: 4 }, { hole: 2, par: 3, parEstimated: true }, { hole: 3, par: 5, parEstimated: false }];
+  it('a round is marked when any hole carries the literal flag', () => {
+    expect(roundParsEstimated(data)).toBe(true);
+    expect(roundParsEstimated([{ parEstimated: false }, {}])).toBe(false);
+    expect(roundParsEstimated(null)).toBe(false);
+    expect(roundParsEstimated([])).toBe(false);
+    expect(roundParsEstimated([{ parEstimated: 'yes' as unknown as boolean }])).toBe(false);
+  });
+  it('a hole is marked only when it is that hole', () => {
+    expect(holeParEstimated(data, 2)).toBe(true);
+    expect(holeParEstimated(data, 1)).toBe(false);
+    expect(holeParEstimated(data, 3)).toBe(false);
+    expect(holeParEstimated(data, 9)).toBe(false);
+    expect(holeParEstimated(undefined, 2)).toBe(false);
   });
 });

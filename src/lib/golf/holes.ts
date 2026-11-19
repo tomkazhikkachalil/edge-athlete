@@ -90,3 +90,17 @@ export function stepRoundHole(list: number[], current: number | null | undefined
   if (idx < 0) return list[0];
   return list[(idx + dir + list.length) % list.length];
 }
+
+/** Saved rounds (Nov 19 2026): a hole whose par was estimated from the map's
+ *  hole length carries `parEstimated` in the round's own hole_data. Every
+ *  screen that shows a saved round's par asks these two, so the mark reads
+ *  the same everywhere. Only the literal true counts. */
+export function roundParsEstimated(holeData: ReadonlyArray<{ parEstimated?: boolean }> | null | undefined): boolean {
+  return !!holeData?.some(h => h.parEstimated === true);
+}
+export function holeParEstimated(
+  holeData: ReadonlyArray<{ hole: number; parEstimated?: boolean }> | null | undefined,
+  hole: number
+): boolean {
+  return holeData?.find(h => h.hole === hole)?.parEstimated === true;
+}

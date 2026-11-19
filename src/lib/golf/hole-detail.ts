@@ -20,6 +20,8 @@ export interface RoundHoleData {
   yardage?: number;
   /** The stroke index (1..18) — carried by rounds created since PR D. */
   handicap?: number;
+  /** The par was estimated from the map's hole length (map-sheet.ts). */
+  parEstimated?: boolean;
 }
 
 /** The catalog row's tee sheet (`?holes=1`'s `sheet`). */
@@ -31,6 +33,8 @@ export interface TeeSheetSource {
 
 export interface HoleHeaderFacts {
   par: number | null;
+  /** The par shown is the round's own and was estimated from the hole's length. */
+  parEstimated?: true;
   /** The stroke index, or null when nobody recorded one. */
   hcp: number | null;
   yards: number | null;
@@ -80,6 +84,7 @@ export function holeHeaderFacts(input: {
         : null;
   return {
     par: round?.par ?? sheetRow?.par ?? input.fallbackPar ?? null,
+    ...(round?.par != null && round.parEstimated === true ? { parEstimated: true as const } : {}),
     hcp,
     yards: catalogYards ?? approxYards,
     approx: catalogYards == null && approxYards != null,

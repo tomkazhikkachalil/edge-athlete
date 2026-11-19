@@ -181,3 +181,12 @@ describe('liveLine without a line (greens-only, PR 3)', () => {
     expect(liveLine({ fix: [46.5, -75.7], green: near }).kind).toBe('none');
   });
 });
+
+describe('holeHeaderFacts — an estimated par stays marked (Nov 19 2026)', () => {
+  it('marks the round\'s own estimated par, and nothing else', () => {
+    expect(holeHeaderFacts({ hole: 2, holeData: [{ hole: 2, par: 4, parEstimated: true }] })).toMatchObject({ par: 4, parEstimated: true });
+    expect(holeHeaderFacts({ hole: 2, holeData: [{ hole: 2, par: 4 }] }).parEstimated).toBeUndefined();
+    // A par from the caller\'s fallback is not the round\'s estimate.
+    expect(holeHeaderFacts({ hole: 2, holeData: [{ hole: 3, par: 4, parEstimated: true }], fallbackPar: 5 }).parEstimated).toBeUndefined();
+  });
+});
