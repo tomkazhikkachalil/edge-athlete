@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-18T00:20:16.654005+00:00 from server 17.6 by
+-- Generated 2026-11-19T05:29:19.171072+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 314.
+-- public.schema_dump() (migration 227). Ledger head at generation: 315.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -44,7 +44,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (147; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (148; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
@@ -2374,6 +2374,24 @@ AS $function$
           OR c.hole_elevation_at < timezone('utc'::text, now()) - interval '30 days')
    ORDER BY c.hole_elevation_at NULLS FIRST, c.id
    LIMIT GREATEST(p_limit, 0);
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.golf_site_card_due(p_limit integer)
+ RETURNS TABLE(id uuid)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  SELECT c.id
+    FROM public.golf_courses c
+    LEFT JOIN public.golf_course_picks p ON p.course_id = c.id
+   WHERE c.website IS NOT NULL AND btrim(c.website) <> ''
+     AND c.hole_data IS NULL
+     AND (c.site_card_at IS NULL OR c.site_card_at < timezone('utc'::text, now()) - interval '90 days')
+   ORDER BY (p.course_id IS NULL), p.picks DESC NULLS LAST, c.site_card_at NULLS FIRST, c.id
+   LIMIT greatest(1, least(coalesce(p_limit, 2), 20));
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
@@ -6059,7 +6077,10 @@ CREATE TABLE IF NOT EXISTS public.golf_courses (
   sheet_sources jsonb,
   opengolf_id text,
   sheet_fill_at timestamp with time zone,
-  sheet_fill_outcome text
+  sheet_fill_outcome text,
+  site_card_at timestamp with time zone,
+  site_card_outcome text,
+  site_card_url text
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_hole_scores (
@@ -9538,7 +9559,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_course_picks_card_check' AND conrelid = 'public.golf_course_picks'::regclass) THEN
-    ALTER TABLE public.golf_course_picks ADD CONSTRAINT golf_course_picks_card_check CHECK ((card = ANY (ARRAY['provider'::text, 'map'::text, 'none'::text])));
+    ALTER TABLE public.golf_course_picks ADD CONSTRAINT golf_course_picks_card_check CHECK ((card = ANY (ARRAY['provider'::text, 'map'::text, 'estimated'::text, 'none'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -12921,6 +12942,7 @@ CREATE INDEX IF NOT EXISTS idx_golf_courses_name_raw_trgm ON public.golf_courses
 CREATE INDEX IF NOT EXISTS idx_golf_courses_place ON public.golf_courses USING btree (place_id);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_region_raw_trgm ON public.golf_courses USING gin (region extensions.gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_golf_courses_search ON public.golf_courses USING gin (search_vector);
+CREATE INDEX IF NOT EXISTS idx_golf_courses_site_card ON public.golf_courses USING btree (site_card_at NULLS FIRST, id) WHERE ((website IS NOT NULL) AND (hole_data IS NULL));
 CREATE INDEX IF NOT EXISTS idx_golf_hole_scores_participant ON public.golf_hole_scores USING btree (golf_participant_id);
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round ON public.golf_holes USING btree (round_id, hole_number);
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round_id ON public.golf_holes USING btree (round_id);
@@ -13328,7 +13350,7 @@ SELECT id,
   WHERE kind = 'league'::text;
 ALTER VIEW public.leagues SET (security_invoker = true);
 
--- ── Functions, pass 2 (147) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (148) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION private.can_view_group_post(gp_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -15541,6 +15563,22 @@ AS $function$
           OR c.hole_elevation_at < timezone('utc'::text, now()) - interval '30 days')
    ORDER BY c.hole_elevation_at NULLS FIRST, c.id
    LIMIT GREATEST(p_limit, 0);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.golf_site_card_due(p_limit integer)
+ RETURNS TABLE(id uuid)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  SELECT c.id
+    FROM public.golf_courses c
+    LEFT JOIN public.golf_course_picks p ON p.course_id = c.id
+   WHERE c.website IS NOT NULL AND btrim(c.website) <> ''
+     AND c.hole_data IS NULL
+     AND (c.site_card_at IS NULL OR c.site_card_at < timezone('utc'::text, now()) - interval '90 days')
+   ORDER BY (p.course_id IS NULL), p.picks DESC NULLS LAST, c.site_card_at NULLS FIRST, c.id
+   LIMIT greatest(1, least(coalesce(p_limit, 2), 20));
 $function$;
 
 CREATE OR REPLACE FUNCTION public.grant_guardian_access(p_profile uuid, p_new_guardian uuid, p_actor uuid)
@@ -20313,6 +20351,8 @@ REVOKE EXECUTE ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seco
 GRANT EXECUTE ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.golf_site_card_due(p_limit integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.golf_site_card_due(p_limit integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.grant_guardian_access(p_profile uuid, p_new_guardian uuid, p_actor uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.grant_guardian_access(p_profile uuid, p_new_guardian uuid, p_actor uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated, service_role;
@@ -20540,6 +20580,9 @@ COMMENT ON COLUMN public.golf_courses.sheet_sources IS 'Which source supplied wh
 COMMENT ON COLUMN public.golf_courses.opengolf_id IS 'The OpenGolfAPI course id this row was linked to from its published ODbL file (migration 314). NULL = not linked.';
 COMMENT ON COLUMN public.golf_courses.sheet_fill_at IS 'When the scorecard fill last asked for this row''s card (migration 314). NULL = never asked.';
 COMMENT ON COLUMN public.golf_courses.sheet_fill_outcome IS 'What the scorecard fill''s last ask came to: ok, or why the card was refused (migration 314).';
+COMMENT ON COLUMN public.golf_courses.site_card_at IS 'When the scorecard reader last visited this course''s own website (migration 315). NULL = never visited.';
+COMMENT ON COLUMN public.golf_courses.site_card_outcome IS 'What the last website visit came to: ok, or why no card was saved (migration 315).';
+COMMENT ON COLUMN public.golf_courses.site_card_url IS 'Where on the course''s own website the saved scorecard was read (migration 315).';
 COMMENT ON TABLE public.golf_hole_scores IS 'Per-hole detailed scores for golf participants';
 COMMENT ON COLUMN public.golf_hole_scores.strokes IS 'Total strokes taken on this hole (1-15)';
 COMMENT ON COLUMN public.golf_hole_scores.putts IS 'Number of putts (must be <= strokes)';
@@ -20773,6 +20816,7 @@ COMMENT ON FUNCTION public.get_golf_scorecard(p_group_post_id uuid) IS 'Returns 
 COMMENT ON FUNCTION public.get_group_post_details(p_group_post_id uuid) IS 'Returns complete group post data including participants and media';
 COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) IS 'Claim up to n due cells for one sweep invocation (255): FOR UPDATE SKIP LOCKED plus a lease, so the cron tick and the dashboard loop never work the same cell twice.';
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
+COMMENT ON FUNCTION public.golf_site_card_due(p_limit integer) IS 'Courses whose own website is due a scorecard visit: a website, no card, never visited or over 90 days ago; picked courses first (315).';
 COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
 COMMENT ON FUNCTION public.live_now_participants(p_viewer uuid, p_limit integer) IS 'The Live Now strip''s "whose rounds" read (303): participant rows of the viewer and their accepted followees, newest first — the follows joined in SQL, never sent back as an IN list. GET /api/golf/live-now. service_role only.';
@@ -21263,7 +21307,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (311, '311_profile_film_hidden.sql', 'rebuild-000'),
   (312, '312_unclaimed_profiles.sql', 'rebuild-000'),
   (313, '313_golf_course_sheet_sources.sql', 'rebuild-000'),
-  (314, '314_golf_card_fill.sql', 'rebuild-000')
+  (314, '314_golf_card_fill.sql', 'rebuild-000'),
+  (315, '315_golf_site_cards.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21272,12 +21317,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 151 | 147 | 145 | 314
+-- Expected: 000 REBUILT | 151 | 148 | 145 | 315
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_151,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_147,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_148,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_314;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_315;
 
