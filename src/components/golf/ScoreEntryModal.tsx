@@ -92,6 +92,9 @@ interface ScoreEntryModalProps {
    *  player's card opens on THAT hole (Nov 19 2026), not on their first
    *  unscored one. */
   onSwitchPlayer?: (participantId: string, holeNumber: number) => void;
+  /** The round's status, so the badge says what the round is (Nov 19 2026): a
+   *  completed round reads Final, never LIVE. Absent = live while it saves. */
+  roundStatus?: 'pending' | 'active' | 'completed' | 'cancelled';
   /** Session user id — required for hole photo/video uploads. */
   uploaderId?: string;
   /** Whose scorecard this is — shown in the header when the creator enters
@@ -159,6 +162,7 @@ export default function ScoreEntryModal({
   courseName = null,
   players,
   onSwitchPlayer,
+  roundStatus,
   uploaderId,
   playerName,
   existingScores = [],
@@ -771,12 +775,16 @@ export default function ScoreEntryModal({
                   ? activePlayer.isSelf ? 'Your Scores' : `Entering for ${activePlayer.name}`
                   : playerName ? `Entering for ${playerName}` : 'Enter Scores'}
               </h2>
-              {isLive && (
-                <span className="inline-flex shrink-0 items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
+              {isLive && (roundStatus === 'completed' ? (
+                <span data-scorer-status="final" className="inline-flex shrink-0 items-center bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
+                  Final
+                </span>
+              ) : (
+                <span data-scorer-status="live" className="inline-flex shrink-0 items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></span>
                   LIVE
                 </span>
-              )}
+              ))}
             </div>
             <div className="flex items-center shrink-0">
               <button

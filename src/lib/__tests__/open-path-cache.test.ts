@@ -30,7 +30,8 @@ describe('the aggregate live-now route', () => {
     expect(src).toMatch(/import \{ GET as eventsLiveNow \} from '@\/app\/api\/sport-events\/live-now\/route'/);
     expect(src).toMatch(/import \{ GET as videosLiveNow \} from '@\/app\/api\/videos\/live-now\/route'/);
     expect(src).not.toMatch(/getSupabaseAdmin|\.from\(|\.rpc\(|requireAuth|enforceRateLimit/);
-    expect(src).toContain("'Cache-Control': 'private, max-age=10'");
+    expect(src).toContain("'Cache-Control': 'private, no-store'");
+    expect(src).not.toContain('max-age');
   });
 });
 

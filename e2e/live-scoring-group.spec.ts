@@ -238,6 +238,8 @@ test('a round finished on another device: the resume pill goes and an open score
     const second = await start('Other Device Scorer');
     await page.goto(`/live/${second}`);
     await expect(page.getByText('Hole 3 of 9')).toBeVisible({ timeout: 30_000 });
+    // The scorer's badge says what the round is: live while it is.
+    await expect(page.locator('[data-scorer-status="live"]')).toBeVisible();
     expect((await api.patch(`/api/group-posts/${second}`, { data: { status: 'completed' } })).ok()).toBe(true);
     await expect(page.locator('[data-live-finished-elsewhere]')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('Hole 3 of 9')).toHaveCount(0);

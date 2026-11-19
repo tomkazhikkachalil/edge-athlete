@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { data: all, error } = await admin.from('golf_course_picks').select('card, picks').limit(1000);
     if (error) throw new Error(error.message);
     const totals: Record<string, { courses: number; picks: number }> = {
-      provider: { courses: 0, picks: 0 }, map: { courses: 0, picks: 0 }, none: { courses: 0, picks: 0 },
+      provider: { courses: 0, picks: 0 }, map: { courses: 0, picks: 0 }, estimated: { courses: 0, picks: 0 }, none: { courses: 0, picks: 0 },
     };
     for (const r of all ?? []) {
       const t = totals[r.card as string];

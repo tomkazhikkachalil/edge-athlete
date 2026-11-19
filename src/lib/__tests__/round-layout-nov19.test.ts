@@ -62,3 +62,23 @@ describe('the temperature row', () => {
     expect(src).not.toContain('flex items-end justify-between gap-2');
   });
 });
+
+describe('leftovers, Nov 19: the scorer badge and the round detail page', () => {
+  it('the scorer badge follows the round: Final when completed, LIVE otherwise', () => {
+    const src = read('components/golf/ScoreEntryModal.tsx');
+    expect(src).toContain("{isLive && (roundStatus === 'completed' ? (");
+    expect(src).toContain('data-scorer-status="final"');
+    expect(src).toContain('data-scorer-status="live"');
+    // The flag that drives saving is not the badge's.
+    expect(src).toContain('const isLive = !!onSaveHole;');
+    for (const caller of ['app/(app)/live/[groupPostId]/page.tsx', 'components/PostCard.tsx']) {
+      expect(read(caller), caller).toMatch(/roundStatus=\{(scorecard|groupScorecard)\.group_post\.status\}/);
+    }
+  });
+  it('the round detail page draws a yardage column only when the round kept one', () => {
+    const src = read('app/(app)/app/sport/golf/rounds/[roundId]/page.tsx');
+    expect(src).toContain("const hasYardage = holes.some(h => typeof h.distance_yards === 'number' && h.distance_yards > 0);");
+    expect(src.match(/\{hasYardage && </g)).toHaveLength(3);
+    expect(src.indexOf('data-round-detail-yds-head')).toBeLessThan(src.indexOf('uppercase">Par</th>'));
+  });
+});

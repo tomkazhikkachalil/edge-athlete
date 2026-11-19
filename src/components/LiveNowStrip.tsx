@@ -88,7 +88,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       try {
         const data = await readCached<LiveNowPayload>(
           LIVE_NOW_KEY,
-          // A forced read is a live signal: past the browser's ten-second copy too.
+          // A forced read is a live signal: never from a copy (the route answers no-store as well).
           () => fetchJson<LiveNowPayload>(LIVE_NOW_KEY, force ? { cache: 'no-store' } : undefined),
           { staleMs: 10_000, force }
         );
