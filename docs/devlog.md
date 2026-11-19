@@ -1,5 +1,18 @@
 # Development Log
 
+## November 18, 2026 (22:29) — No AI in the app (Tom): the hosted scorecard reader is cancelled, and a free reader of text cards is measured
+
+Asked for an API key, a model and a spending cap for the hosted reader, Tom: **"I don't want use tokens, what ever is free, I don't want to include AI as a feature in the app."** The reader planned in the entry below is cancelled: no model key, no AI SDK, no model call anywhere in the app. What #1568 merged (the rules and the fetcher) calls no model and runs nowhere. Its `siteCardVerdict` asks for two readings because a model can misread; a deterministic reader has one, and that gate would be dropped if one is ever built.
+
+He chose to **measure the free route first**: can ordinary code read the cards that sites publish as text? Measured in the session on the 150-site sample already on disk; nothing fetched, nothing shipped.
+
+- Of 36 sites with a scorecard, 22 publish only a picture: unreadable without a model. 16 courses have a text file (3 pages with the card as a table, 17 PDFs; `pdfjs-dist` for the PDF text, 15 of the 17 PDFs have a text layer).
+- A plain-rule parser (the hole row, the par row, tee rows with their printed totals, the stroke index; cells split into tokens, ratings and repeated labels skipped) and then the repo's own gates (`parseSiteRead`, `siteCardVerdict`): **10 of 16 courses gave a card that passed; all 10 are right** hole for hole in pars and in every tee's yardages (against the held card and the Nov 18 transcription; for Edelweiss Chalet the site is right and the held card is not). **No wrong card passed.** The parser was shaped on these same files, so 10 of 16 is a best case.
+- The six refusals: two PDFs whose text is a course map or has no par row, one card laid out in columns, one nine-hole parse of an eighteen, and two with no name in the text and no map to confirm them (one of those a city site serving two courses' cards: refused rightly).
+- **All 10 are courses that already hold a card.** Of the 50 sample courses with no card, 3 had a text file and none passed. So the measured yield where it matters is 0 of 50; the honest range for the ~13,000 sites of courses without a card is somewhere between nothing and a few hundred.
+
+Not built. The numbers do not carry a scheduled job, a migration and a PDF dependency; the decision is Tom's.
+
 ## November 18, 2026 (22:05) — Scorecards from each course's own website: the measurement, and the rules and the fetcher (nothing switched on)
 
 Tom, Nov 18: "pull that info from the web and create our own database of logos and cards", from **course websites only** (his choice; directory sites forbid copying), "production ready and hardened so it's accurate". Measured before anything was built, from the session, read-only.
