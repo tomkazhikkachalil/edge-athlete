@@ -1,5 +1,28 @@
 # Development Log
 
+## November 19, 2026 (09:19) — Golf leftovers, phase 3a: the scorecard lookup tells a twice-listed course and a misspelled section apart; what phase 3 really needed
+
+"Multi-course clubs the lookup cannot narrow" was a list of four clubs and a guess at the cause. Before changing a rule I read what the providers actually answer (one live search each, Nov 19) and how production holds the rows, then ran the existing rule over those answers as fixtures:
+
+| Row | What the provider's search holds | Before | Cause |
+|---|---|---|---|
+| Glen Abbey (Oakville) | GolfCourseAPI: **the same course twice** (same name, address, coordinates) | no pick | two indistinguishable candidates |
+| Greensmere (Premier) | GolfCourseAPI: "Legacy" and "**Premiere**" | no pick | one letter |
+| Greensmere (Legacy), Ottawa Hunt North / South / West | their own listings | **picked correctly** | nothing wrong at this step; they were inside the one-ask-a-day window when last tried |
+| Angus Glen Golf Club (one row) | GolfCourseAPI: North Course and South Course | no pick | a real tie: two courses, one row |
+
+So the fix is narrower than the plan's (which assumed a combined 18 had to be split into nines; nothing read today needs that):
+
+- **One course listed twice is one candidate** (`foldSheetTwins`): the same words in the name and the same point within 0.2 km. The lookup asks for each listing's card (each budgeted): the first with holes is taken; a second with holes must say the same (`providersConfirm`) or nothing is saved (`not_narrowed`).
+- **A section spelled one trailing letter apart** is the same section, on words of six letters or more (`sectionWordIn`). "North" is never "South".
+- **What the search itself says** now reaches the rule: both providers return coordinates (the code believed GolfCourseAPI returned none), OpenGolfAPI a par and a hole count. Among candidates whose name adds nothing to the row's, the only one within 2 km, then the only one with the row's hole count, then the only one with the tagged map card's par, wins. A candidate that names a course OF the club is never taken for the club by being at its point.
+- **The reason is honest:** `no_section_match` when no candidate names the row's section (it used to read `not_narrowed`, a tie that was not one).
+- **Angus Glen stays a tie on purpose.** That is phase 4's chooser.
+
+**Proof.** `multi-course-real.test.ts`: 13 cases on the real answers (Glen Abbey folded and picked; Premier takes "Premiere"; the three Ottawa Hunt nines and Legacy unchanged; Angus Glen null, also when only one of its courses is near and same-named clubs are far). `official-sheet.test.ts`: 5 lookup cases (the first listing empty and the second's card taken; both the same; different cards refused and nothing written; three budget hits for one search and two details; North/South not folded and no detail call). The same fixtures run against the old rule gave null for Glen Abbey and Premier. Golf unit tests: 956 passed.
+
+**Not proven yet:** real picks on production. Each course takes one ask a day, so they run once this is live: Greensmere Legacy and Premier, the three Ottawa Hunt nines, and Glen Abbey after its window (asked Nov 19 ~05:30 UTC). What the cards come to (a nine answered with an 18 would still read `wrong_holes`) decides whether anything of the plan's phase 3b is needed.
+
 ## November 19, 2026 (08:34) — Golf leftovers, phase 2a: a round played on estimated pars keeps saying so (posted card, live page, scorer)
 
 A course whose map has lines but no pars gets pars estimated from each hole's length (Nov 18), and the setup screens mark them. Once the round started, nothing did: the scorer, the live page and the posted scorecard showed the guessed pars as if they were the course's. The mark was already in the round's own `hole_data` (`parEstimated`, kept by the group-posts route); the screens never read it. No migration.

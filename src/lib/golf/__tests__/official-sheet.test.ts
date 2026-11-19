@@ -55,7 +55,7 @@ const gcaDetail = (pars = NINE.map(() => 4)) => ({
   },
 });
 
-function stubProviders(over: { openGolfSearch?: unknown; openGolf?: unknown; gcaSearch?: unknown; gca?: unknown; fail?: string } = {}) {
+function stubProviders(over: { openGolfSearch?: unknown; openGolf?: unknown; gcaSearch?: unknown; gca?: unknown; gcaById?: Record<string, unknown>; fail?: string } = {}) {
   const calls: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     const host = url.includes('opengolfapi.org') ? 'opengolfapi' : 'golfcourseapi';
@@ -65,7 +65,7 @@ function stubProviders(over: { openGolfSearch?: unknown; openGolf?: unknown; gca
     const body =
       host === 'opengolfapi'
         ? kind === 'search' ? over.openGolfSearch ?? { courses: [{ id: 'og-1', course_name: 'Camelot Golf & Country Club', city: 'Cumberland', state: 'ON', country_iso: 'CA' }] } : over.openGolf ?? openGolfDetail()
-        : kind === 'search' ? over.gcaSearch ?? { courses: [{ id: 'gca-1', club_name: 'Camelot Golf & Country Club', course_name: 'Camelot', location: { city: 'Cumberland', state: 'ON', country: 'Canada' } }] } : over.gca ?? gcaDetail();
+        : kind === 'search' ? over.gcaSearch ?? { courses: [{ id: 'gca-1', club_name: 'Camelot Golf & Country Club', course_name: 'Camelot', location: { city: 'Cumberland', state: 'ON', country: 'Canada' } }] } : over.gcaById?.[url.split('/').pop()!] ?? over.gca ?? gcaDetail();
     return { ok: true, json: async () => body };
   }));
   return calls;
@@ -376,6 +376,62 @@ describe('the search is widened when it returns nothing', () => {
     const r = await findOfficialSheet(admin, row({ name: 'Ottawa Hunt and Golf Club (North Nine)', city: 'Ottawa', section_name: 'North Nine', section_kind: 'nine' } as Partial<CatalogRow>));
     expect(r.found).toBe(false);
     expect(r.trace!.find(t => t.source === 'golfcourseapi')!.result).toBe('wrong_holes');
+    expect(updates).toEqual([]);
+  });
+});
+
+// Nov 19 2026: GolfCourseAPI holds Glen Abbey (Oakville) twice: same name, same
+// address, same coordinates. Two indistinguishable candidates used to mean no
+// card. One course listed twice is asked for by each id; the answers must be one card.
+describe('one course listed twice by a provider', () => {
+  const OAKVILLE = { city: 'Oakville', state: 'ON', country: 'Canada', latitude: 43.4524049, longitude: -79.717847 };
+  const twins = { courses: ['twin-a', 'twin-b'].map(id => ({ id, club_name: 'Glen Abbey Golf Club', course_name: 'Glen Abbey Golf Club', location: OAKVILLE })) };
+  const glenAbbey = () => row({ name: 'Glen Abbey', city: 'Oakville', lat: 43.4527, lng: -79.7169 });
+  const card = (id: string, pars = NINE.map(() => 4)) => ({ course: { ...gcaDetail(pars).course, id } });
+  const empty = (id: string) => ({ course: { id, club_name: 'Glen Abbey Golf Club', course_name: 'Glen Abbey Golf Club', location: OAKVILLE, tees: {} } });
+
+  it('the first listing has no holes: the second one\'s card is taken', async () => {
+    const calls = stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: twins, gcaById: { 'twin-a': empty('twin-a'), 'twin-b': card('twin-b') } });
+    const { admin, updates } = fakeAdmin();
+    const r = await findOfficialSheet(admin, glenAbbey());
+    expect(calls.filter(c => c === 'golfcourseapi:detail')).toHaveLength(2);
+    expect(r).toMatchObject({ found: true, outcome: 'found' });
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')).toMatchObject({ candidates: 2, picked: 'twin-b', result: 'filled' });
+    expect(updates).toHaveLength(1);
+  });
+
+  it('both listings hold the same card: taken once', async () => {
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: twins, gcaById: { 'twin-a': card('twin-a'), 'twin-b': card('twin-b') } });
+    const { admin, updates } = fakeAdmin();
+    const r = await findOfficialSheet(admin, glenAbbey());
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')).toMatchObject({ picked: 'twin-a', result: 'filled' });
+    expect(updates).toHaveLength(1);
+  });
+
+  it('the listings hold DIFFERENT cards: they are not one course, nothing is saved', async () => {
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: twins, gcaById: { 'twin-a': card('twin-a'), 'twin-b': card('twin-b', [5, 5, 5, 3, 3, 3, 4, 4, 4]) } });
+    const { admin, updates } = fakeAdmin();
+    const r = await findOfficialSheet(admin, glenAbbey());
+    expect(r.found).toBe(false);
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')).toMatchObject({ picked: null, result: 'not_narrowed' });
+    expect(updates).toEqual([]);
+  });
+
+  it('each listing asked for is budgeted; a twin\'s card still has to agree with the map', async () => {
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: twins, gcaById: { 'twin-a': empty('twin-a'), 'twin-b': card('twin-b') } });
+    const { admin, keys } = fakeAdmin();
+    await findOfficialSheet(admin, glenAbbey());
+    // One search and two details on GolfCourseAPI's key.
+    expect(keys.filter(k => k === 'golf-provider:golfcourseapi')).toHaveLength(3);
+  });
+
+  it('two courses of one club at one point are NOT twins: no card, and the reason says it is a tie', async () => {
+    const markham = { city: 'Markham', state: 'ON', country: 'Canada', latitude: 43.902072, longitude: -79.324842 };
+    const calls = stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: { courses: [{ id: 's', club_name: 'Angus Glen Golf Club', course_name: 'South Course', location: markham }, { id: 'n', club_name: 'Angus Glen Golf Club', course_name: 'North Course', location: markham }] } });
+    const { admin, updates } = fakeAdmin();
+    const r = await findOfficialSheet(admin, row({ name: 'Angus Glen Golf Club', city: 'Markham', lat: 43.8984, lng: -79.3327 }));
+    expect(calls).not.toContain('golfcourseapi:detail');
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')).toMatchObject({ candidates: 2, named: 2, picked: null, result: 'not_narrowed' });
     expect(updates).toEqual([]);
   });
 });
