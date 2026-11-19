@@ -158,7 +158,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       <button
         key={`event:${e.id}`}
         onClick={() => router.push(e.href)}
-        className={`text-left bg-surface border-2 border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${variant === 'strip' ? 'min-w-[220px] flex-shrink-0' : 'w-full'}`}
+        className={`text-left bg-surface border-2 border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${variant === 'strip' ? 'min-w-[220px] max-w-[80vw] sm:max-w-xs flex-shrink-0' : 'w-full min-w-0'}`}
         data-live-event-card={e.id}
       >
         <div className="flex items-center gap-2 mb-2">
@@ -181,7 +181,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
     <button
       key={`broadcast:${v.id}`}
       onClick={() => router.push(`/videos/${v.id}`)}
-      className={`text-left bg-surface border-2 border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${variant === 'strip' ? 'min-w-[220px] flex-shrink-0' : 'w-full'}`}
+      className={`text-left bg-surface border-2 border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${variant === 'strip' ? 'min-w-[220px] max-w-[80vw] sm:max-w-xs flex-shrink-0' : 'w-full min-w-0'}`}
       data-live-broadcast-card={v.id}
     >
       <div className="flex items-center gap-2 mb-2">
@@ -207,7 +207,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
         key={round.group_post_id}
         onClick={() => open(round.group_post_id)}
         className={`text-left bg-surface border-2 border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${
-          variant === 'strip' ? 'min-w-[220px] flex-shrink-0' : 'w-full'
+          variant === 'strip' ? 'min-w-[220px] max-w-[80vw] sm:max-w-xs flex-shrink-0' : 'w-full min-w-0'
         }`}
       >
         <div className="flex items-center gap-2 mb-2">
@@ -265,7 +265,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
         className={
           variant === 'strip'
             ? 'flex gap-3 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0'
-            : 'grid gap-3 sm:grid-cols-2'
+            : 'grid grid-cols-1 gap-3 sm:grid-cols-2'
         }
       >
         {broadcasts.map(broadcastCard)}

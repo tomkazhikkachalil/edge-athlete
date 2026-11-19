@@ -81,7 +81,10 @@ export default function OverallBoard({ data, net, onPick, stableford = false }: 
                   <span aria-hidden="true">{mv.direction === 'up' ? `▲${r.movement}` : mv.direction === 'down' ? `▼${Math.abs(r.movement ?? 0)}` : '—'}</span>
                 </td>
                 <td className="sticky left-12 z-10 bg-surface px-2 py-2 text-primary whitespace-nowrap">
-                  {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg" onClick={e => e.stopPropagation()}>{r.name}</Link> : r.name}
+                  {/* Nov 19 2026: a long name is cut with an ellipsis so the score columns stay on the screen. */}
+                  <span className="inline-block max-w-[9rem] truncate align-bottom sm:max-w-[18rem]" title={r.name} data-board-name="">
+                    {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg" onClick={e => e.stopPropagation()}>{r.name}</Link> : r.name}
+                  </span>
                   {r.flight && <span className="ml-1.5 px-1.5 py-0.5 rounded-md border border-border text-[10px] text-secondary">{r.flight}</span>}
                   {r.madeCut === false && <span className="ml-1 text-[10px] uppercase tracking-wide text-muted" data-missed-cut="">cut</span>}
                   {r.missedRounds.length > 0 && <span className="ml-1 text-[10px] uppercase tracking-wide text-muted" title={`Missed round ${r.missedRounds.join(', ')}`}>{r.missedRounds.length === 1 ? 'missed R' + r.missedRounds[0] : 'missed ' + r.missedRounds.length}</span>}

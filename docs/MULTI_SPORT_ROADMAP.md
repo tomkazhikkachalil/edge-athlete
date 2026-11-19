@@ -40,7 +40,7 @@ Guiding principle: *build for today, architect for tomorrow.* We deliberately di
   an event, not a golf hole: `group_post_media.segment_number` + `segment_kind`, driven by
   `src/lib/sports/segment-schemas.ts` (hole / inning / quarter / period / set / lap).
   Adding a sport is **1 edit** to that file. Only the *label* is sport-specific — the
-  grouping, the scorecard media band and the lightbox footer are the same code everywhere.
+  grouping, the scorecard's hole-media strip (below the scorecard since Nov 19 2026, no longer a band inside the table) and the lightbox footer are the same code everywhere.
   - `hole_number` is **deprecated but still dual-written** for golf while both columns
     coexist; a contract migration drops it once no client sends it. The dual-write is
     conditional because `hole_number` keeps its old `BETWEEN 1 AND 18` constraint.
