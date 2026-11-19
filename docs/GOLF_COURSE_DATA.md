@@ -271,3 +271,8 @@ swept by the teardown's backstop and `scripts/staging-sweep.mjs`). Two seeding r
 `hole_geometry_at` stops the Overpass fetch (a null geometry included), a
 fresh `hydrated_at` stops a provider / Nominatim attempt; and since G2 a
 seeded `hole_geometry` needs `greens: []`.
+
+## Scorecards from a course's own website (Nov 18 2026, migration 315)
+
+A job of its own (`golf-site-cards`, every five minutes → `POST /api/cron/golf-site-cards`, two courses a tick, 600 visits a day) visits the website of each course that has one and no card, once a season. It reads a scorecard published as TEXT (a table on a page, a PDF with text) by rule: no model, no paid service (Tom, Nov 18: no AI in the app). A picture is never downloaded. A card is saved only when it adds up to its own printed par and tee totals, is this course's (its name in the text, or no other catalog course on the same host), and agrees with our row and the map; two courses on one sheet are refused. Every visit is stamped in `site_card_outcome`; a saved card is credited to `website` in `sheet_sources` with `site_card_url`. Code: `site-card.ts` (checks), `site-card-parse.ts` (reading), `site-fetch-server.ts` (the fetcher), `site-text-server.ts` (PDF text), `site-card-server.ts` (the visit and the write). The owner's door is the "Website scorecards" panel on the admin console. To stop it: `SELECT cron.unschedule('golf-site-cards');`.
+

@@ -12,6 +12,20 @@ The reader is given its visits. Nothing here calls a model or a paid service.
 - pdf.js's worker is imported by name beside the library (`globalThis.pdfjsWorker`): in Node it would otherwise load `./pdf.worker.mjs` by a relative path at run time, which a bundled function does not have.
 - Tests: 16 for the visit (injected resolver, fetch and PDF reader): robots, dead home page, a card on the home page, one level deeper to a PDF, the unnamed card with and without the site confirmed, a picture never fetched, two courses on a page, the fetch limit, the time limit, another site's page never followed.
 
+**Proof on staging** (315 applied there: `315 APPLIED | 3 | 1 | false | true | 0 | 315`; `check:schema` clean). Seven real courses from the sample seeded with production's names, websites and maps, then `POST /api/cron/golf-site-cards` four times on the BUILT server (`next start`), so the bundled function is what read the PDFs:
+
+| Course | Outcome | Read from |
+| --- | --- | --- |
+| Park Ridge Golf Course | ok, 18 holes, par 72, 5 tees | a table on its scorecard page |
+| Aliante Golf Club | ok, 18, par 72, 4 tees | a table on its scorecard page |
+| Seven Canyons | ok, 18, par 71, 4 tees | its scorecard PDF |
+| Heritage Bluffs Public Golf Club | ok, 18, par 72, 5 tees | its scorecard PDF (no name in the text; the site is this course's alone) |
+| Page Belcher Golf Course | `several_cards` | a city site's sheet with two courses |
+| Saint Ives | `picture_only` | the linked PDF has no card text |
+| University of Louisville Golf Club | `picture_only` | pictures, never downloaded |
+
+Each saved row carries `sheet_sources.pars = "website"` and its `site_card_url`; the day's counter read 7; the job row `golf-site-cards` recorded the last tick. Rows and counter removed afterwards. `e2e/admin-golf-site-cards.spec.ts` on staging: 1 passed (gates, progress, a dry run, the panel at 375 px). `npm run verify` exit 0 (6,682 tests).
+
 ## November 18, 2026 (22:38) — The free scorecard reader, part 1: text read by rule (Tom: build it)
 
 Shown the measurement below, Tom: "Do the website work and pull from the internet without cost, and the free reader." Built in two parts; this is the part with no migration and nothing scheduled.
