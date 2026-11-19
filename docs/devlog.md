@@ -1,5 +1,27 @@
 # Development Log
 
+## November 19, 2026 (00:38) — Close-out: the maintenance checklist on `80d34d1e`, baseline at 315, production probed on large screen, phone and the installed app
+
+Tom closed the session and asked for the full checklist and proof on every customer-facing surface. No product code changed in this pass.
+
+**Gates on main (`80d34d1e`, #1572):** `npm run verify` exit 0 (typecheck, lint with zero warnings, 6,688 tests, build, browser syntax); `npm audit --omit=dev` 0; guardrails pass; blocklists pass; `check:schema` and `check:schema:prod` clean. **Baseline rebuilt at 315** (`npm run build:baseline`: 151 tables, 148 functions, 145 policies, 120 triggers; self-check OK).
+
+**Production, read only (05:29 UTC):** every job's last run ok (`golf-map-sweep` 47.8 s, `golf-site-cards` 8.6 s, `media-jobs`, `reminders`, `daily`, `platform-rollup`, `storage-sweep`). 28,987 courses, **701 with a card** (78 on Nov 17), **4,344 elevation profiles** (228 on Nov 17), 8,091 linked. The website reader since its restart: 16 rows, 9 no card, 3 picture only, 1 unreachable, 3 `not_own_site` (never visited), none saved; no directory host visited. `/manifest.webmanifest` and `/sw.js` answer 200.
+
+**The probe, one spec and one project at a time (database latency under 125 ms throughout):**
+
+| Surface | Result |
+| --- | --- |
+| Large screen (`desktop`) | 20 passed in 11 specs: health, catalog-health, feed-post, feed-following, likes, edit-profile, profile-buckets, golf-quick-entry (7), tab-bar, notifications-clear (3), direct-message (2) |
+| Phone (`mobile`) | golf-quick-entry 3 passed (the estimated-par card among them), hydration 1, sports-nav 1; **tab-bar 1 failed by design**: its last step opens a signed-out page and expects a "Log in" link, and production is gated (coming soon). The signed-in steps before it passed. |
+| Installed app | install-app 4 passed on `webkit-mobile` and 4 on `android`; sw-static-cache passed on `android`, skips on WebKit as written |
+
+No app fault found.
+
+**Real picks** (`?sheet=1`): **Lost Marsh filled from both providers, 18 holes, 11 tees** (the first real case of two providers standing against the map). Glen Abbey (CA): OpenGolfAPI has no holes, GolfCourseAPI returns two candidates of the same name: `not_narrowed`. Club de Golf Gatineau, Carleton, Greensmere's sections, Ottawa Hunt's nines and The Marshes answered from the one-ask-a-day guard (asked Nov 18 at 13:04 UTC; this run was at 05:35 UTC): **not asked, still owed.** The 9,000 daily GolfCourseAPI limit could not be shown from the counter (30 asks in the window, under the old 45 as well); it is read from the variable Tom set, and the first day past 45 asks will show it.
+
+**Open for the next session:** the five re-picks above; multi-course clubs the lookup cannot narrow (Glen Abbey, Angus Glen, Greensmere, Ottawa Hunt); screens that show a saved round do not read the estimated-par mark; the first 20 cards the website reader saves are to be checked against their sources; CI's browser install is slow (a workflow change, Tom's call); on hold by Tom: the email to GolfCourseAPI, logos.
+
 ## November 19, 2026 (00:00) — The website reader's first save was from a directory site: stopped, taken back, and a site is now visited only when its address says whose it is
 
 **What happened.** #1571 was merged (by me, at Tom's word: he could not merge it; 315 had run on production with the expected row) and production served `3312f0d3`; the probe passed (health + catalog-health, desktop). The job's first tick, 04:40 UTC, visited two courses and saved one card: **Shawngunk Country Club, 9 holes, par 34, read from `golflink.com/golf-courses/ny/ellenville/shawangunk-country-club`.** That course's `website` in the catalog is a GolfLink listing. Tom's rule is the course's own site only; a directory's terms forbid copying.
