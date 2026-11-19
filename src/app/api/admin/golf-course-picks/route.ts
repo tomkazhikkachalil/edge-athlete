@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const { data: top, error: topError } = await admin
       .from('golf_course_picks')
       .select('card, picks, last_picked_at, golf_courses(name, city, region)')
-      .in('card', ['none', 'map'])
+      .in('card', ['none', 'map', 'estimated'])
       .order('picks', { ascending: false })
       .limit(50);
     if (topError) throw new Error(topError.message);

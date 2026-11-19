@@ -1,5 +1,31 @@
 # Development Log
 
+## November 18, 2026 (22:44) — The free scorecard reader, part 2: the scheduled job and migration 315
+
+The reader is given its visits. Nothing here calls a model or a paid service.
+
+- **Migration 315** (both databases): `golf_courses.site_card_at` / `site_card_outcome` / `site_card_url`; the queue (`idx_golf_courses_site_card`, `golf_site_card_due(p_limit)`: a website, no card, never visited or over 90 days ago, courses people picked first; `service_role` only); `golf_course_picks.card` gains `'estimated'` (owed from #1567: an estimated map card is its own kind in the tracker, and the admin list shows it); the pg_cron job `golf-site-cards` every five minutes, created only where `urgent-emails` already runs (production). Result row on production: `315 APPLIED | 3 | 1 | false | true | 1 | 315` (staging: the job column reads 0).
+- **`src/lib/golf/site-card-server.ts`** `visitCourseSite`: robots.txt first and obeyed; the home page; `scorecardLinks`, strong ones first, one level deeper for what names a scorecard; a page's tables through `htmlTableLines`, a PDF through `pdfTextLines`; **a picture is never downloaded** (`picture_only`). At most 9 fetches and 40 s a course. A card with no printed name is this course's only when no other catalog course keeps its website on the same host (`hostIsShared`); two courses' cards on one sheet are refused before that matters. The map's evidence is its tagged pars and its measured lines (`mapEvidence`); an estimate is never evidence.
+- `runSiteCardBatch`: its own daily cap (`site-card`, 600 visits: a full pass of the ~13,000 sites takes about three weeks); the card is written with `hole_data IS NULL` in the write (a pick may have filled it), credited to `website` in `sheet_sources`, with where it was read. Every visit is stamped: `ok`, `no_site`, `robots`, `unreachable`, `no_card`, `picture_only`, `several_cards`, `taken`, or the check that refused it.
+- **`POST /api/cron/golf-site-cards`**: `CRON_SECRET`, `maxDuration = 120`, two courses a tick inside 90 s, recorded as the job `golf-site-cards`. A route of its own: the map tick's clocks are untouched. The clock's relationships are pinned by a test.
+- **The owner's door:** `GET/POST /api/admin/golf-site-cards` (admin only; a step is a dry run unless told otherwise; one course by id or two due ones) and the panel `GolfSiteCardsPanel` on the admin console: cards saved, sites visited, still to visit, the visits by outcome in plain words, and the last twenty saved cards each with a link to where it was read, so any one can be checked against its source. `e2e/admin-golf-site-cards.spec.ts` (gates, progress, a dry run, 375 px).
+- pdf.js's worker is imported by name beside the library (`globalThis.pdfjsWorker`): in Node it would otherwise load `./pdf.worker.mjs` by a relative path at run time, which a bundled function does not have.
+- Tests: 16 for the visit (injected resolver, fetch and PDF reader): robots, dead home page, a card on the home page, one level deeper to a PDF, the unnamed card with and without the site confirmed, a picture never fetched, two courses on a page, the fetch limit, the time limit, another site's page never followed.
+
+**Proof on staging** (315 applied there: `315 APPLIED | 3 | 1 | false | true | 0 | 315`; `check:schema` clean). Seven real courses from the sample seeded with production's names, websites and maps, then `POST /api/cron/golf-site-cards` four times on the BUILT server (`next start`), so the bundled function is what read the PDFs:
+
+| Course | Outcome | Read from |
+| --- | --- | --- |
+| Park Ridge Golf Course | ok, 18 holes, par 72, 5 tees | a table on its scorecard page |
+| Aliante Golf Club | ok, 18, par 72, 4 tees | a table on its scorecard page |
+| Seven Canyons | ok, 18, par 71, 4 tees | its scorecard PDF |
+| Heritage Bluffs Public Golf Club | ok, 18, par 72, 5 tees | its scorecard PDF (no name in the text; the site is this course's alone) |
+| Page Belcher Golf Course | `several_cards` | a city site's sheet with two courses |
+| Saint Ives | `picture_only` | the linked PDF has no card text |
+| University of Louisville Golf Club | `picture_only` | pictures, never downloaded |
+
+Each saved row carries `sheet_sources.pars = "website"` and its `site_card_url`; the day's counter read 7; the job row `golf-site-cards` recorded the last tick. Rows and counter removed afterwards. `e2e/admin-golf-site-cards.spec.ts` on staging: 1 passed (gates, progress, a dry run, the panel at 375 px). `npm run verify` exit 0 (6,682 tests).
+
 ## November 18, 2026 (22:38) — The free scorecard reader, part 1: text read by rule (Tom: build it)
 
 Shown the measurement below, Tom: "Do the website work and pull from the internet without cost, and the free reader." Built in two parts; this is the part with no migration and nothing scheduled.

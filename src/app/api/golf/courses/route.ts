@@ -115,7 +115,8 @@ export async function GET(request: NextRequest) {
         // effort; a failed count never blocks a pick.
         if (countsAsPick(viewerEmail)) {
           const mapped = result.found ? null : await withMapSheet(admin, rowToCourse(row));
-          const card = result.found ? 'provider' : isMapSheet(mapped?.sheetSource) ? 'map' : 'none';
+          // 315: an estimated map card is its own kind in the tracker.
+          const card = result.found ? 'provider' : mapped?.sheetSource === 'map_estimated' ? 'estimated' : isMapSheet(mapped?.sheetSource) ? 'map' : 'none';
           await admin.rpc('golf_course_pick_hit', { p_course_id: row.id, p_card: card }).then(() => undefined, () => undefined);
         }
         return NextResponse.json(result, { headers: { 'Cache-Control': 'private, no-store' } });
