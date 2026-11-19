@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Locator } from './helpers/test';
-import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
 
 // The golf round as STEPS (Oct 28 2026): one flow, two modes. Picking golf
@@ -654,8 +654,27 @@ test('a course with map lines and NO pars: the card is shown with estimated pars
     expect(stored).toHaveLength(18);
     expect(stored.map(h => h.par)).toEqual(want);
     expect(stored.every(h => h.parEstimated === true)).toBe(true);
+    // Nov 19 2026: the saved round keeps saying so. The scorer's hole header…
+    // (the page's own hole chip says it too, behind the open scorer)
+    await expect(page.locator(':text("Par 4 (est.)"):visible').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-live-par-estimated]')).toHaveCount(1);
+    // …and, once the card is in, the posted scorecard's par row.
+    const me = body.scorecard.group_post.creator_id as string;
+    const filled = await api.post('/api/golf/participant-scores', {
+      data: { group_post_id: groupPostId, already_played: true, participant_scores: [{ participant_id: me, hole_scores: want.map((par, i) => ({ hole_number: i + 1, strokes: par })) }] },
+    });
+    expect(filled.ok(), await readErrorBody(filled)).toBe(true);
+    await page.goto(`/live/${groupPostId}`);
+    await page.getByRole('button', { name: /View Full Scorecard/i }).first().click({ timeout: 30_000 });
+    const tab = page.getByRole('tab', { name: /Full Scorecard/i });
+    if (await tab.count()) await tab.first().click();
+    const estPanel = page.locator('#round-panel-scorecard');
+    await expect(estPanel.locator('[data-round-par-estimated]')).toHaveCount(2, { timeout: 15_000 });
+    await expect(estPanel.locator('[data-round-par-estimated]').first()).toHaveText('PAR (est.)');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   } finally {
     await cleanup('golf-map-estimate', [
+      () => groupPostId && admin.from('golf_rounds').delete().eq('group_post_id', groupPostId),
       () => groupPostId && api.delete(`/api/group-posts/${groupPostId}`),
       () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
       () => api.dispose(),

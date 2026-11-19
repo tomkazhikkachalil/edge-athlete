@@ -455,7 +455,7 @@ export default function LiveRoundPage() {
           });
           // M2: ONE distance line — the live one with a fix (never the card's
           // yards beside a GPS plays-like), the card's otherwise.
-          return { par: facts.par, hcp: facts.hcp, lines: chipDistanceLines(facts, live) };
+          return { par: facts.par, parEstimated: facts.parEstimated === true, hcp: facts.hcp, lines: chipDistanceLines(facts, live) };
         })()
       : null;
   const stepHole = (dir: 1 | -1) => {
@@ -668,7 +668,7 @@ export default function LiveRoundPage() {
                 <span className="whitespace-nowrap">
                   Hole {displayHole}
                   {displayHoleDetail?.par != null && (
-                    <span className="font-medium text-secondary"> · Par {displayHoleDetail.par}</span>
+                    <span className="font-medium text-secondary" data-live-par-estimated={displayHoleDetail.parEstimated ? '' : undefined}> · Par {displayHoleDetail.par}{displayHoleDetail.parEstimated ? ' (est.)' : ''}</span>
                   )}
                   {displayHoleDetail?.hcp != null && (
                     <span className="hidden font-medium text-secondary sm:inline"> · HCP {displayHoleDetail.hcp}</span>

@@ -6,6 +6,7 @@ import { totalPenalties, formatPenaltySummary } from '@/lib/golf/penalties';
 import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor, placements, ordinalLabel } from '@/lib/golf/scoring';
 import { pickOverviewMedia } from '@/lib/media/hero';
 import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
+import { roundParsEstimated } from '@/lib/golf/holes';
 import { holeCountLabel, holeCountValue, playedHoleCount, scorecardHoleNumbers } from '@/lib/golf/round-display';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
@@ -330,7 +331,10 @@ export default function SharedRoundFullCard({
 
                 {/* Par Row */}
                 <tr className="border-b border-border bg-surface-muted">
-                  <td className="py-2 px-2 sm:px-3 font-bold text-secondary sticky left-0 bg-surface-muted z-10">PAR</td>
+                  <td className="py-2 px-2 sm:px-3 font-bold text-secondary sticky left-0 bg-surface-muted z-10 whitespace-nowrap">
+                    {/* Pars estimated from the map's hole length (Nov 18 2026) stay marked on the posted card. */}
+                    {roundParsEstimated(roundHoleData) ? <span data-round-par-estimated="">PAR (est.)</span> : 'PAR'}
+                  </td>
                   {holeNumbers.map(holeNum => (
                     <td key={holeNum} className="text-center py-2 px-2 font-bold text-primary">
                       {parFor(holeNum)}

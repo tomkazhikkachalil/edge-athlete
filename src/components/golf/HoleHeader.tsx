@@ -43,7 +43,7 @@ export default function HoleHeader({ holeNumber, facts, tees, live, running, run
   const [teesOpen, setTeesOpen] = useState(false);
   const rise = formatRise(live.riseYds);
   const factBits: string[] = [];
-  if (facts.par != null) factBits.push(`Par ${facts.par}`);
+  if (facts.par != null) factBits.push(`Par ${facts.par}${facts.parEstimated ? ' (est.)' : ''}`);
   if (facts.hcp != null) factBits.push(`HCP ${facts.hcp}`);
   if (facts.yards != null) factBits.push(`${facts.approx ? '≈' : ''}${facts.yards} yds`);
 

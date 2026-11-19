@@ -176,8 +176,10 @@ export interface GolfScorecardData {
   course_rating: number | null;
   /** Per-hole course data (real pars) — [{hole, par, yardage?, handicap?}];
    *  null on rounds created before migration 039; `handicap` (the stroke
-   *  index) on rounds created since Oct 2026 (the composer carries it). */
-  hole_data?: { hole: number; par: number; yardage?: number; handicap?: number }[] | null;
+   *  index) on rounds created since Oct 2026 (the composer carries it);
+   *  `parEstimated` on a hole whose par was estimated from the map's hole
+   *  length (Nov 18 2026), which every saved-round screen marks. */
+  hole_data?: { hole: number; par: number; yardage?: number; handicap?: number; parEstimated?: boolean }[] | null;
   /** Two-nine combo at a multi-course club (migration 125): which nine is
    *  holes 1–9 and which is 10–18. Null/absent for single-course rounds. */
   course_composition?: { course_id: string; section_name: string | null; holes: '1-9' | '10-18' }[] | null;

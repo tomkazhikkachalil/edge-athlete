@@ -1,5 +1,19 @@
 # Development Log
 
+## November 19, 2026 (08:34) — Golf leftovers, phase 2a: a round played on estimated pars keeps saying so (posted card, live page, scorer)
+
+A course whose map has lines but no pars gets pars estimated from each hole's length (Nov 18), and the setup screens mark them. Once the round started, nothing did: the scorer, the live page and the posted scorecard showed the guessed pars as if they were the course's. The mark was already in the round's own `hole_data` (`parEstimated`, kept by the group-posts route); the screens never read it. No migration.
+
+- **One question, asked the same way everywhere:** `roundParsEstimated(holeData)` and `holeParEstimated(holeData, hole)` in `src/lib/golf/holes.ts` (only the literal `true` counts). `holeHeaderFacts` returns `parEstimated` when the par shown is the round's own estimate, never for a par from the catalog sheet or the caller's fallback.
+- **Posted scorecard** (`SharedRoundFullCard`): the row reads **PAR (est.)** (`data-round-par-estimated`), as the score grid already does at setup.
+- **Scorer's hole header** and **the live page's hole chip**: "Par 4 (est.)" on a hole whose par is estimated.
+- **Group score card** (`GroupScoreCard`): "par 4 est." under the hole number, and "(est.)" in the editor line and the extra-hole line.
+- Types: `parEstimated?: boolean` on the round's `hole_data` and on the scorer's `holeData`.
+
+**Proof.** Unit: `holes.test.ts` (2 new cases) and `hole-detail.test.ts` (1). Staging: the map-estimate round in `e2e/golf-quick-entry.spec.ts` now also reads "Par 4 (est.)" in the open scorer, the mark on the page's hole chip, and, after the card is filled, **PAR (est.)** on both nines of the posted scorecard with no sideways overflow: 3 passed on `mobile`, 7 on `desktop`. The first run found the page's chip behind the open scorer (hidden), so the check reads the visible one.
+
+**Not in this phase:** the profile copy of a round (`golf_holes`: the round detail page, the round card, the golf profile) has no place for the flag. That is phase 2b, migration 316.
+
 ## November 19, 2026 (07:58) — Golf leftovers, phase 1 of 4: the Live Now answer is never kept, the scorer's badge follows the round, yardage on the round's detail page
 
 Tom asked for the known gaps in one phased plan (plan: phases 1 small leftovers, 2 the estimated-par mark on saved rounds, 3 multi-course clubs narrowed automatically, 4 a chooser for what is left). This is phase 1. No migration.
