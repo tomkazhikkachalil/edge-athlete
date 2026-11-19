@@ -6,6 +6,7 @@ import { toProxyUrl } from '@/lib/media/proxy-url';
 import { deleteOrHideRound } from '@/lib/golf/round-delete-server';
 import { deleteRoundResult } from '@/lib/results/delete-server';
 import { finishRound } from '@/lib/golf/round-finish';
+import { groupPostActionUrl, notifyRoundFinal } from '@/lib/golf/group-notifications';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -204,6 +205,13 @@ export async function PATCH(
     // publishes it and stamps its timestamp.
     if (status === 'completed') {
       await finishRound(getSupabaseAdmin(), id, { statusWritten: true });
+      // The round's last milestone (Nov 19 2026): its golfers hear once that it
+      // is final, whether the last card filled or the creator finished it.
+      const creatorId = (updatedGroupPost as { creator_id: string }).creator_id;
+      await notifyRoundFinal(
+        { supabase: getSupabaseAdmin(), groupPostId: id, title: (updatedGroupPost as { title?: string | null }).title || 'Shared round', actionUrl: await groupPostActionUrl(getSupabaseAdmin(), id, creatorId) },
+        creatorId
+      );
     }
 
     return NextResponse.json({

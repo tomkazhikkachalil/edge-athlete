@@ -164,3 +164,49 @@ test('Finish round by hand writes the golf record for the cards that were scored
   }
 });
 
+// Nov 19 2026 (Tom: 20+ notifications for one round). Milestones only.
+test('a round\'s notifications are milestones: nothing per hole, one when a friend finishes their card, one final each', async () => {
+  test.setTimeout(150_000);
+  const userA = loadQaUser('user.json');
+  const userB = loadQaUser('user-b.json');
+  const api = await apiAs('state.json');
+  const apiB = await apiAs('state-b.json');
+  const admin = adminClient();
+  let id = '';
+  const sent = async (userId: string) => {
+    const { data } = await admin.from('notifications').select('type, metadata').eq('user_id', userId).eq('type', 'group_update').contains('metadata', { group_post_id: id });
+    return (data ?? []).map(n => (n.metadata as { event?: string }).event).sort();
+  };
+  try {
+    id = await startRound(api, [userB.id], 'Milestones');
+    const card = await readCard(api, id);
+    const rowA = rowOf(card, userA.id).participant.id;
+    const rowB = rowOf(card, userB.id).participant.id;
+    const one = (who: typeof api, row: string, hole: number) => who.post(`/api/golf/scorecards/${row}/scores`, { data: { scores: [{ hole_number: hole, strokes: 4 }] } });
+
+    // The creator enters their OWN card hole by hole (nine saves): nothing for anyone.
+    for (let h = 1; h <= 9; h++) expect((await one(api, rowA, h)).status()).toBe(201);
+    expect(await sent(userA.id)).toEqual([]);
+    expect(await sent(userB.id)).toEqual([]);
+
+    // The friend enters their own card: eight saves say nothing…
+    for (let h = 1; h <= 8; h++) expect((await one(apiB, rowB, h)).status()).toBe(201);
+    expect(await sent(userA.id)).toEqual([]);
+    // …the ninth finishes the card AND the round: the creator hears both, once; the friend, whose save finished it, hears nothing.
+    expect((await one(apiB, rowB, 9)).status()).toBe(201);
+    await expect.poll(() => sent(userA.id), { timeout: 15_000 }).toEqual(['card_complete', 'leaderboard_final']);
+    expect(await sent(userB.id)).toEqual([]);
+    // A correction afterwards adds nothing.
+    expect((await one(apiB, rowB, 3)).status()).toBe(201);
+    expect(await sent(userA.id)).toEqual(['card_complete', 'leaderboard_final']);
+  } finally {
+    await cleanup('live-scoring-milestones', [
+      () => id && admin.from('notifications').delete().contains('metadata', { group_post_id: id }),
+      () => id && admin.from('golf_rounds').delete().eq('group_post_id', id),
+      () => id && api.delete(`/api/group-posts/${id}`),
+      () => api.dispose(),
+      () => apiB.dispose(),
+    ]);
+  }
+});
+

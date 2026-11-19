@@ -1,5 +1,19 @@
 # Development Log
 
+## November 19, 2026 (01:37) — Tom's round on the course, part 3 of 4: a round's notifications are milestones, nothing per hole
+
+Tom's group round sent him more than twenty notifications. The cause, `notifyScoresPosted` (`group-notifications.ts`): EVERY score save inserted a `group_update` row "posted scores for your shared round" for the round's creator. It named the card's OWNER as the sender, so the creator entering a friend's scores was notified about himself on every hole; it checked no status and had no dedupe; and every row went out as a push (pushes of this type do not collapse). Three golfers scored by one person is up to 54 rows. The design dates from when scores were posted as one batch, before per-hole live saves. A second fault sat beside it: "Final leaderboard is in" fired when every golfer had ANY total, which is after the last golfer's first hole.
+
+Tom's rule (Nov 19): milestones only. A round now says three things:
+
+- **You are invited** (`notifyGroupInvites`, unchanged).
+- **A golfer finished their card** (`cardMilestone`, pure): once per card, when it first holds every hole of the round, to the round's creator; never when the creator entered it (the route now passes the signed-in user as the actor) and never about the creator's own card. One row per (round, card) by a metadata marker.
+- **The round is final** (`notifyRoundFinal`): once per round, when its status is `completed`, whether the last card filled or the creator pressed Finish round (the PATCH route now sends it too); to every golfer who has not declined except the one whose action finished it. A solo round has none.
+
+Nothing is sent for a hole. No new type and no migration (`group_update` exists). The attest notice is unchanged.
+
+**Proof.** `group-notifications.test.ts`, 12 tests: seventeen saves say nothing and the eighteenth tells the creator once; a later correction says nothing; **Tom's round replayed (the creator enters three cards, 54 saves): zero rows**; two friends are two notices; the final waits for `completed`, skips the finisher and a declined golfer, and fires once. On staging (`e2e/live-scoring-group.spec.ts`, new test, passed): the creator's nine saves on his own card, then a friend's eight: no rows for anyone; the friend's ninth finishes the card and the round: the creator holds exactly `card_complete` and `leaderboard_final`, the friend nothing; a correction adds nothing. `round-invite.spec.ts` unchanged, 2 passed.
+
 ## November 19, 2026 (01:30) — Tom's round on the course, part 2 of 4: a player switch keeps the hole, a group round waits for every golfer, and Finish by hand writes the record
 
 **Switching players jumped back to an early hole.** `ScoreEntryModal.handleSwitchPlayer` told the parent WHO to switch to and not WHERE the scorer was; the parent remounts the modal per player, which then opened on that player's first unscored hole (`firstUnscoredHole` returns the first GAP). And a hole left by a chip was saved without committing the resting wheel, where Next commits it, which made the gaps. Now the hole on screen travels with the switch (`onSwitchPlayer(id, holeNumber)`; the live page, the feed card's scorer and the setup grid all carry it into `initialHole`), and a switch commits the hole exactly as Next does (an untouched hole still records nothing). The chips carry `data-scorer-player` and `aria-pressed`.
