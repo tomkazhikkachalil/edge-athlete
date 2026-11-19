@@ -1,5 +1,39 @@
 # Development Log
 
+## November 18, 2026 (22:05) — Scorecards from each course's own website: the measurement, and the rules and the fetcher (nothing switched on)
+
+Tom, Nov 18: "pull that info from the web and create our own database of logos and cards", from **course websites only** (his choice; directory sites forbid copying), "production ready and hardened so it's accurate". Measured before anything was built, from the session, read-only.
+
+**Can a card be found?** 150 production courses with a website (100 that already hold a provider card, 50 that hold none), each site's robots.txt obeyed, at most nine fetches a site:
+
+| | with a held card (100) | no card (50) |
+| --- | --- | --- |
+| scorecard found | 30 | 6 |
+| golf pages, no scorecard on them | 36 | 25 |
+| site unreachable (404, 403, dead) | 24 | 10 |
+| no relevant page | 10 | 8 |
+| refused by robots.txt | 0 | 1 |
+
+36 of 150 (24 %); about one in three of the sites that answer. By kind: 22 pictures, 14 PDFs, 4 as page text. 34 of 150 website addresses in the catalog do not work. (The first run found 24: its robots rule read a wildcard rule as "everything" and refused 25 sites, and it looked for too few words. Both fixed before these numbers; the rule is now `robotsAllows`, with that case as a test.) Home pages read: 115; 72 declare an apple-touch-icon, 104 some icon.
+
+**Can it be read right?** A separate reader transcribed the 35 downloaded cards without seeing the held ones. Of the 30 with a held card:
+
+- 27 the same hole for hole.
+- 1 where the site is right and the held card is not (Edelweiss Chalet: the site's text table adds up to 72; the held card gives a par 3 to a 360-yard hole).
+- 1 the sister course on the same site (Saint Ives' site served Tullymore's card, 13 pars different). The card prints "Tullymore": the name check refuses it.
+- 1 too small to read (two 600 × 250 pictures): refused.
+- Yardage: 80 tee rows whose total equals a held tee's total; all 1,413 holes identical.
+
+So with the checks, 27 of 27 saved cards right. Thirty is a small sample, and this reader looked closely at each picture (it enlarged and cropped); a single hosted call may read worse. The checks below are what stand between a worse reading and a saved card, and the rollout keeps comparing with held cards.
+
+**Built in this PR (no migration, no route, no model call: nothing runs):**
+
+- `src/lib/golf/site-card.ts` (pure): `robotsAllows`; `isPublicAddress` / `isFetchableUrl`; `scorecardLinks` (pages on the same site only, a file elsewhere only when its link names a scorecard); `parseSiteRead` (the model's answer held to numbers in range and plain short names, never repaired); `siteCardVerdict`. A card is saved only when: two independent readings are equal; the pars add up to the printed par; at least one tee row adds up to its printed total (a row that does not is dropped); a printed name is this course's or its club's (`sameFacilityName`), and a card with no printed name needs 80 % of its holes within 20 % of the map's measured lines; a named card under 50 % is another course's; then the fill's own rule (`cardFillVerdict`: hole count, our row, the map's TAGGED pars).
+- `src/lib/golf/site-fetch-server.ts`: the one door to a website. http(s), a real host name, the default port, no credentials; every resolved address public, checked again on each redirect, three redirects at most; time and size limits enforced on what arrives; a User-Agent that names no person and no project. The lookup-then-fetch gap is written down in the file.
+- Tests: 24 + 7.
+
+**Next, and what it waits on:** the reader itself (a cron route of its own, two model readings per card, the writer, an admin panel) needs migration 315 (Tom's SQL) and an Anthropic API key with a daily cap (Tom). Reading cost per course is not yet measured for a hosted call.
+
 ## November 18, 2026 (21:21) — Lines without pars get a card: the missing pars are estimated from the hole's length, and marked
 
 Tom, Nov 18: "make sure we have that system in place that guess the score card based on yardage we see from the maps." The map card (Oct 31) was live for courses whose lines all carry a par (8,522 on production today). A course with every line drawn but a par missing showed no card, and scoring then assumed par 4 on every hole without saying so. Asked which he wanted for those, Tom chose **"Guess par, marked estimated"**: the Oct 31 "no estimates" rule is reversed for this one case, by him, with the numbers below in front of him.
