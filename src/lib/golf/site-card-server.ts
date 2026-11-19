@@ -290,3 +290,40 @@ async function saveVisit(admin: SupabaseClient, row: DueRow, visit: SiteVisit): 
   await admin.from('golf_courses').update({ ...stamp, site_card_outcome: 'taken' }).eq('id', row.id);
   return 'taken';
 }
+
+// ── Progress ──────────────────────────────────────────────────────────────────
+
+/** Every outcome a visit can be stamped with (the panel's rows, in this order). */
+export const SITE_OUTCOMES: SiteOutcome[] = [
+  'ok', 'no_card', 'picture_only', 'unreachable', 'robots', 'no_site', 'several_cards', 'name_unconfirmed', 'name_mismatch', 'sum_mismatch',
+  'yardage_disagrees', 'map_disagrees', 'hole_count', 'par_sum', 'no_yardage', 'moved', 'taken', 'no_site_card', 'reads_disagree',
+];
+
+export type SiteCardProgress =
+  | { ok: true; waiting: number; visited: number; outcomes: Record<string, number>; saved: Array<{ id: string; name: string; url: string | null; at: string | null }> }
+  | { ok: false; error: string };
+
+export async function readSiteCardProgress(admin: SupabaseClient): Promise<SiteCardProgress> {
+  const count = (q: PromiseLike<{ count: number | null; error: { code?: string; message: string } | null }>) => q;
+  const head = () => admin.from('golf_courses').select('id', { count: 'exact', head: true });
+  const [waiting, visited, saved, ...byOutcome] = await Promise.all([
+    count(head().not('website', 'is', null).is('hole_data', null).is('site_card_at', null)),
+    count(head().not('site_card_at', 'is', null)),
+    admin.from('golf_courses').select('id, name, site_card_url, site_card_at').eq('site_card_outcome', 'ok').order('site_card_at', { ascending: false }).limit(20),
+    ...SITE_OUTCOMES.map(o => count(head().eq('site_card_outcome', o))),
+  ]);
+  const failed = [waiting, visited, saved, ...byOutcome].find(r => r.error);
+  if (failed?.error) {
+    const missing = failed.error.code === '42703' || failed.error.code === 'PGRST204' || /site_card_/.test(failed.error.message);
+    return { ok: false, error: missing ? 'migration 315 has not run' : failed.error.message };
+  }
+  const outcomes: Record<string, number> = {};
+  SITE_OUTCOMES.forEach((o, i) => { const n = byOutcome[i].count ?? 0; if (n > 0) outcomes[o] = n; });
+  return {
+    ok: true,
+    waiting: waiting.count ?? 0,
+    visited: visited.count ?? 0,
+    outcomes,
+    saved: ((saved.data ?? []) as Array<{ id: string; name: string; site_card_url: string | null; site_card_at: string | null }>).map(r => ({ id: r.id, name: r.name, url: r.site_card_url, at: r.site_card_at })),
+  };
+}
