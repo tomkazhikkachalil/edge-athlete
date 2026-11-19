@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { nineFromCombination, type SheetHole } from '../sheet-merge';
 import { findOfficialSheet, pickSheetCandidate, readMapSheet, sheetSearchQueries, withMapSheet, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
 
 // Nov 16 2026: "Find the official scorecard" asks EVERY provider that is not
@@ -433,5 +434,90 @@ describe('one course listed twice by a provider', () => {
     expect(calls).not.toContain('golfcourseapi:detail');
     expect(r.trace!.find(t => t.source === 'golfcourseapi')).toMatchObject({ candidates: 2, named: 2, picked: null, result: 'not_narrowed' });
     expect(updates).toEqual([]);
+  });
+});
+
+// Nov 19 2026: GolfCourseAPI lists Ottawa Hunt's three nines as three
+// eighteens: "North" is North + South, "South" is South + West, "West" is
+// West + North (real pars and Gold yardages below). A nine's card is the
+// front of its own listing, taken only when a sibling's back nine says the same.
+describe('a nine listed as an eighteen that combines two nines', () => {
+  const HUNT = { city: 'Ottawa', state: 'ON', country: 'Canada', latitude: 45.3379788, longitude: -75.6852228 };
+  const NINES = {
+    North: { pars: '534444435', yds: [482, 194, 443, 411, 398, 424, 375, 180, 523] },
+    South: { pars: '444435435', yds: [445, 365, 436, 386, 201, 596, 475, 195, 561] },
+    West: { pars: '544343435', yds: [554, 405, 419, 172, 432, 185, 401, 151, 544] },
+  };
+  type Nine = keyof typeof NINES;
+  const BACK: Record<Nine, Nine> = { North: 'South', South: 'West', West: 'North' };
+  const ID: Record<Nine, string> = { North: 'qjxgwhx7', South: '7t91wa4y', West: 'wfyry8me' };
+  const eighteen = (front: Nine, back: Nine = BACK[front], tee = 'Gold') => ({
+    course: {
+      id: ID[front], club_name: 'Ottawa Hunt & Golf Club', course_name: front, location: HUNT,
+      tees: { male: [{ tee_name: `${front[0]}${back[0].toLowerCase()} ${tee}`, course_rating: 74, slope_rating: 140, number_of_holes: 18, par_total: 72, holes: [...NINES[front].pars].map((p, i) => ({ par: Number(p), yardage: NINES[front].yds[i], handicap: 2 * i + 1 })).concat([...NINES[back].pars].map((p, i) => ({ par: Number(p), yardage: NINES[back].yds[i], handicap: 2 * i + 2 }))) }] },
+    },
+  });
+  const search = { courses: (['West', 'North', 'South'] as Nine[]).map(n => ({ id: ID[n], club_name: 'Ottawa Hunt & Golf Club', course_name: n, location: HUNT })) };
+  const nineRow = (n: Nine) => row({ name: `Ottawa Hunt and Golf Club (${n} Nine)`, city: 'Nepean', lat: 45.3417, lng: -75.6829, section_name: `${n} Nine`, section_kind: 'nine', holes_count: 9 } as Partial<CatalogRow>);
+  const all = () => ({ [ID.North]: eighteen('North'), [ID.South]: eighteen('South'), [ID.West]: eighteen('West') });
+
+  it.each(['North', 'South', 'West'] as Nine[])('%s takes the front nine of its own listing, confirmed by a sibling', async n => {
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: search, gcaById: all() });
+    const { admin, updates } = fakeAdmin();
+    const r = await findOfficialSheet(admin, nineRow(n));
+    expect(r).toMatchObject({ found: true, outcome: 'found' });
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')).toMatchObject({ picked: ID[n], fromCombination: true, result: 'filled' });
+    expect(r.course.holes).toHaveLength(9);
+    expect(r.course.holes.map(h => h.par).join('')).toBe(NINES[n].pars);
+    expect(r.course.holes.map(h => Object.values(h.yardage)[0])).toEqual(NINES[n].yds);
+    // An eighteen's ratings and stroke indexes are not a nine's.
+    expect(r.course.courseRating).toEqual({});
+    expect(r.course.holes.every(h => !h.handicap)).toBe(true);
+    expect(updates[0]).toMatchObject({ holes_count: 9, total_par: [...NINES[n].pars].reduce((s, p) => s + Number(p), 0) });
+  });
+
+  it('no sibling confirms it: the eighteen is refused, as before', async () => {
+    // The siblings' back nines are something else (West's back is South here, not North).
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: search, gcaById: { [ID.North]: eighteen('North'), [ID.South]: eighteen('South', 'South'), [ID.West]: eighteen('West', 'South') } });
+    const { admin, updates } = fakeAdmin();
+    const r = await findOfficialSheet(admin, nineRow('North'));
+    expect(r.found).toBe(false);
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')!.result).toBe('wrong_holes');
+    expect(updates).toEqual([]);
+  });
+
+  it('the siblings asked for are budgeted, and an eighteen row never takes this path', async () => {
+    const calls = stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: search, gcaById: all() });
+    const { admin, keys } = fakeAdmin();
+    await findOfficialSheet(admin, nineRow('North'));
+    expect(calls.filter(c => c === 'golfcourseapi:detail')).toHaveLength(3);
+    expect(keys.filter(k => k === 'golf-provider:golfcourseapi')).toHaveLength(4); // one search, three details
+    const calls18 = stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: search, gcaById: all() });
+    const r = await findOfficialSheet(fakeAdmin().admin, row({ name: 'Ottawa Hunt and Golf Club (North)', city: 'Nepean', section_name: 'North', section_kind: 'course_18', holes_count: 18 } as Partial<CatalogRow>));
+    expect(calls18.filter(c => c === 'golfcourseapi:detail')).toHaveLength(1);
+    expect(r.course.holes).toHaveLength(18);
+  });
+
+  describe('nineFromCombination', () => {
+    const holes = (front: Nine, back: Nine, tee = 'gold'): SheetHole[] =>
+      [...NINES[front].pars].map((p, i) => ({ number: i + 1, par: Number(p), yardage: { [tee]: NINES[front].yds[i] }, handicap: i + 1 }))
+        .concat([...NINES[back].pars].map((p, i) => ({ number: i + 10, par: Number(p), yardage: { [tee]: NINES[back].yds[i] }, handicap: i + 10 })));
+    it('the front nine, renumbered, when a sibling\'s back nine has the same pars and one tee\'s yardages', () => {
+      const nine = nineFromCombination(holes('North', 'South', 'ns gold'), [holes('South', 'West', 'sw gold'), holes('West', 'North', 'wn gold')])!;
+      expect(nine.map(h => h.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      expect(nine.map(h => h.par).join('')).toBe(NINES.North.pars);
+      expect(nine.map(h => h.yardage['ns gold'])).toEqual(NINES.North.yds);
+    });
+    it('null: no sibling, the same pars with other yardages, one par apart, or not an eighteen', () => {
+      const card = holes('North', 'South');
+      expect(nineFromCombination(card, [])).toBeNull();
+      expect(nineFromCombination(card, [holes('South', 'West')])).toBeNull();
+      const otherYards = holes('West', 'North').map(h => (h.number >= 10 ? { ...h, yardage: { gold: h.yardage.gold + 7 } } : h));
+      expect(nineFromCombination(card, [otherYards])).toBeNull();
+      const onePar = holes('West', 'North').map(h => (h.number === 12 ? { ...h, par: h.par + 1 } : h));
+      expect(nineFromCombination(card, [onePar])).toBeNull();
+      expect(nineFromCombination(card.slice(0, 9), [holes('West', 'North')])).toBeNull();
+      expect(nineFromCombination(card, [holes('West', 'North').slice(0, 9)])).toBeNull();
+    });
   });
 });

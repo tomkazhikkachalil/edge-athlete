@@ -179,3 +179,34 @@ export function creditSources(prev: SheetSources | null | undefined, before: She
   if (Object.keys(out.ratings!).length === 0) delete out.ratings;
   return out;
 }
+
+/** A NINE's card out of an eighteen that combines two nines (Nov 19 2026).
+ *  Measured on GolfCourseAPI for Ottawa Hunt's three nines: the listing named
+ *  "North" is North + South, "South" is South + West, "West" is West + North.
+ *  So each nine is the FRONT of the listing that carries its name and the BACK
+ *  of a sibling's. The front nine of `card` is returned as this nine's card
+ *  only when a sibling confirms it: the sibling's holes 10–18 have the same
+ *  pars, hole for hole, and one tee of each has the same nine yardages. Not
+ *  confirmed → null (the eighteen is somebody else's card, as before).
+ *  The stroke indexes are dropped (they rank eighteen holes, not nine). Pure. */
+export function nineFromCombination(card: ReadonlyArray<SheetHole>, siblings: ReadonlyArray<ReadonlyArray<SheetHole>>): SheetHole[] | null {
+  const span = (holes: ReadonlyArray<SheetHole>, from: number): SheetHole[] | null => {
+    if (holes.length !== 18) return null;
+    const nine = Array.from({ length: 9 }, (_, i) => holes.find(h => h.number === from + i));
+    return nine.every((h): h is SheetHole => !!h && h.par >= 3 && h.par <= 6) ? nine : null;
+  };
+  const tees = (nine: SheetHole[]): string[] =>
+    Object.keys(nine[0].yardage ?? {})
+      .filter(k => nine.every(h => typeof h.yardage?.[k] === 'number' && h.yardage[k] > 0))
+      .map(k => nine.map(h => h.yardage[k]).join(','));
+  const front = span(card, 1);
+  if (!front) return null;
+  const mine = new Set(tees(front));
+  if (mine.size === 0) return null;
+  const confirmed = siblings.some(s => {
+    const back = span(s, 10);
+    return !!back && back.every((h, i) => h.par === front[i].par) && tees(back).some(t => mine.has(t));
+  });
+  if (!confirmed) return null;
+  return front.map((h, i) => ({ number: i + 1, par: h.par, yardage: { ...h.yardage }, handicap: 0 }));
+}

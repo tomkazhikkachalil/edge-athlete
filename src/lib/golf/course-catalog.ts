@@ -48,7 +48,7 @@ import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
-import { creditSources, mergeSheets, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetSources } from '@/lib/golf/sheet-merge';
+import { creditSources, mergeSheets, nineFromCombination, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
@@ -1121,6 +1121,9 @@ export function sheetSearchQueries(name: string): string[] {
 /** Words in a section's name that say nothing about WHICH section it is. */
 const SECTION_GENERIC = new Set(['nine', 'eighteen', 'course', 'holes', 'hole', '9', '18']);
 
+/** At most this many sibling listings are asked for to confirm a nine. */
+export const NINE_SIBLINGS_MAX = 3;
+
 /** Two listings closer than this are the same place (the providers repeat a
  *  club's own address for each of its listings, to the metre). */
 export const SHEET_TWIN_KM = 0.2;
@@ -1271,6 +1274,8 @@ export interface SheetAsk {
   candidates?: number;
   named?: number;
   picked?: string | null;
+  /** The card is the front nine of an eighteen, confirmed by a sibling listing. */
+  fromCombination?: boolean;
   result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error';
 }
 
@@ -1440,7 +1445,27 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     }
     ask.picked = pick.id;
     if (!detail) { why = 'provider_error'; ask.result = 'provider_error'; continue; }
-    const normalized = detail.row;
+    let normalized = detail.row;
+    // A nine listed as an eighteen that combines it with another nine: its
+    // front nine is this row's card when a SIBLING listing confirms it
+    // (nineFromCombination). The siblings are the same search's other listings
+    // of this club; each one asked for is budgeted, at most NINE_SIBLINGS_MAX.
+    if (row.section_kind === 'nine' && normalized?.hole_data?.length === 18) {
+      const club = sectionlessName(row.name);
+      const siblingIds = foldSheetTwins(candidates.filter(c => c.id !== pick.id && !(found.twins ?? []).includes(c.id) && sameFacilityName(club, sectionlessName(c.name)))).slice(0, NINE_SIBLINGS_MAX).map(c => c.id);
+      const siblingCards: SheetHole[][] = [];
+      for (const id of siblingIds) {
+        if (!(await consumeProviderBudget(admin, provider.source))) break;
+        const other = await provider.detail(id);
+        if (other?.row?.hole_data?.length === 18) siblingCards.push(other.row.hole_data);
+      }
+      const nine = nineFromCombination(normalized.hole_data, siblingCards);
+      if (nine) {
+        // An eighteen's ratings are not a nine's.
+        normalized = { ...normalized, hole_data: nine, holes_count: 9, total_par: nine.reduce((sum, h) => sum + h.par, 0), course_rating: {}, slope_rating: {} };
+        ask.fromCombination = true;
+      }
+    }
     // Holes are what an answer is checked by: one without them adds nothing.
     if (!normalized?.hole_data?.length) { why = 'no_sheet'; ask.result = 'no_holes'; continue; }
     // A nine takes a nine: an eighteen (a combination of two nines) is not this row's card.

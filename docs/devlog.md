@@ -1,5 +1,26 @@
 # Development Log
 
+## November 19, 2026 (09:37) — Golf leftovers, phase 3b: real picks after 3a, and a nine that the provider lists as an eighteen
+
+**Real picks on production after #1581 (`62c96b59`), 14:35 UTC, one ask each:**
+
+| Course | Outcome | What happened |
+|---|---|---|
+| Greensmere (Legacy) | **found** | GolfCourseAPI `d0rc26ak`: 18 holes, par 72, 9 tees |
+| Greensmere (Premier) | **found** | GolfCourseAPI `snm23pnx` ("Premiere", the one-letter rule): 18 holes, par 72, 9 tees; different pars from Legacy |
+| Ottawa Hunt North / South / West Nine | no card, `wrong_holes` | each picked its own listing; each listing is **18 holes** |
+| Angus Glen Golf Club | no card, `not_narrowed` | North and South, one row: the tie phase 4 is for |
+
+Glen Abbey waits for its window (asked 05:30 UTC). OpenGolfAPI answered `provider_error` on every pick: the provider itself was down (three searches from here: HTTP 500 after 20 s each). Not ours; each pick waited about five seconds on it. **The 9,000 daily limit is confirmed by the counter:** GolfCourseAPI stood at 52 asks for the day and the last asks went through (the old cap was 45).
+
+**Why the nines fail.** I read the three details: "North" is North + South, "South" is South + West, "West" is West + North, 20 tees each. So every nine is the front of the listing that carries its name and the back of a sibling's, with identical pars and yardages in both places (male tees; a few women's tees carry a stray par). Phase 3a's entry said the plan's split looked unneeded; the picks say it is needed, in this form.
+
+**The rule** (`nineFromCombination`, `sheet-merge.ts`): for a nine row whose picked listing answers eighteen holes, ask for the same search's other listings of the club (at most 3, each budgeted) and take the picked listing's front nine only when a sibling's holes 10–18 have the same nine pars and one tee's same nine yardages. Ratings and stroke indexes (an eighteen's) are dropped. Not confirmed → `wrong_holes`, as before. The trace says `fromCombination`.
+
+**Proof.** `official-sheet.test.ts`, on the real pars and Gold yardages: each of the three nines takes its own nine (pars, yardages, 9 holes, no ratings); siblings whose back nines are something else → refused, nothing written; one search and three details budgeted; an eighteen row at the same club makes one detail call and keeps 18 holes; six pure cases (no sibling, same pars with other yardages, one par apart, not an eighteen). Golf unit tests: 968 passed.
+
+**Limits.** The saved tees keep the provider's names ("ns gold" on the North nine). The confirmation is one provider agreeing with itself across listings, not two providers. Real picks of the three nines wait for their windows (asked today 14:35 UTC).
+
 ## November 19, 2026 (09:19) — Golf leftovers, phase 3a: the scorecard lookup tells a twice-listed course and a misspelled section apart; what phase 3 really needed
 
 "Multi-course clubs the lookup cannot narrow" was a list of four clubs and a guess at the cause. Before changing a rule I read what the providers actually answer (one live search each, Nov 19) and how production holds the rows, then ran the existing rule over those answers as fixtures:
