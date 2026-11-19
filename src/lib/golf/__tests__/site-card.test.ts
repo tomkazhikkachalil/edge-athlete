@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   SITE_YARDS_CONFIRM, SITE_YARDS_REFUSE, SITE_YARDS_TOLERANCE,
-  isFetchableUrl, isPublicAddress, parseSiteRead, robotsAllows, scorecardLinks, siteCardVerdict, siteReadsAgree, yardsAgreement,
+  NOT_OWN_HOSTS, isFetchableUrl, isOwnSiteHost, isPublicAddress, parseSiteRead, robotsAllows, scorecardLinks, siteCardVerdict, siteReadsAgree, yardsAgreement,
   type SiteRead,
 } from '../site-card';
 
@@ -52,6 +52,38 @@ describe('where the fetcher may go', () => {
       'ftp://club.com/x', 'file:///etc/passwd', 'javascript:alert(1)', 'https://127.0.0.1/', 'https://[::1]/', 'https://2130706433/', 'https://localhost/', 'https://intranet/',
       'https://db.internal/', 'https://printer.local/', 'https://club.com:8080/', 'https://user:pw@club.com/', 'https://club.com./', 'not a url',
     ]) expect(isFetchableUrl(u), u).toBe(false);
+  });
+});
+
+// Nov 19 2026: the job's first save on production was read from a golflink.com
+// listing that the catalog held as the course's website.
+describe('isOwnSiteHost: a site is visited only when its address says whose it is', () => {
+  it('the production case: a directory listing is never the course\'s own site, whatever the name says', () => {
+    expect(isOwnSiteHost('www.golflink.com', ['Shawngunk Country Club'])).toBe(false);
+    expect(isOwnSiteHost('www.golflink.com', ['Golflink Country Club'])).toBe(false);
+    for (const host of ['golfnow.com', 'www.facebook.com', 'm.facebook.com', 'sites.google.com', 'nt.golfer.com.au', 'ozona.chambermaster.com', 'golfpass.com', 'www.tripadvisor.co.uk', 'bit.ly']) {
+      expect(isOwnSiteHost(host, ['Ozona Country Club', 'Golf Now Club']), host).toBe(false);
+    }
+    expect(NOT_OWN_HOSTS).toContain('golflink.com');
+  });
+  it('a host that carries a distinctive word of the course\'s or the club\'s name', () => {
+    expect(isOwnSiteHost('www.hortonparkgolf.com', ['Horton Park Golf Club'])).toBe(true);
+    expect(isOwnSiteHost('pbcparkridgegolf.com', ['Park Ridge Golf Course'])).toBe(true); // two common words together
+    expect(isOwnSiteHost('www.sevencanyons.com', ['Seven Canyons'])).toBe(true);
+    expect(isOwnSiteHost('www.heritagebluffs.com', ['Heritage Bluffs Public Golf Club'])).toBe(true);
+    expect(isOwnSiteHost('golf-club-de-montreal.ca', ['Club de Golf de Montréal'])).toBe(true);
+    expect(isOwnSiteHost('www.camelot.com', ['North', 'Camelot Golf & Country Club'])).toBe(true);
+  });
+  it('one common word, or only generic ones, is not enough', () => {
+    expect(isOwnSiteHost('lakeviewresort.com', ['Lake Shore Golf Club'])).toBe(false);
+    expect(isOwnSiteHost('citygolfcourse.com', ['City Golf Course'])).toBe(false);
+    expect(isOwnSiteHost('tourismtopend.com.au', ['Jabiru Golf Course'])).toBe(false);
+    expect(isOwnSiteHost('www.marriott.com', ['Praia D\'El Rey Golf'])).toBe(false);
+    expect(isOwnSiteHost('example.org', [null, undefined, ''])).toBe(false);
+  });
+  it('a government host runs its own course', () => {
+    for (const host of ['www.fairfaxcounty.gov', 'parks.ny.gov', 'www.swindon.gov.uk', 'www.pc.gc.ca', 'www.sepaq.gouv.qc.ca']) expect(isOwnSiteHost(host, ['Burke Lake']), host).toBe(true);
+    expect(isOwnSiteHost('notgov.com', ['Burke Lake'])).toBe(false);
   });
 });
 

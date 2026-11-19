@@ -52,6 +52,19 @@ describe('visitCourseSite', () => {
     expect(s.asked).toHaveLength(0);
   });
 
+  it('the production case (Nov 19 2026): a website that is a directory listing is not visited at all', async () => {
+    const page = `<title>Shawngunk Country Club</title>${cardTable('Shawngunk Country Club')}`;
+    const s = site({ 'https://www.golflink.com/golf-courses/ny/ellenville/shawangunk-country-club': html(page) });
+    const v = await visitCourseSite({ ...row, name: 'Shawngunk Country Club', website: 'https://www.golflink.com/golf-courses/ny/ellenville/shawangunk-country-club' }, alone, s.deps);
+    expect(v).toEqual({ outcome: 'not_own_site', card: null, url: null, fetches: 0 });
+    expect(s.asked).toHaveLength(0);
+  });
+  it('a host that does not carry the course\'s name is not visited either', async () => {
+    const s = site({ 'https://www.someresort.com/': html(cardTable('Camelot Golf & Country Club')) });
+    expect(await visitCourseSite({ ...row, website: 'https://www.someresort.com/' }, alone, s.deps)).toMatchObject({ outcome: 'not_own_site', fetches: 0 });
+    expect(s.asked).toHaveLength(0);
+  });
+
   it('robots.txt is read first and obeyed: a refused home page is not fetched', async () => {
     const s = site({ 'https://www.camelot.com/robots.txt': () => new Response('User-agent: *\nDisallow: /', { headers: { 'content-type': 'text/plain' } }), 'https://www.camelot.com/': html(cardTable()) });
     expect(await visitCourseSite(row, alone, s.deps)).toMatchObject({ outcome: 'robots', card: null });

@@ -15,7 +15,7 @@ const btn = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-st
 
 const WORDS: Record<string, string> = {
   ok: 'saved', no_card: 'no scorecard on the site', picture_only: 'scorecard is a picture (not read)', unreachable: 'site did not answer', robots: 'site asks not to be read',
-  no_site: 'no usable website', several_cards: 'several courses on one sheet', name_unconfirmed: 'could not confirm whose card', name_mismatch: 'another course’s card',
+  no_site: 'no usable website', not_own_site: 'address is not the course’s own site (not visited)', several_cards: 'several courses on one sheet', name_unconfirmed: 'could not confirm whose card', name_mismatch: 'another course’s card',
   sum_mismatch: 'totals do not add up', yardage_disagrees: 'hole lengths do not fit the map', map_disagrees: 'pars do not fit the map', hole_count: 'wrong number of holes',
   par_sum: 'pars do not add up', no_yardage: 'no yardage', taken: 'a card arrived meanwhile',
 };

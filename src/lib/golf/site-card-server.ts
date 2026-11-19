@@ -10,7 +10,7 @@ import { consumeProviderBudget, readSheetSources } from '@/lib/golf/course-catal
 import { polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetFromGeometry, type MapSheetLine } from '@/lib/golf/map-sheet';
 import { creditSources, mergeSheets, type Sheet } from '@/lib/golf/sheet-merge';
-import { isFetchableUrl, parseSiteRead, robotsAllows, scorecardLinks, siteCardVerdict, type SiteCard, type SiteCardVerdict } from '@/lib/golf/site-card';
+import { isFetchableUrl, isOwnSiteHost, parseSiteRead, robotsAllows, scorecardLinks, siteCardVerdict, type SiteCard, type SiteCardVerdict } from '@/lib/golf/site-card';
 import { htmlTableLines, nameInText, parseCardLines } from '@/lib/golf/site-card-parse';
 import { SITE_FILE_MAX_BYTES, SITE_PAGE_MAX_BYTES, siteFetch, type SiteFetchDeps, type SiteFetchResult } from '@/lib/golf/site-fetch-server';
 import { pdfTextLines } from '@/lib/golf/site-text-server';
@@ -25,12 +25,17 @@ export const SITE_FETCH_MIN_MS = 3_000;
 export const SITE_TICK_BUDGET_MS = 90_000;
 /** A visited course is visited again after this long (sites change slowly). */
 export const SITE_REVISIT_DAYS = 90;
+/** Due rows read per visit wanted: rows that are not visited are stamped on the way. */
+export const SITE_DUE_FACTOR = 5;
 const BUDGET_KEY = 'site-card';
 
 export type SiteOutcome =
   | SiteCardVerdict
   /** No website the fetcher may ask for. */
   | 'no_site'
+  /** The address is not the course's own site (a directory, a social page, or
+   *  a host that does not carry its name): never visited. */
+  | 'not_own_site'
   /** The site's robots.txt does not allow its home page. */
   | 'robots'
   /** The home page did not answer (dead link, blocked, error). */
@@ -95,6 +100,7 @@ export async function visitCourseSite(
 
   const home = siteHomeUrl(row.website);
   if (!home) return done('no_site');
+  if (!isOwnSiteHost(home.hostname, [row.name, row.club_name])) return done('not_own_site');
   const sameSite = (u: URL) => bareHost(u.hostname) === bareHost(home.hostname);
 
   const get = async (url: string, maxBytes: number): Promise<SiteFetchResult | null> => {
@@ -232,7 +238,8 @@ export async function runSiteCardBatch(
   let ids: string[];
   if (opts.courseId) ids = [opts.courseId];
   else {
-    const due = await admin.rpc('golf_site_card_due', { p_limit: Math.max(1, Math.min(opts.rows, 20)) });
+    // More than will be visited: a row whose address is not its own site is stamped without a visit.
+    const due = await admin.rpc('golf_site_card_due', { p_limit: Math.max(1, Math.min(opts.rows * SITE_DUE_FACTOR, 20)) });
     if (due.error) { summary.ok = false; summary.error = /golf_site_card_due|PGRST202|42883/.test(`${due.error.code} ${due.error.message}`) ? 'migration 315 has not run' : due.error.message; return finish(); }
     ids = ((due.data ?? []) as Array<{ id: string }>).map(r => r.id);
   }
@@ -245,13 +252,19 @@ export async function runSiteCardBatch(
   if (error) { summary.ok = false; summary.error = error.message; return finish(); }
   const byId = new Map(((data ?? []) as unknown as DueRow[]).map(r => [r.id, r]));
 
+  let visits = 0;
   for (const id of ids) {
     const row = byId.get(id);
     if (!row) continue;
-    if (Date.now() > deadline - SITE_COURSE_BUDGET_MS) break;
-    if (!opts.dryRun && !(await consumeProviderBudget(admin, BUDGET_KEY))) { summary.budgetExhausted = true; break; }
     const home = siteHomeUrl(row.website);
-    const alone = home ? !(await hostIsShared(admin, row, bareHost(home.hostname))) : false;
+    const visitable = !!home && isOwnSiteHost(home.hostname, [row.name, row.club_name]);
+    if (visitable) {
+      if (visits >= opts.rows) break;
+      if (Date.now() > deadline - SITE_COURSE_BUDGET_MS) break;
+      if (!opts.dryRun && !(await consumeProviderBudget(admin, BUDGET_KEY))) { summary.budgetExhausted = true; break; }
+      visits++;
+    }
+    const alone = visitable ? !(await hostIsShared(admin, row, bareHost(home!.hostname))) : false;
     const visit = await visitCourseSite(row, { ...mapEvidence(row.hole_geometry), siteIsThisCourseAlone: alone }, deps);
     let outcome: SiteOutcome = visit.outcome;
     if (!opts.dryRun) outcome = await saveVisit(admin, row, visit);
@@ -295,7 +308,7 @@ async function saveVisit(admin: SupabaseClient, row: DueRow, visit: SiteVisit): 
 
 /** Every outcome a visit can be stamped with (the panel's rows, in this order). */
 export const SITE_OUTCOMES: SiteOutcome[] = [
-  'ok', 'no_card', 'picture_only', 'unreachable', 'robots', 'no_site', 'several_cards', 'name_unconfirmed', 'name_mismatch', 'sum_mismatch',
+  'ok', 'no_card', 'picture_only', 'unreachable', 'robots', 'no_site', 'not_own_site', 'several_cards', 'name_unconfirmed', 'name_mismatch', 'sum_mismatch',
   'yardage_disagrees', 'map_disagrees', 'hole_count', 'par_sum', 'no_yardage', 'moved', 'taken', 'no_site_card', 'reads_disagree',
 ];
 

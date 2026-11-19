@@ -109,6 +109,60 @@ export function isFetchableUrl(url: string): boolean {
   return true;
 }
 
+// ── Whose site is it? ─────────────────────────────────────────────────────────
+// Nov 19 2026, production, the job's FIRST save: a course whose `website` in
+// the catalog was a golflink.com listing, and the card on that page was read
+// and saved. The catalog's website is somebody else's text (OSM, a provider)
+// and is sometimes a directory, a social page or a booking site. Tom's rule is
+// the course's OWN site only (a directory's terms forbid copying), so a site
+// is visited only when its address says whose it is:
+//   • the host carries a distinctive word of the course's or club's name
+//     ("hortonparkgolf.com" for Horton Park Golf Club), or two of the common
+//     ones ("lakeridge…" for Lake Ridge); or
+//   • it is a government host (a city or park authority running its course).
+// Measured on production's 13,310 websites that day: 10,153 pass by name and
+// 116 as government; the other 3,041 (resort and operator sites, names in
+// other scripts, and every directory) are not visited. Known directory, social
+// and link hosts are refused whatever the name says.
+
+/** Hosts that are never a course's own site: directories, booking and review
+ *  sites, social pages, maps, link shorteners. Matched with their subdomains. */
+export const NOT_OWN_HOSTS: ReadonlyArray<string> = [
+  'golflink.com', 'golfpass.com', 'golfnow.com', 'golfadvisor.com', 'bluegolf.com', '18birdies.com', 'greenskeeper.org', 'teeoff.com', 'golfdigest.com', 'golf.com',
+  'pga.com', 'pgatour.com', 'usga.org', 'golfshake.com', 'golfbreaks.com', 'golfscape.com', 'leadingcourses.com', 'top100golfcourses.com', 'golfmonthly.com',
+  'todays-golfer.com', '1golf.eu', 'chronogolf.com', 'chronogolf.ca', 'foreupsoftware.com', 'teesnap.net', 'supremegolf.com', 'hole19golf.com', 'swingu.com',
+  'thegrint.com', 'worldgolf.com', 'golfwrx.com', 'all-square.com', 'golfdealfinder.com', 'golftexas.com', 'golfer.com.au', 'golfpiste.com', 'itourbeijing.com',
+  'chambermaster.com', 'facebook.com', 'fb.com', 'instagram.com', 'twitter.com', 'x.com', 'youtube.com', 'youtu.be', 'linkedin.com', 'yelp.com', 'yelp.ca',
+  'tripadvisor.com', 'tripadvisor.ca', 'tripadvisor.co.uk', 'foursquare.com', 'wikipedia.org', 'wikidata.org', 'google.com', 'goo.gl', 'bit.ly', 'tinyurl.com',
+  'linktr.ee', 'booking.com', 'expedia.com', 'opentable.com', 'mapquest.com', 'yellowpages.com', 'yellowpages.ca', 'angelfire.com',
+];
+
+/** Words too common in course names and addresses to say whose site it is. */
+const NAME_GENERIC = new Set([
+  'golf', 'club', 'country', 'course', 'courses', 'the', 'and', 'resort', 'municipal', 'public', 'golfclub', 'golfbaan', 'golfplatz', 'center', 'centre',
+  'national', 'international', 'hotel', 'pitch', 'putt', 'driving', 'range', 'city', 'county', 'memorial', 'saint',
+]);
+/** Common words that count only two together ("lake" + "ridge"). */
+const NAME_WEAK = new Set(['lake', 'hills', 'valley', 'creek', 'ridge', 'river', 'west', 'east', 'north', 'south', 'royal', 'park', 'links', 'pine', 'pines', 'oaks', 'glen', 'green', 'bay', 'view', 'springs', 'meadows']);
+const GOVERNMENT_HOST = /(\.gov|\.gov\.[a-z]{2}|\.gc\.ca|\.govt\.nz|\.gouv\.[a-z]{2}|\.gouv\.qc\.ca)$/;
+
+const nameWords = (name: string) => name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !NAME_GENERIC.has(w));
+
+/** Is this host the course's own site, by what its address says? */
+export function isOwnSiteHost(hostname: string, names: ReadonlyArray<string | null | undefined>): boolean {
+  const host = hostname.toLowerCase().replace(/^www\./, '');
+  if (NOT_OWN_HOSTS.some(d => host === d || host.endsWith(`.${d}`))) return false;
+  if (GOVERNMENT_HOST.test(host)) return true;
+  const flat = host.replace(/[^a-z0-9]/g, '');
+  for (const name of names) {
+    if (!name) continue;
+    const words = nameWords(name);
+    if (words.some(w => !NAME_WEAK.has(w) && flat.includes(w))) return true;
+    if (words.filter(w => NAME_WEAK.has(w) && flat.includes(w)).length >= 2) return true;
+  }
+  return false;
+}
+
 // ── Which links may lead to the card ─────────────────────────────────────────
 
 const STRONG = /score\s*-?\s*card|carte\s+de\s+pointage|yardage/i;

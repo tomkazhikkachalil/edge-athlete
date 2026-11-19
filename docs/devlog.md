@@ -1,5 +1,25 @@
 # Development Log
 
+## November 19, 2026 (00:00) — The website reader's first save was from a directory site: stopped, taken back, and a site is now visited only when its address says whose it is
+
+**What happened.** #1571 was merged (by me, at Tom's word: he could not merge it; 315 had run on production with the expected row) and production served `3312f0d3`; the probe passed (health + catalog-health, desktop). The job's first tick, 04:40 UTC, visited two courses and saved one card: **Shawngunk Country Club, 9 holes, par 34, read from `golflink.com/golf-courses/ny/ellenville/shawangunk-country-club`.** That course's `website` in the catalog is a GolfLink listing. Tom's rule is the course's own site only; a directory's terms forbid copying.
+
+**The miss is mine.** The reader took `golf_courses.website` to be the course's own site. It is somebody else's text (OSM, a provider) and is sometimes a directory, a social page or a booking site. The measurement's sample and the staging proof were real course sites, picked from results that already looked right, so neither met the case. The name check did not help: a directory page carries the course's name.
+
+**Stopped within the hour.** I cannot run production SQL, so Tom ran `cron.unschedule('golf-site-cards')` and an UPDATE taking back any website card read from a directory or social host. His result: job 0, directory cards 0, cards saved by the job 0, sites visited 8 (the other seven: 5 no card, 2 picture only).
+
+**The rule now** (`isOwnSiteHost`, `site-card.ts`), applied before anything is fetched:
+
+- Known directory, booking, review, social, map and link hosts are refused, with their subdomains (`NOT_OWN_HOSTS`).
+- Otherwise a site is visited only when its host carries a distinctive word of the course's or club's name (or two of the common ones: "lake" + "ridge"), or is a government host (a city or park authority running its own course).
+- Everything else is stamped `not_own_site` and never visited; it costs neither one of the tick's visits nor the day's count (the batch reads five due rows per visit wanted).
+
+Measured on production's 13,310 websites: **10,222 pass (9,903 of them without a card); 3,085 are not visited** (resort and operator hosts that do not carry the name, names in other scripts, and every directory). The passing rows with deep paths were read by eye: owners (resorts, cities, clubs), no directory among them. Hosts shared by several courses were considered as a third way in and rejected: a Finnish golf portal sits among them.
+
+Tests: the production case in both files (the GolfLink listing is not visited, zero fetches), names and hosts from production, one common word not enough, government hosts.
+
+**Not restarted.** The schedule stays off until Tom restarts it.
+
 ## November 18, 2026 (22:44) — The free scorecard reader, part 2: the scheduled job and migration 315
 
 The reader is given its visits. Nothing here calls a model or a paid service.
