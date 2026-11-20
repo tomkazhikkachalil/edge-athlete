@@ -1,5 +1,17 @@
 # Development Log
 
+## November 20, 2026 (10:38) — A provider's error no longer costs a course its ask for the day
+
+Found by the Nov 20 picks: Ottawa Hunt's West Nine met one failed GolfCourseAPI detail call and its `golf-sheet-ask` window stayed stamped, so nobody could ask for that card again until the next day. Tom: fix it.
+
+**The rule** (`releaseSheetAsk` in `src/lib/golf/course-catalog.ts`). When a lookup saves nothing and some provider failed or was being skipped (`sheetAskUnanswered`: a trace entry `provider_error` or `provider_down`), the course's ask is handed back by deleting its `golf-sheet-ask:<id>` row. A second counter, `golf-sheet-retry:<id>`, allows that `SHEET_ASK_RETRIES` (2) times a day, so a course is asked at most three times in a day and a provider that stays broken cannot be asked without end. An honest answer (no match, not narrowed, a refused card, a spent budget) keeps the ask spent, and so does any lookup that saved something. If the hand-back itself fails the ask stays spent, which is the old behaviour.
+
+**Also:** a provider answer that is not 2xx and not 404 is now logged with its HTTP status (`provider <host> answered HTTP <n>`). The West Nine's failure left no line, so its cause is still a guess (throttling). The breaker keeps this to one line per outage per instance.
+
+**Cost, stated.** During an outage of one provider, a course the other provider cannot find is asked up to three times that day instead of once: at most two extra GolfCourseAPI lookups per course per day, inside the 9,000 daily limit.
+
+**Proof.** Five new tests in `official-sheet.test.ts` (the pure rule; a failed detail call hands the ask back and counts the retry; an honest no-match does not; the retry cap holds; a saved card does not). On staging with the service role: first hit allowed, second refused, the row deleted without error, the next hit allowed.
+
 ## November 20, 2026 (10:32) — Real picks on production after the golf leftovers plan: five cards saved, one hole wrong, one nine refused by the provider
 
 **#1585 on production.** `93ee448a` served; probe one spec and project at a time: health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. The PR sat an hour without a CI run because it conflicted with the baseline docs merge in this file (a conflicted PR gets no run); main was merged in and it went green.

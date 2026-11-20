@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { nineFromCombination, type SheetHole } from '../sheet-merge';
-import { findOfficialSheet, pickSheetCandidate, readMapSheet, resetProviderBreakerForTests, sheetSearchQueries, withMapSheet, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
+import { findOfficialSheet, pickSheetCandidate, readMapSheet, resetProviderBreakerForTests, sheetAskUnanswered, sheetSearchQueries, withMapSheet, SHEET_ASK_RETRIES, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
 
 // Nov 16 2026: "Find the official scorecard" asks EVERY provider that is not
 // the row's own, by name, until the card lacks nothing; answers fill the card.
@@ -19,8 +19,10 @@ const row = (over: Partial<CatalogRow> = {}): CatalogRow => ({
 function fakeAdmin(budget: boolean[] = [], geometry: unknown = null) {
   const updates: Array<Record<string, unknown>> = [];
   const keys: string[] = [];
+  const released: string[] = [];
   const read: Record<string, unknown> = {};
   for (const m of ['select', 'eq']) read[m] = () => read;
+  read.delete = () => ({ eq: async (_col: string, key: string) => { released.push(key); return { error: null }; } });
   read.maybeSingle = async () => ({ data: { hole_geometry: geometry }, error: null });
   read.update = (fields: Record<string, unknown>) => {
     updates.push(fields);
@@ -34,7 +36,7 @@ function fakeAdmin(budget: boolean[] = [], geometry: unknown = null) {
     },
     from: () => read,
   };
-  return { admin: admin as never, updates, keys };
+  return { admin: admin as never, updates, keys, released };
 }
 
 const NINE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -558,5 +560,54 @@ describe('a provider that is down is not waited on by the next pick', () => {
     calls.length = 0;
     await findOfficialSheet(fakeAdmin().admin, row({ id: 'c2' }));
     expect(calls).toContain('opengolfapi');
+  });
+});
+
+// Nov 20 2026: Ottawa Hunt's West Nine met one failed detail call and could not
+// be asked again for a day. A provider's trouble is not the course's answer.
+describe('a provider error does not spend the course\'s ask for the day', () => {
+  it('pure rule: any provider that failed or was skipped leaves the ask unanswered', () => {
+    expect(sheetAskUnanswered([{ result: 'no_candidates' }, { result: 'provider_error' }])).toBe(true);
+    expect(sheetAskUnanswered([{ result: 'provider_down' }, { result: 'not_narrowed' }])).toBe(true);
+    expect(sheetAskUnanswered([{ result: 'no_candidates' }, { result: 'no_name_match' }])).toBe(false);
+    expect(sheetAskUnanswered([{ result: 'budget_refused' }])).toBe(false);
+    expect(sheetAskUnanswered([])).toBe(false);
+  });
+
+  it('a failed detail call: nothing saved, the ask is handed back and the retry is counted', async () => {
+    stubProviders({ fail: 'golfcourseapi:detail', openGolfSearch: { courses: [] } });
+    const { admin, updates, keys, released } = fakeAdmin();
+    const r = await findOfficialSheet(admin, row());
+    expect(r.outcome).toBe('provider_error');
+    expect(updates).toEqual([]);
+    expect(released).toEqual([`golf-sheet-ask:${row().id}`]);
+    expect(keys[keys.length - 1]).toBe(`golf-sheet-retry:${row().id}`);
+  });
+
+  it('an honest "no match" keeps the ask spent', async () => {
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: { courses: [] } });
+    const { admin, keys, released } = fakeAdmin();
+    expect((await findOfficialSheet(admin, row())).outcome).toBe('no_match');
+    expect(released).toEqual([]);
+    expect(keys.some(k => k.startsWith('golf-sheet-retry:'))).toBe(false);
+  });
+
+  it(`after ${SHEET_ASK_RETRIES} hand-backs in a day the ask stays spent`, async () => {
+    stubProviders({ fail: 'golfcourseapi:search', openGolfSearch: { courses: [] } });
+    // The last budget answer is the retry counter's: refused.
+    const probe = fakeAdmin();
+    await findOfficialSheet(probe.admin, row());
+    resetProviderBreakerForTests();
+    const answers = probe.keys.map(k => !k.startsWith('golf-sheet-retry:'));
+    const { admin, released } = fakeAdmin(answers);
+    expect((await findOfficialSheet(admin, row())).outcome).toBe('provider_error');
+    expect(released).toEqual([]);
+  });
+
+  it('a card saved from the provider that worked keeps the ask spent', async () => {
+    stubProviders({ fail: 'opengolfapi:search' });
+    const { admin, released } = fakeAdmin();
+    expect((await findOfficialSheet(admin, row())).found).toBe(true);
+    expect(released).toEqual([]);
   });
 });
