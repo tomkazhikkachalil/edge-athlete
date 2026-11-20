@@ -53,6 +53,9 @@ export async function splitClubIntoSections(
     section_kind: 'unspecified',
     city: row.city, region: row.region, region_code: row.region_code, country: row.country, country_code: row.country_code,
     location_source: row.location_source, place_id: row.place_id, lat: row.lat, lng: row.lng,
+    // Nov 20 2026: a course of the club is on the club's website (Angus Glen's
+    // two courses were made without it and could not be read from it).
+    website: row.website ?? null,
     course_rating: {}, slope_rating: {},
   }));
   const { error: insertError } = await admin.from('golf_courses').upsert(rows, { onConflict: 'external_source,external_id', ignoreDuplicates: true });

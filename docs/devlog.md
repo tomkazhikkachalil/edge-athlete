@@ -1,5 +1,21 @@
 # Development Log
 
+## November 20, 2026 (17:30) — Phase 4 is not built; a split course inherits its club's website
+
+The decision on phase 4: skip it, clear the review list by hand with a table of published pars that names the source read for each one, and, separately, let split courses inherit their club's website.
+
+**The fault.** `splitClubIntoSections` made each course row with the club's name, place and coordinates but not its `website`: "Angus Glen Golf Club" has `https://angusglen.com/`, its North and South courses had none. **The fix:** the split writes `website: row.website` on every course row it makes. A club with no website gives none. Test added to `club-split.test.ts`.
+
+**The two rows that already exist** get it from one statement for Tom to run on production (it fills only rows whose `external_id` starts with `split:`, whose website is empty, from the row they were split from; expected 2). Tried on staging against temporary rows, rolled back: it filled the two, left a split row that already had its own website alone, and left a row split from another club alone.
+
+**Why the website reader is not disturbed.** It visits only courses with no card, and both courses have one. A future split course without a card is covered by the reader's existing guards: a host shared by several catalog courses is not "this course alone", and a page carrying more than one course's card is refused.
+
+**Also on production since the last entry:** #1601 (a settled hole stays on the review list until the card is corrected).
+
+**The lookup table for the 23 open holes, given to Tom with the source read for each.** Every one of the 23 is right as saved, so every tap is "Keep". Read from the club's own card: Angus Glen South (holes 1, 7, 9, 14, 16) and North (1, 5, 11, 15) from the club's two scorecard PDFs; Hautes Plaines (1, 4, 5, 6, 8, 11, 14, 16) from the club's 2026 scorecard PDF; Champlain hole 3 from the scorecard image on the club's site (men's par row: 5, the hole the map tags as 4); Amberwood Village (2 and 11, one hole played twice) from the club's 2023 card, which prints two men's pars for it, 5 from blue and 4 from white, and the saved 5 is the blue tees' and Golf Canada's 66. Emerald Links (4, 11, 18) rests on GolfPass alone: the club publishes no card. Three of the cards were images or scrambled PDF text and were rendered and read by eye. These lookups were by hand for Tom's decision; nothing from a directory was written into the app's data, and the only writes are his taps.
+
+**Flagged, outside the list.** Emerald Links' West nine totals 34 on the saved card, 35 on GolfPass and 36 on two other directories. The provider's boxes agree with each other there, so no hole is open; without the club's card it stays unconfirmed.
+
 ## November 20, 2026 (17:08) — Phase 4 measured before it was built: the website would settle nothing today; a settled hole stays on the review list until the card is corrected
 
 Tom: "yes, go ahead with phase 4". Read first, on production: none of the six courses on the review list has a `website` on file, and of the 39 scorecards that hold their tee boxes only 3 do. The two Angus Glen courses lack it because the club split (`club-split-server.ts`) does not copy the club's website onto the courses it makes; the other four have none recorded. A website reaches the catalog only from a map tag or a provider, and the app does not search for one. So a scheduled website visitor for disputed holes would settle 0 of the 23 open holes today. Not built; the options were put to Tom (skip it and clear the list by hand, or give split courses their club's site first).
