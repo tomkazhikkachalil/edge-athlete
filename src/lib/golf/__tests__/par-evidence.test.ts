@@ -111,3 +111,19 @@ describe('evidenceFromBoxes', () => {
     ]);
   });
 });
+
+describe('taggedMapPars: the map as evidence, hole by hole', () => {
+  it('a tagged hole is evidence, an untagged one is not; a map with no tag at all is none', async () => {
+    const { taggedMapPars } = await import('../par-evidence');
+    expect(taggedMapPars([{ hole: 2, par: 4 }, { hole: 1, par: null }, { hole: 3 }], 3)).toEqual([null, 4, null]);
+    expect(taggedMapPars([{ hole: 1 }, { hole: 2 }], 2)).toBeNull();
+    expect(taggedMapPars(null, 9)).toBeNull();
+  });
+  it('a map of another shape is not this card\'s evidence', async () => {
+    const { taggedMapPars } = await import('../par-evidence');
+    expect(taggedMapPars([{ hole: 1, par: 4 }], 2)).toBeNull();                       // fewer holes
+    expect(taggedMapPars([{ hole: 1, par: 4 }, { hole: 1, par: 4 }], 2)).toBeNull();   // a hole twice
+    expect(taggedMapPars([{ hole: 1, par: 4 }, { hole: 7, par: 4 }], 2)).toBeNull();   // out of range
+    expect(taggedMapPars([{ hole: 1, par: 9 }, { hole: 2, par: 4 }], 2)).toEqual([null, 4]); // not a par
+  });
+});

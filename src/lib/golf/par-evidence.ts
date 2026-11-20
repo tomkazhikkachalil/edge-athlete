@@ -110,6 +110,22 @@ export function judgePars(rows: ReadonlyArray<ParEvidenceRow>, mapPars: Readonly
   });
 }
 
+/** The TAGGED pars of a course's map lines, hole by hole (null where a hole
+ *  carries no par tag). Only a map of this card's own shape is evidence: the
+ *  same number of holes, numbered 1..n once each. An estimated par is never
+ *  produced here; a map with no tagged par at all is no evidence. */
+export function taggedMapPars(mapHoles: ReadonlyArray<{ hole: number; par?: number | null }> | null | undefined, holes: number): Array<number | null> | null {
+  if (!Array.isArray(mapHoles) || mapHoles.length !== holes) return null;
+  const out: Array<number | null> = Array.from({ length: holes }, () => null);
+  const seen = new Set<number>();
+  for (const h of mapHoles) {
+    if (!Number.isInteger(h.hole) || h.hole < 1 || h.hole > holes || seen.has(h.hole)) return null;
+    seen.add(h.hole);
+    if (validPar(h.par)) out[h.hole - 1] = h.par;
+  }
+  return out.some(p => p !== null) ? out : null;
+}
+
 /** The hole numbers still waiting for evidence or a person. */
 export function disputedHoles(judged: ReadonlyArray<HoleJudgement>): number[] {
   return judged.filter(j => j.status === 'disputed').map(j => j.hole);
