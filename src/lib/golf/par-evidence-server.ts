@@ -182,3 +182,125 @@ export async function sweepParSettlement(admin: SupabaseClient, opts: { dryRun?:
   }
   return sweep;
 }
+
+// ── The review list and an admin's decision (phase 3, Nov 20 2026) ───────────
+
+export interface ParReviewHole {
+  hole: number;
+  /** The par on the saved card. */
+  saved: number;
+  /** What each of the provider's tee boxes says, by box. */
+  boxes: Record<string, number | null>;
+  /** What the independent sources say ('map', 'website', 'opengolfapi'). */
+  independent: Record<string, number>;
+  /** Every par a box gave, lowest first: the choices offered. */
+  candidates: number[];
+}
+export interface ParReviewCourse {
+  courseId: string;
+  name: string;
+  city: string | null;
+  region: string | null;
+  picks: number;
+  holes: ParReviewHole[];
+}
+export interface ParReviewChange {
+  id: string;
+  courseName: string;
+  hole: number;
+  fromPar: number;
+  toPar: number;
+  reason: string;
+  settledBy: string | null;
+  actor: string;
+  note: string | null;
+  changedAt: string;
+}
+export interface ParReview {
+  /** Courses with holes waiting for a person, most picked first. */
+  courses: ParReviewCourse[];
+  /** The last changes made to a saved par, newest first. */
+  changes: ParReviewChange[];
+  /** Courses that hold provider tee boxes at all. */
+  judged: number;
+}
+
+/** What the admin console shows: every saved card with holes still open
+ *  (openHoles), most-picked course first, and the last recorded changes. */
+export async function readParReview(admin: SupabaseClient): Promise<ParReview> {
+  const { data, error } = await admin.from('golf_par_evidence').select('course_id').eq('source', PAR_BOX_SOURCE).limit(20000);
+  if (error) throw new Error(error.message);
+  const ids = [...new Set((data ?? []).map(r => r.course_id as string))].slice(0, 2000);
+  const courses: ParReviewCourse[] = [];
+  for (const id of ids) {
+    const r = await settleCoursePars(admin, id, { dryRun: true });
+    if (!r || r.disputed.length === 0) continue;
+    const [card, evidence] = await Promise.all([
+      admin.from('golf_courses').select('city, region, hole_data').eq('id', id).maybeSingle(),
+      readParEvidence(admin, id),
+    ]);
+    const saved = ((card.data as { hole_data?: Array<{ number: number; par: number }> } | null)?.hole_data ?? []);
+    const boxes = evidence.filter(e => e.source === PAR_BOX_SOURCE);
+    courses.push({
+      courseId: id,
+      name: r.name,
+      city: (card.data as { city?: string | null } | null)?.city ?? null,
+      region: (card.data as { region?: string | null } | null)?.region ?? null,
+      picks: 0,
+      holes: r.disputed.map(hole => ({
+        hole,
+        saved: saved.find(s => s.number === hole)?.par ?? 0,
+        boxes: Object.fromEntries(boxes.map(b => [b.label, b.pars[hole - 1] ?? null])),
+        independent: r.judged[hole - 1].independent,
+        candidates: r.judged[hole - 1].candidates,
+      })),
+    });
+  }
+  if (courses.length) {
+    const picks = await admin.from('golf_course_picks').select('course_id, picks').in('course_id', courses.map(c => c.courseId));
+    for (const p of picks.data ?? []) {
+      const c = courses.find(x => x.courseId === (p.course_id as string));
+      if (c) c.picks = (p.picks as number) ?? 0;
+    }
+  }
+  courses.sort((a, b) => b.picks - a.picks || a.name.localeCompare(b.name));
+  const log = await admin.from('golf_par_changes').select('id, course_name, hole, from_par, to_par, reason, settled_by, actor, note, changed_at').order('changed_at', { ascending: false }).limit(20);
+  if (log.error) throw new Error(log.error.message);
+  return {
+    courses,
+    judged: ids.length,
+    changes: (log.data ?? []).map(c => ({ id: c.id as string, courseName: c.course_name as string, hole: c.hole as number, fromPar: c.from_par as number, toPar: c.to_par as number, reason: c.reason as string, settledBy: (c.settled_by as string | null) ?? null, actor: c.actor as string, note: (c.note as string | null) ?? null, changedAt: c.changed_at as string })),
+  };
+}
+
+export type ParDecision =
+  | { ok: true; changed: boolean; result: SettleResult }
+  | { ok: false; error: 'not_found' | 'no_card' | 'bad_hole' | 'bad_par' | 'note_required' | 'write_failed' };
+
+/**
+ * An admin decides one hole's par on the console. The decision is kept as an
+ * `admin` evidence row (so it holds against every later judgement) and the
+ * saved card is corrected at once, recorded with who decided. Choosing the
+ * par the card already has closes the hole without changing anything.
+ * A par no source gave needs a note saying where it comes from.
+ */
+export async function decideHolePar(admin: SupabaseClient, input: { courseId: string; hole: number; par: number; actor: string; note?: string | null }): Promise<ParDecision> {
+  const { courseId, hole, par } = input;
+  if (!Number.isInteger(par) || par < 3 || par > 6) return { ok: false, error: 'bad_par' };
+  const before = await settleCoursePars(admin, courseId, { dryRun: true });
+  if (!before) return { ok: false, error: 'not_found' };
+  if (before.holes === 0) return { ok: false, error: 'no_card' };
+  if (!Number.isInteger(hole) || hole < 1 || hole > before.holes) return { ok: false, error: 'bad_hole' };
+  const note = input.note?.trim() || null;
+  const judged = before.judged[hole - 1];
+  const known = new Set([...(judged?.candidates ?? []), ...Object.values(judged?.independent ?? {})]);
+  if (!known.has(par) && !note) return { ok: false, error: 'note_required' };
+  // One admin row per course: this hole's decision joins the ones already made.
+  const evidence = await readParEvidence(admin, courseId);
+  const decided: Array<number | null> = Array.from({ length: before.holes }, (_, i) => evidence.filter(e => e.source === 'admin').map(e => e.pars[i]).filter((p): p is number => typeof p === 'number').pop() ?? null);
+  decided[hole - 1] = par;
+  if (!(await recordParEvidence(admin, courseId, [{ source: 'admin', label: '', votes: false, pars: decided }]))) return { ok: false, error: 'write_failed' };
+  const result = await settleCoursePars(admin, courseId, { allow: ['admin'], actor: input.actor, note: note ?? undefined });
+  if (!result || result.skipped === 'write_failed' || result.skipped === 'changed_meanwhile') return { ok: false, error: 'write_failed' };
+  return { ok: true, changed: result.applied, result };
+}

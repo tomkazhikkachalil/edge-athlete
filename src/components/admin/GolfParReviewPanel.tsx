@@ -1,0 +1,132 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import type { ParReview, ParReviewCourse, ParReviewHole } from '@/lib/golf/par-evidence-server';
+
+// Scorecard pars under review (Nov 20 2026; migration 317). A provider's tee
+// boxes sometimes disagree on a hole's par. Holes that independent evidence
+// has not settled wait here for a person: one tap keeps or sets the par, and
+// every change is recorded with who made it. No SQL.
+
+const btn = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50';
+const SOURCE: Record<string, string> = { map: 'the map', website: 'the course website', opengolfapi: 'OpenGolfAPI' };
+const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+/** "par 4: gold, blue · par 5: black" — who says what, in the hole's own words. */
+function whoSaysWhat(h: ParReviewHole): string {
+  return h.candidates
+    .map(par => {
+      const boxes = Object.entries(h.boxes).filter(([, p]) => p === par).map(([label]) => label);
+      const others = Object.entries(h.independent).filter(([, p]) => p === par).map(([s]) => SOURCE[s] ?? s);
+      return `par ${par}: ${[...boxes, ...others].join(', ')}`;
+    })
+    .join(' · ');
+}
+
+export default function GolfParReviewPanel() {
+  const [review, setReview] = useState<(ParReview & { writesEnabled: boolean }) | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<{ text: string; failed: boolean } | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/golf-par-review', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) throw new Error('failed');
+      setReview(await res.json());
+      setError(null);
+    } catch {
+      setError('Could not load the scorecards under review.');
+    }
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/admin/golf-par-review', { credentials: 'include', cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('failed'))))
+      .then(b => { if (!cancelled) setReview(b); })
+      .catch(() => { if (!cancelled) setError('Could not load the scorecards under review.'); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const decide = async (course: ParReviewCourse, hole: ParReviewHole, par: number) => {
+    const key = `${course.courseId}:${hole.hole}`;
+    setBusy(key);
+    setOutcome(null);
+    try {
+      const res = await fetch('/api/admin/golf-par-review', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId: course.courseId, hole: hole.hole, par }),
+      });
+      const body = (await res.json().catch(() => null)) as { changed?: boolean; error?: string } | null;
+      if (!res.ok) throw new Error(body?.error ?? 'The par could not be saved');
+      setOutcome({ failed: false, text: body?.changed ? `${course.name}, hole ${hole.hole}: par ${hole.saved} changed to ${par}. Recorded.` : `${course.name}, hole ${hole.hole}: par ${par} kept. Recorded as decided.` });
+      await load();
+    } catch (e) {
+      setOutcome({ failed: true, text: `Failed: ${e instanceof Error ? e.message : 'the par could not be saved'}` });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section aria-label="Scorecard pars under review" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-admin-golf-par-review="">
+      <h2 className="text-lg font-semibold text-primary mb-1">Scorecard pars under review</h2>
+      <p className="text-xs text-muted mb-3">
+        A provider&apos;s tee boxes sometimes disagree on a hole&apos;s par. Holes that no other source has settled wait here. Choosing a par corrects the saved scorecard at once and records who decided; rounds already played keep their own pars.
+      </p>
+      {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3" data-par-review-error="">{error}</p>}
+      {outcome && (
+        <p className={`text-sm mb-3 ${outcome.failed ? 'text-red-600 dark:text-red-400' : 'text-primary'}`} role="status" data-par-review-outcome="">{outcome.text}</p>
+      )}
+      {!review && !error && <p className="text-xs text-muted mb-3">Loading…</p>}
+      {review && (
+        <>
+          <p className="text-sm text-secondary mb-3" data-par-review-summary="">
+            {review.courses.length === 0
+              ? `Nothing is waiting. ${review.judged} scorecards hold their tee boxes.`
+              : `${review.courses.reduce((n, c) => n + c.holes.length, 0)} holes on ${review.courses.length} courses are waiting, of ${review.judged} scorecards that hold their tee boxes.`}
+          </p>
+          <ul className="space-y-4">
+            {review.courses.map(course => (
+              <li key={course.courseId} className="border-t border-border-subtle pt-3" data-par-review-course={course.courseId}>
+                <p className="text-sm font-semibold text-primary break-words">{course.name}</p>
+                <p className="text-xs text-muted mb-2">{[course.city, course.region].filter(Boolean).join(', ') || 'Location unknown'} · picked {course.picks} {course.picks === 1 ? 'time' : 'times'}</p>
+                <ul className="space-y-3">
+                  {course.holes.map(hole => (
+                    <li key={hole.hole} data-par-review-hole={hole.hole}>
+                      <p className="text-sm text-primary">Hole {hole.hole} <span className="text-secondary">· saved as par {hole.saved}</span></p>
+                      <p className="text-xs text-muted mb-1.5 break-words" data-par-review-says="">{whoSaysWhat(hole)}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {hole.candidates.map(par => (
+                          <button key={par} type="button" disabled={!!busy} onClick={() => decide(course, hole, par)} className={btn} data-par-review-set={par}>
+                            {busy === `${course.courseId}:${hole.hole}` ? 'Saving…' : par === hole.saved ? `Keep par ${par}` : `Change to par ${par}`}
+                          </button>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4 border-t border-border-subtle pt-3" data-par-review-changes="">
+            <h3 className="text-sm font-semibold text-primary mb-1">Recent par changes</h3>
+            {review.changes.length === 0 ? (
+              <p className="text-xs text-muted">No par has been changed yet.</p>
+            ) : (
+              <ul className="text-xs text-secondary space-y-1">
+                {review.changes.map(c => (
+                  <li key={c.id} className="break-words" data-par-review-change="">
+                    {c.courseName}, hole {c.hole}: par {c.fromPar} to {c.toPar} · {c.reason === 'admin' ? `decided by ${c.actor}` : `settled by ${c.settledBy ?? 'evidence'}`} · {when(c.changedAt)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}

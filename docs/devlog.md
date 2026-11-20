@@ -1,5 +1,19 @@
 # Development Log
 
+## November 20, 2026 (16:48) — Pars from evidence, phase 3 of 4: the review list and a one-tap decision on the admin console
+
+This is the part that ends hand-run SQL for a wrong par. No migration.
+
+**Server** (`par-evidence-server.ts`). `readParReview`: every saved card with holes still open (`openHoles`), most-picked course first, each hole with its saved par, what every tee box said and what the independent sources said, plus the last 20 rows of `golf_par_changes`. `decideHolePar`: an admin's decision for one hole is kept as an `admin` evidence row (one row per course; a new decision joins the earlier ones, so it holds against every later judgement) and the saved card is corrected at once through `settleCoursePars` with `allow: ['admin']`, recorded with the admin's email. Choosing the par the card already has closes the hole and changes nothing. Refused: a par outside 3 to 6, a hole not on the card, a course with no card, and a par no source gave without a note. An admin's decision is not held back by `PAR_SETTLE_WRITES`.
+
+**Route** `GET` and `POST /api/admin/golf-par-review` (`requireAdmin`, `private, no-store`): GET the list; POST `{ courseId, hole, par, note? }` a decision; POST without a course is phase 2's dry sweep.
+
+**Console** `GolfParReviewPanel` under the providers panel: per course its place and how often it is picked; per hole the saved par, "par 4: gold, blue · par 5: black", and one button per par a box gave ("Keep par 5" / "Change to par 4"); the outcome in words; recent par changes with who decided or what settled them.
+
+**Proof.** Refusal tests for `decideHolePar`. `e2e/admin-golf-par-review.spec.ts` on staging against the built app, with a seeded course in Champlain's real shape: anonymous and a signed-in athlete get 401 on read and on write; the list shows the four open holes and who says what; three refusals change nothing; a decision changes hole 5 from par 4 to 5 (total 70 → 71, yardage and stroke index untouched) and leaves one record with the admin's email and note; in the panel one tap on "Keep par 5" closes hole 1 with no change to the card and no new record; the panel and its buttons stay inside a 375 px screen. Passed together with the providers spec (2 passed). The spec writes its own seeded course and refuses to run against production.
+
+**On production after this merges:** the list will hold the 23 holes on six courses the dry sweep left open.
+
 ## November 20, 2026 (16:06) — Pars from evidence, phase 2 of 4: disputes settle themselves, shipped DRY
 
 Phase 2 builds the part that corrects a card, and ships it switched off: `PAR_SETTLE_WRITES = false` in `par-evidence-server.ts`. Until a sweep on production has been read by a person, every golfer path only says what it would change.
