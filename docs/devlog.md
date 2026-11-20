@@ -1,5 +1,17 @@
 # Development Log
 
+## November 20, 2026 (15:12) — Eagles Nest and Falcon Ridge corrected on production; the Nov 20 plan closed
+
+Tom ran the two corrections the recheck called for, one guarded `UPDATE` each (pars and totals only):
+- **Eagles Nest (Vaughan):** holes 12 and 18 from par 5 to 4, total 74 → 72. Result `FIXED | 72 | 544434435444343554`; a second run answered `NOTHING CHANGED`, as written.
+- **Falcon Ridge (Greely):** hole 4 from par 5 to 4, total 73 → 72. Result `FIXED | 72 | 444434553444435354`.
+
+Both read back from production and both match GolfPass's published cards on all 18 holes. A first version that did both courses in one statement was refused by the SQL editor with a syntax error at the second `RETURNING` (nothing ran; the same text had run through the management API on staging); two statements in the shape of the Angus Glen one worked. Champlain stays as saved (its card is right) and Amberwood Village stays (two published sources disagree). The provider answers kept for the recheck are deleted from the scratchpad.
+
+**The plan's state.** Phase 2 #1590 + #1592, phase 1 #1591 and phase 3 #1593 are merged; production serves `5f80e6fd` (the later merges are tests and docs). Phase 4 was measured and not built.
+
+**Tom, the same hour:** corrections cannot go card by card; this needs a fix that grows into a long-term solution. His two decisions: the app may correct a DISPUTED hole's par on a filled card when an independent source settles it (only such holes, only to a par one of the provider's tees gave, logged); manual corrections happen on the admin console only, never by golfers. The design is the next plan.
+
 ## November 20, 2026 (14:13) — The three group-round fixes that had no browser test now have one; the corrected tee rule on production
 
 **#1592 on production** (`5f80e6fd`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. #1591 (the provider readout) merged before it.
