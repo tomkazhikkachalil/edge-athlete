@@ -82,3 +82,18 @@ describe('leftovers, Nov 19: the scorer badge and the round detail page', () => 
     expect(src.indexOf('data-round-detail-yds-head')).toBeLessThan(src.indexOf('uppercase">Par</th>'));
   });
 });
+
+describe('migration 316: the profile copy of a round keeps the estimated-par mark', () => {
+  it('the three reads of golf_holes ask for the column', () => {
+    expect(read('app/api/golf/rounds/[roundId]/route.ts').match(/distance_yards, notes, par_estimated/g)).toHaveLength(3);
+    expect(read('lib/golf/post-read.ts')).toMatch(/par,\n\s+par_estimated,/);
+    expect(read('lib/sport-profile/golf-profile-server.ts')).toContain("select('round_id, hole_number, par, par_estimated, strokes,");
+  });
+  it('the round detail page, the round card and the golf profile show it', () => {
+    expect(read('app/(app)/app/sport/golf/rounds/[roundId]/page.tsx')).toContain("{h.par != null && h.par_estimated ? ' (est.)' : ''}");
+    expect(read('components/golf/GolfRoundCard.tsx').match(/data-round-card-par-estimated=""/g)).toHaveLength(2);
+    const profile = read('components/sport-profile/GolfProfile.tsx');
+    expect(profile).toContain("${h.parEst ? ' (est.)' : ''}");
+    expect(profile).toContain('data-golf-par-estimated={h.n}');
+  });
+});

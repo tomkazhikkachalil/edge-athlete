@@ -4,7 +4,8 @@ import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 
 // Nov 19 2026: the round's own detail page (/app/sport/golf/rounds/[id]) had
 // each hole's yardage in its data and never drew it. One column, beside Par,
-// only when the round kept a yardage.
+// only when the round kept a yardage. The same page keeps the estimated-par
+// mark (migration 316).
 
 const today = () => new Date().toISOString().split('T')[0];
 const YARDS = [350, 410, 165, 520, 388, 402, 178, 545, 430];
@@ -16,7 +17,7 @@ async function seedRound(withYardage: boolean) {
       type: 'golf_round', title: `QA Detail Yards ${Date.now()}`, date: today(), visibility: 'private', participant_ids: [],
       golf_data: {
         course_name: `QA Detail Yards Course ${Date.now()}`, round_type: 'outdoor', holes_played: 9,
-        hole_data: YARDS.map((y, i) => ({ hole: i + 1, par: y < 250 ? 3 : y > 480 ? 5 : 4, ...(withYardage ? { yardage: y } : {}) })),
+        hole_data: YARDS.map((y, i) => ({ hole: i + 1, par: y < 250 ? 3 : y > 480 ? 5 : 4, ...(withYardage ? { yardage: y } : {}), ...(withYardage && i < 3 ? { parEstimated: true } : {}) })),
       },
     },
   });
@@ -48,6 +49,11 @@ async function run(page: Page, label: string) {
     for (const [i, y] of YARDS.entries()) {
       await expect(page.locator(`[data-round-detail-yds="${i + 1}"]`)).toHaveText(String(y));
     }
+    // Migration 316: holes 1 to 3 were played on pars estimated from the map,
+    // and the profile copy of the round still says so; hole 4 was not.
+    await expect(page.locator('[data-round-detail-par-estimated]')).toHaveCount(3);
+    await expect(page.locator('[data-round-detail-par-estimated="1"]')).toHaveText('4 (est.)');
+    await expect(page.locator('[data-round-detail-par-estimated="3"]')).toHaveText('3 (est.)');
     // Nothing is pushed off the screen by the extra column.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 
@@ -55,6 +61,7 @@ async function run(page: Page, label: string) {
     await page.goto(`/app/sport/golf/rounds/${without.roundId}`);
     await expect(page.getByRole('columnheader', { name: 'Par' })).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('[data-round-detail-yds-head]')).toHaveCount(0);
+    await expect(page.locator('[data-round-detail-par-estimated]')).toHaveCount(0);
   } finally {
     await cleanup(label, [withYards, without].flatMap(r => [
       () => r.admin.from('golf_rounds').delete().eq('group_post_id', r.id),

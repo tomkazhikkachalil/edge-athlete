@@ -40,6 +40,8 @@ interface GolfHole {
   green_in_regulation: boolean | null;
   distance_yards: number | null;
   notes: string | null;
+  /** The par was estimated from the map's hole length (migration 316). */
+  par_estimated?: boolean;
 }
 
 interface GolfRound {
@@ -638,7 +640,7 @@ export default function GolfRoundDetailPage() {
                       <tr key={h.hole_number} className="hover:bg-surface-muted">
                         <td className="px-3 py-2 text-sm font-medium text-primary">{h.hole_number}</td>
                         {hasYardage && <td data-round-detail-yds={h.hole_number} className="px-3 py-2 text-sm text-secondary text-center">{h.distance_yards ?? '–'}</td>}
-                        <td className="px-3 py-2 text-sm text-primary text-center">{h.par ?? '—'}</td>
+                        <td className="px-3 py-2 text-sm text-primary text-center whitespace-nowrap" data-round-detail-par-estimated={h.par_estimated ? h.hole_number : undefined}>{h.par ?? '—'}{h.par != null && h.par_estimated ? ' (est.)' : ''}</td>
                         <td className="px-3 py-2 text-sm text-primary text-center font-medium">{h.strokes}</td>
                         <td className={`px-3 py-2 text-sm text-center font-medium ${
                           holeScore === null ? 'text-faint'

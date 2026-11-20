@@ -29,10 +29,18 @@ describe('buildMirrorHoles', () => {
   it('carries all score fields through', () => {
     const rows = buildMirrorHoles([hole(3, 5)], [{ hole: 3, par: 4 }]);
     expect(rows[0]).toEqual({
-      hole_number: 3, par: 4, distance_yards: null,
+      hole_number: 3, par: 4, par_estimated: false, distance_yards: null,
       strokes: 5, putts: 2, fairway_hit: true, green_in_regulation: false,
       penalties: null,
     });
+  });
+
+  it('keeps the estimated-par mark per hole; only the literal true counts (migration 316)', () => {
+    const rows = buildMirrorHoles(
+      [hole(1, 4), hole(2, 3), hole(3, 5), hole(4, 4)],
+      [{ hole: 1, par: 4, parEstimated: true }, { hole: 2, par: 3 }, { hole: 3, par: 5, parEstimated: 'yes' as unknown as boolean }]
+    );
+    expect(rows.map(r => r.par_estimated)).toEqual([true, false, false, false]);
   });
 
   it('carries penalties from hole_scores into the mirrored rows (absent → null)', () => {

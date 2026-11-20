@@ -13,6 +13,7 @@ const GOLF_ROUND_SELECT = `
   golf_holes (
     hole_number,
     par,
+    par_estimated,
     strokes,
     putts,
     fairway_hit,

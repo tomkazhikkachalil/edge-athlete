@@ -39,7 +39,7 @@ export async function GET(
         ),
         golf_holes (
           hole_number, par, strokes, putts, fairway_hit,
-          green_in_regulation, distance_yards, notes
+          green_in_regulation, distance_yards, notes, par_estimated
         )
       `)
       .eq('id', roundId)
@@ -181,7 +181,7 @@ export async function PATCH(
           is_complete, created_at,
           golf_holes (
             hole_number, par, strokes, putts, fairway_hit,
-            green_in_regulation, distance_yards, notes
+            green_in_regulation, distance_yards, notes, par_estimated
           )
         `)
         .eq('id', roundId)
@@ -259,7 +259,7 @@ export async function PATCH(
         ),
         golf_holes (
           hole_number, par, strokes, putts, fairway_hit,
-          green_in_regulation, distance_yards, notes
+          green_in_regulation, distance_yards, notes, par_estimated
         )
       `)
       .eq('id', roundId)

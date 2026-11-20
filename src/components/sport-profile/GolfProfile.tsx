@@ -143,7 +143,7 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
       return (
         <section className="space-y-6" data-sport-level="hole" data-golf-hole={view.hole}>
           <Link href={roundHref} className={backLink} data-golf-up="round"><span aria-hidden="true">←</span> {round.course}, {day(round.date)}</Link>
-          <h2 className="text-lg font-bold text-primary">Hole {view.hole}{h?.par ? ` · Par ${h.par}` : ''}</h2>
+          <h2 className="text-lg font-bold text-primary">Hole {view.hole}{h?.par ? ` · Par ${h.par}${h.parEst ? ' (est.)' : ''}` : ''}</h2>
           {!card && holesNote}
           {card && !h && <p className="text-secondary" data-golf-hole-missing="">This hole was not recorded in this round.</p>}
           {h && (
@@ -213,7 +213,7 @@ export default function GolfProfile({ profileId, data, view, basePath }: Props) 
                         </span>
                       )}
                     </span>,
-                    h.par ?? '—',
+                    h.par == null ? '—' : h.parEst ? <span key="p" className="whitespace-nowrap" data-golf-par-estimated={h.n}>{h.par} (est.)</span> : h.par,
                     h.strokes === null ? '—' : <span title={kind ? KIND_WORD[kind] : undefined} className={kind === 'eagle' || kind === 'birdie' ? 'font-bold text-emerald-700 dark:text-emerald-400' : kind === 'double' ? 'font-bold text-red-600 dark:text-red-400' : ''} data-golf-kind={kind ?? undefined}>{h.strokes}</span>,
                     h.putts ?? '—',
                     h.fairway === null || (h.par ?? 0) < 4 ? '—' : h.fairway ? 'Hit' : 'Miss',

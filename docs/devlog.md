@@ -1,5 +1,13 @@
 # Development Log
 
+## November 19, 2026 (21:47) — Golf leftovers: production after phases 3 and 4, and the migration branch brought current
+
+Production serves `c58ea3bd` (#1583). Probe, one spec and project at a time: health + catalog-health 2 passed; `golf-quick-entry` 4 passed on `mobile` (with the club-split chooser) and 7 on `desktop`; `live-scoring-group` 5 passed on `desktop`. 18 passed, none failed. Earlier the same day: phase 1 (9 passed on `8d209f36`) and phase 2a (12 passed on `4e2cde7a`).
+
+The two Greensmere cards saved by today's real picks were compared hole by hole with a published scorecard for each course: Legacy 4 5 4 3 4 4 5 4 3 / 5 4 4 4 4 3 4 3 5 and Premier 4 4 3 5 4 5 3 4 4 / 4 4 3 4 3 4 5 4 5, par 72 each, identical to ours.
+
+This branch (phase 2b, migration 316) had fallen behind main and conflicted in this file; main is merged in. Still owed: Tom runs 316 on production and merges; the real picks whose windows reopen Nov 20 (Glen Abbey after 05:30 UTC; Ottawa Hunt's three nines and Angus Glen after 14:35 UTC).
+
 ## November 19, 2026 (21:18) — Golf leftovers, phase 4: a club the provider lists as several courses is split into them
 
 The plan's phase 4 was a chooser: ask the golfer which provider course they are playing, every round, and use the card for that round only (with no map to check it against, it could not be saved for everyone). Reading how the catalog already holds Greensmere and Ottawa Hunt showed a better shape, and Tom chose it (Nov 19): **split the club into its courses.** One catalog row per course, the question the composer already asks at a split club, and each course's card saved once for everyone by the normal lookup. Nothing a golfer taps decides what a shared row holds. No migration (`golf_clubs` and the section columns are migration 125's).
@@ -59,6 +67,20 @@ So the fix is narrower than the plan's (which assumed a combined 18 had to be sp
 **Proof.** `multi-course-real.test.ts`: 13 cases on the real answers (Glen Abbey folded and picked; Premier takes "Premiere"; the three Ottawa Hunt nines and Legacy unchanged; Angus Glen null, also when only one of its courses is near and same-named clubs are far). `official-sheet.test.ts`: 5 lookup cases (the first listing empty and the second's card taken; both the same; different cards refused and nothing written; three budget hits for one search and two details; North/South not folded and no detail call). The same fixtures run against the old rule gave null for Glen Abbey and Premier. Golf unit tests: 956 passed.
 
 **Not proven yet:** real picks on production. Each course takes one ask a day, so they run once this is live: Greensmere Legacy and Premier, the three Ottawa Hunt nines, and Glen Abbey after its window (asked Nov 19 ~05:30 UTC). What the cards come to (a nine answered with an 18 would still read `wrong_holes`) decides whether anything of the plan's phase 3b is needed.
+## November 19, 2026 (09:08) — Golf leftovers, phase 2b: the profile copy of a round keeps the estimated-par mark (migration 316)
+
+Phase 2a marked estimated pars on the group round's screens, which read the round's own `hole_data`. The profile copy of a round (`golf_holes`, written by the round mirror) had no place for the flag, so the round detail page, the round card on a post and the golf profile still showed a guessed par as the course's own. Tom chose a column over looking the flag up through the group round on every read.
+
+- **Migration 316:** `golf_holes.par_estimated boolean NOT NULL DEFAULT false`, plus a backfill for rounds already mirrored from a group round whose `hole_data` carries `parEstimated`. A column on an existing table: no new grants.
+- **The one writer:** `buildMirrorHoles` carries the hole's `parEstimated` (only the literal `true`).
+- **The three reads** ask for the column: `/api/golf/rounds/[roundId]` (GET and both PATCH re-reads), `post-read.ts`, `golf-profile-server.ts` (`parEst` on `GolfHoleRow`).
+- **The three screens:** round detail page "4 (est.)" per hole; `GolfRoundCard` **PAR (est.)** on each nine; golf profile "Par 4 (est.)" in the hole title and "4 (est.)" in the scorecard table.
+
+**Order.** The reads name the column, so the code must not reach production before the SQL: Tom runs 316 in the SQL editor, then merges the pull request by hand.
+
+**Proof.** Staging: `316 APPLIED | 1 | false | 0 | 316`. The backfill, in a rolled-back transaction on staging: one mirrored round's `hole_data` flagged on holes 1 and 2 → exactly 2 holes marked, holes [1, 2], 1 round; after the rollback 0. Unit: `round-mirror.test.ts` (flag carried, a non-boolean ignored), two source pins in `round-layout-nov19.test.ts`. Browser, staging: `e2e/round-detail-yardage.spec.ts` (holes 1 to 3 flagged: three marks, "4 (est.)" and "3 (est.)", none on the unflagged round) 1 passed on `desktop`, 1 on `mobile`; `e2e/golf-profile.spec.ts` + `e2e/round-details.spec.ts` 3 passed on `desktop`, 2 on `mobile` against the new column. `check:schema` clean.
+
+**Limits.** The round card's and the golf profile's marks are pinned at source, not driven in a browser. A solo round typed in before group rounds existed has no source for the flag and reads false.
 
 ## November 19, 2026 (08:34) — Golf leftovers, phase 2a: a round played on estimated pars keeps saying so (posted card, live page, scorer)
 

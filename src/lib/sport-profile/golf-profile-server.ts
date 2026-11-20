@@ -21,7 +21,7 @@ const HOLE_BATCH_ROUNDS = 55;
 const HOLE_BATCHES_AT_ONCE = 4;
 
 interface RoundRow { id: string; date: string; course: string; course_location: string | null; tee: string | null; holes: number; round_type: string | null; par: number | null; gross_score: number | null; is_complete: boolean | null; profile_hidden_at: string | null; group_post_id: string | null }
-interface HoleRow { round_id: string; hole_number: number; par: number | null; strokes: number | null; putts: number | null; fairway_hit: boolean | null; green_in_regulation: boolean | null; penalties: string[] | null }
+interface HoleRow { round_id: string; hole_number: number; par: number | null; par_estimated: boolean | null; strokes: number | null; putts: number | null; fairway_hit: boolean | null; green_in_regulation: boolean | null; penalties: string[] | null }
 
 async function readRounds(admin: SupabaseClient, profileId: string, year: string | null): Promise<RoundRow[] | null> {
   const rows: RoundRow[] = [];
@@ -45,7 +45,7 @@ async function readHoles(admin: SupabaseClient, roundIds: readonly string[]): Pr
   const by = new Map<string, GolfHoleRow[]>();
   for (let i = 0; i < batches.length; i += HOLE_BATCHES_AT_ONCE) {
     const answers = await Promise.all(
-      batches.slice(i, i + HOLE_BATCHES_AT_ONCE).map(ids => admin.from('golf_holes').select('round_id, hole_number, par, strokes, putts, fairway_hit, green_in_regulation, penalties').in('round_id', ids).order('hole_number', { ascending: true }))
+      batches.slice(i, i + HOLE_BATCHES_AT_ONCE).map(ids => admin.from('golf_holes').select('round_id, hole_number, par, par_estimated, strokes, putts, fairway_hit, green_in_regulation, penalties').in('round_id', ids).order('hole_number', { ascending: true }))
     );
     for (const { data, error } of answers) {
       if (error) {
@@ -54,7 +54,7 @@ async function readHoles(admin: SupabaseClient, roundIds: readonly string[]): Pr
       }
       for (const h of (data ?? []) as HoleRow[]) {
         const list = by.get(h.round_id) ?? [];
-        list.push({ n: h.hole_number, par: h.par, strokes: h.strokes, putts: h.putts, fairway: h.fairway_hit, green: h.green_in_regulation, penalties: Array.isArray(h.penalties) ? h.penalties.length : 0 });
+        list.push({ n: h.hole_number, par: h.par, ...(h.par_estimated === true ? { parEst: true as const } : {}), strokes: h.strokes, putts: h.putts, fairway: h.fairway_hit, green: h.green_in_regulation, penalties: Array.isArray(h.penalties) ? h.penalties.length : 0 });
         by.set(h.round_id, list);
       }
     }
