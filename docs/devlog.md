@@ -1,5 +1,23 @@
 # Development Log
 
+## November 20, 2026 (15:23) — Pars from evidence, phase 1 of 4: what every source said is kept (migration 317)
+
+Tom: par corrections cannot go card by card; build a fix that grows into a long-term solution. The plan (four phases): keep the evidence, let independent sources settle disputed holes, a review list on the admin console, then the course's own website as a settling source (that last one only on his word, since it widens the website job). This PR is phase 1 and changes NO card.
+
+**Migration 317** (`golf_par_evidence`, `golf_par_changes`; service role only). On staging; production is Tom's to run before this merges.
+
+**The rule** (`src/lib/golf/par-evidence.ts`, pure). `judgePars(evidence, taggedMapPars, holes)` per hole: an admin's decision decides; the provider's voting boxes agreeing is `agreed` and nothing reopens it; when they disagree, independent sources (the tagged map, the other provider, the course's website) that all give ONE par, and a par some box gave, make it `settled`; otherwise `disputed`, with `parsFromTees`' choice as the default. `parCorrections` names what may change on a saved card: settled or admin holes only. Nothing calls it on production data yet (phase 2, dry first).
+
+**Recording** (`par-evidence-server.ts`, the one writer; never throws). Every provider answer that is taken as this course's is kept: on a pick (`findOfficialSheet`, including the two map-overrule paths and an answer whose differing par the card did not take) and on the weekly refresh of a row's own provider (`hydrateCourseDetailed`, which never recorded what the boxes said). One row per tee box for GolfCourseAPI (men's boxes vote, women's are kept and do not), one row for OpenGolfAPI. A source's rows for a course are replaced by its newest answer. A nine cut out of an eighteen keeps the nine's holes.
+
+**Departure from the plan, on purpose.** The plan said to keep answers `mergeSheets` refuses. An answer refused whole (more than two pars apart, or against the map) may be a different same-named course, so it is NOT kept as this course's evidence; an answer that differs on one or two pars is.
+
+**For phase 2, noted now.** A card saved by overruling the map (`sheet_sources.mapOverruled`) must not then be "settled" by that same map.
+
+**Proof.** 15 rule tests on the real shapes (Angus Glen South: five holes disputed; Champlain: the default wrong on hole 5 and the website settling it to 5; Rivermead: an agreed hole not reopened by the women's boxes or a website). Writer tests (replace one source only, never throws, quiet when the table is missing). Lookup tests (one row per box, both providers under their own names, nothing kept from a refused answer). On staging against the real tables: 317 applied (`317 APPLIED | 2 | 3 | false | false | 317`); a second answer from one source replaced that source's rows and left the website's row alone; a par array with a missing hole was stored; a source outside the list and a change from a par to itself were refused; anon was refused on both tables (42501); deleting the course removed its evidence and left its change record. `check:schema` exit 0 (153 tables reachable by the service role).
+
+**Order, as it happened.** Tom asked for the SQL and ran 317 on production (`317 APPLIED | 2 | 3 | false | false | 317`, read back: both tables empty, ledger head 317) a few minutes BEFORE it reached staging, which CI was using. The migration only adds two empty tables no live code reads, so nothing depended on the order; the rule stays staging first.
+
 ## November 20, 2026 (15:12) — Eagles Nest and Falcon Ridge corrected on production; the Nov 20 plan closed
 
 Tom ran the two corrections the recheck called for, one guarded `UPDATE` each (pars and totals only):
