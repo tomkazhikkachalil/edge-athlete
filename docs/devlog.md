@@ -1,5 +1,19 @@
 # Development Log
 
+## November 20, 2026 (16:06) — Pars from evidence, phase 2 of 4: disputes settle themselves, shipped DRY
+
+Phase 2 builds the part that corrects a card, and ships it switched off: `PAR_SETTLE_WRITES = false` in `par-evidence-server.ts`. Until a sweep on production has been read by a person, every golfer path only says what it would change.
+
+**`settleCoursePars(admin, courseId, { dryRun, allow, actor, note })`.** Reads the saved card, its evidence and the course's tagged map pars (`taggedMapPars`: hole by hole, only a map of the card's own shape, never an estimate, never a map the card overruled), runs `judgePars`, and corrects what `parCorrections` allows: a hole settled by independent evidence or decided by an admin. A correction changes that hole's par, the total and `sheet_sources.parsDisputed`, and nothing else; the write is refused if the card's total moved since it was read; each change is one row in `golf_par_changes` with what every box and every independent source said. `allow` lets a caller write admin decisions only.
+
+**Where it runs.** After evidence is kept on a pick (`findOfficialSheet`) and on the weekly refresh (`hydrateCourseDetailed`), through `settleAfterEvidence`: dry while the switch is off, logging `dry: … hole N would go par A → B (settled by …)`. And from the admin console's door, `POST /api/admin/golf-par-review` (`requireAdmin`, `private, no-store`): every course holding provider boxes judged once, dry unless asked AND the switch is on.
+
+**Older cards.** `topUpParEvidence`: a whole card whose pars are credited to GolfCourseAPI, on a row that is not the provider's own and holds no boxes, gets ONE read on a person's pick (its own once-a-day gate `golf-par-evidence-ask:<id>`, the provider's budget, and the answer must be the saved card's course). The provider's own rows get theirs from the weekly refresh.
+
+**Proof.** 13 settle tests on Champlain's real shape (the website settles hole 5 to par 5: one par, the total and the disputed list change, yardage and stroke index untouched, one record; dry writes nothing; no independent source leaves it disputed; the tagged map settles and an overruled map does not; admin-only callers; a card that moved is not written; a failed record is loud). Three top-up tests. Against STAGING's real tables, once, with a temporary test that is not committed: boxes alone left four holes disputed; a website row made the dry sweep propose hole 5 par 4 → 5; the real call wrote par 5, total 71, kept hole 5's yardage and stroke index, and left one `golf_par_changes` row; a second call changed nothing.
+
+**What the dry run cannot show yet.** Production holds no evidence rows: they arrive as courses are picked and refreshed. The first production sweep means something only after that, or after a one-time re-read of the 40 older cards, which is Tom's call (it asks the provider outside a pick).
+
 ## November 20, 2026 (16:00) — Pars from evidence, phase 1 on production; baseline at 317
 
 Tom: "merge it". #1595 merged by hand once verify, smoke and guardrails were green by name (a migration PR never auto-merges); production serves `2b03ed12`. Probe, one spec and project at a time: health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. `golf_par_evidence` on production is empty at this hour: it fills as courses are picked and refreshed.

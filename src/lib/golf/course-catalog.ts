@@ -53,7 +53,7 @@ import { splitUnlinkedClub, type ClubSectionRow } from '@/lib/golf/club-split-se
 import { creditSources, mergeSheets, nineFromCombination, parsFromTees, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 import { evidenceFromBoxes, type ParEvidenceRow } from '@/lib/golf/par-evidence';
-import { recordParEvidence } from '@/lib/golf/par-evidence-server';
+import { recordParEvidence, settleAfterEvidence } from '@/lib/golf/par-evidence-server';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
  *  28.9k rows are OpenStreetMap-sourced directly and render whether or not
@@ -1538,7 +1538,12 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
   const hadCard = (row.hole_data?.length ?? 0) > 0;
   /** No answer came: a card the row already holds is still a card. */
   const miss = (outcome: OfficialSheetResult['outcome'], asked?: SheetAsk[]) => answer(hadCard ? 'already' : outcome, row, asked);
-  if (sheetComplete(row)) return answer('already');
+  if (sheetComplete(row)) {
+    // A whole card is not asked about again; one saved before the tee boxes
+    // were kept gets them once, so it can be judged (topUpParEvidence).
+    await topUpParEvidence(admin, row);
+    return answer('already');
+  }
   // A test row's card is whatever its spec seeded: never topped up from outside.
   if (hadCard && (row.external_source as string) === 'qa-e2e') return answer('already');
   const providers = SHEET_PROVIDERS.filter(p => p.source !== row.external_source && p.configured());
@@ -1563,6 +1568,8 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
   let why: OfficialSheetResult['outcome'] = 'no_match';
   /** A tie that is really a club's several courses (clubSectionsFromCandidates). */
   let splitFound: ClubSectionFound[] | null = null;
+  /** Evidence was kept on this pick: the card is judged again once it is saved. */
+  let kept = false;
   for (const provider of providers) {
     if (sheetComplete(card)) break;
     const ask: SheetAsk = { source: provider.source, result: 'provider_error' };
@@ -1658,7 +1665,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     // evidence. An answer refused above may be another course and is not kept.
     if (detail.evidence?.length) {
       const length = normalized.hole_data.length;
-      await recordParEvidence(admin, row.id, detail.evidence.map(e => (e.pars.length > length ? { ...e, pars: e.pars.slice(0, length) } : e)));
+      kept = (await recordParEvidence(admin, row.id, detail.evidence.map(e => (e.pars.length > length ? { ...e, pars: e.pars.slice(0, length) } : e)))) || kept;
     }
     if (merged.changed) {
       if (from.length === 0) sources = await readSheetSources(admin, row.id);
@@ -1692,7 +1699,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
         card = merged.sheet;
         from.push(`${answer.source}:${answer.id}`);
         // Taken after all: what it said is this course's evidence (317).
-        if (answer.evidence?.length) await recordParEvidence(admin, row.id, answer.evidence);
+        if (answer.evidence?.length) kept = (await recordParEvidence(admin, row.id, answer.evidence)) || kept;
       }
       if (from.length) for (const t of trace) if (t.result === 'map_disagrees') t.result = 'filled';
       if (from.length && sources !== undefined) sources = { ...(sources ?? {}), mapOverruled: true };
@@ -1714,7 +1721,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       card = merged.sheet;
       from.push(`${only.source}:${only.id}`);
       for (const t of trace) if (t.source === only.source && t.result === 'map_disagrees') t.result = 'filled';
-      if (only.evidence?.length) await recordParEvidence(admin, row.id, only.evidence);
+      if (only.evidence?.length) kept = (await recordParEvidence(admin, row.id, only.evidence)) || kept;
       console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${only.source} alone against the map card, whole and consistent; the map is overruled`);
     }
   }
@@ -1727,6 +1734,8 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       if (split) return { ...answer('split', split.row, trace), found: false, club: split.club, siblings: split.siblings };
     }
     await releaseSheetAsk(admin, row.id, trace);
+    // The card is unchanged, but what a source said about it may be new.
+    if (kept) await settleAfterEvidence(admin, row.id);
     return miss(why, trace);
   }
 
@@ -1739,7 +1748,54 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     return miss('provider_error');
   }
   console.warn(`[course-catalog] official sheet: ${row.external_source}:${row.external_id} "${row.name}" ← ${from.join(' + ')} (${card.hole_data?.length ?? 0} holes, still missing: ${sheetGaps(card).join(', ') || 'nothing'})`);
+  // The card is saved: judge it against everything now known about it. Dry
+  // until PAR_SETTLE_WRITES is on, so the answer below is the card as saved.
+  if (kept) await settleAfterEvidence(admin, row.id);
   return answer('found', { ...row, ...sheet } as CatalogRow, trace);
+}
+
+/** One GolfCourseAPI read for a card that was saved from it before its tee
+ *  boxes were kept (Nov 20 2026), so the card can be judged like a new one.
+ *  Only on a person's pick (the caller), only a card whose pars are credited
+ *  to GolfCourseAPI on a row that is not the provider's own (the weekly
+ *  refresh keeps those), only while it holds no boxes, and at most one try a
+ *  day per course. The answer must be the saved card's course
+ *  (providersConfirm) or nothing is kept. Never throws. */
+export async function topUpParEvidence(admin: SupabaseClient, row: CatalogRow): Promise<'kept' | 'not_needed' | 'not_today' | 'no_match'> {
+  try {
+    if (row.external_source === 'golfcourseapi' || !row.hole_data?.length || !gcaSheets.configured()) return 'not_needed';
+    const sources = await readSheetSources(admin, row.id);
+    if (sources?.pars !== 'golfcourseapi') return 'not_needed';
+    const had = await admin.from('golf_par_evidence').select('label').eq('course_id', row.id).eq('source', 'golfcourseapi').limit(1);
+    if (had.error || (had.data?.length ?? 0) > 0) return 'not_needed';
+    if (gcaSheets.down()) return 'not_today';
+    if (!(await hitBudget(admin, `golf-par-evidence-ask:${row.id}`, 1))) return 'not_today';
+    let candidates: SheetCandidate[] | null = [];
+    for (const query of sheetSearchQueries(row.name)) {
+      if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return 'not_today';
+      candidates = await gcaSheets.search(query);
+      if (!candidates || candidates.length > 0) break;
+    }
+    const found = candidates?.length ? pickSheetCandidate(row, candidates, null) : null;
+    if (!found) return 'no_match';
+    for (const id of [found.id, ...(found.twins ?? [])]) {
+      if (!(await consumeProviderBudget(admin, 'golfcourseapi'))) return 'not_today';
+      const answer = await gcaSheets.detail(id);
+      const holes = answer?.row?.hole_data;
+      if (!holes?.length || !answer?.evidence?.length) continue;
+      // A nine saved out of an eighteen: the boxes are cut to the card.
+      const length = row.hole_data.length;
+      if (!providersConfirm(row.hole_data, holes.slice(0, length))) continue;
+      if (await recordParEvidence(admin, row.id, answer.evidence.map(e => (e.pars.length > length ? { ...e, pars: e.pars.slice(0, length) } : e)))) {
+        await settleAfterEvidence(admin, row.id);
+        return 'kept';
+      }
+    }
+    return 'no_match';
+  } catch (e) {
+    console.error(`[course-catalog] par evidence top-up failed for ${row.id}:`, e instanceof Error ? e.message : e);
+    return 'no_match';
+  }
 }
 
 // ── Proximity (GolfCourseAPI v1.3.0, Pro/Enterprise; dormant on Free) ────────
@@ -2095,11 +2151,10 @@ export async function hydrateCourseDetailed(
   const credits = merged.changed ? await readSheetSources(admin, row.id) : undefined;
   if (merged.refused) {
     console.warn(`[course-catalog] hydrate: ${row.id} "${row.name}" kept its card, ${row.external_source}:${row.external_id} disagrees with it`);
-  } else if (evidence.length) {
-    // The row's own provider, read again: its tee boxes are kept (the weekly
-    // refresh never recorded what the boxes said until now).
-    await recordParEvidence(admin, row.id, evidence);
   }
+  // The row's own provider, read again: its tee boxes are kept (the weekly
+  // refresh never recorded what the boxes said until now).
+  const keptEvidence = !merged.refused && evidence.length > 0 && (await recordParEvidence(admin, row.id, evidence));
 
   const { data: updated } = await admin
     .from('golf_courses')
@@ -2147,6 +2202,7 @@ export async function hydrateCourseDetailed(
   // tee boxes disagreed in count (GolfCourseAPI only fills matching boxes)
   // so no hole carries a yardage: both are real, recorded shapes.
   const written = (updated as unknown as CatalogRow) ?? { ...row, ...normalized };
+  if (keptEvidence) await settleAfterEvidence(admin, row.id);
   const anyYardage = (normalized.hole_data ?? []).some(h => Object.values(h.yardage ?? {}).some(y => typeof y === 'number' && y > 0));
   const outcome: HydrationOutcome['outcome'] = !normalized.hole_data ? 'no_tees' : anyYardage ? 'ok' : 'no_yardage_for_tee';
   return done(rowToCourse(written), outcome, normalized);

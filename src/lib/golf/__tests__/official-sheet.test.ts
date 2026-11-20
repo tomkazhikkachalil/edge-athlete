@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { nineFromCombination, type SheetHole } from '../sheet-merge';
-import { findOfficialSheet, pickSheetCandidate, readMapSheet, resetProviderBreakerForTests, sheetAskUnanswered, sheetSearchQueries, withMapSheet, SHEET_ASK_RETRIES, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
+import { findOfficialSheet, topUpParEvidence, pickSheetCandidate, readMapSheet, resetProviderBreakerForTests, sheetAskUnanswered, sheetSearchQueries, withMapSheet, SHEET_ASK_RETRIES, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
 
 // Nov 16 2026: "Find the official scorecard" asks EVERY provider that is not
 // the row's own, by name, until the card lacks nothing; answers fill the card.
@@ -16,7 +16,7 @@ const row = (over: Partial<CatalogRow> = {}): CatalogRow => ({
   ...over,
 } as CatalogRow);
 
-function fakeAdmin(budget: boolean[] = [], geometry: unknown = null) {
+function fakeAdmin(budget: boolean[] = [], geometry: unknown = null, sheetSources: unknown = undefined, heldEvidence: unknown[] = []) {
   const updates: Array<Record<string, unknown>> = [];
   const keys: string[] = [];
   const released: string[] = [];
@@ -28,8 +28,10 @@ function fakeAdmin(budget: boolean[] = [], geometry: unknown = null) {
   const evidenceTable = {
     upsert: async (rows: typeof evidence) => { evidence.push(...rows); return { error: null }; },
     delete: () => ({ eq: () => ({ eq: () => ({ lt: async () => ({ error: null }) }) }) }),
+    // topUpParEvidence asks whether the course already holds the provider's boxes.
+    select: () => ({ eq: () => ({ eq: () => ({ limit: async () => ({ data: heldEvidence, error: null }) }) }) }),
   };
-  read.maybeSingle = async () => ({ data: { hole_geometry: geometry }, error: null });
+  read.maybeSingle = async () => ({ data: { hole_geometry: geometry, ...(sheetSources === undefined ? {} : { sheet_sources: sheetSources }) }, error: null });
   read.update = (fields: Record<string, unknown>) => {
     updates.push(fields);
     return { eq: async () => ({ error: null }) };
@@ -686,5 +688,43 @@ describe('the lookup keeps what each source said as evidence', () => {
     const { admin, evidence } = fakeAdmin([], mapOfPar3s);
     expect((await findOfficialSheet(admin, row())).outcome).toBe('found');
     expect(evidence.map(e => e.source)).toEqual(['golfcourseapi', 'golfcourseapi']);
+  });
+});
+
+// Nov 20 2026 (phase 2): a card saved from GolfCourseAPI before its tee boxes
+// were kept gets them once, on a person's pick, so it can be judged.
+describe('an older card gets its tee boxes once, on a pick', () => {
+  const whole = () => {
+    const card = gcaDetail().course.tees.male[0].holes.map((h, i) => ({ number: i + 1, par: h.par as number, yardage: { blue: h.yardage }, handicap: i + 1 }));
+    return row({ hole_data: card as never, total_par: 36, holes_count: 9, course_rating: { blue: 71 } as never, slope_rating: { blue: 128 } as never });
+  };
+
+  it('pars credited to GolfCourseAPI, no boxes held: one search and one detail, the boxes are kept', async () => {
+    const calls = stubProviders();
+    const { admin, evidence, keys, updates } = fakeAdmin([], null, { pars: 'golfcourseapi' });
+    expect(await topUpParEvidence(admin, whole())).toBe('kept');
+    expect(calls).toEqual(['golfcourseapi:search', 'golfcourseapi:detail']);
+    expect(keys[0]).toBe(`golf-par-evidence-ask:${row().id}`);
+    expect(evidence.map(e => [e.source, e.label])).toEqual([['golfcourseapi', 'blue'], ['golfcourseapi', 'white']]);
+    // The card itself is not written by the top-up.
+    expect(updates).toEqual([]);
+  });
+
+  it('nothing is asked when the boxes are already held, when another source supplied the pars, or on the provider\'s own row', async () => {
+    const calls = stubProviders();
+    expect(await topUpParEvidence(fakeAdmin([], null, { pars: 'golfcourseapi' }, [{ label: 'blue' }]).admin, whole())).toBe('not_needed');
+    expect(await topUpParEvidence(fakeAdmin([], null, { pars: 'opengolfapi' }).admin, whole())).toBe('not_needed');
+    expect(await topUpParEvidence(fakeAdmin([], null, { pars: 'golfcourseapi' }).admin, { ...whole(), external_source: 'golfcourseapi' } as never)).toBe('not_needed');
+    expect(calls).toEqual([]);
+  });
+
+  it('once a day per course, and an answer that is not the saved card\'s course is not kept', async () => {
+    const calls = stubProviders();
+    expect(await topUpParEvidence(fakeAdmin([false], null, { pars: 'golfcourseapi' }).admin, whole())).toBe('not_today');
+    expect(calls).toEqual([]);
+    stubProviders({ gca: gcaDetail(NINE.map(() => 5)) });
+    const { admin, evidence } = fakeAdmin([], null, { pars: 'golfcourseapi' });
+    expect(await topUpParEvidence(admin, whole())).toBe('no_match');
+    expect(evidence).toEqual([]);
   });
 });
