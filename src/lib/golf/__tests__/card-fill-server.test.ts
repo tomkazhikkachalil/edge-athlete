@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { CRON_CARD_PHASE_MS, ROW_START_RESERVE_MS, runCardFillBatch, runCardLink } from '../card-fill-server';
+import { resetProviderBreakerForTests } from '../course-catalog';
 
 // Nov 17 2026: the fill's writer against a recorded database. The provider's
 // answer is the live detail shape the normaliser's tests pin.
@@ -63,7 +64,7 @@ const queue = (rows: unknown[]) => (c: Call) => {
 };
 
 beforeEach(() => { vi.spyOn(console, 'warn').mockImplementation(() => {}); });
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); resetProviderBreakerForTests(); });
 
 describe('runCardFillBatch', () => {
   it('a dry run asks nobody and writes nothing', async () => {
@@ -157,7 +158,8 @@ describe('runCardFillBatch', () => {
     const { admin } = fakeAdmin(queue([fillRow(), fillRow({ id: 'c2' }), fillRow({ id: 'c3' })]));
     const r = await runCardFillBatch(admin, { rows: 5, dryRun: false });
     expect(r).toMatchObject({ outcomes: { provider_error: 2 } });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Nov 19 2026: the second failure is the skip itself (the host just failed), so ONE real call was made.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('a database without migration 314 says so', async () => {
