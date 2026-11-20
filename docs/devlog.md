@@ -1,5 +1,23 @@
 # Development Log
 
+## November 20, 2026 (18:12) — Tom's first tap on the par review panel looked dead: the answer was off screen and the list took five seconds
+
+**#1602 on production** (`f014a4a1`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. Tom ran the website statement (`2`, both Angus Glen courses, read back: `https://angusglen.com/` on each, cards untouched).
+
+**What Tom saw.** "When I selected option to keep a par 5, nothing happened." What production holds: the decision was recorded (an `admin` evidence row for Angus Glen North, hole 1, 23:07:09 UTC; the POST answered 200). So the tap worked and the panel did not say so.
+
+**Two causes, both in what shipped this afternoon.**
+- The outcome line was drawn at the TOP of the panel, above the list, out of sight of a hole tapped further down.
+- After every tap the panel re-read the whole list and only then dropped the hole. `readParReview` judged each course with its own five reads: 93 reads and 5.4 s for 39 courses, measured against production from here. Until it returned, the only change was "Saving…" on one button.
+
+**Fixed.**
+- `GolfParReviewPanel`: the outcome is shown AT the course that was tapped (and a failure there too); the hole leaves the list as soon as the server answers, the fresh list follows behind without being waited for; a course whose last hole was decided stays on screen with its line and "Nothing else is waiting on this course."; a save disables only that course's buttons.
+- `readParReview`: all the evidence in one read, the course rows in chunks of 25, the pick counts once, judged in memory through `judgeSavedCard`, the same judgement `settleCoursePars` uses.
+
+**Proof.** `e2e/admin-golf-par-review.spec.ts` on staging against the built app now requires what failed: after the tap the line "Hole 1: par 5 kept. Recorded as decided." is inside the viewport at the tapped course, the hole is gone within five seconds, and the list answers within three. Passed.
+
+**Wrong on my side, said to Tom.** Before he reported it I told him production's logs showed no console activity. The log search filtered on message text, not on the request path, and returned a few minutes only; his session was there from 23:04 UTC. And the panel's first real use was his: no admin test account exists on production, so I had only proved it on staging, where the list is one course long and answers at once. A list read is now timed in the spec.
+
 ## November 20, 2026 (17:30) — Phase 4 is not built; a split course inherits its club's website
 
 The decision on phase 4: skip it, clear the review list by hand with a table of published pars that names the source read for each one, and, separately, let split courses inherit their club's website.

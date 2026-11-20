@@ -74,6 +74,15 @@ interface SettleRow {
   hole_geometry: { holes?: Array<{ hole: number; par?: number | null }> } | null;
 }
 
+/** A saved card judged against its evidence and its own tagged map pars. A
+ *  map the card overruled is not evidence against that card. In memory: the
+ *  one judgement both a single course and the whole review list go through. */
+function judgeSavedCard(row: Pick<SettleRow, 'hole_data' | 'sheet_sources' | 'hole_geometry'>, evidence: ReadonlyArray<ParEvidenceRow>): HoleJudgement[] {
+  const holes = row.hole_data?.length ?? 0;
+  const mapPars = row.sheet_sources?.mapOverruled ? null : taggedMapPars(row.hole_geometry?.holes, holes);
+  return judgePars(evidence, mapPars, holes);
+}
+
 /**
  * Judge one course's saved card against its evidence and correct what may be
  * corrected (par-evidence.ts: a hole settled by independent evidence, or
@@ -99,8 +108,7 @@ export async function settleCoursePars(
   if (saved.length === 0) return { ...base, skipped: 'no_card' };
   const evidence = await readParEvidence(admin, courseId);
   if (!evidence.some(e => e.source === PAR_BOX_SOURCE || e.source === 'admin')) return { ...base, skipped: 'no_evidence' };
-  const mapPars = row.sheet_sources?.mapOverruled ? null : taggedMapPars(row.hole_geometry?.holes, saved.length);
-  const judged = judgePars(evidence, mapPars, saved.length);
+  const judged = judgeSavedCard(row, evidence);
   const allow = opts.allow ?? ['admin', 'settled'];
   const corrections = parCorrections(saved, judged).filter(c => allow.includes(c.reason));
   // What is open on the card as it stands, and what will be once these corrections are written.
@@ -227,36 +235,55 @@ export interface ParReview {
   judged: number;
 }
 
+/** How many course rows one read of the review list asks for (each carries its map lines). */
+const REVIEW_CHUNK = 25;
+
 /** What the admin console shows: every saved card with holes still open
- *  (openHoles), most-picked course first, and the last recorded changes. */
+ *  (openHoles), most-picked course first, and the last recorded changes.
+ *
+ *  Read in a handful of queries however many courses hold evidence: ALL the
+ *  evidence at once, the course rows in chunks, the pick counts once. The
+ *  first version judged each course with its own five reads (93 reads and
+ *  five seconds for 39 courses on production, Nov 20 2026), and the console
+ *  re-read the list after every tap. */
 export async function readParReview(admin: SupabaseClient): Promise<ParReview> {
-  const { data, error } = await admin.from('golf_par_evidence').select('course_id').eq('source', PAR_BOX_SOURCE).limit(20000);
+  const { data, error } = await admin.from('golf_par_evidence').select('course_id, source, label, votes, pars').limit(50000);
   if (error) throw new Error(error.message);
-  const ids = [...new Set((data ?? []).map(r => r.course_id as string))].slice(0, 2000);
+  const byCourse = new Map<string, ParEvidenceRow[]>();
+  for (const r of data ?? []) {
+    const list = byCourse.get(r.course_id as string) ?? [];
+    list.push({ source: r.source as ParEvidenceRow['source'], label: r.label as string, votes: r.votes as boolean, pars: (r.pars as Array<number | null>) ?? [] });
+    byCourse.set(r.course_id as string, list);
+  }
+  const ids = [...byCourse.entries()].filter(([, rows]) => rows.some(e => e.source === PAR_BOX_SOURCE)).map(([id]) => id).slice(0, 2000);
   const courses: ParReviewCourse[] = [];
-  for (const id of ids) {
-    const r = await settleCoursePars(admin, id, { dryRun: true });
-    if (!r || r.disputed.length === 0) continue;
-    const [card, evidence] = await Promise.all([
-      admin.from('golf_courses').select('city, region, hole_data').eq('id', id).maybeSingle(),
-      readParEvidence(admin, id),
-    ]);
-    const saved = ((card.data as { hole_data?: Array<{ number: number; par: number }> } | null)?.hole_data ?? []);
-    const boxes = evidence.filter(e => e.source === PAR_BOX_SOURCE);
-    courses.push({
-      courseId: id,
-      name: r.name,
-      city: (card.data as { city?: string | null } | null)?.city ?? null,
-      region: (card.data as { region?: string | null } | null)?.region ?? null,
-      picks: 0,
-      holes: r.disputed.map(hole => ({
-        hole,
-        saved: saved.find(s => s.number === hole)?.par ?? 0,
-        boxes: Object.fromEntries(boxes.map(b => [b.label, b.pars[hole - 1] ?? null])),
-        independent: r.judged[hole - 1].independent,
-        candidates: r.judged[hole - 1].candidates,
-      })),
-    });
+  for (let i = 0; i < ids.length; i += REVIEW_CHUNK) {
+    const chunk = await admin.from('golf_courses').select('id, name, city, region, total_par, hole_data, sheet_sources, hole_geometry').in('id', ids.slice(i, i + REVIEW_CHUNK));
+    if (chunk.error) throw new Error(chunk.error.message);
+    for (const raw of chunk.data ?? []) {
+      const row = raw as unknown as SettleRow & { city: string | null; region: string | null };
+      const saved = row.hole_data ?? [];
+      if (saved.length === 0) continue;
+      const evidence = byCourse.get(row.id) ?? [];
+      const judged = judgeSavedCard(row, evidence);
+      const open = openHoles(saved, judged);
+      if (open.length === 0) continue;
+      const boxes = evidence.filter(e => e.source === PAR_BOX_SOURCE);
+      courses.push({
+        courseId: row.id,
+        name: row.name,
+        city: row.city ?? null,
+        region: row.region ?? null,
+        picks: 0,
+        holes: open.map(hole => ({
+          hole,
+          saved: saved.find(h => h.number === hole)?.par ?? 0,
+          boxes: Object.fromEntries(boxes.map(b => [b.label, b.pars[hole - 1] ?? null])),
+          independent: judged[hole - 1].independent,
+          candidates: judged[hole - 1].candidates,
+        })),
+      });
+    }
   }
   if (courses.length) {
     const picks = await admin.from('golf_course_picks').select('course_id, picks').in('course_id', courses.map(c => c.courseId));

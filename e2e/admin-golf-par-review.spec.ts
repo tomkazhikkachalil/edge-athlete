@@ -104,8 +104,18 @@ test('admin: disputed pars are listed, a decision corrects the card and is recor
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'no sideways scroll at 375 px').toBe(true);
     await hole1.locator('[data-par-review-set="5"]').click();
-    await expect(panel.locator('[data-par-review-outcome]')).toContainText('hole 1: par 5 kept', { timeout: 20_000 });
-    await expect(row.locator('[data-par-review-hole]')).toHaveCount(2, { timeout: 20_000 });
+    // The answer shows AT the course that was tapped, on screen, and the hole
+    // leaves the list at once (Nov 20 2026: the line sat at the top of the
+    // panel and the list took seconds, so a tap that worked looked dead).
+    const said = row.locator('[data-par-review-outcome]');
+    await expect(said).toContainText('Hole 1: par 5 kept. Recorded as decided.', { timeout: 10_000 });
+    await expect(said).toBeInViewport();
+    await expect(row.locator('[data-par-review-hole]')).toHaveCount(2, { timeout: 5_000 });
+    await expect(row.locator('[data-par-review-hole="1"]')).toHaveCount(0);
+    // The list itself reads quickly however many courses hold evidence.
+    const t0 = Date.now();
+    expect((await adminApi.get('/api/admin/golf-par-review')).ok()).toBe(true);
+    expect(Date.now() - t0, 'the review list answers within three seconds').toBeLessThan(3_000);
     // Keeping a par changed no card and recorded no change.
     expect((await card()).total_par).toBe(71);
     expect((await admin.from('golf_par_changes').select('id').eq('course_id', courseId)).data).toHaveLength(1);
