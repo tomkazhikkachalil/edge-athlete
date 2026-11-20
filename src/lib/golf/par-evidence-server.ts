@@ -201,6 +201,9 @@ export interface ParReviewHole {
   saved: number;
   /** What each of the provider's tee boxes says, by box. */
   boxes: Record<string, number | null>;
+  /** The hole's length from each tee on the saved card, in yards, by tee (the
+   *  same names as `boxes`): what tells a person whether a par makes sense. */
+  yards: Record<string, number>;
   /** What the independent sources say ('map', 'website', 'opengolfapi'). */
   independent: Record<string, number>;
   /** Every par a box gave, lowest first: the choices offered. */
@@ -279,6 +282,7 @@ export async function readParReview(admin: SupabaseClient): Promise<ParReview> {
           hole,
           saved: saved.find(h => h.number === hole)?.par ?? 0,
           boxes: Object.fromEntries(boxes.map(b => [b.label, b.pars[hole - 1] ?? null])),
+          yards: Object.fromEntries(Object.entries((saved.find(h => h.number === hole)?.yardage as Record<string, unknown> | undefined) ?? {}).filter((e): e is [string, number] => typeof e[1] === 'number' && e[1] > 0)),
           independent: judged[hole - 1].independent,
           candidates: judged[hole - 1].candidates,
         })),

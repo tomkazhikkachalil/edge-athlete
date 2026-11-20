@@ -57,7 +57,7 @@ test('admin: disputed pars are listed, a decision corrects the card and is recor
     const mine = review.courses.find(c => c.courseId === courseId)!;
     expect(mine, 'the seeded course is on the list').toBeTruthy();
     expect(mine.holes.map(h => h.hole)).toEqual([1, 3, 5, 10]);
-    expect(mine.holes.find(h => h.hole === 5)).toMatchObject({ saved: 4, candidates: [4, 5], boxes: { blue: 5, white: 4, yellow: 4, red: 4, 'white (f)': 5 } });
+    expect(mine.holes.find(h => h.hole === 5)).toMatchObject({ saved: 4, candidates: [4, 5], boxes: { blue: 5, white: 4, yellow: 4, red: 4, 'white (f)': 5 }, yards: { blue: 404 } });
 
     // Refusals: nothing changes.
     expect((await adminApi.post('/api/admin/golf-par-review', { data: { courseId, hole: 5, par: 7 } })).status()).toBe(400);
@@ -88,7 +88,11 @@ test('admin: disputed pars are listed, a decision corrects the card and is recor
     await expect(row.locator('[data-par-review-hole]')).toHaveCount(3);
     const hole1 = row.locator('[data-par-review-hole="1"]');
     await expect(hole1).toContainText('saved as par 5');
-    await expect(hole1.locator('[data-par-review-says]')).toContainText('par 5: blue, white');
+    // Each tee with its yardage and the par its box gives, longest first (Tom:
+    // "I need to see yardage to know what to select").
+    await expect(hole1.locator('[data-par-review-tee]').first()).toHaveText('blue · 400 yds · par 5');
+    await expect(hole1.locator('[data-par-review-tee="yellow"]')).toHaveText('yellow · no yardage · par 4');
+    await expect(hole1.locator('[data-par-review-tee]')).toHaveCount(5);
     await expect(hole1.locator('[data-par-review-set="5"]')).toHaveText('Keep par 5');
     await expect(hole1.locator('[data-par-review-set="4"]')).toHaveText('Change to par 4');
     await expect(panel.locator('[data-par-review-change]').filter({ hasText: name })).toContainText(`hole 5: par 4 to 5 · decided by ${adminEmail}`);

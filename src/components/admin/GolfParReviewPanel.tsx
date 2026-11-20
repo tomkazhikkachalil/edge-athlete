@@ -12,16 +12,16 @@ const btn = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-st
 const SOURCE: Record<string, string> = { map: 'the map', website: 'the course website', opengolfapi: 'OpenGolfAPI' };
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-/** "par 4: gold, blue · par 5: black" — who says what, in the hole's own words. */
-function whoSaysWhat(h: ParReviewHole): string {
-  return h.candidates
-    .map(par => {
-      const boxes = Object.entries(h.boxes).filter(([, p]) => p === par).map(([label]) => label);
-      const others = Object.entries(h.independent).filter(([, p]) => p === par).map(([s]) => SOURCE[s] ?? s);
-      return `par ${par}: ${[...boxes, ...others].join(', ')}`;
-    })
-    .join(' · ');
+/** One line per tee: its yardage on the saved card and the par that tee's box
+ *  gives, longest tee first; then what the other sources say. A tee the card
+ *  has no yardage for still shows its par. */
+function teeLines(h: ParReviewHole): Array<{ tee: string; yards: number | null; par: number | null }> {
+  const tees = [...new Set([...Object.keys(h.boxes), ...Object.keys(h.yards)])];
+  return tees
+    .map(tee => ({ tee, yards: h.yards[tee] ?? null, par: h.boxes[tee] ?? null }))
+    .sort((a, b) => (b.yards ?? -1) - (a.yards ?? -1) || a.tee.localeCompare(b.tee));
 }
+const otherSources = (h: ParReviewHole): string => Object.entries(h.independent).map(([s, par]) => `${SOURCE[s] ?? s} says par ${par}`).join(' · ');
 
 export default function GolfParReviewPanel() {
   const [review, setReview] = useState<(ParReview & { writesEnabled: boolean }) | null>(null);
@@ -110,7 +110,14 @@ export default function GolfParReviewPanel() {
                   {course.holes.map(hole => (
                     <li key={hole.hole} data-par-review-hole={hole.hole}>
                       <p className="text-sm text-primary">Hole {hole.hole} <span className="text-secondary">· saved as par {hole.saved}</span></p>
-                      <p className="text-xs text-muted mb-1.5 break-words" data-par-review-says="">{whoSaysWhat(hole)}</p>
+                      <ul className="text-xs text-secondary mb-1.5 grid grid-cols-1 sm:grid-cols-2 gap-x-4" data-par-review-says="">
+                        {teeLines(hole).map(t => (
+                          <li key={t.tee} className="break-words" data-par-review-tee={t.tee}>
+                            <span className="capitalize">{t.tee}</span> · {t.yards !== null ? `${t.yards} yds` : 'no yardage'} · {t.par !== null ? <span className={t.par === hole.saved ? '' : 'font-semibold text-primary'}>par {t.par}</span> : 'no par given'}
+                          </li>
+                        ))}
+                      </ul>
+                      {otherSources(hole) && <p className="text-xs text-muted mb-1.5 break-words" data-par-review-other="">{otherSources(hole)}</p>}
                       <div className="flex flex-wrap gap-2">
                         {hole.candidates.map(par => (
                           <button key={par} type="button" disabled={!!busy && busy.startsWith(`${course.courseId}:`)} onClick={() => decide(course, hole, par)} className={btn} data-par-review-set={par}>
