@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PAR_SETTLE_WRITES, settleAfterEvidence, settleCoursePars, sweepParSettlement } from '../par-evidence-server';
+import { PAR_SETTLE_WRITES, decideHolePar, settleAfterEvidence, settleCoursePars, sweepParSettlement } from '../par-evidence-server';
 
 // Phase 2 (Nov 20 2026): a saved card is judged against its evidence and a
 // settled or admin-decided hole is corrected, logged. Champlain's real shape.
@@ -136,5 +136,24 @@ describe('while the app\'s own corrections are switched off', () => {
     const waiting = await sweepParSettlement(fake({ evidence: BOXES }).admin);
     expect(waiting.changed).toEqual([]);
     expect(waiting.waiting).toEqual([{ courseId: 'c1', name: 'Champlain', disputed: [1, 3, 5, 10] }]);
+  });
+});
+
+// Phase 3: what an admin's decision is refused for, before anything is written.
+describe('decideHolePar: refusals', () => {
+  const decide = (over: Parameters<typeof fake>[0], input: { hole: number; par: number; note?: string }) => {
+    const f = fake(over);
+    return decideHolePar(f.admin, { courseId: 'c1', actor: 'tom@example.test', ...input }).then(r => ({ r, f }));
+  };
+  it('a par outside 3 to 6, a hole not on the card, a course with no card', async () => {
+    expect((await decide({}, { hole: 5, par: 7 })).r).toEqual({ ok: false, error: 'bad_par' });
+    expect((await decide({}, { hole: 19, par: 4 })).r).toEqual({ ok: false, error: 'bad_hole' });
+    expect((await decide({ card: null }, { hole: 1, par: 4 })).r).toEqual({ ok: false, error: 'no_card' });
+  });
+  it('a par no source gave needs a note; nothing is written without one', async () => {
+    const { r, f } = await decide({}, { hole: 5, par: 6 });
+    expect(r).toEqual({ ok: false, error: 'note_required' });
+    expect(f.updates).toEqual([]);
+    expect(f.logs).toEqual([]);
   });
 });
