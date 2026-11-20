@@ -1,5 +1,11 @@
 # Development Log
 
+## November 20, 2026 (17:08) — Phase 4 measured before it was built: the website would settle nothing today; a settled hole stays on the review list until the card is corrected
+
+Tom: "yes, go ahead with phase 4". Read first, on production: none of the six courses on the review list has a `website` on file, and of the 39 scorecards that hold their tee boxes only 3 do. The two Angus Glen courses lack it because the club split (`club-split-server.ts`) does not copy the club's website onto the courses it makes; the other four have none recorded. A website reaches the catalog only from a map tag or a provider, and the app does not search for one. So a scheduled website visitor for disputed holes would settle 0 of the 23 open holes today. Not built; the options were put to Tom (skip it and clear the list by hand, or give split courses their club's site first).
+
+**Fixed, found while reading for it.** `openHoles` closed a hole as soon as the evidence SETTLED it, even when the saved par was still the other one. With the app's own corrections switched off (`PAR_SETTLE_WRITES`), such a hole would have left the review list while the card was still wrong. Now a settled or leaning hole is open whenever its par is not the saved one, and `settleCoursePars` reports what is open on the card as it stands (and, after a real write, as it was written).
+
 ## November 20, 2026 (17:04) — Pars from evidence, phases 2 and 3 on production; the plan pauses at Tom's gate
 
 **On production** (`23da2ca1`; #1597 phase 2, #1598 the map-alone rule, #1599 phase 3). Probe, one spec and project at a time: health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. `/api/admin/golf-par-review` and `/api/admin/golf-providers` answer 401 to an anonymous caller.

@@ -51,6 +51,11 @@ describe('judgePars', () => {
     // Open on the saved card: the lean contradicts it. A lean that agrees closes the hole.
     expect(openHoles(saved, j)).toEqual([1, 3, 5, 10]);
     expect(openHoles(saved, judgePars(CHAMPLAIN, only(3, 5), 18))).toEqual([1, 5, 10]);
+    // A hole settled against the saved par is open too until the card is corrected.
+    const settled = judgePars([...CHAMPLAIN, one('website', only(3, 4))], null, 18);
+    expect(settled[2].status).toBe('settled');
+    expect(openHoles(saved, settled)).toEqual([1, 3, 5, 10]);
+    expect(openHoles(card('534354344534443444'), settled)).toEqual([1, 5, 10]);
     // The same par from the course's own website settles it.
     expect(judgePars([...CHAMPLAIN, one('website', only(3, 5))], null, 18)[2]).toMatchObject({ par: 5, status: 'settled', settledBy: ['website'] });
   });

@@ -58,10 +58,10 @@ describe('settleCoursePars', () => {
     expect((f.logs[0].evidence as { boxes: Record<string, number> }).boxes).toEqual({ blue: 5, white: 4, yellow: 4, red: 4, 'white (f)': 5 });
   });
 
-  it('a dry run reports the same correction and writes nothing', async () => {
+  it('a dry run reports the same correction and writes nothing; the hole stays open until the card is corrected', async () => {
     const f = fake();
     const r = await settleCoursePars(f.admin, 'c1', { dryRun: true });
-    expect(r).toMatchObject({ applied: false, corrections: [{ hole: 5, to: 5 }] });
+    expect(r).toMatchObject({ applied: false, corrections: [{ hole: 5, to: 5 }], disputed: [5] });
     expect(f.updates).toEqual([]);
     expect(f.logs).toEqual([]);
   });

@@ -103,9 +103,11 @@ export async function settleCoursePars(
   const judged = judgePars(evidence, mapPars, saved.length);
   const allow = opts.allow ?? ['admin', 'settled'];
   const corrections = parCorrections(saved, judged).filter(c => allow.includes(c.reason));
-  const disputed = openHoles(saved, judged);
-  const result: SettleResult = { ...base, corrections, disputed, judged };
+  // What is open on the card as it stands, and what will be once these corrections are written.
+  const afterWrite = saved.map(h => ({ number: h.number, par: corrections.find(c => c.hole === h.number)?.to ?? h.par }));
+  const result: SettleResult = { ...base, corrections, disputed: openHoles(saved, judged), judged };
   if (opts.dryRun || corrections.length === 0) return result;
+  const disputed = openHoles(afterWrite, judged);
 
   const next = saved.map(h => {
     const fix = corrections.find(c => c.hole === h.number);
@@ -141,7 +143,7 @@ export async function settleCoursePars(
   // The card IS corrected; a record that failed to save is loud, never silent.
   if (log.error) console.error(`[par-evidence] ${courseId} "${row.name}" was corrected on hole ${corrections.map(c => c.hole).join(', ')} but the record could not be saved:`, log.error.message);
   for (const c of corrections) console.warn(`[par-evidence] ${courseId} "${row.name}" hole ${c.hole}: par ${c.from} → ${c.to} (${c.reason}${c.settledBy.length ? ` by ${c.settledBy.join(' + ')}` : ''})`);
-  return { ...result, applied: true };
+  return { ...result, disputed, applied: true };
 }
 
 /** After evidence arrived on a golfer's path: settle what it settles. Dry

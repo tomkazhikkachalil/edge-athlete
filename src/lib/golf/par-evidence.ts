@@ -143,12 +143,14 @@ export function disputedHoles(judged: ReadonlyArray<HoleJudgement>): number[] {
 }
 
 /** The holes of a SAVED card still waiting for evidence or a person: every
- *  disputed hole, and a hole the map alone leans on when the map's par is not
- *  the saved one. A lean that agrees with the saved par is a confirmation:
- *  nothing is open there. */
+ *  disputed hole, and a hole the evidence leans on or has settled when its par
+ *  is NOT the saved one. A lean or a settlement that agrees with the saved par
+ *  closes the hole. A settled hole whose correction has not been written (the
+ *  app's own corrections are switched off, or the write failed) is still open:
+ *  it must not leave the review list while the card is still wrong. */
 export function openHoles(saved: ReadonlyArray<{ number: number; par: number }>, judged: ReadonlyArray<HoleJudgement>): number[] {
   return judged
-    .filter(j => j.status === 'disputed' || (j.status === 'leaning' && saved.find(s => s.number === j.hole)?.par !== j.par))
+    .filter(j => j.status === 'disputed' || ((j.status === 'leaning' || j.status === 'settled') && saved.find(s => s.number === j.hole)?.par !== j.par))
     .map(j => j.hole);
 }
 
