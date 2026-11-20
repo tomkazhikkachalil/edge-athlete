@@ -1,5 +1,26 @@
 # Development Log
 
+## November 20, 2026 (13:42) — The tee rule corrected the same day: men's tees decide, hole by hole (found by rechecking production's 40 cards)
+
+**What was wrong with this morning's rule (#1590).** It took the whole card most tee boxes share, men's and women's together. Tom approved a one-time re-read of the 40 production cards whose pars came from GolfCourseAPI (91 paced calls from here, production read only). On Rivermead the ten men's boxes share the correct card (72) and all eleven women's boxes give their own pars on holes 5, 7 and 18 (75): the rule would have replaced a correct card with the women's one, 11 boxes to 10. It was live for about ninety minutes; a read of production shows no GolfCourseAPI card was written in that time.
+
+**The rule now** (`parsFromTees` in `sheet-merge.ts`, `gcaPars` in `course-catalog.ts`). Each hole takes the par most MEN's boxes give it; a tie keeps the reference box; the women's boxes decide only when there is no men's box of that length. The total is the card's own sum once the tees were weighed. A women's par is often a different and correct par for the same hole, so it never votes against the card.
+
+**Measured on the 38 cards that could be re-read** (one course's listing has no tees today; the four clubs hand-checked on Nov 19 and 20 were not re-read in the second pass): the rule reproduces the saved card on 34, including Rivermead, and gives a different card on four, each of which the old first-box rule had saved. Checked against published cards:
+
+| Course | Saved | The rule | Published | |
+| --- | --- | --- | --- | --- |
+| Eagles Nest (Vaughan) | 74 | 72 | 72 (GolfPass) | the rule is right; saved holes 12 and 18 are wrong |
+| Falcon Ridge (Greely) | 73 | 72 | 72 (GolfPass) | the rule is right; saved hole 4 is wrong |
+| Champlain (Gatineau) | 71 | 70 | 71 (GolfPass, Golf Canada) | the SAVED card is right; the rule is wrong on hole 5 |
+| Amberwood Village (Stittsville) | 66 | 65 | 64 and 66 (two sources) | unclear, left alone |
+
+**So the rule is the better default, not a proof.** On Champlain only the back tee carries the true par of hole 5 and three shorter men's tees outvote it; on Angus Glen and Eagles Nest it is the back tee alone that is wrong. The provider's boxes contradict each other and nothing in its answer says which one is the club's card. Counted on these 38: the old first-box rule is wrong on three, this one on one. Champlain's saved card stays (a filled card is never replaced by the app). Eagles Nest and Falcon Ridge get correction SQL for Tom to run; neither has a round.
+
+**Proof.** Unit tests rewritten for the per-hole rule (majority, tie, voters, missing pars); real shapes as fixtures: Angus Glen South (the club's card, disputed 1, 7, 9, 14, 16), Rivermead (the men's card kept, 72), Eagles Nest (no two men's boxes alike, 72 hole by hole).
+
+**Lesson.** A matching rule is measured against every saved row before it ships, not against the one case that prompted it. The Nov 19 note said the same about candidate rules.
+
 ## November 20, 2026 (13:14) — The admin console shows each golf provider's calls against its daily limit; phase 2 on production
 
 **#1590 on production** (`ae045e7a`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed.

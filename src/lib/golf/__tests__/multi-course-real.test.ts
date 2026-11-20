@@ -138,4 +138,38 @@ describe('a card\'s pars are what most tee boxes say (Angus Glen South)', () => 
   it('the holes the tees disagree on are named', () => {
     expect(gcaParsDisputed(south)).toEqual([1, 7, 9, 14, 16]);
   });
+
+  // Rivermead (Aylmer), read the same day: ten men's boxes share the card the
+  // club plays (72), one men's box differs on hole 1, and all eleven women's
+  // boxes give a different par on holes 5, 7 and 18 (75). The women's pars
+  // are right for the women's tees and must not replace the card.
+  it('women\'s boxes with their own pars do not outvote the men\'s card (Rivermead)', () => {
+    const MEN = '534445434354444354';
+    const WOMEN = '534455534354444355';
+    const names = ['1', '1-2', '2', '2-3', '3', '3-4', '4', '4-5', '5', '5-6'];
+    const rivermead = {
+      id: 'pwwy906h', club_name: 'Rivermead Golf And Country Club', course_name: 'Rivermead', location: { city: 'Aylmer', state: 'QC', country: 'Canada' },
+      tees: { male: [...names.map(n => tee(n, 72, MEN, 500)), tee('6', 71, '434445434354444354', 300)], female: [...names, '6'].map(n => tee(n, 75, WOMEN, 480)) },
+    };
+    const row = normalizeGcaDetail(rivermead);
+    expect(row.hole_data!.map(h => h.par).join('')).toBe(MEN);
+    expect(row.total_par).toBe(72);
+    expect(gcaParsDisputed(rivermead)).toEqual([1]);
+  });
+
+  // Eagles Nest (Vaughan): no two men's boxes share a whole card. The first
+  // box's (74) was saved; hole by hole the men's boxes give 72.
+  it('men\'s boxes that all differ still give one card, hole by hole (Eagles Nest)', () => {
+    const nest = {
+      id: 'hm202yvw', club_name: 'Eagles Nest Golf Club', course_name: 'Eagles Nest Golf Club', location: { city: 'Vaughan', state: 'ON', country: 'Canada' },
+      tees: {
+        male: [tee('Eagle', 74, '544434435445343555', 560), tee('Black', 71, '444434435444343554', 480), tee('Gold', 72, '544434435444343554', 520), tee('White', 70, '344434435444343554', 200), tee('Green', 69, '544434434444343444', 470), tee('Bronze', 69, '544434434444343444', 430)],
+        female: [tee('White', 73, '445434435444343554', 400), tee('Green', 74, '545434435444343554', 470), tee('Bronze', 72, '544434435444343554', 430)],
+      },
+    };
+    const row = normalizeGcaDetail(nest);
+    expect(row.hole_data!.map(h => h.par).join('')).toBe('544434435444343554');
+    expect(row.total_par).toBe(72);
+    expect(gcaParsDisputed(nest)).toEqual([1, 9, 12, 16, 17, 18]);
+  });
 });
