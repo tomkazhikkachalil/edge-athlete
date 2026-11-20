@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-19T05:29:19.171072+00:00 from server 17.6 by
+-- Generated 2026-11-20T03:38:47.085178+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 315.
+-- public.schema_dump() (migration 227). Ledger head at generation: 316.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -6110,7 +6110,8 @@ CREATE TABLE IF NOT EXISTS public.golf_holes (
   club_off_tee text,
   notes text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  penalties text[]
+  penalties text[],
+  par_estimated boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_map_sweep_cells (
@@ -20589,6 +20590,7 @@ COMMENT ON COLUMN public.golf_hole_scores.putts IS 'Number of putts (must be <= 
 COMMENT ON COLUMN public.golf_hole_scores.penalties IS 'Per-hole penalty occurrences for live shared scoring — same model and vocabulary as golf_holes.penalties (078).';
 COMMENT ON COLUMN public.golf_hole_scores.version IS 'Per-hole compare-and-set (209): starts at 1, +1 by trigger_bump_hole_score_version only when a scored field changes. A client sends expected_version; the server updates WHERE version = expected — 0 rows is a conflict (409). Never set by a client.';
 COMMENT ON COLUMN public.golf_holes.penalties IS 'Per-hole penalty occurrences, one array element each (e.g. {out_of_bounds,drop,drop} = OB x1 + Drop x2). Vocabulary app-validated in src/lib/golf/penalties.ts; no CHECK by design (078 header).';
+COMMENT ON COLUMN public.golf_holes.par_estimated IS 'True when this hole''s par was estimated from the map''s hole length (migration 316); copied from the group round''s hole_data by the round mirror.';
 COMMENT ON TABLE public.golf_map_sweep_cells IS 'The course-map sweep''s cells (255): one row per 0.5° box holding catalog courses; the planner''s tier / priority / courses / rounds, the state machine (status, attempts, leased_until, next_due_at) and the last success''s metrics. Service role only; written by src/lib/golf/map-sweep-server.ts.';
 COMMENT ON TABLE public.golf_map_sweep_meta IS 'The course-map sweep''s meta (255): mirror cooldowns, the last run, the plan stamp. Service role only.';
 COMMENT ON TABLE public.golf_participant_scores IS 'Aggregated golf scores for each participant in a golf_round group post';
@@ -21308,7 +21310,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (312, '312_unclaimed_profiles.sql', 'rebuild-000'),
   (313, '313_golf_course_sheet_sources.sql', 'rebuild-000'),
   (314, '314_golf_card_fill.sql', 'rebuild-000'),
-  (315, '315_golf_site_cards.sql', 'rebuild-000')
+  (315, '315_golf_site_cards.sql', 'rebuild-000'),
+  (316, '316_golf_holes_par_estimated.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21317,12 +21320,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 151 | 148 | 145 | 315
+-- Expected: 000 REBUILT | 151 | 148 | 145 | 316
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_151,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_148,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_315;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_316;
 
