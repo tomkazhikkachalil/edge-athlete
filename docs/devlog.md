@@ -1,5 +1,15 @@
 # Development Log
 
+## November 20, 2026 (18:40) — The par review panel shows each tee's yardage beside the par it gives
+
+**#1603 on production** (`aa93ad6a`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. The review list read against production: 0.4 s and 5 database reads (it was 5.4 s and 93).
+
+Tom, part-way through the taps: "I need to see yardage to know what to select." The panel named which tees gave which par and not how long the hole plays from each, which is what tells a person whether a par 4 or a par 5 makes sense.
+
+**Added.** `readParReview` gives each open hole `yards`: the hole's length from every tee on the saved card. The panel lists one line per tee, longest first: the tee, its yardage, and the par that tee's box gives (a par different from the saved one in bold); a tee with no yardage on the card says so; what the map or another source says is on its own line.
+
+**Proof.** `e2e/admin-golf-par-review.spec.ts` on staging against the built app: the first line of hole 1 reads "blue · 400 yds · par 5", a tee the card has no yardage for reads "no yardage", five tees are listed, and the list answer carries `yards`.
+
 ## November 20, 2026 (18:12) — Tom's first tap on the par review panel looked dead: the answer was off screen and the list took five seconds
 
 **#1602 on production** (`f014a4a1`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. Tom ran the website statement (`2`, both Angus Glen courses, read back: `https://angusglen.com/` on each, cards untouched).
