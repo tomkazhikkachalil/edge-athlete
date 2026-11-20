@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { hydrateCourseDetailed, hydrationDue, sheetFromRow, type CatalogRow } from '../course-catalog';
+import { hydrateCourseDetailed, hydrationDue, resetProviderBreakerForTests, sheetFromRow, type CatalogRow } from '../course-catalog';
 
 // H1 (Oct 2026): every hydration ends in a named OUTCOME — logged once, the
 // operational ones as Sentry warnings — and the sheet says what is missing.
@@ -46,7 +46,7 @@ const gca = (course: unknown) => ({ course });
 const teeBox = (name: string, yards: number[]) => ({ tee_name: name, course_rating: 70.1, slope_rating: 125, par_total: 72, number_of_holes: yards.length, holes: yards.map(y => ({ par: 4, yardage: y, handicap: 1 })) });
 
 beforeEach(() => { vi.stubEnv('GOLF_COURSE_API_KEY', 'k'); vi.spyOn(console, 'warn').mockImplementation(() => {}); });
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.mocked(reportRouteWarning).mockClear(); });
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.mocked(reportRouteWarning).mockClear(); resetProviderBreakerForTests(); });
 
 /** fetch routed by host: the provider answers `provider`, Nominatim never answers. */
 function stubFetch(provider: () => Promise<{ ok: boolean; status?: number; json?: () => Promise<unknown> }> | never) {
@@ -93,6 +93,14 @@ describe('hydrateCourseDetailed — the outcomes', () => {
     stubFetch(async () => ({ ok: false, status: 500, json: async () => ({}) }));
     expect((await hydrateCourseDetailed(fakeAdmin().admin, row())).outcome.outcome).toBe('http_500');
     expect(reportRouteWarning).toHaveBeenCalledTimes(1);
+    // While that host is skipped: no call, no stamp, no second warning; the row keeps its one attempt.
+    const skipped = fakeAdmin();
+    const calledBefore = vi.mocked(fetch).mock.calls.length;
+    expect((await hydrateCourseDetailed(skipped.admin, row())).outcome.outcome).toBe('provider_down');
+    expect(vi.mocked(fetch).mock.calls.length).toBe(calledBefore);
+    expect(skipped.updates).toEqual([]);
+    expect(reportRouteWarning).toHaveBeenCalledTimes(1);
+    resetProviderBreakerForTests();
     stubFetch(async () => ({ ok: false, status: 404, json: async () => ({}) }));
     expect((await hydrateCourseDetailed(fakeAdmin().admin, row())).outcome.outcome).toBe('http_404');
     stubFetch(async () => ({ ok: true, json: async () => ({ course: {} }) }));
@@ -105,6 +113,7 @@ describe('hydrateCourseDetailed — the outcomes', () => {
     const a = fakeAdmin();
     expect((await hydrateCourseDetailed(a.admin, row())).outcome.outcome).toBe('timeout');
     expect(a.updates[0].hydrated_at).toBeTruthy();
+    resetProviderBreakerForTests();
     stubFetch(async () => { throw new TypeError('fetch failed'); });
     expect((await hydrateCourseDetailed(fakeAdmin().admin, row())).outcome.outcome).toBe('network');
     expect(reportRouteWarning).toHaveBeenCalledTimes(2);

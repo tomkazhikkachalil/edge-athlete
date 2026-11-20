@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { nineFromCombination, type SheetHole } from '../sheet-merge';
-import { findOfficialSheet, pickSheetCandidate, readMapSheet, sheetSearchQueries, withMapSheet, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
+import { findOfficialSheet, pickSheetCandidate, readMapSheet, resetProviderBreakerForTests, sheetSearchQueries, withMapSheet, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
 
 // Nov 16 2026: "Find the official scorecard" asks EVERY provider that is not
 // the row's own, by name, until the card lacks nothing; answers fill the card.
@@ -77,7 +77,7 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); resetProviderBreakerForTests(); });
 
 describe('findOfficialSheet — every other provider, until the card lacks nothing', () => {
   it('the order: the keyless provider first, GolfCourseAPI for what is still missing', () => {
@@ -156,7 +156,8 @@ describe('findOfficialSheet — every other provider, until the card lacks nothi
     let r = await findOfficialSheet(fakeAdmin().admin, row());
     expect(calls).toEqual(['opengolfapi:search', 'golfcourseapi:search', 'golfcourseapi:detail']);
     expect(r.outcome).toBe('found');
-    // The day's ask is allowed, OpenGolfAPI's budget is not.
+    // The day's ask is allowed, OpenGolfAPI's budget is not. (Another day: the failed host's short skip is over.)
+    resetProviderBreakerForTests();
     calls = stubProviders();
     r = await findOfficialSheet(fakeAdmin([true, false]).admin, row());
     expect(calls).toEqual(['golfcourseapi:search', 'golfcourseapi:detail']);
@@ -168,6 +169,8 @@ describe('findOfficialSheet — every other provider, until the card lacks nothi
     const { admin, updates } = fakeAdmin();
     expect(await findOfficialSheet(admin, row())).toMatchObject({ found: false, outcome: 'no_match' });
     stubProviders({ fail: 'golfcourseapi:search', openGolfSearch: { courses: [] } });
+    expect((await findOfficialSheet(admin, row())).outcome).toBe('provider_error');
+    // …and while that host is being skipped the reason is still a provider's trouble, not "no match".
     expect((await findOfficialSheet(admin, row())).outcome).toBe('provider_error');
     expect(updates).toEqual([]);
   });
@@ -520,5 +523,40 @@ describe('a nine listed as an eighteen that combines two nines', () => {
       expect(nineFromCombination(card.slice(0, 9), [holes('West', 'North')])).toBeNull();
       expect(nineFromCombination(card, [holes('West', 'North').slice(0, 9)])).toBeNull();
     });
+  });
+});
+
+// Nov 19 2026: OpenGolfAPI answered HTTP 500 after 20 s for hours, and every
+// pick waited out the whole timeout on it before asking the provider that
+// worked. A host that just failed is skipped for a few minutes.
+describe('a provider that is down is not waited on by the next pick', () => {
+  it('the first pick meets the failure; the second skips that provider, spends none of its budget, and still gets the card', async () => {
+    const calls = stubProviders({ fail: 'opengolfapi:search' });
+    const first = fakeAdmin();
+    const one = await findOfficialSheet(first.admin, row());
+    expect(calls).toEqual(['opengolfapi:search', 'golfcourseapi:search', 'golfcourseapi:detail']);
+    expect(one.trace!.find(t => t.source === 'opengolfapi')!.result).toBe('provider_error');
+    expect(one.found).toBe(true);
+
+    calls.length = 0;
+    const second = fakeAdmin();
+    const two = await findOfficialSheet(second.admin, row({ id: 'c2' }));
+    expect(calls).toEqual(['golfcourseapi:search', 'golfcourseapi:detail']);
+    expect(two.trace!.find(t => t.source === 'opengolfapi')!.result).toBe('provider_down');
+    expect(second.keys.filter(k => k === 'golf-provider:opengolfapi')).toEqual([]);
+    expect(two).toMatchObject({ found: true, outcome: 'found' });
+  });
+
+  it('"not found" is an answer, not an outage: the provider is asked again next time', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const host = url.includes('opengolfapi.org') ? 'opengolfapi' : 'golfcourseapi';
+      calls.push(host);
+      return host === 'opengolfapi' ? { ok: false, status: 404, json: async () => ({}) } : { ok: true, json: async () => ({ courses: [] }) };
+    }));
+    await findOfficialSheet(fakeAdmin().admin, row());
+    calls.length = 0;
+    await findOfficialSheet(fakeAdmin().admin, row({ id: 'c2' }));
+    expect(calls).toContain('opengolfapi');
   });
 });

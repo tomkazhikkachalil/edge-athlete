@@ -48,6 +48,7 @@ import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
+import { createProviderBreaker, hostOf } from '@/lib/golf/provider-breaker';
 import { splitUnlinkedClub, type ClubSectionRow } from '@/lib/golf/club-split-server';
 import { creditSources, mergeSheets, nineFromCombination, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
@@ -830,16 +831,37 @@ export function providersConfigured(): boolean {
 /** What a provider call came back with (H1): the body, or WHY not — the
  *  HTTP status, a timeout, or a network error. `fetchJson` below keeps its
  *  null-on-anything contract for the callers that only degrade. */
-export type FetchJsonResult = { ok: true; body: unknown } | { ok: false; status: number | 'timeout' | 'network' };
+export type FetchJsonResult = { ok: true; body: unknown } | { ok: false; status: number | 'timeout' | 'network' | 'down' };
+
+/** Which provider hosts just failed (provider-breaker.ts): a host in trouble
+ *  is answered `down` at once for a few minutes, not waited on by every pick. */
+const providerBreaker = createProviderBreaker();
+/** True while calls to this provider's host are being skipped. */
+export function providerHostDown(url: string): boolean {
+  return providerBreaker.isDown(hostOf(url));
+}
+/** Tests only: forget every host's state. */
+export function resetProviderBreakerForTests(): void {
+  for (const host of Object.keys(providerBreaker.snapshot())) providerBreaker.record(host, 'ok');
+}
 
 async function fetchJsonResult(url: string, headers?: Record<string, string>): Promise<FetchJsonResult> {
+  const host = hostOf(url);
+  if (providerBreaker.isDown(host)) return { ok: false, status: 'down' };
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
-    if (!res.ok) return { ok: false, status: res.status };
-    return { ok: true, body: await res.json() };
+    if (!res.ok) {
+      providerBreaker.record(host, res.status);
+      return { ok: false, status: res.status };
+    }
+    const body = await res.json();
+    providerBreaker.record(host, 'ok');
+    return { ok: true, body };
   } catch (e) {
     const name = (e as { name?: string } | null)?.name ?? '';
-    return { ok: false, status: /abort|timeout/i.test(name) ? 'timeout' : 'network' };
+    const status = /abort|timeout/i.test(name) ? 'timeout' : 'network';
+    providerBreaker.record(host, status);
+    return { ok: false, status };
   }
 }
 
@@ -1026,7 +1048,8 @@ export async function globalSearch(admin: SupabaseClient, query: string): Promis
   let fetched = false;
   let openGolfHits = 0;
 
-  if (openGolfConfigured() && (await consumeProviderBudget(admin, 'opengolfapi'))) {
+  // A host that just failed is not asked and not charged for (provider-breaker.ts).
+  if (openGolfConfigured() && !providerHostDown('https://api.opengolfapi.org/') && (await consumeProviderBudget(admin, 'opengolfapi'))) {
     const data = (await fetchJson(
       `https://api.opengolfapi.org/api/v1/courses/search?q=${encodeURIComponent(q)}`
     )) as { courses?: OpenGolfSummary[] } | null;
@@ -1038,7 +1061,7 @@ export async function globalSearch(admin: SupabaseClient, query: string): Promis
     }
   }
 
-  if (openGolfHits < 3 && gcaConfigured() && (await consumeProviderBudget(admin, 'golfcourseapi'))) {
+  if (openGolfHits < 3 && gcaConfigured() && !providerHostDown('https://api.golfcourseapi.com/') && (await consumeProviderBudget(admin, 'golfcourseapi'))) {
     const data = (await fetchJson(
       `https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(q)}`,
       gcaHeaders()
@@ -1331,7 +1354,7 @@ export interface SheetAsk {
   picked?: string | null;
   /** The card is the front nine of an eighteen, confirmed by a sibling listing. */
   fromCombination?: boolean;
-  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error';
+  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error' | 'provider_down';
 }
 
 /** One source of official cards (Nov 16 2026). `search` answers the provider's
@@ -1341,6 +1364,8 @@ export interface SheetAsk {
 export interface SheetProvider {
   source: 'opengolfapi' | 'golfcourseapi';
   configured(): boolean;
+  /** Its host just failed and is being skipped for a few minutes. */
+  down(): boolean;
   search(query: string): Promise<SheetCandidate[] | null>;
   detail(id: string): Promise<{ row: NewRow | null } | null>;
 }
@@ -1364,6 +1389,7 @@ const candidateOf = (id: string, n: NewRow, at?: { lat: number | null; lng: numb
 const openGolfSheets: SheetProvider = {
   source: 'opengolfapi',
   configured: openGolfConfigured,
+  down: () => providerHostDown('https://api.opengolfapi.org/'),
   async search(query) {
     const r = await fetchJsonResult(`https://api.opengolfapi.org/api/v1/courses/search?q=${encodeURIComponent(query)}`);
     if (!r.ok) return null;
@@ -1385,6 +1411,7 @@ const openGolfSheets: SheetProvider = {
 const gcaSheets: SheetProvider = {
   source: 'golfcourseapi',
   configured: gcaConfigured,
+  down: () => providerHostDown('https://api.golfcourseapi.com/'),
   async search(query) {
     const r = await fetchJsonResult(`https://api.golfcourseapi.com/v1/search?search_query=${encodeURIComponent(query)}`, gcaHeaders());
     if (!r.ok) return null;
@@ -1455,6 +1482,8 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     if (sheetComplete(card)) break;
     const ask: SheetAsk = { source: provider.source, result: 'provider_error' };
     trace.push(ask);
+    // A provider whose host just failed is not asked, and not charged for.
+    if (provider.down()) { why = 'provider_error'; ask.result = 'provider_down'; continue; }
     if (!(await consumeProviderBudget(admin, provider.source))) { why = 'budget_refused'; ask.result = 'budget_refused'; continue; }
     // The searches in order, each one budgeted, until one returns something.
     let candidates: SheetCandidate[] | null = [];
@@ -1771,6 +1800,8 @@ export interface HydrationOutcome {
     | 'not_configured'
     | 'budget_refused'
     | 'provider_null'
+    /** The provider's host just failed and is being skipped (provider-breaker.ts). */
+    | 'provider_down'
     | 'no_tees'
     | 'no_yardage_for_tee'
     | `http_${number}`
@@ -1798,7 +1829,8 @@ export function hydrationDue(
 const OPERATIONAL_OUTCOMES = new Set(['budget_refused', 'timeout', 'network']);
 
 function reportHydration(outcome: HydrationOutcome): void {
-  if (outcome.outcome === 'ok' || outcome.outcome === 'fresh' || outcome.outcome === 'not_applicable') return;
+  // `provider_down` is quiet: the call that found the host down already reported it.
+  if (outcome.outcome === 'ok' || outcome.outcome === 'fresh' || outcome.outcome === 'not_applicable' || outcome.outcome === 'provider_down') return;
   const operational = OPERATIONAL_OUTCOMES.has(outcome.outcome) || /^http_5\d\d$/.test(outcome.outcome);
   if (operational) reportRouteWarning('[hydrate] provider trouble', { ...outcome });
   else console.warn('[hydrate] partial course data', outcome);
@@ -1871,9 +1903,14 @@ export async function hydrateCourseDetailed(
       miss = 'provider_null';
       return r.body;
     }
-    miss = typeof r.status === 'number' ? (`http_${r.status}` as const) : r.status;
+    miss = typeof r.status === 'number' ? (`http_${r.status}` as const) : r.status === 'down' ? 'provider_down' : r.status;
     return null;
   };
+  // A provider whose host just failed (provider-breaker.ts) is not asked, not
+  // charged for, and the row is NOT stamped: nothing was attempted, so the
+  // next selection after the host recovers still gets its one attempt.
+  const ownHost = row.external_source === 'opengolfapi' ? 'https://api.opengolfapi.org/' : row.external_source === 'golfcourseapi' ? 'https://api.golfcourseapi.com/' : null;
+  if (ownHost && providerHostDown(ownHost)) return done(rowToCourse(row), 'provider_down');
   if (row.external_source === 'opengolfapi' && openGolfConfigured()) {
     if (await consumeProviderBudget(admin, 'opengolfapi')) {
       const data = (await readProvider(

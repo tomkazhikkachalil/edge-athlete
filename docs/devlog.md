@@ -1,5 +1,22 @@
 # Development Log
 
+## November 19, 2026 (22:49) — A provider that is down is skipped instead of waited on by every golfer
+
+Found during the Nov 19 real picks: OpenGolfAPI answered HTTP 500 after 20 s (three calls from here, hours apart, the same), and each of six picks on production spent five seconds, our whole `PROVIDER_TIMEOUT_MS`, on it before asking GolfCourseAPI, which answered in under a second. Six picks, thirty seconds of waiting for an answer that was never coming. (The ordinary course search reads our own catalog and was unaffected: 0.7 s on production during the outage. The waits were on a pick, on "search worldwide" and on selecting a thin provider row.)
+
+- **`provider-breaker.ts`** (zero imports, the clock passed in): a host that fails with a timeout, a network error or a 5xx is down for three minutes; then one call tries it again; a success clears it. A 4xx never trips it: "not found" and "too many" are answers.
+- **One place decides:** `fetchJsonResult` asks the breaker before every provider call and tells it the outcome after. `down` is a new failure status beside `timeout` and `network`.
+- **The scorecard lookup** skips a provider that is down BEFORE spending its budget; the trace reads `provider_down`.
+- **Worldwide search** skips it the same way.
+- **Selecting a course:** a thin row whose own provider is down answers `provider_down` and is not stamped. A timeout stamps the row for seven days (an attempt was made); a skip attempted nothing, and stamping it would have turned a three-minute skip into a week without that course's details. No second warning either: the call that found the host down already reported it.
+- **The background fill:** unchanged in effect (two failures in a row end the batch); the second is now the skip, so one real call is made, not two.
+
+**Proof.** `provider-breaker.test.ts` (4): what trips it and what does not, skipped for the whole wait then one try, a success clears it, one host never speaks for another. `official-sheet.test.ts`: the first pick meets the failure, the second skips that provider, spends none of its budget and still gets its card from the other; a 404 leaves the provider in use. `course-catalog-hydrate.test.ts`: while skipped, no call, no stamp, no second warning. Three older tests updated where their own sequence crossed the rule (two now reset the memory between unrelated halves; the fill's expects one real call). Golf unit tests: 988 passed.
+
+**Measured, with the provider really down** (staging, the built app, three card-less test rows named after real courses picked one after another through `?sheet=1`, then deleted): Bandon Dunes 7,132 ms (`opengolfapi: provider_error`, the call that found it down; GolfCourseAPI filled 18 holes), Whistling Straits 1,225 ms (`opengolfapi: provider_down`, 0 searches; filled 18 holes), Kiawah Island 971 ms (`provider_down`; GolfCourseAPI a 17-listing tie). About six seconds saved on every pick after the first.
+
+**Limits.** The memory is per server instance and nothing is stored, so each cold instance pays one slow call before it skips; a shared marker in the database would cost every lookup a read to save that. Three minutes is a choice, not a measurement. The timeout itself (5 s) is unchanged.
+
 ## November 19, 2026 (21:47) — Golf leftovers: production after phases 3 and 4, and the migration branch brought current
 
 Production serves `c58ea3bd` (#1583). Probe, one spec and project at a time: health + catalog-health 2 passed; `golf-quick-entry` 4 passed on `mobile` (with the club-split chooser) and 7 on `desktop`; `live-scoring-group` 5 passed on `desktop`. 18 passed, none failed. Earlier the same day: phase 1 (9 passed on `8d209f36`) and phase 2a (12 passed on `4e2cde7a`).
