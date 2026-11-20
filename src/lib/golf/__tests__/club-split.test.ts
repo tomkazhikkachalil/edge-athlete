@@ -128,6 +128,15 @@ describe('splitClubIntoSections', () => {
     for (const r of courses.slice(1)) expect(r.hole_data ?? null).toBeNull();
     expect(out).toEqual({ club: { id: 'club-1', name: 'Angus Glen Golf Club' }, siblings: [expect.objectContaining({ name: 'Angus Glen Golf Club (North)', sectionName: 'North' }), expect.objectContaining({ name: 'Angus Glen Golf Club (South)', sectionName: 'South' })] });
   });
+  // Nov 20 2026: Angus Glen's two courses were made without the club's website.
+  it('each course row carries the club row\'s website; a club with none gives none', async () => {
+    const withSite = fakeDb(catalogRow({ website: 'https://angusglen.com/' }));
+    await splitClubIntoSections(withSite.admin, catalogRow({ website: 'https://angusglen.com/' }), found);
+    expect(withSite.courses.slice(1).map(r => r.website)).toEqual(['https://angusglen.com/', 'https://angusglen.com/']);
+    const none = fakeDb(catalogRow());
+    await splitClubIntoSections(none.admin, catalogRow(), found);
+    expect(none.courses.slice(1).map(r => r.website ?? null)).toEqual([null, null]);
+  });
   it('run twice: one club, two course rows', async () => {
     const db = fakeDb(catalogRow());
     await splitClubIntoSections(db.admin, catalogRow(), found);
