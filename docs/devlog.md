@@ -1,5 +1,15 @@
 # Development Log
 
+## November 20, 2026 (12:40) — The last golf leftovers: Ottawa Hunt's West Nine filled, #1563 closed, and why OpenGolfAPI is down
+
+**Ottawa Hunt, West Nine.** Its Nov 20 ask had been spent by the provider error before #1587. Tom cleared that one ask on production (one `DELETE` on `rate_limits` for `golf-sheet-ask:7a0071b2…`, result `CLEARED`), and the pick ran: found in 6.2 s, GolfCourseAPI filled it (2 searches, 3 listings, the same listing that failed in the morning), 9 holes, par 35, pars 544343435. GolfPass's Ottawa Hunt West/North card reads 5 4 4 3 4 3 4 3 5 (out 35) on its first nine and the North nine's pars on its second: a match on all nine holes. All three Ottawa Hunt nines now hold their own card. The morning's failure did not repeat, so its cause stays unknown; the status line added in #1587 will name the next one.
+
+**#1563 closed** unmerged: superseded, its content is on main in `e40b7397`.
+
+**Why OpenGolfAPI is down (read from here, 16:09 UTC).** Theirs. Their website answers in 0.6 s. Their API's root and `/api/v1/stats` take about 20 s and report zero courses; the search the app uses answers HTTP 500 after about 20 s with the body `error code: 522`, Cloudflare's "connection timed out" between their front and what is behind it. So their front is up and their data store is unreachable, since at least Nov 19 14:35 UTC. Nothing here can fix it. Meanwhile picks take their cards from GolfCourseAPI and skip the dead host after one slow call per instance; the background fill from OpenGolfAPI adds nothing and resumes by itself when they recover.
+
+**Trap, again:** after a docs-only merge production stays on the last code commit, so a prod probe needs `E2E_EXPECT_COMMIT=<production's commit>` or it waits six minutes and fails.
+
 ## November 20, 2026 (11:00) — Production after the ask fix, and Angus Glen (South) corrected
 
 **#1587 on production.** `d31813b8` served. Probe, one spec and project at a time: health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed.
