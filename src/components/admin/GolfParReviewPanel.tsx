@@ -27,7 +27,11 @@ export default function GolfParReviewPanel() {
   const [review, setReview] = useState<(ParReview & { writesEnabled: boolean }) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<{ text: string; failed: boolean } | null>(null);
+  // What the last tap on each course did, shown AT that course (Nov 20 2026:
+  // the line used to sit at the top of the panel, out of sight of the hole
+  // that was tapped, and the list took seconds to refresh, so a tap that had
+  // worked looked like nothing had happened).
+  const [notes, setNotes] = useState<Record<string, { name: string; text: string; failed: boolean }>>({});
 
   const load = useCallback(async () => {
     try {
@@ -50,8 +54,8 @@ export default function GolfParReviewPanel() {
 
   const decide = async (course: ParReviewCourse, hole: ParReviewHole, par: number) => {
     const key = `${course.courseId}:${hole.hole}`;
+    const note = (text: string, failed: boolean) => setNotes(prev => ({ ...prev, [course.courseId]: { name: course.name, text, failed } }));
     setBusy(key);
-    setOutcome(null);
     try {
       const res = await fetch('/api/admin/golf-par-review', {
         method: 'POST',
@@ -61,14 +65,21 @@ export default function GolfParReviewPanel() {
       });
       const body = (await res.json().catch(() => null)) as { changed?: boolean; error?: string } | null;
       if (!res.ok) throw new Error(body?.error ?? 'The par could not be saved');
-      setOutcome({ failed: false, text: body?.changed ? `${course.name}, hole ${hole.hole}: par ${hole.saved} changed to ${par}. Recorded.` : `${course.name}, hole ${hole.hole}: par ${par} kept. Recorded as decided.` });
-      await load();
+      note(body?.changed ? `Hole ${hole.hole}: par ${hole.saved} changed to ${par}. Recorded.` : `Hole ${hole.hole}: par ${par} kept. Recorded as decided.`, false);
+      // The hole leaves the list at once; the server's own list follows behind.
+      setReview(prev => prev && { ...prev, courses: prev.courses.map(c => (c.courseId === course.courseId ? { ...c, holes: c.holes.filter(h => h.hole !== hole.hole) } : c)).filter(c => c.holes.length > 0) });
+      void load();
     } catch (e) {
-      setOutcome({ failed: true, text: `Failed: ${e instanceof Error ? e.message : 'the par could not be saved'}` });
+      note(`Hole ${hole.hole} failed: ${e instanceof Error ? e.message : 'the par could not be saved'}`, true);
     } finally {
       setBusy(null);
     }
   };
+
+  // A course whose last hole was just decided stays on screen with its note.
+  const shown: ParReviewCourse[] = review
+    ? [...review.courses, ...Object.entries(notes).filter(([id]) => !review.courses.some(c => c.courseId === id)).map(([id, n]) => ({ courseId: id, name: n.name, city: null, region: null, picks: -1, holes: [] }))]
+    : [];
 
   return (
     <section aria-label="Scorecard pars under review" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-admin-golf-par-review="">
@@ -77,9 +88,6 @@ export default function GolfParReviewPanel() {
         A provider&apos;s tee boxes sometimes disagree on a hole&apos;s par. Holes that no other source has settled wait here. Choosing a par corrects the saved scorecard at once and records who decided; rounds already played keep their own pars.
       </p>
       {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3" data-par-review-error="">{error}</p>}
-      {outcome && (
-        <p className={`text-sm mb-3 ${outcome.failed ? 'text-red-600 dark:text-red-400' : 'text-primary'}`} role="status" data-par-review-outcome="">{outcome.text}</p>
-      )}
       {!review && !error && <p className="text-xs text-muted mb-3">Loading…</p>}
       {review && (
         <>
@@ -89,10 +97,15 @@ export default function GolfParReviewPanel() {
               : `${review.courses.reduce((n, c) => n + c.holes.length, 0)} holes on ${review.courses.length} courses are waiting, of ${review.judged} scorecards that hold their tee boxes.`}
           </p>
           <ul className="space-y-4">
-            {review.courses.map(course => (
+            {shown.map(course => (
               <li key={course.courseId} className="border-t border-border-subtle pt-3" data-par-review-course={course.courseId}>
                 <p className="text-sm font-semibold text-primary break-words">{course.name}</p>
-                <p className="text-xs text-muted mb-2">{[course.city, course.region].filter(Boolean).join(', ') || 'Location unknown'} · picked {course.picks} {course.picks === 1 ? 'time' : 'times'}</p>
+                {course.picks >= 0 && <p className="text-xs text-muted mb-2">{[course.city, course.region].filter(Boolean).join(', ') || 'Location unknown'} · picked {course.picks} {course.picks === 1 ? 'time' : 'times'}</p>}
+                {notes[course.courseId] && (
+                  <p className={`text-sm mb-2 ${notes[course.courseId].failed ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-300'}`} role="status" data-par-review-outcome="">
+                    {notes[course.courseId].text}{course.holes.length === 0 && !notes[course.courseId].failed ? ' Nothing else is waiting on this course.' : ''}
+                  </p>
+                )}
                 <ul className="space-y-3">
                   {course.holes.map(hole => (
                     <li key={hole.hole} data-par-review-hole={hole.hole}>
@@ -100,7 +113,7 @@ export default function GolfParReviewPanel() {
                       <p className="text-xs text-muted mb-1.5 break-words" data-par-review-says="">{whoSaysWhat(hole)}</p>
                       <div className="flex flex-wrap gap-2">
                         {hole.candidates.map(par => (
-                          <button key={par} type="button" disabled={!!busy} onClick={() => decide(course, hole, par)} className={btn} data-par-review-set={par}>
+                          <button key={par} type="button" disabled={!!busy && busy.startsWith(`${course.courseId}:`)} onClick={() => decide(course, hole, par)} className={btn} data-par-review-set={par}>
                             {busy === `${course.courseId}:${hole.hole}` ? 'Saving…' : par === hole.saved ? `Keep par ${par}` : `Change to par ${par}`}
                           </button>
                         ))}
