@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { foldSheetTwins, normalizeGcaSummary, normalizeOpenGolfSummary, pickSheetCandidate, sectionWordIn, sheetMissReason, type SheetCandidate } from '../course-catalog';
+import { foldSheetTwins, gcaParsDisputed, normalizeGcaDetail, normalizeGcaSummary, normalizeOpenGolfSummary, pickSheetCandidate, sectionWordIn, sheetMissReason, type SheetCandidate } from '../course-catalog';
 
 // The providers' REAL search answers for the clubs the lookup could not narrow
 // (read live Nov 19 2026), against production's rows for them.
@@ -108,5 +108,34 @@ describe('why nothing was picked', () => {
     // A section row whose provider lists only the club or a sibling: nothing names the section.
     expect(sheetMissReason(greensmere('Legacy'), [GREENSMERE_GCA()[1]])).toBe('no_section_match');
     expect(sheetMissReason(hunt('North'), [gca('c', 'Ottawa Hunt & Golf Club', 'Ottawa Hunt & Golf Club', HUNT)])).toBe('no_section_match');
+  });
+});
+
+// GolfCourseAPI's real answer for Angus Glen "South Course", read Nov 20 2026
+// (pars, totals and hole 1 yardages as answered; other yardages shortened).
+// The Black tee alone says hole 1 is a par 5; the club's printed card says 4.
+describe('a card\'s pars are what most tee boxes say (Angus Glen South)', () => {
+  const tee = (tee_name: string, par_total: number, pars: string, h1: number) => ({
+    tee_name, course_rating: 72, slope_rating: 130, number_of_holes: 18, par_total,
+    holes: pars.split('').map((p, i) => ({ par: Number(p), yardage: i === 0 ? h1 : 300 + i, handicap: 0 })),
+  });
+  const CLUB_CARD = '434443545443454534';
+  const south = {
+    id: 'chq2vc5r', club_name: 'Angus Glen Golf Club', course_name: 'South Course', location: { city: 'Markham', state: 'ON', country: 'Canada' },
+    tees: {
+      female: [tee('White', 72, CLUB_CARD, 384), tee('Red', 72, CLUB_CARD, 349)],
+      male: [tee('Black', 73, '534443545443454534', 490), tee('Gold', 72, CLUB_CARD, 469), tee('Blue', 72, CLUB_CARD, 435), tee('White', 69, '434443444443454434', 384), tee('Red', 68, '434443444443444434', 349)],
+    },
+  };
+
+  it('hole 1 is a par 4 and the total is 72, as on the club\'s card', () => {
+    const row = normalizeGcaDetail(south);
+    expect(row.hole_data!.map(h => h.par).join('')).toBe(CLUB_CARD);
+    expect(row.total_par).toBe(72);
+    expect(row.hole_data![0].yardage).toMatchObject({ black: 490, gold: 469, blue: 435 });
+  });
+
+  it('the holes the tees disagree on are named', () => {
+    expect(gcaParsDisputed(south)).toEqual([1, 7, 9, 14, 16]);
   });
 });

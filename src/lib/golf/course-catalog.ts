@@ -50,7 +50,7 @@ import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geom
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
 import { createProviderBreaker, hostOf } from '@/lib/golf/provider-breaker';
 import { splitUnlinkedClub, type ClubSectionRow } from '@/lib/golf/club-split-server';
-import { creditSources, mergeSheets, nineFromCombination, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
+import { creditSources, mergeSheets, nineFromCombination, parsFromTees, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
@@ -696,6 +696,14 @@ export function normalizeGcaProximity(s: GcaProximityCourse): NewRow & { distanc
   };
 }
 
+/** Holes on which GolfCourseAPI's tee boxes of one length gave different pars. */
+export function gcaParsDisputed(d: GcaDetail): number[] {
+  const boxes = [...(d.tees?.male ?? []), ...(d.tees?.female ?? [])];
+  const most = boxes.reduce((n, t) => Math.max(n, t.holes?.length ?? 0), 0);
+  if (most === 0) return [];
+  return parsFromTees(boxes.filter(b => b.holes?.length === most).map(b => (b.holes ?? []).map(x => x.par))).disputed;
+}
+
 export function normalizeGcaDetail(d: GcaDetail): NewRow {
   const male = d.tees?.male ?? [];
   const female = d.tees?.female ?? [];
@@ -731,6 +739,9 @@ export function normalizeGcaDetail(d: GcaDetail): NewRow {
     const key = (box.tee_name ?? '').toLowerCase().trim();
     return key && female.includes(box) && maleKeys.has(key) ? `${key} (f)` : key;
   };
+  // Nov 20 2026: the pars are the card most boxes share, not the first box's
+  // (parsFromTees: Angus Glen South's Black tee alone said hole 1 is a par 5).
+  const taken = parsFromTees(sameCount.map(b => (b.holes ?? []).map(x => x.par)), Math.max(0, reference ? sameCount.indexOf(reference) : 0));
   const built = refHoles.map((h, i) => {
     const yardage: Record<string, number> = {};
     for (const box of sameCount) {
@@ -740,7 +751,7 @@ export function normalizeGcaDetail(d: GcaDetail): NewRow {
     }
     // Nov 16 2026: a par the reference box lacks comes from another box of the
     // same course, and a stroke index likewise. Never a guessed 4.
-    const par = h.par ?? sameCount.map(b => b.holes?.[i]?.par).find(p => p != null) ?? null;
+    const par = taken.pars[i] ?? null;
     const handicap = h.handicap || sameCount.map(b => b.holes?.[i]?.handicap).find(v => !!v) || 0;
     return { number: i + 1, par, yardage, handicap };
   });
@@ -750,7 +761,8 @@ export function normalizeGcaDetail(d: GcaDetail): NewRow {
   const base = normalizeGcaSummary(d);
   return {
     ...base,
-    total_par: reference?.par_total ?? null,
+    // The stated total of the box whose card was taken.
+    total_par: sameCount[taken.from]?.par_total ?? reference?.par_total ?? null,
     holes_count: reference?.number_of_holes ?? (holes.length || null),
     hole_data: holes.length ? holes : null,
     course_rating: rating,
@@ -1369,7 +1381,8 @@ export interface SheetProvider {
   /** Its host just failed and is being skipped for a few minutes. */
   down(): boolean;
   search(query: string): Promise<SheetCandidate[] | null>;
-  detail(id: string): Promise<{ row: NewRow | null } | null>;
+  /** `parsDisputed`: holes on which the provider's own tee boxes disagreed. */
+  detail(id: string): Promise<{ row: NewRow | null; parsDisputed?: number[] } | null>;
 }
 
 const candidateOf = (id: string, n: NewRow, at?: { lat: number | null; lng: number | null }): SheetCandidate => {
@@ -1428,7 +1441,9 @@ const gcaSheets: SheetProvider = {
     if (!r.ok) return null;
     // LIVE shape: detail nests under `course`.
     const d = (r.body as { course?: GcaDetail } | null)?.course;
-    return { row: d?.id ? normalizeGcaDetail(d) : null };
+    if (!d?.id) return { row: null };
+    const disputed = gcaParsDisputed(d);
+    return { row: normalizeGcaDetail(d), ...(disputed.length ? { parsDisputed: disputed } : {}) };
   },
 };
 
@@ -1595,7 +1610,16 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     ask.result = merged.changed ? 'filled' : 'nothing_new';
     if (merged.changed) {
       if (from.length === 0) sources = await readSheetSources(admin, row.id);
-      if (sources !== undefined) sources = creditSources(sources, card, merged.sheet, provider.source);
+      if (sources !== undefined) {
+        const hadPars = !!sources?.pars;
+        sources = creditSources(sources, card, merged.sheet, provider.source);
+        // The pars came from this answer, and its own tees did not all agree.
+        const disputed = (detail?.parsDisputed ?? []).filter(h => h <= (merged.sheet.hole_data?.length ?? 0));
+        if (!hadPars && sources.pars === provider.source && disputed.length) {
+          sources = { ...sources, parsDisputed: disputed };
+          console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${provider.source}:${pick.id}'s tees disagree on the par of hole ${disputed.join(', ')}; the card most tees share was taken`);
+        }
+      }
       card = merged.sheet;
       from.push(`${provider.source}:${pick.id}`);
     }

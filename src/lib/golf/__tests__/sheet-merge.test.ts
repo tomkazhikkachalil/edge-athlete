@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { creditSources, mergeSheets, providersConfirm, sheetSelfConsistent, sheetsAgree, sheetGaps, sheetComplete, type Sheet, type SheetHole } from '../sheet-merge';
+import { creditSources, mergeSheets, parsFromTees, providersConfirm, sheetSelfConsistent, sheetsAgree, sheetGaps, sheetComplete, type Sheet, type SheetHole } from '../sheet-merge';
 
 const hole = (number: number, par: number, yardage: Record<string, number> = {}, handicap = 0): SheetHole => ({ number, par, yardage, handicap });
 const nine = (yardage: (n: number) => Record<string, number>, handicap = 0, par = 4): SheetHole[] =>
@@ -146,5 +146,36 @@ describe('sheetSelfConsistent — what one provider\'s card must be to stand aga
     expect(sheetSelfConsistent(card(nine.slice(0, 8), 32) as never)).toBe(false);
     expect(sheetSelfConsistent(card([7, ...nine.slice(1)], 39) as never)).toBe(false);
     expect(sheetSelfConsistent(card(nine, 36, false) as never)).toBe(false);
+  });
+});
+
+// Nov 20 2026: Angus Glen (South) was saved with hole 1 as a par 5 because the
+// first tee box alone said so. The pars are the card most boxes share.
+describe('parsFromTees: one card out of a provider\'s tee boxes', () => {
+  const A = [4, 3, 4, 4];
+  it('the card most boxes share wins over the first box', () => {
+    expect(parsFromTees([[5, 3, 4, 4], A, A, A])).toEqual({ pars: A, from: 1, disputed: [1] });
+  });
+  it('the result is one real box\'s card, never a mix of holes', () => {
+    // Per hole, 4 and 5 would each win somewhere; per card, the shared one wins whole.
+    const r = parsFromTees([[5, 3, 4, 4], [4, 3, 5, 4], A, A]);
+    expect(r.pars).toEqual(A);
+    expect(r.disputed).toEqual([1, 3]);
+  });
+  it('a tie keeps the reference box when it is among the tied', () => {
+    expect(parsFromTees([[5, 3], [4, 3]], 0)).toEqual({ pars: [5, 3], from: 0, disputed: [1] });
+    expect(parsFromTees([[5, 3], [4, 3]], 1)).toEqual({ pars: [4, 3], from: 1, disputed: [1] });
+  });
+  it('all boxes agreeing: nothing is disputed', () => {
+    expect(parsFromTees([A, A])).toEqual({ pars: A, from: 0, disputed: [] });
+  });
+  it('a box with a missing par cannot vote; with no whole box each hole takes what any box knows', () => {
+    expect(parsFromTees([[null, 5], [3, 5], [3, 5]])).toEqual({ pars: [3, 5], from: 1, disputed: [] });
+    expect(parsFromTees([[null, 5], [3, null]])).toEqual({ pars: [3, 5], from: 0, disputed: [] });
+    expect(parsFromTees([[null, 5]]).pars).toEqual([null, 5]);
+  });
+  it('a box of another length is ignored', () => {
+    expect(parsFromTees([A, [4, 4]])).toEqual({ pars: A, from: 0, disputed: [] });
+    expect(parsFromTees([]).pars).toEqual([]);
   });
 });
