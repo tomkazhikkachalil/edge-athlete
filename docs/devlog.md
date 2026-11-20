@@ -1,5 +1,13 @@
 # Development Log
 
+## November 20, 2026 (11:00) — Production after the ask fix, and Angus Glen (South) corrected
+
+**#1587 on production.** `d31813b8` served. Probe, one spec and project at a time: health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed.
+
+**Angus Glen (South), hole 1.** Tom ran the correction on production (one guarded `UPDATE` on the one row: hole 1's par 5 → 4, total 73 → 72; yardages, tees and ratings untouched). Result row `FIXED | 72 | 434443545443454534`; read back from production: `total_par` 72, hole 1 par 4. The card now matches the club's printed scorecard on all 18 holes. The statement was first run on staging against a temporary copy of the card in a rolled-back transaction (staging's catalog has no such row).
+
+**Still owed.** Ottawa Hunt's West Nine: its Nov 20 ask was spent before the fix and stays spent until about 15:30 UTC Nov 21; re-pick then (expected pars 544343435) and compare with a published card.
+
 ## November 20, 2026 (10:38) — A provider's error no longer costs a course its ask for the day
 
 Found by the Nov 20 picks: Ottawa Hunt's West Nine met one failed GolfCourseAPI detail call and its `golf-sheet-ask` window stayed stamped, so nobody could ask for that card again until the next day. Tom: fix it.
