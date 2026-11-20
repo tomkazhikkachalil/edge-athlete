@@ -1,5 +1,15 @@
 # Development Log
 
+## November 20, 2026 (17:04) — Pars from evidence, phases 2 and 3 on production; the plan pauses at Tom's gate
+
+**On production** (`23da2ca1`; #1597 phase 2, #1598 the map-alone rule, #1599 phase 3). Probe, one spec and project at a time: health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. `/api/admin/golf-par-review` and `/api/admin/golf-providers` answer 401 to an anonymous caller.
+
+**The review list as production's console reads it** (`readParReview` against production, reads only): 39 scorecards hold their tee boxes; 23 holes on six courses wait for a person: Amberwood Village 2, Angus Glen North 4 and South 5, Champlain 1 (hole 3), Emerald Links 3, Hautes Plaines 8. No par change is recorded yet. Every one of the six shows 0 picks in `golf_course_picks`, so the list is alphabetical today.
+
+**What is switched off, on purpose.** `PAR_SETTLE_WRITES` is false: the app corrects nothing by itself, it only logs what it would. An admin's tap on the console does correct. Phase 4 (the course's own website as a settling source) is not started: it widens the website job and waits for Tom's explicit yes; with the map only leaning, the website is the source that would settle most of the 23.
+
+**The day's count, for the record.** Hand-run corrections before the design: three cards (Angus Glen South, Eagles Nest, Falcon Ridge). Provider reads outside a pick, each at Tom's word: 91 for the recheck, and about 80 to seed the evidence (27 detail reads for the provider's own rows, and a search or two plus a detail for each of the 13 others; the production counter rose by 87 between 18:00 and 22:00 UTC, the probes' picks included). The seeding was quoted to Tom as about 45: the searches were not counted in that estimate. 364 evidence rows are held.
+
 ## November 20, 2026 (16:48) — Pars from evidence, phase 3 of 4: the review list and a one-tap decision on the admin console
 
 This is the part that ends hand-run SQL for a wrong par. No migration.
