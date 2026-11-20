@@ -141,45 +141,52 @@ export interface SheetSources {
 
 /** One card's pars out of a provider's tee boxes (Nov 20 2026). Measured on
  *  GolfCourseAPI for Angus Glen (South): the Black tee said hole 1 is a par 5
- *  (total 73) while Gold, Blue and both women's tees said par 4 (total 72, the
- *  club's printed card), and two short men's tees shortened other holes. The
- *  card used to be whatever the first box said.
+ *  (total 73) while Gold and Blue said par 4 (total 72, the club's printed
+ *  card), and two short men's tees shortened other holes. The card used to be
+ *  whatever the first box said.
  *
- *  The pars taken are the WHOLE card most boxes share, so the result is always
- *  one real tee's card, never a mix of holes. A tie keeps the reference box's
- *  card when it is among the tied ones, else the earliest. Boxes with a missing
- *  par cannot vote; when no box is whole, each hole takes the reference's par
- *  or the first one any box knows (the old rule, never a guess).
+ *  Each hole takes the par MOST of the voting boxes give it; a tie keeps the
+ *  reference box's par when it is among the tied ones, else the earliest
+ *  box's. A box with no par for a hole does not vote on it, and a hole no
+ *  voter knows takes the first par any box knows (never a guess).
  *
- *  `from` is the index of the box whose card was taken; `disputed` the hole
- *  numbers on which some box said otherwise. Pure. */
-export function parsFromTees(boxes: ReadonlyArray<ReadonlyArray<number | null | undefined>>, reference = 0): { pars: Array<number | null>; from: number; disputed: number[] } {
+ *  `voters` are the boxes that decide: the caller passes the MEN's boxes when
+ *  there are any, because a women's par is often a different, correct par for
+ *  the same hole and must not outvote the card. Measured the same day on the
+ *  40 cards production held: taking the whole card most boxes share (the first
+ *  version of this rule) would have swapped Rivermead's correct card for its
+ *  women's one, 11 boxes to 10. Hole by hole among the men's boxes agrees
+ *  with the saved card on 34 of the 38 that could be re-read. Of the four it
+ *  changes, published cards confirm it on two (Eagles Nest, Falcon Ridge),
+ *  contradict it on one (Champlain: only the back tee carries the true par of
+ *  hole 5, and three shorter men's tees outvote it) and are unclear on one.
+ *  The old first-box rule was wrong on three. So this is the better default,
+ *  NOT a proof: the provider's boxes contradict each other and nothing in its
+ *  answer says which is the club's card. `disputed` exists so that is visible.
+ *
+ *  `disputed` are the hole numbers on which the voters did not all agree. Pure. */
+export function parsFromTees(boxes: ReadonlyArray<ReadonlyArray<number | null | undefined>>, reference = 0, voters?: ReadonlyArray<number>): { pars: Array<number | null>; disputed: number[] } {
   const length = boxes[reference]?.length ?? 0;
   const same = boxes.map((b, i) => ({ b, i })).filter(x => x.b.length === length);
-  const whole = same.filter(x => x.b.every(p => p != null));
-  let pars: Array<number | null>;
-  let from = reference;
-  if (whole.length > 0) {
-    const votes = new Map<string, { count: number; first: number }>();
-    for (const x of whole) {
-      const key = x.b.join(',');
-      const v = votes.get(key);
-      if (v) v.count += 1; else votes.set(key, { count: 1, first: x.i });
-    }
-    const top = Math.max(...[...votes.values()].map(v => v.count));
-    const tied = [...votes.entries()].filter(([, v]) => v.count === top);
-    const referenceKey = whole.some(x => x.i === reference) ? boxes[reference].join(',') : null;
-    const winner = tied.find(([key]) => key === referenceKey) ?? tied.sort((a, b) => a[1].first - b[1].first)[0];
-    from = winner[0] === referenceKey ? reference : winner[1].first;
-    pars = boxes[from].map(p => p ?? null);
-  } else {
-    pars = Array.from({ length }, (_, h) => boxes[reference]?.[h] ?? same.map(x => x.b[h]).find(p => p != null) ?? null);
-  }
+  const chosen = voters ? same.filter(x => voters.includes(x.i)) : same;
+  const voting = chosen.length > 0 ? chosen : same;
+  const pars: Array<number | null> = [];
   const disputed: number[] = [];
   for (let h = 0; h < length; h++) {
-    if (pars[h] != null && same.some(x => x.b[h] != null && x.b[h] !== pars[h])) disputed.push(h + 1);
+    const said = voting.map(x => x.b[h]).filter((p): p is number => p != null);
+    if (said.length === 0) {
+      pars.push(same.map(x => x.b[h]).find((p): p is number => p != null) ?? null);
+      continue;
+    }
+    const count = new Map<number, number>();
+    for (const p of said) count.set(p, (count.get(p) ?? 0) + 1);
+    const top = Math.max(...count.values());
+    const tied = said.filter(p => count.get(p) === top);
+    const ref = voting.some(x => x.i === reference) ? boxes[reference][h] : null;
+    pars.push(ref != null && tied.includes(ref) ? ref : tied[0]);
+    if (count.size > 1) disputed.push(h + 1);
   }
-  return { pars, from, disputed };
+  return { pars, disputed };
 }
 
 /** Is a provider's card whole and in agreement with itself? Holes numbered

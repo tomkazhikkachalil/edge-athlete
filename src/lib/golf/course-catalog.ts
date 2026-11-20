@@ -708,10 +708,18 @@ export function normalizeGcaProximity(s: GcaProximityCourse): NewRow & { distanc
 
 /** Holes on which GolfCourseAPI's tee boxes of one length gave different pars. */
 export function gcaParsDisputed(d: GcaDetail): number[] {
-  const boxes = [...(d.tees?.male ?? []), ...(d.tees?.female ?? [])];
+  const male = d.tees?.male ?? [];
+  const boxes = [...male, ...(d.tees?.female ?? [])];
   const most = boxes.reduce((n, t) => Math.max(n, t.holes?.length ?? 0), 0);
   if (most === 0) return [];
-  return parsFromTees(boxes.filter(b => b.holes?.length === most).map(b => (b.holes ?? []).map(x => x.par))).disputed;
+  const same = boxes.filter(b => b.holes?.length === most);
+  return gcaPars(same, male, same[0] ?? null).disputed;
+}
+
+/** The pars of a GolfCourseAPI answer: hole by hole what most men's boxes say. */
+function gcaPars(sameCount: GcaTeeBox[], male: GcaTeeBox[], reference: GcaTeeBox | null) {
+  const voters = sameCount.map((b, i) => (male.includes(b) ? i : -1)).filter(i => i >= 0);
+  return parsFromTees(sameCount.map(b => (b.holes ?? []).map(x => x.par)), Math.max(0, reference ? sameCount.indexOf(reference) : 0), voters.length ? voters : undefined);
 }
 
 export function normalizeGcaDetail(d: GcaDetail): NewRow {
@@ -749,9 +757,10 @@ export function normalizeGcaDetail(d: GcaDetail): NewRow {
     const key = (box.tee_name ?? '').toLowerCase().trim();
     return key && female.includes(box) && maleKeys.has(key) ? `${key} (f)` : key;
   };
-  // Nov 20 2026: the pars are the card most boxes share, not the first box's
-  // (parsFromTees: Angus Glen South's Black tee alone said hole 1 is a par 5).
-  const taken = parsFromTees(sameCount.map(b => (b.holes ?? []).map(x => x.par)), Math.max(0, reference ? sameCount.indexOf(reference) : 0));
+  // Nov 20 2026: each hole's par is what most MEN's boxes say, not the first
+  // box's (parsFromTees: Angus Glen South's Black tee alone said hole 1 is a
+  // par 5); the women's boxes decide only when there is no men's box.
+  const taken = gcaPars(sameCount, male, reference);
   const built = refHoles.map((h, i) => {
     const yardage: Record<string, number> = {};
     for (const box of sameCount) {
@@ -771,8 +780,9 @@ export function normalizeGcaDetail(d: GcaDetail): NewRow {
   const base = normalizeGcaSummary(d);
   return {
     ...base,
-    // The stated total of the box whose card was taken.
-    total_par: sameCount[taken.from]?.par_total ?? reference?.par_total ?? null,
+    // The card's own sum once the tees were weighed; a provider's stated total
+    // belongs to one box. Unchanged when the reference box's pars were taken whole.
+    total_par: holes.length > 0 && holes.some((h, i) => h.par !== refHoles[i]?.par) ? holes.reduce((sum, h) => sum + h.par, 0) : reference?.par_total ?? null,
     holes_count: reference?.number_of_holes ?? (holes.length || null),
     hole_data: holes.length ? holes : null,
     course_rating: rating,
