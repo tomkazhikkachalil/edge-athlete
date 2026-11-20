@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { PAR_BOX_SOURCE, disputedHoles, judgePars, parCorrections, taggedMapPars, type HoleJudgement, type ParCorrection, type ParEvidenceRow } from '@/lib/golf/par-evidence';
+import { PAR_BOX_SOURCE, judgePars, openHoles, parCorrections, taggedMapPars, type HoleJudgement, type ParCorrection, type ParEvidenceRow } from '@/lib/golf/par-evidence';
 
 /**
  * The one writer of `golf_par_evidence` (migration 317, Nov 20 2026): what a
@@ -103,7 +103,7 @@ export async function settleCoursePars(
   const judged = judgePars(evidence, mapPars, saved.length);
   const allow = opts.allow ?? ['admin', 'settled'];
   const corrections = parCorrections(saved, judged).filter(c => allow.includes(c.reason));
-  const disputed = disputedHoles(judged);
+  const disputed = openHoles(saved, judged);
   const result: SettleResult = { ...base, corrections, disputed, judged };
   if (opts.dryRun || corrections.length === 0) return result;
 

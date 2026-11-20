@@ -19,9 +19,16 @@ import { parsFromTees } from '@/lib/golf/sheet-merge';
  *      agree: that par, `agreed`. Nothing can change it but an admin.
  *   3. They disagree, and the independent sources that speak about the hole
  *      all give ONE par, and it is a par some box of the provider gave:
- *      that par, `settled`.
+ *      `settled` when that is the course's own website, the other provider,
+ *      or two sources together; `leaning` when it is the map ALONE.
  *   4. Otherwise `disputed`: the par is parsFromTees' choice (the better
  *      default, not a proof) and the hole waits for evidence or a person.
+ *
+ * Why the map alone only leans (measured on production's first dry sweep, Nov
+ * 20 2026, 39 cards): it agreed with the saved card on every disputed hole it
+ * spoke about except one, Champlain's hole 3, where its tag says par 4 and
+ * the club's published card says 5. A lone map tag is one mapper's entry. It
+ * may confirm a saved par; it never changes one.
  * With no provider boxes at all there is nothing to judge: `unknown`.
  *
  * An ESTIMATED map par is never passed in: the caller gives tagged pars only.
@@ -40,7 +47,7 @@ export interface ParEvidenceRow {
   pars: ReadonlyArray<number | null>;
 }
 
-export type ParStatus = 'admin' | 'agreed' | 'settled' | 'disputed' | 'unknown';
+export type ParStatus = 'admin' | 'agreed' | 'settled' | 'leaning' | 'disputed' | 'unknown';
 
 export interface HoleJudgement {
   hole: number;
@@ -49,7 +56,7 @@ export interface HoleJudgement {
   status: ParStatus;
   /** Every par a provider box gave this hole, lowest first. */
   candidates: number[];
-  /** The independent sources that settled it (status `settled`). */
+  /** The independent sources behind the par (status `settled` or `leaning`). */
   settledBy?: string[];
   /** What the independent sources said, by source ('map' included). */
   independent: Record<string, number>;
@@ -103,7 +110,11 @@ export function judgePars(rows: ReadonlyArray<ParEvidenceRow>, mapPars: Readonly
     const values = new Set(said.map(([, par]) => par));
     if (values.size === 1) {
       const par = [...values][0];
-      if (candidates.includes(par)) return { ...base, par, status: 'settled', settledBy: said.map(([source]) => source).sort() };
+      if (candidates.includes(par)) {
+        const by = said.map(([source]) => source).sort();
+        // The map alone leans; anything else, or two together, settles.
+        return { ...base, par, status: by.length >= 2 || by[0] !== 'map' ? 'settled' : 'leaning', settledBy: by };
+      }
     }
     // 4. Still disputed.
     return { ...base, par: fallback, status: 'disputed' };
@@ -126,9 +137,19 @@ export function taggedMapPars(mapHoles: ReadonlyArray<{ hole: number; par?: numb
   return out.some(p => p !== null) ? out : null;
 }
 
-/** The hole numbers still waiting for evidence or a person. */
+/** The hole numbers the evidence itself leaves open (no card in hand). */
 export function disputedHoles(judged: ReadonlyArray<HoleJudgement>): number[] {
-  return judged.filter(j => j.status === 'disputed').map(j => j.hole);
+  return judged.filter(j => j.status === 'disputed' || j.status === 'leaning').map(j => j.hole);
+}
+
+/** The holes of a SAVED card still waiting for evidence or a person: every
+ *  disputed hole, and a hole the map alone leans on when the map's par is not
+ *  the saved one. A lean that agrees with the saved par is a confirmation:
+ *  nothing is open there. */
+export function openHoles(saved: ReadonlyArray<{ number: number; par: number }>, judged: ReadonlyArray<HoleJudgement>): number[] {
+  return judged
+    .filter(j => j.status === 'disputed' || (j.status === 'leaning' && saved.find(s => s.number === j.hole)?.par !== j.par))
+    .map(j => j.hole);
 }
 
 export interface ParCorrection {
@@ -141,8 +162,8 @@ export interface ParCorrection {
 
 /** What may change on a SAVED card: a hole whose saved par is not the judged
  *  one, and only when the hole was settled by independent evidence or decided
- *  by an admin. An agreed or still-disputed hole is never touched, whatever
- *  the saved card says (a filled card is otherwise not replaced). */
+ *  by an admin. An agreed, leaning or still-disputed hole is never touched,
+ *  whatever the saved card says (a filled card is otherwise not replaced). */
 export function parCorrections(saved: ReadonlyArray<{ number: number; par: number }>, judged: ReadonlyArray<HoleJudgement>): ParCorrection[] {
   const out: ParCorrection[] = [];
   for (const j of judged) {
