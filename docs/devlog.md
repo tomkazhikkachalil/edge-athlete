@@ -1,5 +1,20 @@
 # Development Log
 
+## November 20, 2026 (14:13) — The three group-round fixes that had no browser test now have one; the corrected tee rule on production
+
+**#1592 on production** (`5f80e6fd`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. #1591 (the provider readout) merged before it.
+
+**New: `e2e/group-round-layout.spec.ts`** (tests only). The Nov 19 fixes pinned at source level only now run in a browser:
+- *Event leaderboards with a 41-letter first name* (desktop and `@mobile`): on the round board and the overall board the name is cut (its text is wider than its box), the page does not scroll sideways, and the scores can be read without scrolling.
+- *A posted round's hole media* (desktop and `@mobile`): two photos attached to holes 3 and 1 show as one strip of two tiles in hole order, below every table of the scorecard and never inside one.
+- *The scorer at 375 px with the long name among the players* (`@mobile`): no sideways scroll, the LIVE badge, the to-par line and both player chips inside the screen, and a typed stroke lands after switching to the long-named player.
+
+**Found by writing it.** At 390 px the overall board of a two-round event is about 4 px wider than the screen. It is a table that scrolls inside its own frame, the extra is cell padding, and the score text is fully on screen, so nothing was changed; the test checks that the last two cells' TEXT is on screen and says why.
+
+**Proof.** Staging, the built app, one project at a time: desktop 2 passed, mobile 3 passed, webkit-mobile 3 passed.
+
+**Phase 4 (cache CI's browsers) is not being built.** Measured on the last three CI runs: the browser install takes 49 to 60 s of a 6 to 8 minute smoke job, and a cache cannot save more than the step costs (the system packages still install). Under the one-minute bar set in the plan; reported to Tom.
+
 ## November 20, 2026 (13:42) — The tee rule corrected the same day: men's tees decide, hole by hole (found by rechecking production's 40 cards)
 
 **What was wrong with this morning's rule (#1590).** It took the whole card most tee boxes share, men's and women's together. Tom approved a one-time re-read of the 40 production cards whose pars came from GolfCourseAPI (91 paced calls from here, production read only). On Rivermead the ten men's boxes share the correct card (72) and all eleven women's boxes give their own pars on holes 5, 7 and 18 (75): the rule would have replaced a correct card with the women's one, 11 boxes to 10. It was live for about ninety minutes; a read of production shows no GolfCourseAPI card was written in that time.
