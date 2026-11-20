@@ -38,6 +38,10 @@ import { isMapSheet } from '@/lib/golf/map-sheet';
  * null is a designed state (unmapped or ambiguous courses). Renders nothing
  * at all for courses with no extra data (history rows, custom courses).
  */
+/** A club and one of its courses, as `?id=` and a `split` answer report them. */
+export interface CourseClub { id: string; name: string }
+export interface CourseClubSection { id: string; name: string; sectionName?: string; sectionKind?: string; holesCount?: number }
+
 interface CourseInfoCardProps {
   course: GolfCourse;
   /** Round surfaces open the map immediately; the composer keeps the toggle. */
@@ -57,12 +61,15 @@ interface CourseInfoCardProps {
    *  for the caller to adopt (the composer swaps its selection so the round's
    *  pars, tees and ratings follow). The card updates itself either way. */
   onCourseUpdated?: (course: GolfCourse) => void;
+  /** The lookup found that this club is several courses and the catalog now
+   *  holds them (Nov 19 2026): the caller asks which one is being played. */
+  onClubFound?: (club: CourseClub, sections: CourseClubSection[]) => void;
   /** The person just picked this course to play: ask for its card without a
    *  tap (Oct 31 2026). Other surfaces keep the button, and never ask unprompted. */
   autoFindSheet?: boolean;
 }
 
-export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated, autoFindSheet = false }: CourseInfoCardProps) {
+export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated, onClubFound, autoFindSheet = false }: CourseInfoCardProps) {
   // ONE panel at a time (Oct 29 2026, Tom's refinement spec): the map or
   // the official scorecard, opened by two side-by-side buttons under the
   // summary; opening one closes the other. `defaultOpen` opens the map.
@@ -174,7 +181,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // scorecard button's "may still get a sheet" ends here, whatever came back.
   const [detailDoneFor, setDetailDoneFor] = useState<string | null>(null);
   // "Find the official scorecard" (Oct 31 2026): a tap, one ask, one answer.
-  const [sheetAsk, setSheetAsk] = useState<'idle' | 'asking' | 'none' | 'failed'>('idle');
+  const [sheetAsk, setSheetAsk] = useState<'idle' | 'asking' | 'none' | 'failed' | 'split'>('idle');
   const findSheetRef = useRef<() => Promise<void>>(async () => {});
   const findSheet = async () => {
     if (sheetAsk === 'asking') return;
@@ -183,7 +190,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
     setSheetAsk('asking');
     try {
       const res = await fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&sheet=1`, { credentials: 'include' });
-      const body = res.ok ? ((await res.json()) as { found?: boolean; course?: GolfCourse }) : null;
+      const body = res.ok ? ((await res.json()) as { found?: boolean; outcome?: string; course?: GolfCourse; club?: CourseClub; siblings?: CourseClubSection[] }) : null;
       if (body?.found && body.course && body.course.holes.length > 0) {
         setFetchedCourse(body.course);
         setDetailDoneFor(course.id);
@@ -191,6 +198,12 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
         // An upgrade from a map card is quiet: the panel stays as the person left it.
         if (!upgrading) setOpen('scorecard');
         onCourseUpdated?.(body.course);
+      } else if (body?.outcome === 'split' && body.club && body.siblings?.length) {
+        // The provider lists this club as several courses (Nov 19 2026): the
+        // catalog now holds one row per course, and the question "which one
+        // are you playing?" is the composer's. No "nothing found" line here.
+        setSheetAsk('split');
+        onClubFound?.(body.club, body.siblings);
       } else {
         setSheetAsk(body ? 'none' : 'failed');
       }

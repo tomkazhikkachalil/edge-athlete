@@ -1,5 +1,72 @@
 # Development Log
 
+## November 19, 2026 (21:47) — Golf leftovers: production after phases 3 and 4, and the migration branch brought current
+
+Production serves `c58ea3bd` (#1583). Probe, one spec and project at a time: health + catalog-health 2 passed; `golf-quick-entry` 4 passed on `mobile` (with the club-split chooser) and 7 on `desktop`; `live-scoring-group` 5 passed on `desktop`. 18 passed, none failed. Earlier the same day: phase 1 (9 passed on `8d209f36`) and phase 2a (12 passed on `4e2cde7a`).
+
+The two Greensmere cards saved by today's real picks were compared hole by hole with a published scorecard for each course: Legacy 4 5 4 3 4 4 5 4 3 / 5 4 4 4 4 3 4 3 5 and Premier 4 4 3 5 4 5 3 4 4 / 4 4 3 4 3 4 5 4 5, par 72 each, identical to ours.
+
+This branch (phase 2b, migration 316) had fallen behind main and conflicted in this file; main is merged in. Still owed: Tom runs 316 on production and merges; the real picks whose windows reopen Nov 20 (Glen Abbey after 05:30 UTC; Ottawa Hunt's three nines and Angus Glen after 14:35 UTC).
+
+## November 19, 2026 (21:18) — Golf leftovers, phase 4: a club the provider lists as several courses is split into them
+
+The plan's phase 4 was a chooser: ask the golfer which provider course they are playing, every round, and use the card for that round only (with no map to check it against, it could not be saved for everyone). Reading how the catalog already holds Greensmere and Ottawa Hunt showed a better shape, and Tom chose it (Nov 19): **split the club into its courses.** One catalog row per course, the question the composer already asks at a split club, and each course's card saved once for everyone by the normal lookup. Nothing a golfer taps decides what a shared row holds. No migration (`golf_clubs` and the section columns are migration 125's).
+
+- **The rule** (`clubSectionsFromCandidates`, pure): on a row that is the club itself (no section, not linked, located), every listing left after the name and place rules must carry the club's name plus one or two words of its own, no two alike, all at one point (0.2 km) that is the row's (2 km); two to four of them. Angus Glen's real answer gives North and South. A listing that is the club itself, a third far away, an unlocated one, five of them: no split, the tie stays a tie.
+- **The write** (`splitClubIntoSections`, its own file `src/lib/golf/club-split-server.ts`, registered in the org-reference ledger as golf scope: `club_id` there is a golf club's, never an organisation's): a `golf_clubs` row; the row linked as the club's generic row; one `seed` row per course (`split:<row id>:<label>`), with no card. Insert-if-absent, so a second run changes nothing; a club already linked (split before, or curated by hand like Ottawa Hunt) is never split.
+- **The answer:** `?sheet=1` returns `outcome: 'split'` with the club and its courses. `CourseInfoCard` passes them up (`onClubFound`) and shows no "nothing found" line; the composer shows its existing chooser. The next golfer gets the same chooser from `?id=`, with no provider call.
+- **Each course's card** arrives when the course is picked: the lookup holds a section to a listing that names it (the Nov 18 rule), and a split course learns whether it is an 18 or a nine from its first card.
+- Composer: a row that is itself a named course is a selection, not a second question; the chooser shows a hole count only when it is known.
+
+**Proof.** `club-split.test.ts` (13): the rule on the real Angus Glen answer and eight ways it must say no; the writer against an in-memory catalog (club, link, two rows with no card; twice = once; a failed club write changes nothing); the lookup (answers `split`, no detail call, no card; an already-linked club is not split; a split course picked takes its own listing's card, never its sibling's, and becomes `course_18`). Golf unit tests: 981 passed. Browser, staging: a club row with two real course rows, the `?sheet=1` answer stubbed to `split` (the provider cannot be reached from a test): the chooser appears with both courses, one ask, no "nothing found" line, 44 px targets, no sideways overflow, and choosing South shows South's pars: 1 passed on `mobile`; the whole `golf-quick-entry.spec.ts` 4 passed on `mobile`, 7 on `desktop`.
+
+**Not proven yet.** The real split on production: Angus Glen's ask window reopens Nov 20 ~14:35 UTC. The browser test runs at phone width only (it is tagged for the phone project).
+
+**Limits.** A club the provider lists as combinations of nines under course-like names would be split into those names; each would still only take a card from a listing that names it, and a nine row's eighteen needs a sibling's confirmation, but the labels would be the provider's. The split uses one provider's listings (the first that ties).
+
+## November 19, 2026 (09:37) — Golf leftovers, phase 3b: real picks after 3a, and a nine that the provider lists as an eighteen
+
+**Real picks on production after #1581 (`62c96b59`), 14:35 UTC, one ask each:**
+
+| Course | Outcome | What happened |
+|---|---|---|
+| Greensmere (Legacy) | **found** | GolfCourseAPI `d0rc26ak`: 18 holes, par 72, 9 tees |
+| Greensmere (Premier) | **found** | GolfCourseAPI `snm23pnx` ("Premiere", the one-letter rule): 18 holes, par 72, 9 tees; different pars from Legacy |
+| Ottawa Hunt North / South / West Nine | no card, `wrong_holes` | each picked its own listing; each listing is **18 holes** |
+| Angus Glen Golf Club | no card, `not_narrowed` | North and South, one row: the tie phase 4 is for |
+
+Glen Abbey waits for its window (asked 05:30 UTC). OpenGolfAPI answered `provider_error` on every pick: the provider itself was down (three searches from here: HTTP 500 after 20 s each). Not ours; each pick waited about five seconds on it. **The 9,000 daily limit is confirmed by the counter:** GolfCourseAPI stood at 52 asks for the day and the last asks went through (the old cap was 45).
+
+**Why the nines fail.** I read the three details: "North" is North + South, "South" is South + West, "West" is West + North, 20 tees each. So every nine is the front of the listing that carries its name and the back of a sibling's, with identical pars and yardages in both places (male tees; a few women's tees carry a stray par). Phase 3a's entry said the plan's split looked unneeded; the picks say it is needed, in this form.
+
+**The rule** (`nineFromCombination`, `sheet-merge.ts`): for a nine row whose picked listing answers eighteen holes, ask for the same search's other listings of the club (at most 3, each budgeted) and take the picked listing's front nine only when a sibling's holes 10–18 have the same nine pars and one tee's same nine yardages. Ratings and stroke indexes (an eighteen's) are dropped. Not confirmed → `wrong_holes`, as before. The trace says `fromCombination`.
+
+**Proof.** `official-sheet.test.ts`, on the real pars and Gold yardages: each of the three nines takes its own nine (pars, yardages, 9 holes, no ratings); siblings whose back nines are something else → refused, nothing written; one search and three details budgeted; an eighteen row at the same club makes one detail call and keeps 18 holes; six pure cases (no sibling, same pars with other yardages, one par apart, not an eighteen). Golf unit tests: 968 passed.
+
+**Limits.** The saved tees keep the provider's names ("ns gold" on the North nine). The confirmation is one provider agreeing with itself across listings, not two providers. Real picks of the three nines wait for their windows (asked today 14:35 UTC).
+
+## November 19, 2026 (09:19) — Golf leftovers, phase 3a: the scorecard lookup tells a twice-listed course and a misspelled section apart; what phase 3 really needed
+
+"Multi-course clubs the lookup cannot narrow" was a list of four clubs and a guess at the cause. Before changing a rule I read what the providers actually answer (one live search each, Nov 19) and how production holds the rows, then ran the existing rule over those answers as fixtures:
+
+| Row | What the provider's search holds | Before | Cause |
+|---|---|---|---|
+| Glen Abbey (Oakville) | GolfCourseAPI: **the same course twice** (same name, address, coordinates) | no pick | two indistinguishable candidates |
+| Greensmere (Premier) | GolfCourseAPI: "Legacy" and "**Premiere**" | no pick | one letter |
+| Greensmere (Legacy), Ottawa Hunt North / South / West | their own listings | **picked correctly** | nothing wrong at this step; they were inside the one-ask-a-day window when last tried |
+| Angus Glen Golf Club (one row) | GolfCourseAPI: North Course and South Course | no pick | a real tie: two courses, one row |
+
+So the fix is narrower than the plan's (which assumed a combined 18 had to be split into nines; nothing read today needs that):
+
+- **One course listed twice is one candidate** (`foldSheetTwins`): the same words in the name and the same point within 0.2 km. The lookup asks for each listing's card (each budgeted): the first with holes is taken; a second with holes must say the same (`providersConfirm`) or nothing is saved (`not_narrowed`).
+- **A section spelled one trailing letter apart** is the same section, on words of six letters or more (`sectionWordIn`). "North" is never "South".
+- **What the search itself says** now reaches the rule: both providers return coordinates (the code believed GolfCourseAPI returned none), OpenGolfAPI a par and a hole count. Among candidates whose name adds nothing to the row's, the only one within 2 km, then the only one with the row's hole count, then the only one with the tagged map card's par, wins. A candidate that names a course OF the club is never taken for the club by being at its point.
+- **The reason is honest:** `no_section_match` when no candidate names the row's section (it used to read `not_narrowed`, a tie that was not one).
+- **Angus Glen stays a tie on purpose.** That is phase 4's chooser.
+
+**Proof.** `multi-course-real.test.ts`: 13 cases on the real answers (Glen Abbey folded and picked; Premier takes "Premiere"; the three Ottawa Hunt nines and Legacy unchanged; Angus Glen null, also when only one of its courses is near and same-named clubs are far). `official-sheet.test.ts`: 5 lookup cases (the first listing empty and the second's card taken; both the same; different cards refused and nothing written; three budget hits for one search and two details; North/South not folded and no detail call). The same fixtures run against the old rule gave null for Glen Abbey and Premier. Golf unit tests: 956 passed.
+
+**Not proven yet:** real picks on production. Each course takes one ask a day, so they run once this is live: Greensmere Legacy and Premier, the three Ottawa Hunt nines, and Glen Abbey after its window (asked Nov 19 ~05:30 UTC). What the cards come to (a nine answered with an 18 would still read `wrong_holes`) decides whether anything of the plan's phase 3b is needed.
 ## November 19, 2026 (09:08) — Golf leftovers, phase 2b: the profile copy of a round keeps the estimated-par mark (migration 316)
 
 Phase 2a marked estimated pars on the group round's screens, which read the round's own `hole_data`. The profile copy of a round (`golf_holes`, written by the round mirror) had no place for the flag, so the round detail page, the round card on a post and the golf profile still showed a guessed par as the course's own. Tom chose a column over looking the flag up through the group round on every read.
