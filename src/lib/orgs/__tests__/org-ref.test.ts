@@ -157,6 +157,8 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
       'lib/orgs/structure-import.ts': 2,
       // golf_courses.club_id names a golf_clubs row (migration 125), not an org
       'lib/golf/map-sweep-server.ts': 8,
+      // the club split (Nov 19 2026): it writes golf_courses.club_id → golf_clubs, a golf club's courses
+      'lib/golf/club-split-server.ts': 12,
     };
     const root = join(__dirname, '..', '..', '..');
     const over: string[] = [];

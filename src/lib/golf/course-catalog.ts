@@ -48,6 +48,7 @@ import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geometry';
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
+import { splitUnlinkedClub, type ClubSectionRow } from '@/lib/golf/club-split-server';
 import { creditSources, mergeSheets, nineFromCombination, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 
@@ -1203,6 +1204,56 @@ export function foldSheetTwins(candidates: SheetCandidate[]): SheetCandidate[] {
   return out;
 }
 
+/** At most this many courses are made out of one club's listings. */
+export const CLUB_SECTIONS_MAX = 4;
+
+export interface ClubSectionFound {
+  /** "North" — the words the listing adds to the club's name. */
+  label: string;
+  /** The provider listing that names it. */
+  id: string;
+}
+
+/** A club the provider lists as SEVERAL named courses, on a row of ours that
+ *  is the club itself (Nov 19 2026, Tom: split the club into its courses).
+ *  Measured: "Angus Glen Golf Club" is one row here; GolfCourseAPI holds
+ *  "… – South Course" and "… – North Course" at the club's one address.
+ *  Returned only when every listing left after the name and place rules:
+ *  carries the club's own name plus one or two words of its own, no two
+ *  alike; sits at ONE point (SHEET_TWIN_KM); and that point is the row's
+ *  (SHEET_NEAR_KM). Two to CLUB_SECTIONS_MAX of them. A row that is already a
+ *  section, a listing that is the club itself, an unlocated listing: null,
+ *  and the tie stays a tie. Sections are never invented: each one is a
+ *  course the provider names. Pure. */
+export function clubSectionsFromCandidates(
+  row: Pick<CatalogRow, 'name' | 'city' | 'region_code' | 'country_code'> & { section_name?: string | null; section_kind?: string | null; lat?: number | null; lng?: number | null },
+  candidates: SheetCandidate[]
+): ClubSectionFound[] | null {
+  if (row.section_name || (row.section_kind && row.section_kind !== 'unspecified')) return null;
+  if (sectionlessName(row.name) !== row.name.trim() || !located(row)) return null;
+  const { named } = sheetNamed(row, candidates);
+  const placed = foldSheetTwins(named.filter(
+    c =>
+      (!row.country_code || !c.country_code || row.country_code === c.country_code) &&
+      (!row.region_code || !c.region_code || row.region_code === c.region_code)
+  ));
+  if (placed.length < 2 || placed.length > CLUB_SECTIONS_MAX) return null;
+  const mine = nameTokens(row.name);
+  const out: ClubSectionFound[] = [];
+  const first = placed[0];
+  if (!located(first) || sheetKm(row.lat, row.lng, first.lat, first.lng) > SHEET_NEAR_KM) return null;
+  for (const c of placed) {
+    if (!located(c) || sheetKm(first.lat, first.lng, c.lat, c.lng) > SHEET_TWIN_KM) return null;
+    // The words the listing adds, in the order it writes them.
+    const extra = [...nameTokens(c.name)].filter(t => !mine.has(t) && !SECTION_GENERIC.has(t));
+    if (extra.length < 1 || extra.length > 2) return null;
+    const label = extra.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    if (out.some(o => o.label === label)) return null;
+    out.push({ label, id: c.id });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
 /** The one candidate that is this facility, or null. Pure — tests cover it. */
 export function pickSheetCandidate(
   row: Pick<CatalogRow, 'name' | 'city' | 'region_code' | 'country_code'> & { section_name?: string | null; lat?: number | null; lng?: number | null; holes_count?: number | null },
@@ -1258,8 +1309,12 @@ export function pickSheetCandidate(
 
 export interface OfficialSheetResult {
   found: boolean;
-  outcome: 'already' | 'found' | 'no_match' | 'map_disagrees' | 'no_sheet' | 'not_configured' | 'budget_refused' | 'provider_error';
+  outcome: 'already' | 'found' | 'split' | 'no_match' | 'map_disagrees' | 'no_sheet' | 'not_configured' | 'budget_refused' | 'provider_error';
   course: GolfCourse;
+  /** `split`: the provider lists this club as several courses; the catalog now
+   *  holds one row per course and the golfer is asked which one. */
+  club?: { id: string; name: string };
+  siblings?: ClubSectionRow[];
   /** What each provider asked came to (Nov 18 2026): counts and a reason,
    *  never the provider's data. A miss used to say only "no match", and why
    *  could not be read afterwards (Glen Abbey, Oakville). */
@@ -1394,6 +1449,8 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
   // Read only when something is about to be written (the loop's first fill).
   let sources: SheetSources | null | undefined;
   let why: OfficialSheetResult['outcome'] = 'no_match';
+  /** A tie that is really a club's several courses (clubSectionsFromCandidates). */
+  let splitFound: ClubSectionFound[] | null = null;
   for (const provider of providers) {
     if (sheetComplete(card)) break;
     const ask: SheetAsk = { source: provider.source, result: 'provider_error' };
@@ -1418,6 +1475,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     ask.picked = found?.id ?? null;
     if (!found) {
       ask.result = sheetMissReason(row, candidates);
+      if (ask.result === 'not_narrowed' && !splitFound) splitFound = clubSectionsFromCandidates(row, candidates);
       console.warn(`[course-catalog] official sheet: no ${provider.source} match for ${row.id} "${row.name}" among ${candidates.length} (${ask.result})`);
       continue;
     }
@@ -1527,9 +1585,20 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${only.source} alone against the map card, whole and consistent; the map is overruled`);
     }
   }
-  if (from.length === 0) return miss(why, trace);
+  if (from.length === 0) {
+    // No card for the club as a whole, and the provider lists its courses:
+    // the catalog takes one row per course and the golfer is asked which.
+    // (Never a club that is already linked: splitUnlinkedClub.)
+    if (splitFound && !hadCard) {
+      const split = await splitUnlinkedClub(admin, row, splitFound);
+      if (split) return { ...answer('split', split.row, trace), found: false, club: split.club, siblings: split.siblings };
+    }
+    return miss(why, trace);
+  }
 
-  const sheet = { ...card, ...(sources === undefined ? {} : { sheet_sources: sources }), hydrated_at: new Date().toISOString() };
+  // A course made by a club split is 'unspecified' until its card says what it is.
+  const learned = row.section_kind === 'unspecified' && row.section_name && (card.hole_data?.length === 18 || card.hole_data?.length === 9) ? { section_kind: card.hole_data.length === 18 ? 'course_18' : 'nine' } : {};
+  const sheet = { ...card, ...learned, ...(sources === undefined ? {} : { sheet_sources: sources }), hydrated_at: new Date().toISOString() };
   const { error } = await admin.from('golf_courses').update(sheet).eq('id', row.id);
   if (error) {
     console.error(`[course-catalog] official sheet write failed for ${row.id}:`, error.message);
