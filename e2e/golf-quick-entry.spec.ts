@@ -681,3 +681,86 @@ test('a course with map lines and NO pars: the card is shown with estimated pars
     ]);
   }
 });
+
+// Nov 19 2026 (Tom: split the club into its courses). The lookup found that the
+// provider lists this club as two courses: the catalog holds one row each and
+// the composer asks which one, with the question a split club always asked.
+// The provider is not reachable from a test, so the `?sheet=1` answer is the
+// one thing stubbed; the club, its two courses and their cards are real rows.
+test('a club the lookup finds to be two courses: the golfer is asked which, and the chosen course\'s card is used @mobile', async ({ page }) => {
+  test.setTimeout(120_000);
+  const admin = adminClient();
+  const stamp = Date.now();
+  const clubName = `QA Split Glen Golf Club ${stamp}`;
+  const holeData = (pars: number[]) => pars.map((par, i) => ({ number: i + 1, par, yardage: { white: 300 + i * 10 }, handicap: i + 1 }));
+  const NORTH = [4, 5, 3, 4, 4, 5, 3, 4, 4, 4, 4, 3, 5, 4, 4, 3, 5, 4];
+  const SOUTH = [5, 4, 4, 3, 4, 4, 5, 3, 4, 4, 3, 5, 4, 4, 4, 5, 3, 4];
+  const base = { lat: 45.61, lng: -75.61, city: 'Testville', region_code: 'ON', country_code: 'CA', hydrated_at: new Date().toISOString() };
+  let clubId = '';
+  const courseIds: string[] = [];
+  try {
+    const club = await admin.from('golf_clubs').insert({ name: clubName, ...{ lat: base.lat, lng: base.lng } }).select('id').single();
+    expect(club.error, club.error?.message).toBeNull();
+    clubId = club.data!.id as string;
+    // The club's own row is NOT linked yet: the answer to the lookup is what tells the composer.
+    const rows = await admin.from('golf_courses').insert([
+      { external_source: 'qa-e2e', external_id: `split-club-${stamp}`, name: clubName, ...base },
+      { external_source: 'qa-e2e', external_id: `split-north-${stamp}`, name: `${clubName} (North)`, club_id: clubId, club_name: clubName, section_name: 'North', section_kind: 'course_18', holes_count: 18, total_par: 72, hole_data: holeData(NORTH), ...base },
+      { external_source: 'qa-e2e', external_id: `split-south-${stamp}`, name: `${clubName} (South)`, club_id: clubId, club_name: clubName, section_name: 'South', section_kind: 'unspecified', ...base, hole_data: holeData(SOUTH), holes_count: 18, total_par: 72 },
+    ]).select('id, name');
+    expect(rows.error, rows.error?.message).toBeNull();
+    for (const r of rows.data!) courseIds.push(r.id as string);
+    const idOf = (suffix: string) => rows.data!.find(r => (r.name as string).endsWith(suffix))!.id as string;
+    const clubRowId = rows.data!.find(r => r.name === clubName)!.id as string;
+    let asked = 0;
+    await page.route(url => url.pathname === '/api/golf/courses' && url.searchParams.get('sheet') === '1' && url.searchParams.get('id') === clubRowId, async route => {
+      asked += 1;
+      await route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'Cache-Control': 'private, no-store' },
+        body: JSON.stringify({
+          found: false, outcome: 'split',
+          course: { id: clubRowId, name: clubName, holes: [], courseRating: {}, slopeRating: {}, clubId },
+          club: { id: clubId, name: clubName },
+          siblings: [{ id: idOf('(North)'), name: `${clubName} (North)`, sectionName: 'North', sectionKind: 'course_18', holesCount: 18 }, { id: idOf('(South)'), name: `${clubName} (South)`, sectionName: 'South', sectionKind: 'unspecified' }],
+        }),
+      });
+    });
+
+    const flow = await openGolf(page);
+    await next(flow, /Step 2 of 7/);
+    await page.getByPlaceholder(/search for a golf course/i).fill(`QA Split Glen Golf Club ${stamp}`);
+    await page.locator('div.absolute.max-h-60 button', { hasText: clubName }).filter({ hasNotText: '(' }).first().click({ timeout: 15_000 });
+
+    // The question, with both courses; no "nothing found" line beside it.
+    const chooser = page.locator('[data-club-section-chooser]');
+    await expect(chooser).toBeVisible({ timeout: 15_000 });
+    expect(asked).toBe(1);
+    await expect(chooser).toContainText(`${clubName} has more than one course`);
+    await expect(chooser.locator('[data-club-section-option]')).toHaveCount(2);
+    // A course known to be an 18 says so; one not yet known says nothing.
+    await expect(chooser.locator(`[data-club-section-option="${idOf('(North)')}"]`)).toContainText('18 holes');
+    await expect(chooser.locator(`[data-club-section-option="${idOf('(South)')}"]`)).toHaveText(/^\s*South\s*$/);
+    await expect(page.locator('[data-course-sheet-none]')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    for (const option of await chooser.locator('[data-club-section-option]').all()) {
+      const box = (await option.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+
+    // Choosing South: that course is the selection, its own card is the round's, and the question is gone.
+    await chooser.locator(`[data-club-section-option="${idOf('(South)')}"]`).click();
+    await expect(chooser).toHaveCount(0, { timeout: 15_000 });
+    const show = page.locator('[data-course-show-scorecard]');
+    await expect(show).toBeVisible({ timeout: 15_000 });
+    await show.click();
+    const parRow = page.locator('[data-course-scorecard-row="par"]').first();
+    await expect(parRow.locator('[data-course-scorecard-sum="total"]')).toHaveText('72');
+    const shown = (await parRow.locator('td').allInnerTexts()).map(t => t.trim()).filter(t => /^[3-6]$/.test(t)).slice(0, 9).map(Number);
+    expect(shown).toEqual(SOUTH.slice(0, 9));
+  } finally {
+    await cleanup('golf-club-split', [
+      () => courseIds.length && admin.from('golf_courses').delete().in('id', courseIds),
+      () => clubId && admin.from('golf_clubs').delete().eq('id', clubId),
+    ]);
+  }
+});

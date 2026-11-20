@@ -430,7 +430,8 @@ describe('one course listed twice by a provider', () => {
     const markham = { city: 'Markham', state: 'ON', country: 'Canada', latitude: 43.902072, longitude: -79.324842 };
     const calls = stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: { courses: [{ id: 's', club_name: 'Angus Glen Golf Club', course_name: 'South Course', location: markham }, { id: 'n', club_name: 'Angus Glen Golf Club', course_name: 'North Course', location: markham }] } });
     const { admin, updates } = fakeAdmin();
-    const r = await findOfficialSheet(admin, row({ name: 'Angus Glen Golf Club', city: 'Markham', lat: 43.8984, lng: -79.3327 }));
+    // (An unlinked club row goes on to be split into its courses: club-split.test.ts. This one is already linked.)
+    const r = await findOfficialSheet(admin, row({ name: 'Angus Glen Golf Club', city: 'Markham', lat: 43.8984, lng: -79.3327, club_id: 'club-x', section_kind: 'unspecified' } as Partial<CatalogRow>));
     expect(calls).not.toContain('golfcourseapi:detail');
     expect(r.trace!.find(t => t.source === 'golfcourseapi')).toMatchObject({ candidates: 2, named: 2, picked: null, result: 'not_narrowed' });
     expect(updates).toEqual([]);

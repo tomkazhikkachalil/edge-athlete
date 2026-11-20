@@ -1,5 +1,21 @@
 # Development Log
 
+## November 19, 2026 (21:18) — Golf leftovers, phase 4: a club the provider lists as several courses is split into them
+
+The plan's phase 4 was a chooser: ask the golfer which provider course they are playing, every round, and use the card for that round only (with no map to check it against, it could not be saved for everyone). Reading how the catalog already holds Greensmere and Ottawa Hunt showed a better shape, and Tom chose it (Nov 19): **split the club into its courses.** One catalog row per course, the question the composer already asks at a split club, and each course's card saved once for everyone by the normal lookup. Nothing a golfer taps decides what a shared row holds. No migration (`golf_clubs` and the section columns are migration 125's).
+
+- **The rule** (`clubSectionsFromCandidates`, pure): on a row that is the club itself (no section, not linked, located), every listing left after the name and place rules must carry the club's name plus one or two words of its own, no two alike, all at one point (0.2 km) that is the row's (2 km); two to four of them. Angus Glen's real answer gives North and South. A listing that is the club itself, a third far away, an unlocated one, five of them: no split, the tie stays a tie.
+- **The write** (`splitClubIntoSections`, its own file `src/lib/golf/club-split-server.ts`, registered in the org-reference ledger as golf scope: `club_id` there is a golf club's, never an organisation's): a `golf_clubs` row; the row linked as the club's generic row; one `seed` row per course (`split:<row id>:<label>`), with no card. Insert-if-absent, so a second run changes nothing; a club already linked (split before, or curated by hand like Ottawa Hunt) is never split.
+- **The answer:** `?sheet=1` returns `outcome: 'split'` with the club and its courses. `CourseInfoCard` passes them up (`onClubFound`) and shows no "nothing found" line; the composer shows its existing chooser. The next golfer gets the same chooser from `?id=`, with no provider call.
+- **Each course's card** arrives when the course is picked: the lookup holds a section to a listing that names it (the Nov 18 rule), and a split course learns whether it is an 18 or a nine from its first card.
+- Composer: a row that is itself a named course is a selection, not a second question; the chooser shows a hole count only when it is known.
+
+**Proof.** `club-split.test.ts` (13): the rule on the real Angus Glen answer and eight ways it must say no; the writer against an in-memory catalog (club, link, two rows with no card; twice = once; a failed club write changes nothing); the lookup (answers `split`, no detail call, no card; an already-linked club is not split; a split course picked takes its own listing's card, never its sibling's, and becomes `course_18`). Golf unit tests: 981 passed. Browser, staging: a club row with two real course rows, the `?sheet=1` answer stubbed to `split` (the provider cannot be reached from a test): the chooser appears with both courses, one ask, no "nothing found" line, 44 px targets, no sideways overflow, and choosing South shows South's pars: 1 passed on `mobile`; the whole `golf-quick-entry.spec.ts` 4 passed on `mobile`, 7 on `desktop`.
+
+**Not proven yet.** The real split on production: Angus Glen's ask window reopens Nov 20 ~14:35 UTC. The browser test runs at phone width only (it is tagged for the phone project).
+
+**Limits.** A club the provider lists as combinations of nines under course-like names would be split into those names; each would still only take a card from a listing that names it, and a nine row's eighteen needs a sibling's confirmation, but the labels would be the provider's. The split uses one provider's listings (the first that ties).
+
 ## November 19, 2026 (09:37) — Golf leftovers, phase 3b: real picks after 3a, and a nine that the provider lists as an eighteen
 
 **Real picks on production after #1581 (`62c96b59`), 14:35 UTC, one ask each:**

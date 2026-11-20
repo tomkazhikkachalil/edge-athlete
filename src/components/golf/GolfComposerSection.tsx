@@ -567,7 +567,10 @@ export default function GolfComposerSection({
           const club = data?.club as { id: string; name: string } | undefined;
           const siblings = (data?.siblings as SectionSibling[] | undefined) ?? [];
           const kind = full.sectionKind ?? course.sectionKind;
-          if (club && siblings.length > 0 && kind !== 'course_18') {
+          // A row that is itself a named course of the club (a split club's
+          // "North", not yet known to be an 18 or a nine) is a selection too.
+          const namedCourse = kind !== 'nine' && !!(full.sectionName ?? course.sectionName);
+          if (club && siblings.length > 0 && kind !== 'course_18' && !namedCourse) {
             if (kind === 'nine') {
               setComboFront(full);
               setSectionChoice({ club, options: siblings.filter(isNineOption) });
@@ -1205,7 +1208,7 @@ export default function GolfComposerSection({
                 out ("keep as selected") is always available: the
                 already-applied selection stands. */}
             {sectionChoice && (
-              <div className="mt-2 p-3 bg-surface-raised border border-border-strong rounded-lg">
+              <div className="mt-2 p-3 bg-surface-raised border border-border-strong rounded-lg" data-club-section-chooser="">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold text-primary">
                     {comboFront
@@ -1233,12 +1236,15 @@ export default function GolfComposerSection({
                       type="button"
                       disabled={sectionLoading}
                       onClick={() => (comboFront ? applyBackNine(option) : applySectionSelection(option))}
+                      data-club-section-option={option.id}
                       className="px-3 py-2 min-h-[44px] rounded-lg border border-border-strong bg-surface text-sm font-medium text-primary hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors disabled:opacity-50"
                     >
                       {option.sectionName ?? option.name}
-                      <span className="ml-1.5 text-xs text-muted">
-                        {isNineOption(option) ? '9 holes' : '18 holes'}
-                      </span>
+                      {(isNineOption(option) || option.sectionKind === 'course_18' || option.holesCount === 18) && (
+                        <span className="ml-1.5 text-xs text-muted">
+                          {isNineOption(option) ? '9 holes' : '18 holes'}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1262,6 +1268,13 @@ export default function GolfComposerSection({
                   setSelectedCourse(full);
                   selectedCourseIdRef.current = full.id;
                   applyCourseData(full);
+                }}
+                // The lookup found the club is several courses (Nov 19 2026):
+                // the same question a club already split asks on selection.
+                onClubFound={(club, sections) => {
+                  if (selectedCourseIdRef.current !== selectedCourse.id) return;
+                  setComboFront(null);
+                  setSectionChoice({ club, options: sections });
                 }}
               />
             )}
