@@ -224,6 +224,8 @@ try/catch, the browser last; the teardown backstop sweeps `qa-e2e` and
 `seed` + `qa-sweep-…` rows older than an hour. Read DEVLOG Oct 8 2026
 PR 1–7 first.
 
+**Provider usage is readable (Nov 20 2026).** `GET /api/admin/golf-providers` and the admin console's "Golf data providers" panel show each `golf-provider:*` counter beside `providerBudgetLimit(source)` (the same function the spender uses) and the hosts the answering instance is skipping. The counter is a fixed 24-hour window from its first hit (`usageRow`).
+
 **A card's pars are the tees' agreement (Nov 20 2026, `parsFromTees`).** GolfCourseAPI answers pars per tee box and the boxes can disagree. The card takes the whole par row most boxes share (one real tee's card, never a mix), a tie keeps the reference box, and the total is that box's stated total. Holes on which a box said otherwise are recorded in `sheet_sources.parsDisputed` when that answer supplied the pars.
 
 **A provider's error does not spend the course's ask (Nov 20 2026, `releaseSheetAsk`).** One ask per course per day is the rule for ANSWERS. A lookup that saved nothing and met a provider that failed or was being skipped (`sheetAskUnanswered`) hands the ask back, at most `SHEET_ASK_RETRIES` (2) times a day per course (`golf-sheet-retry:<id>`), so a course is asked at most three times a day. An honest answer or a saved card keeps the ask spent. A non-2xx, non-404 provider answer is logged with its status.
