@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-20T03:38:47.085178+00:00 from server 17.6 by
+-- Generated 2026-11-20T21:00:17.157854+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 316.
+-- public.schema_dump() (migration 227). Ledger head at generation: 317.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -5436,7 +5436,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (151) ──────────────────────────────────────────────────────────────
+-- ── Tables (153) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.activities (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   profile_id uuid NOT NULL,
@@ -6149,6 +6149,30 @@ CREATE TABLE IF NOT EXISTS public.golf_map_sweep_meta (
   key text NOT NULL,
   value jsonb NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.golf_par_changes (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  course_id uuid NOT NULL,
+  course_name text NOT NULL,
+  hole integer NOT NULL,
+  from_par integer NOT NULL,
+  to_par integer NOT NULL,
+  reason text NOT NULL,
+  settled_by text,
+  actor text NOT NULL,
+  note text,
+  evidence jsonb DEFAULT '{}'::jsonb NOT NULL,
+  changed_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.golf_par_evidence (
+  course_id uuid NOT NULL,
+  source text NOT NULL,
+  label text DEFAULT ''::text NOT NULL,
+  votes boolean DEFAULT true NOT NULL,
+  pars integer[] NOT NULL,
+  observed_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_participant_scores (
@@ -7935,6 +7959,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_pkey' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_evidence_pkey' AND conrelid = 'public.golf_par_evidence'::regclass) THEN
+    ALTER TABLE public.golf_par_evidence ADD CONSTRAINT golf_par_evidence_pkey PRIMARY KEY (course_id, source, label);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_participant_scores_pkey' AND conrelid = 'public.golf_participant_scores'::regclass) THEN
     ALTER TABLE public.golf_participant_scores ADD CONSTRAINT golf_participant_scores_pkey PRIMARY KEY (id);
   END IF;
@@ -9616,6 +9650,66 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_map_sweep_cells_tier_check' AND conrelid = 'public.golf_map_sweep_cells'::regclass) THEN
     ALTER TABLE public.golf_map_sweep_cells ADD CONSTRAINT golf_map_sweep_cells_tier_check CHECK (((tier >= 0) AND (tier <= 3)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_actor_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_actor_check CHECK (((char_length(actor) >= 1) AND (char_length(actor) <= 200)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_changed_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_changed_check CHECK ((from_par <> to_par));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_course_name_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_course_name_check CHECK ((char_length(course_name) <= 200));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_from_par_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_from_par_check CHECK (((from_par >= 3) AND (from_par <= 6)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_hole_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_hole_check CHECK (((hole >= 1) AND (hole <= 36)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_note_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_note_check CHECK (((note IS NULL) OR (char_length(note) <= 500)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_reason_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_reason_check CHECK ((reason = ANY (ARRAY['settled'::text, 'admin'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_settled_by_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_settled_by_check CHECK (((settled_by IS NULL) OR (char_length(settled_by) <= 60)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_changes_to_par_check' AND conrelid = 'public.golf_par_changes'::regclass) THEN
+    ALTER TABLE public.golf_par_changes ADD CONSTRAINT golf_par_changes_to_par_check CHECK (((to_par >= 3) AND (to_par <= 6)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_evidence_label_check' AND conrelid = 'public.golf_par_evidence'::regclass) THEN
+    ALTER TABLE public.golf_par_evidence ADD CONSTRAINT golf_par_evidence_label_check CHECK ((char_length(label) <= 60));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_evidence_pars_check' AND conrelid = 'public.golf_par_evidence'::regclass) THEN
+    ALTER TABLE public.golf_par_evidence ADD CONSTRAINT golf_par_evidence_pars_check CHECK (((cardinality(pars) >= 1) AND (cardinality(pars) <= 36)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_evidence_source_check' AND conrelid = 'public.golf_par_evidence'::regclass) THEN
+    ALTER TABLE public.golf_par_evidence ADD CONSTRAINT golf_par_evidence_source_check CHECK ((source = ANY (ARRAY['golfcourseapi'::text, 'opengolfapi'::text, 'website'::text, 'admin'::text])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -11631,6 +11725,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_par_evidence_course_id_fkey' AND conrelid = 'public.golf_par_evidence'::regclass) THEN
+    ALTER TABLE public.golf_par_evidence ADD CONSTRAINT golf_par_evidence_course_id_fkey FOREIGN KEY (course_id) REFERENCES golf_courses(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_participant_scores_entered_by_fkey' AND conrelid = 'public.golf_participant_scores'::regclass) THEN
     ALTER TABLE public.golf_participant_scores ADD CONSTRAINT golf_participant_scores_entered_by_fkey FOREIGN KEY (entered_by) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
@@ -12948,6 +13047,9 @@ CREATE INDEX IF NOT EXISTS idx_golf_hole_scores_participant ON public.golf_hole_
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round ON public.golf_holes USING btree (round_id, hole_number);
 CREATE INDEX IF NOT EXISTS idx_golf_holes_round_id ON public.golf_holes USING btree (round_id);
 CREATE INDEX IF NOT EXISTS idx_golf_map_sweep_cells_due ON public.golf_map_sweep_cells USING btree (next_due_at, priority);
+CREATE INDEX IF NOT EXISTS golf_par_changes_changed_at_idx ON public.golf_par_changes USING btree (changed_at DESC);
+CREATE INDEX IF NOT EXISTS golf_par_changes_course_id_idx ON public.golf_par_changes USING btree (course_id, changed_at DESC);
+CREATE INDEX IF NOT EXISTS golf_par_evidence_course_id_idx ON public.golf_par_evidence USING btree (course_id);
 CREATE INDEX IF NOT EXISTS idx_golf_participant_scores_finalized_by ON public.golf_participant_scores USING btree (finalized_by);
 CREATE INDEX IF NOT EXISTS idx_golf_scores_entered_by ON public.golf_participant_scores USING btree (entered_by);
 CREATE INDEX IF NOT EXISTS idx_golf_rounds_course_id ON public.golf_rounds USING btree (course_id);
@@ -18737,6 +18839,8 @@ ALTER TABLE public.golf_hole_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_holes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_map_sweep_cells ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_map_sweep_meta ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.golf_par_changes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.golf_par_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_participant_scores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_rounds ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.golf_scorecard_data ENABLE ROW LEVEL SECURITY;
@@ -19944,6 +20048,10 @@ REVOKE ALL ON TABLE public.golf_map_sweep_cells FROM anon, authenticated, servic
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_map_sweep_cells TO service_role;
 REVOKE ALL ON TABLE public.golf_map_sweep_meta FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_map_sweep_meta TO service_role;
+REVOKE ALL ON TABLE public.golf_par_changes FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_par_changes TO service_role;
+REVOKE ALL ON TABLE public.golf_par_evidence FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_par_evidence TO service_role;
 REVOKE ALL ON TABLE public.golf_participant_scores FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_participant_scores TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.golf_participant_scores TO authenticated;
@@ -20593,6 +20701,8 @@ COMMENT ON COLUMN public.golf_holes.penalties IS 'Per-hole penalty occurrences, 
 COMMENT ON COLUMN public.golf_holes.par_estimated IS 'True when this hole''s par was estimated from the map''s hole length (migration 316); copied from the group round''s hole_data by the round mirror.';
 COMMENT ON TABLE public.golf_map_sweep_cells IS 'The course-map sweep''s cells (255): one row per 0.5° box holding catalog courses; the planner''s tier / priority / courses / rounds, the state machine (status, attempts, leased_until, next_due_at) and the last success''s metrics. Service role only; written by src/lib/golf/map-sweep-server.ts.';
 COMMENT ON TABLE public.golf_map_sweep_meta IS 'The course-map sweep''s meta (255): mirror cooldowns, the last run, the plan stamp. Service role only.';
+COMMENT ON TABLE public.golf_par_changes IS 'Golf (317): the record of every par changed on a saved scorecard, by the app when an independent source settled a disputed hole or by an admin on the console: the hole, from and to, why, who, and what every source said then. No foreign key on purpose (the record outlives the course row). Service role only; the one writer is src/lib/golf/par-evidence-server.ts.';
+COMMENT ON TABLE public.golf_par_evidence IS 'Golf (317): what each source said a course''s pars are, one row per source and tee box, kept so a card can be re-judged without asking a provider again (docs/specs/golf-course-data.md). Service role only; the one writer is src/lib/golf/par-evidence-server.ts.';
 COMMENT ON TABLE public.golf_participant_scores IS 'Aggregated golf scores for each participant in a golf_round group post';
 COMMENT ON COLUMN public.golf_participant_scores.entered_by IS 'Who entered the scores: creator (pre-fill) or participant (self-entry)';
 COMMENT ON COLUMN public.golf_participant_scores.scores_confirmed IS 'True when participant has reviewed/confirmed their scores';
@@ -21311,7 +21421,8 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (313, '313_golf_course_sheet_sources.sql', 'rebuild-000'),
   (314, '314_golf_card_fill.sql', 'rebuild-000'),
   (315, '315_golf_site_cards.sql', 'rebuild-000'),
-  (316, '316_golf_holes_par_estimated.sql', 'rebuild-000')
+  (316, '316_golf_holes_par_estimated.sql', 'rebuild-000'),
+  (317, '317_golf_par_evidence.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21320,12 +21431,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 151 | 148 | 145 | 316
+-- Expected: 000 REBUILT | 153 | 148 | 145 | 317
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_151,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_153,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_148,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_316;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_317;
 

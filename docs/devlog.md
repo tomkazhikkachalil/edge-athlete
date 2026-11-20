@@ -1,5 +1,11 @@
 # Development Log
 
+## November 20, 2026 (16:00) — Pars from evidence, phase 1 on production; baseline at 317
+
+Tom: "merge it". #1595 merged by hand once verify, smoke and guardrails were green by name (a migration PR never auto-merges); production serves `2b03ed12`. Probe, one spec and project at a time: health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. `golf_par_evidence` on production is empty at this hour: it fills as courses are picked and refreshed.
+
+**Baseline:** `database/baseline/000_rebuild.sql` rebuilt from production at ledger head 317 (153 tables, 148 functions, 145 policies, 120 triggers; self-check OK), with its schema dump.
+
 ## November 20, 2026 (15:23) — Pars from evidence, phase 1 of 4: what every source said is kept (migration 317)
 
 Tom: par corrections cannot go card by card; build a fix that grows into a long-term solution. The plan (four phases): keep the evidence, let independent sources settle disputed holes, a review list on the admin console, then the course's own website as a settling source (that last one only on his word, since it widens the website job). This PR is phase 1 and changes NO card.
