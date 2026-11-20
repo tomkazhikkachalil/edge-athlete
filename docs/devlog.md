@@ -1,5 +1,39 @@
 # Development Log
 
+## November 20, 2026 (10:38) — A provider's error no longer costs a course its ask for the day
+
+Found by the Nov 20 picks: Ottawa Hunt's West Nine met one failed GolfCourseAPI detail call and its `golf-sheet-ask` window stayed stamped, so nobody could ask for that card again until the next day. Tom: fix it.
+
+**The rule** (`releaseSheetAsk` in `src/lib/golf/course-catalog.ts`). When a lookup saves nothing and some provider failed or was being skipped (`sheetAskUnanswered`: a trace entry `provider_error` or `provider_down`), the course's ask is handed back by deleting its `golf-sheet-ask:<id>` row. A second counter, `golf-sheet-retry:<id>`, allows that `SHEET_ASK_RETRIES` (2) times a day, so a course is asked at most three times in a day and a provider that stays broken cannot be asked without end. An honest answer (no match, not narrowed, a refused card, a spent budget) keeps the ask spent, and so does any lookup that saved something. If the hand-back itself fails the ask stays spent, which is the old behaviour.
+
+**Also:** a provider answer that is not 2xx and not 404 is now logged with its HTTP status (`provider <host> answered HTTP <n>`). The West Nine's failure left no line, so its cause is still a guess (throttling). The breaker keeps this to one line per outage per instance.
+
+**Cost, stated.** During an outage of one provider, a course the other provider cannot find is asked up to three times that day instead of once: at most two extra GolfCourseAPI lookups per course per day, inside the 9,000 daily limit.
+
+**Proof.** Five new tests in `official-sheet.test.ts` (the pure rule; a failed detail call hands the ask back and counts the retry; an honest no-match does not; the retry cap holds; a saved card does not). On staging with the service role: first hit allowed, second refused, the row deleted without error, the next hit allowed.
+
+## November 20, 2026 (10:32) — Real picks on production after the golf leftovers plan: five cards saved, one hole wrong, one nine refused by the provider
+
+**#1585 on production.** `93ee448a` served; probe one spec and project at a time: health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. The PR sat an hour without a CI run because it conflicted with the baseline docs merge in this file (a conflicted PR gets no run); main was merged in and it went green.
+
+**The picks** (a temporary untracked spec through `test:e2e:prod`, each course's one-ask-a-day window confirmed open first; OpenGolfAPI still down throughout). Every saved card was compared hole by hole with a published one.
+
+| Course | Outcome | Saved pars | Published | Match |
+| --- | --- | --- | --- | --- |
+| Glen Abbey (Oakville) | found, 5.8 s; the twice-listed course folded | 543454344 443543545 (73) | GolfPass 73 | yes |
+| Ottawa Hunt, North Nine | found, 6.6 s; front nine of the provider's North/South | 534444435 | GolfPass North/South, front | yes |
+| Ottawa Hunt, South Nine | found, 1.0 s | 444435435 | GolfPass North/South, back | yes |
+| Ottawa Hunt, West Nine | `provider_error`, 0.7 s: GolfCourseAPI's detail call failed after 2 searches | none | — | not saved |
+| Angus Glen Golf Club | `split`, 0.9 s: the catalog gained "(North)" and "(South)" on the same club | — | — | as designed |
+| Angus Glen (North) | found, 0.8 s | 544354434 454435434 (72) | GolfPass 72 | yes |
+| Angus Glen (South) | found, 0.5 s | **5**34443545 443454534 (73) | the club's own card: hole 1 is a par **4**, total 72 | **hole 1 wrong** |
+
+**The breaker, seen on production.** The first pick on the instance met the outage (6.6 s); every later one read `provider_down` and took 0.5–1.0 s.
+
+**Two faults found, neither fixed here.**
+- *Angus Glen (South), hole 1.* GolfCourseAPI lists it as a par 5 (469–490 yards from the back tees); the club's printed card (`AG_South_scorecard.pdf`) says par 4 at 490. The row has no tagged map to check a card against, so nothing could refuse it, and a filled card is never replaced by the app. No round has been played on the row. A correction is production SQL, Tom's to run.
+- *A provider error spends the course's ask for the day.* The West Nine's failure (status not seen; a guess is the provider throttling the third pick in ten seconds, about thirteen calls) left its `golf-sheet-ask` window stamped, so it cannot be asked again until Nov 21 ~15:30 UTC. A failed call should not count as the day's ask.
+
 ## November 19, 2026 (22:49) — A provider that is down is skipped instead of waited on by every golfer
 
 Found during the Nov 19 real picks: OpenGolfAPI answered HTTP 500 after 20 s (three calls from here, hours apart, the same), and each of six picks on production spent five seconds, our whole `PROVIDER_TIMEOUT_MS`, on it before asking GolfCourseAPI, which answered in under a second. Six picks, thirty seconds of waiting for an answer that was never coming. (The ordinary course search reads our own catalog and was unaffected: 0.7 s on production during the outage. The waits were on a pick, on "search worldwide" and on selecting a thin provider row.)

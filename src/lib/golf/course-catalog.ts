@@ -851,6 +851,8 @@ async function fetchJsonResult(url: string, headers?: Record<string, string>): P
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS) });
     if (!res.ok) {
+      // A 404 is an answer; anything else is the provider's trouble and is named.
+      if (res.status !== 404) console.warn(`[course-catalog] provider ${host} answered HTTP ${res.status}`);
       providerBreaker.record(host, res.status);
       return { ok: false, status: res.status };
     }
@@ -1434,6 +1436,29 @@ const gcaSheets: SheetProvider = {
  *  so GolfCourseAPI's 50 a day are spent only on what is still missing. */
 export const SHEET_PROVIDERS: ReadonlyArray<SheetProvider> = [openGolfSheets, gcaSheets];
 
+/** How many times a day a course's ask is handed back after a provider's trouble. */
+export const SHEET_ASK_RETRIES = 2;
+
+/** True when a lookup that saved nothing met a provider that failed or was
+ *  being skipped: the day's ask bought no answer from it. Pure. */
+export function sheetAskUnanswered(trace: ReadonlyArray<Pick<SheetAsk, 'result'>>): boolean {
+  return trace.some(t => t.result === 'provider_error' || t.result === 'provider_down');
+}
+
+/** A provider's trouble is not the course's answer for the day (Nov 20 2026:
+ *  Ottawa Hunt's West Nine lost a day to one failed detail call). The ask is
+ *  handed back, at most SHEET_ASK_RETRIES times a day per course, so a provider
+ *  that stays broken cannot be asked without end. A failure here only leaves
+ *  the ask spent, which is the old behaviour. */
+async function releaseSheetAsk(admin: SupabaseClient, courseId: string, trace: ReadonlyArray<SheetAsk>): Promise<void> {
+  if (!sheetAskUnanswered(trace)) return;
+  if (!(await hitBudget(admin, `golf-sheet-retry:${courseId}`, SHEET_ASK_RETRIES))) return;
+  try {
+    const { error } = await admin.from('rate_limits').delete().eq('key', `golf-sheet-ask:${courseId}`);
+    if (error) console.error(`[course-catalog] official sheet: the ask for ${courseId} could not be handed back:`, error.message);
+  } catch { /* the ask stays spent */ }
+}
+
 /** Only ever for a person who picked this course: the providers' terms allow
  *  caching what serves a user and ban harvesting a copy, so there is no bulk
  *  caller (Oct 31 2026). One ask per course per day, whoever asks.
@@ -1622,6 +1647,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       const split = await splitUnlinkedClub(admin, row, splitFound);
       if (split) return { ...answer('split', split.row, trace), found: false, club: split.club, siblings: split.siblings };
     }
+    await releaseSheetAsk(admin, row.id, trace);
     return miss(why, trace);
   }
 
