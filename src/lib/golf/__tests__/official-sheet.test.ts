@@ -23,6 +23,12 @@ function fakeAdmin(budget: boolean[] = [], geometry: unknown = null) {
   const read: Record<string, unknown> = {};
   for (const m of ['select', 'eq']) read[m] = () => read;
   read.delete = () => ({ eq: async (_col: string, key: string) => { released.push(key); return { error: null }; } });
+  // Evidence rows (317): what recordParEvidence wrote, by table.
+  const evidence: Array<{ course_id: string; source: string; label: string; votes: boolean; pars: Array<number | null> }> = [];
+  const evidenceTable = {
+    upsert: async (rows: typeof evidence) => { evidence.push(...rows); return { error: null }; },
+    delete: () => ({ eq: () => ({ eq: () => ({ lt: async () => ({ error: null }) }) }) }),
+  };
   read.maybeSingle = async () => ({ data: { hole_geometry: geometry }, error: null });
   read.update = (fields: Record<string, unknown>) => {
     updates.push(fields);
@@ -34,9 +40,9 @@ function fakeAdmin(budget: boolean[] = [], geometry: unknown = null) {
       keys.push(args.p_key);
       return { single: async () => ({ data: { allowed: answers.shift() ?? true }, error: null }) };
     },
-    from: () => read,
+    from: (table?: string) => (table === 'golf_par_evidence' ? evidenceTable : read),
   };
-  return { admin: admin as never, updates, keys, released };
+  return { admin: admin as never, updates, keys, released, evidence };
 }
 
 const NINE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -634,5 +640,51 @@ describe('a provider whose tee boxes disagree on a par', () => {
     const { admin, updates } = fakeAdmin();
     await findOfficialSheet(admin, row());
     expect((updates[0] as { sheet_sources?: { parsDisputed?: number[] } }).sheet_sources?.parsDisputed).toBeUndefined();
+  });
+});
+
+// Nov 20 2026 (migration 317): what each source said is kept with the course.
+describe('the lookup keeps what each source said as evidence', () => {
+  it('GolfCourseAPI: one row per tee box, kept even though the card took one par row', async () => {
+    const pars = NINE.map(() => 4);
+    const odd = [5, ...pars.slice(1)];
+    const base = gcaDetail(pars).course;
+    const box = (tee_name: string, p: number[], par_total: number) => ({ tee_name, course_rating: 71, slope_rating: 128, number_of_holes: 9, par_total, holes: NINE.map((n, i) => ({ par: p[i], yardage: 400 + n, handicap: n })) });
+    stubProviders({ openGolfSearch: { courses: [] }, gca: { course: { ...base, tees: { male: [box('Black', odd, 37), box('Blue', pars, 36)], female: [box('Blue', odd, 37)] } } } });
+    const { admin, evidence } = fakeAdmin();
+    expect((await findOfficialSheet(admin, row())).outcome).toBe('found');
+    expect(evidence.map(e => [e.source, e.label, e.votes, e.pars.join('')])).toEqual([
+      ['golfcourseapi', 'black', true, odd.join('')],
+      ['golfcourseapi', 'blue', true, pars.join('')],
+      ['golfcourseapi', 'blue (f)', false, odd.join('')],
+    ]);
+    expect(evidence.every(e => e.course_id === row().id)).toBe(true);
+  });
+
+  it('both providers answering: each one\'s rows are kept under its own name', async () => {
+    stubProviders();
+    const { admin, evidence } = fakeAdmin();
+    await findOfficialSheet(admin, row());
+    expect([...new Set(evidence.map(e => e.source))].sort()).toEqual(['golfcourseapi', 'opengolfapi']);
+    expect(evidence.find(e => e.source === 'opengolfapi')).toMatchObject({ label: '', votes: false });
+  });
+
+  const mapOfPar3s = { source: 'osm', greens: [], holes: NINE.map((_, i) => ({ hole: i + 1, par: 3, line: [[45.3 + i * 0.001, -75.7], [45.3004 + i * 0.001, -75.7]] })) };
+
+  it('an answer refused for disagreeing with the map may be another course: nothing is kept from it', async () => {
+    // Its pars do not add up to its own total, so it cannot overrule the map either.
+    const bad = gcaDetail();
+    for (const tee of bad.course.tees.male) tee.par_total = 35;
+    stubProviders({ openGolfSearch: { courses: [] }, gca: bad });
+    const { admin, evidence } = fakeAdmin([], mapOfPar3s);
+    expect((await findOfficialSheet(admin, row())).outcome).toBe('map_disagrees');
+    expect(evidence).toEqual([]);
+  });
+
+  it('one provider taken against the map: what it said is kept', async () => {
+    stubProviders({ openGolfSearch: { courses: [] } });
+    const { admin, evidence } = fakeAdmin([], mapOfPar3s);
+    expect((await findOfficialSheet(admin, row())).outcome).toBe('found');
+    expect(evidence.map(e => e.source)).toEqual(['golfcourseapi', 'golfcourseapi']);
   });
 });

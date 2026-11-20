@@ -52,6 +52,8 @@ import { createProviderBreaker, hostOf } from '@/lib/golf/provider-breaker';
 import { splitUnlinkedClub, type ClubSectionRow } from '@/lib/golf/club-split-server';
 import { creditSources, mergeSheets, nineFromCombination, parsFromTees, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
+import { evidenceFromBoxes, type ParEvidenceRow } from '@/lib/golf/par-evidence';
+import { recordParEvidence } from '@/lib/golf/par-evidence-server';
 
 /** ODbL attribution for the catalog. The OSM line is owed UNCONDITIONALLY —
  *  28.9k rows are OpenStreetMap-sourced directly and render whether or not
@@ -714,6 +716,22 @@ export function gcaParsDisputed(d: GcaDetail): number[] {
   if (most === 0) return [];
   const same = boxes.filter(b => b.holes?.length === most);
   return gcaPars(same, male, same[0] ?? null).disputed;
+}
+
+/** GolfCourseAPI's tee boxes as evidence (317): every box of the card's
+ *  length with its own par row, the men's voting and the women's kept. */
+export function gcaEvidence(d: GcaDetail): ParEvidenceRow[] {
+  const male = d.tees?.male ?? [];
+  const female = d.tees?.female ?? [];
+  const most = [...male, ...female].reduce((n, t) => Math.max(n, t.holes?.length ?? 0), 0);
+  if (most === 0) return [];
+  const boxes = (list: GcaTeeBox[]) => list.filter(b => b.holes?.length === most).map(b => ({ name: b.tee_name ?? '', pars: (b.holes ?? []).map(x => x.par) }));
+  return evidenceFromBoxes('golfcourseapi', boxes(male), boxes(female));
+}
+
+/** A one-row source's card as evidence: OpenGolfAPI answers one par per hole. */
+function sheetEvidence(source: ParEvidenceRow['source'], holes: ReadonlyArray<{ par: number }> | null | undefined): ParEvidenceRow[] {
+  return holes?.length ? [{ source, label: '', votes: false, pars: holes.map(h => h.par) }] : [];
 }
 
 /** The pars of a GolfCourseAPI answer: hole by hole what most men's boxes say. */
@@ -1406,7 +1424,8 @@ export interface SheetProvider {
   down(): boolean;
   search(query: string): Promise<SheetCandidate[] | null>;
   /** `parsDisputed`: holes on which the provider's own tee boxes disagreed. */
-  detail(id: string): Promise<{ row: NewRow | null; parsDisputed?: number[] } | null>;
+  /** `evidence`: the answer's par rows, one per tee box where it has them (317). */
+  detail(id: string): Promise<{ row: NewRow | null; parsDisputed?: number[]; evidence?: ParEvidenceRow[] } | null>;
 }
 
 const candidateOf = (id: string, n: NewRow, at?: { lat: number | null; lng: number | null }): SheetCandidate => {
@@ -1443,7 +1462,9 @@ const openGolfSheets: SheetProvider = {
     // fill's queue.
     if (!r.ok) return r.status === 404 ? { row: null } : null;
     const d = r.body as OpenGolfDetail | null;
-    return { row: d?.id ? normalizeOpenGolfDetail(d) : null };
+    if (!d?.id) return { row: null };
+    const row = normalizeOpenGolfDetail(d);
+    return { row, evidence: sheetEvidence('opengolfapi', row.hole_data) };
   },
 };
 
@@ -1467,7 +1488,7 @@ const gcaSheets: SheetProvider = {
     const d = (r.body as { course?: GcaDetail } | null)?.course;
     if (!d?.id) return { row: null };
     const disputed = gcaParsDisputed(d);
-    return { row: normalizeGcaDetail(d), ...(disputed.length ? { parsDisputed: disputed } : {}) };
+    return { row: normalizeGcaDetail(d), evidence: gcaEvidence(d), ...(disputed.length ? { parsDisputed: disputed } : {}) };
   },
 };
 
@@ -1536,7 +1557,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
   const from: string[] = [];
   const trace: SheetAsk[] = [];
   /** Answers refused for disagreeing with the map card. */
-  const against: Array<{ source: SheetProvider['source']; id: string; sheet: Sheet }> = [];
+  const against: Array<{ source: SheetProvider['source']; id: string; sheet: Sheet; evidence?: ParEvidenceRow[] }> = [];
   // Read only when something is about to be written (the loop's first fill).
   let sources: SheetSources | null | undefined;
   let why: OfficialSheetResult['outcome'] = 'no_match';
@@ -1623,7 +1644,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     if (row.section_kind === 'nine' && normalized.hole_data.length !== 9) { why = 'no_sheet'; ask.result = 'wrong_holes'; continue; }
     const agreesWithMap = sheetAgreesWithMap(normalized.hole_data, mapSheet);
     // Kept in case another provider says the same against the map (below).
-    if (!agreesWithMap) against.push({ source: provider.source, id: pick.id, sheet: normalized });
+    if (!agreesWithMap) against.push({ source: provider.source, id: pick.id, sheet: normalized, evidence: detail.evidence });
     const merged = agreesWithMap ? mergeSheets(card, normalized) : null;
     if (!merged || merged.refused) {
       console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}" refused, ${provider.source}:${pick.id} disagrees with the ${merged ? 'card' : 'map'}`);
@@ -1632,6 +1653,13 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       continue;
     }
     ask.result = merged.changed ? 'filled' : 'nothing_new';
+    // What this source said is kept (317), also when the card took nothing new
+    // from it or kept its own par where the two differ: that difference is the
+    // evidence. An answer refused above may be another course and is not kept.
+    if (detail.evidence?.length) {
+      const length = normalized.hole_data.length;
+      await recordParEvidence(admin, row.id, detail.evidence.map(e => (e.pars.length > length ? { ...e, pars: e.pars.slice(0, length) } : e)));
+    }
     if (merged.changed) {
       if (from.length === 0) sources = await readSheetSources(admin, row.id);
       if (sources !== undefined) {
@@ -1663,6 +1691,8 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
         if (sources !== undefined) sources = creditSources(sources, card, merged.sheet, answer.source);
         card = merged.sheet;
         from.push(`${answer.source}:${answer.id}`);
+        // Taken after all: what it said is this course's evidence (317).
+        if (answer.evidence?.length) await recordParEvidence(admin, row.id, answer.evidence);
       }
       if (from.length) for (const t of trace) if (t.result === 'map_disagrees') t.result = 'filled';
       if (from.length && sources !== undefined) sources = { ...(sources ?? {}), mapOverruled: true };
@@ -1684,6 +1714,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
       card = merged.sheet;
       from.push(`${only.source}:${only.id}`);
       for (const t of trace) if (t.source === only.source && t.result === 'map_disagrees') t.result = 'filled';
+      if (only.evidence?.length) await recordParEvidence(admin, row.id, only.evidence);
       console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${only.source} alone against the map card, whole and consistent; the map is overruled`);
     }
   }
@@ -1969,6 +2000,8 @@ export async function hydrateCourseDetailed(
   }
 
   let normalized: NewRow | null = null;
+  /** The answer's par rows, kept when the answer is this course's (317). */
+  let evidence: ParEvidenceRow[] = [];
   // Why the provider branch produced nothing — reported once at the end.
   let miss: HydrationOutcome['outcome'] = 'not_configured';
   const readProvider = async (url: string, headers?: Record<string, string>): Promise<unknown | null> => {
@@ -1990,7 +2023,10 @@ export async function hydrateCourseDetailed(
       const data = (await readProvider(
         `https://api.opengolfapi.org/api/v1/courses/${encodeURIComponent(row.external_id)}`
       )) as OpenGolfDetail | null;
-      if (data?.id) normalized = normalizeOpenGolfDetail(data);
+      if (data?.id) {
+        normalized = normalizeOpenGolfDetail(data);
+        evidence = sheetEvidence('opengolfapi', normalized.hole_data);
+      }
     } else miss = 'budget_refused';
   } else if (row.external_source === 'golfcourseapi' && gcaConfigured()) {
     if (await consumeProviderBudget(admin, 'golfcourseapi')) {
@@ -1999,7 +2035,10 @@ export async function hydrateCourseDetailed(
         `https://api.golfcourseapi.com/v1/courses/${encodeURIComponent(row.external_id)}`,
         gcaHeaders()
       )) as { course?: GcaDetail } | null;
-      if (data?.course?.id) normalized = normalizeGcaDetail(data.course);
+      if (data?.course?.id) {
+        normalized = normalizeGcaDetail(data.course);
+        evidence = gcaEvidence(data.course);
+      }
     } else miss = 'budget_refused';
   }
 
@@ -2056,6 +2095,10 @@ export async function hydrateCourseDetailed(
   const credits = merged.changed ? await readSheetSources(admin, row.id) : undefined;
   if (merged.refused) {
     console.warn(`[course-catalog] hydrate: ${row.id} "${row.name}" kept its card, ${row.external_source}:${row.external_id} disagrees with it`);
+  } else if (evidence.length) {
+    // The row's own provider, read again: its tee boxes are kept (the weekly
+    // refresh never recorded what the boxes said until now).
+    await recordParEvidence(admin, row.id, evidence);
   }
 
   const { data: updated } = await admin
