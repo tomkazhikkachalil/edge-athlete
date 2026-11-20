@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { disputedHoles, evidenceFromBoxes, judgePars, parCorrections, type ParEvidenceRow } from '../par-evidence';
+import { disputedHoles, evidenceFromBoxes, judgePars, openHoles, parCorrections, type ParEvidenceRow } from '../par-evidence';
 
 // Nov 20 2026 (migration 317): a card's pars are judged from kept evidence.
 // The shapes are GolfCourseAPI's real answers, read that day.
@@ -40,6 +40,19 @@ describe('judgePars', () => {
   it('the tagged map settles a hole too, and two independent sources that agree are both named', () => {
     const j = judgePars([...ANGUS_SOUTH, one('opengolfapi', only(1, 4))], only(1, 4), 18);
     expect(j[0]).toMatchObject({ par: 4, status: 'settled', settledBy: ['map', 'opengolfapi'] });
+  });
+
+  it('the map ALONE only leans: it may confirm a saved par and never changes one (Champlain hole 3, the first production sweep)', () => {
+    // OpenStreetMap tags hole 3 as a par 4; the club's published card says 5.
+    const j = judgePars(CHAMPLAIN, only(3, 4), 18);
+    expect(j[2]).toMatchObject({ par: 4, status: 'leaning', settledBy: ['map'], candidates: [4, 5] });
+    const saved = card('535354344534443444');
+    expect(parCorrections(saved, j)).toEqual([]);
+    // Open on the saved card: the lean contradicts it. A lean that agrees closes the hole.
+    expect(openHoles(saved, j)).toEqual([1, 3, 5, 10]);
+    expect(openHoles(saved, judgePars(CHAMPLAIN, only(3, 5), 18))).toEqual([1, 5, 10]);
+    // The same par from the course's own website settles it.
+    expect(judgePars([...CHAMPLAIN, one('website', only(3, 5))], null, 18)[2]).toMatchObject({ par: 5, status: 'settled', settledBy: ['website'] });
   });
 
   it('independent sources that contradict each other settle nothing', () => {

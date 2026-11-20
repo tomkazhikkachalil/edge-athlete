@@ -73,10 +73,19 @@ describe('settleCoursePars', () => {
     expect(f.updates).toEqual([]);
   });
 
-  it('the tagged map settles a hole; a map the card overruled is not evidence against it', async () => {
+  it('the tagged map alone changes nothing: a lean against the saved par leaves the hole open, a lean with it closes the hole', async () => {
+    const mapSays = (par: number) => ({ holes: Array.from({ length: 18 }, (_, i) => ({ hole: i + 1, par: i === 4 ? par : null })) });
+    const against = await settleCoursePars(fake({ evidence: BOXES, geometry: mapSays(5) }).admin, 'c1');
+    expect(against).toMatchObject({ applied: false, corrections: [], disputed: [1, 3, 5, 10] });
+    expect(against!.judged[4]).toMatchObject({ status: 'leaning', par: 5, settledBy: ['map'] });
+    expect((await settleCoursePars(fake({ evidence: BOXES, geometry: mapSays(4) }).admin, 'c1'))!.disputed).toEqual([1, 3, 10]);
+  });
+
+  it('the map and the course\'s website together settle a hole; a map the card overruled is not evidence against it', async () => {
     const geometry = { holes: Array.from({ length: 18 }, (_, i) => ({ hole: i + 1, par: i === 4 ? 5 : null })) };
-    expect((await settleCoursePars(fake({ evidence: BOXES, geometry }).admin, 'c1', { dryRun: true }))!.corrections).toEqual([expect.objectContaining({ hole: 5, to: 5, settledBy: ['map'] })]);
-    expect((await settleCoursePars(fake({ evidence: BOXES, geometry, sources: { pars: 'golfcourseapi', mapOverruled: true } }).admin, 'c1', { dryRun: true }))!.corrections).toEqual([]);
+    const site = { source: 'website', label: '', votes: false, pars: only(5, 5) };
+    expect((await settleCoursePars(fake({ evidence: [...BOXES, site], geometry }).admin, 'c1', { dryRun: true }))!.corrections).toEqual([expect.objectContaining({ hole: 5, to: 5, settledBy: ['map', 'website'] })]);
+    expect((await settleCoursePars(fake({ evidence: [...BOXES, site], geometry, sources: { pars: 'golfcourseapi', mapOverruled: true } }).admin, 'c1', { dryRun: true }))!.corrections).toEqual([expect.objectContaining({ settledBy: ['website'] })]);
   });
 
   it('a caller allowed admin decisions only does not write a settled hole, and writes an admin one', async () => {
