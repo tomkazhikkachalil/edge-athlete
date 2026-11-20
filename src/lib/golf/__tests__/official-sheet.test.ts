@@ -611,3 +611,28 @@ describe('a provider error does not spend the course\'s ask for the day', () => 
     expect(released).toEqual([]);
   });
 });
+
+// Nov 20 2026: the saved card says so when the provider's own tees disagreed.
+describe('a provider whose tee boxes disagree on a par', () => {
+  it('the card most boxes share is saved and the disputed hole is recorded with the sources', async () => {
+    const pars = NINE.map(() => 4);
+    const odd = [5, ...pars.slice(1)];
+    const base = gcaDetail(pars).course;
+    const box = (tee_name: string, p: number[], par_total: number) => ({ tee_name, course_rating: 71, slope_rating: 128, number_of_holes: 9, par_total, holes: NINE.map((n, i) => ({ par: p[i], yardage: 400 + n, handicap: n })) });
+    stubProviders({ openGolfSearch: { courses: [] }, gca: { course: { ...base, tees: { male: [box('Black', odd, 37), box('Blue', pars, 36), box('White', pars, 36)] } } } });
+    const { admin, updates } = fakeAdmin();
+    const r = await findOfficialSheet(admin, row());
+    expect(r.outcome).toBe('found');
+    const saved = updates[0] as { hole_data: Array<{ par: number }>; total_par: number; sheet_sources?: { pars?: string; parsDisputed?: number[] } };
+    expect(saved.hole_data.map(h => h.par)).toEqual(pars);
+    expect(saved.total_par).toBe(36);
+    expect(saved.sheet_sources).toMatchObject({ pars: 'golfcourseapi', parsDisputed: [1] });
+  });
+
+  it('tees that agree record no dispute', async () => {
+    stubProviders({ openGolfSearch: { courses: [] } });
+    const { admin, updates } = fakeAdmin();
+    await findOfficialSheet(admin, row());
+    expect((updates[0] as { sheet_sources?: { parsDisputed?: number[] } }).sheet_sources?.parsDisputed).toBeUndefined();
+  });
+});

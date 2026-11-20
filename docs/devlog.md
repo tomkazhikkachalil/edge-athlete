@@ -1,5 +1,19 @@
 # Development Log
 
+## November 20, 2026 (12:57) — A card's pars come from what most of the provider's tees say, not from the first tee
+
+Why Angus Glen (South) was saved with hole 1 as a par 5: not a missing map check. GolfCourseAPI's own tee boxes disagree. Read live: Black says par 5 on hole 1 (total 73); Gold, Blue and both women's tees say par 4 (total 72, the club's printed card); the men's White and Red shorten holes 7, 9, 14 and 16 (totals 69 and 68). `normalizeGcaDetail` took every par from one "reference" box, the first with the most holes, which was Black.
+
+**The rule** (`parsFromTees` in `src/lib/golf/sheet-merge.ts`, pure). The pars are the WHOLE card most boxes share, so the result is always one real tee's card and never a mix of holes; a tie keeps the reference box; a box with a missing par cannot vote, and with no whole box each hole takes what any box knows (the old rule, never a guess). The total is the stated total of the box whose card was taken. Chosen per card and not per hole on purpose: per hole, several short tees could outvote the full card on single holes and produce a card no tee has.
+
+**Said on the row.** When the pars came from an answer whose tees disagreed, `sheet_sources.parsDisputed` holds the hole numbers (the JSON column exists; no migration) and one line is logged. No screen shows it yet.
+
+**OpenGolfAPI** answers one par per hole, so nothing changes there.
+
+**Proof.** The real Angus Glen South answer as a fixture: hole 1 par 4, total 72, the club's card on all 18, disputed holes 1, 7, 9, 14, 16. Six unit tests for the rule; two lookup tests (the disputed hole recorded with the sources; agreeing tees record nothing). The older normalizer tests pass unchanged.
+
+**Not done.** Cards already saved from GolfCourseAPI were built by the old rule. The app cannot recheck them without asking the provider again, which it does only on a person's pick; the count is reported to Tom for a decision.
+
 ## November 20, 2026 (12:40) — The last golf leftovers: Ottawa Hunt's West Nine filled, #1563 closed, and why OpenGolfAPI is down
 
 **Ottawa Hunt, West Nine.** Its Nov 20 ask had been spent by the provider error before #1587. Tom cleared that one ask on production (one `DELETE` on `rate_limits` for `golf-sheet-ask:7a0071b2…`, result `CLEARED`), and the pick ran: found in 6.2 s, GolfCourseAPI filled it (2 searches, 3 listings, the same listing that failed in the morning), 9 holes, par 35, pars 544343435. GolfPass's Ottawa Hunt West/North card reads 5 4 4 3 4 3 4 3 5 (out 35) on its first nine and the North nine's pars on its second: a match on all nine holes. All three Ottawa Hunt nines now hold their own card. The morning's failure did not repeat, so its cause stays unknown; the status line added in #1587 will name the next one.
