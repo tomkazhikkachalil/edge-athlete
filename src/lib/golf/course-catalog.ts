@@ -466,9 +466,19 @@ const DEFAULT_BUDGETS: Record<string, number> = {
 // The daily budget hit itself lives in src/lib/provider-budget-server.ts
 // (Oct 29 2026) — the weather needed it with an owner that is not golf.
 
+/** The daily limit in force for a source: what is spent against and what the
+ *  admin readout shows, so the two cannot disagree. */
+export function providerBudgetLimit(source: string): number {
+  return DEFAULT_BUDGETS[source] ?? 45;
+}
+/** Every source that has a limit of its own (the admin readout's rows). */
+export function providerBudgetSources(): string[] {
+  return Object.keys(DEFAULT_BUDGETS);
+}
+
 /** Exported for the hole-geometry cache (same budget machinery, its own key). */
 export async function consumeProviderBudget(admin: SupabaseClient, source: string): Promise<boolean> {
-  return hitBudget(admin, `golf-provider:${source}`, DEFAULT_BUDGETS[source] ?? 45);
+  return hitBudget(admin, `golf-provider:${source}`, providerBudgetLimit(source));
 }
 
 // ── Provider: OpenGolfAPI (keyless; live shapes pinned Aug 2026) ─────────────
@@ -851,6 +861,10 @@ const providerBreaker = createProviderBreaker();
 /** True while calls to this provider's host are being skipped. */
 export function providerHostDown(url: string): boolean {
   return providerBreaker.isDown(hostOf(url));
+}
+/** The hosts this server instance is skipping, and until when (epoch ms). */
+export function providerBreakerSnapshot(): Record<string, number> {
+  return providerBreaker.snapshot();
 }
 /** Tests only: forget every host's state. */
 export function resetProviderBreakerForTests(): void {

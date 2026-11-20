@@ -1,5 +1,21 @@
 # Development Log
 
+## November 20, 2026 (13:14) — The admin console shows each golf provider's calls against its daily limit; phase 2 on production
+
+**#1590 on production** (`ae045e7a`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed.
+
+Until now nothing in the app showed how much of a provider's daily limit was used, or that a provider was being skipped: the 9,000 GolfCourseAPI limit was confirmed by reading a counter by hand, and OpenGolfAPI's outage was found by a slow pick.
+
+**What was added (read-only, no migration).**
+- `providerBudgetLimit(source)` and `providerBudgetSources()` in `course-catalog.ts`: the limit in force, used by the spender (`consumeProviderBudget`) and by the readout, so the two cannot disagree. `providerBreakerSnapshot()` exposes the hosts being skipped.
+- `usageRow` (`src/lib/golf/provider-usage.ts`, pure): the counter is a fixed 24-hour window from the key's first hit, so a row older than a day reads as nothing used; refused hits still count, so a count above the limit reads as the limit reached plus the number refused.
+- `readProviderUsage` (`provider-usage-server.ts`): one read of `rate_limits` for the `golf-provider:` keys.
+- `GET /api/admin/golf-providers` (`requireAdmin`, `private, no-store`) and `GolfProvidersPanel` on the admin console under the course picks.
+
+**Limit, stated.** Skipping is remembered per server instance; the panel shows only the instance that answered and says so.
+
+**Proof.** Eight unit tests (`provider-usage.test.ts`). `e2e/admin-golf-providers.spec.ts` on staging against the built app (a QA admin address through `ADMIN_EMAILS` for that server only): anonymous and a signed-in athlete get 401, the answer's numbers agree with themselves, the panel renders one row per provider and stays inside a 375 px screen. The spec skips wherever `E2E_ADMIN_EMAIL` is unset, which is CI and production.
+
 ## November 20, 2026 (12:57) — A card's pars come from what most of the provider's tees say, not from the first tee
 
 Why Angus Glen (South) was saved with hole 1 as a par 5: not a missing map check. GolfCourseAPI's own tee boxes disagree. Read live: Black says par 5 on hole 1 (total 73); Gold, Blue and both women's tees say par 4 (total 72, the club's printed card); the men's White and Red shorten holes 7, 9, 14 and 16 (totals 69 and 68). `normalizeGcaDetail` took every par from one "reference" box, the first with the most holes, which was Black.

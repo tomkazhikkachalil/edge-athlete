@@ -13,6 +13,7 @@ import PerformanceBackfillPanel from '@/components/admin/PerformanceBackfillPane
 import GolfMapSweepPanel from '@/components/admin/GolfMapSweepPanel';
 import GolfCardFillPanel from '@/components/admin/GolfCardFillPanel';
 import GolfSiteCardsPanel from '@/components/admin/GolfSiteCardsPanel';
+import GolfProvidersPanel from '@/components/admin/GolfProvidersPanel';
 import GolfCoursePicksPanel from '@/components/admin/GolfCoursePicksPanel';
 import MediaJobsPanel from '@/components/admin/MediaJobsPanel';
 import PageTimingsPanel from '@/components/admin/PageTimingsPanel';
@@ -392,6 +393,8 @@ export default function AdminDashboardPage() {
         {/* Website scorecards (Nov 18 2026, mig 315): cards read by rule from each course's own site. */}
         <GolfSiteCardsPanel />
         <GolfCoursePicksPanel />
+        {/* Provider usage (Nov 20 2026): calls today against each daily limit, and what is being skipped. */}
+        <GolfProvidersPanel />
 
         {/* Media jobs (Oct 13 2026, mig 261): the video worker's door — the queue, a tick, the backfill. */}
         <MediaJobsPanel />
