@@ -1,5 +1,15 @@
 # Development Log
 
+## November 19, 2026 (22:39) — Golf leftovers closed: migration 316 on production, #1580 merged, baseline at 316
+
+Tom ran migration 316 on production: `316 APPLIED | 1 | false | 0 | 316` (no round there had yet been copied to a profile with estimated pars, so nothing to mark). `check:schema:prod`: ledger OK, every file on disk has run. He asked me to merge #1580; production serves `edd67bbe`.
+
+**Probe on production after it,** one spec and project at a time: health + catalog-health 2 passed; `round-detail-yardage` (yardage beside par, "4 (est.)" on the three estimated holes, none on the other round) 1 passed on `desktop`, 1 on `mobile`; `golf-profile` + `round-details` 3 passed on `desktop`, 2 on `mobile`; `live-scoring-group` 5 passed on `desktop`. 14 passed, none failed.
+
+**Baseline:** `database/baseline/000_rebuild.sql` rebuilt from production at ledger head 316 (151 tables, 148 functions, 145 policies, 120 triggers; self-check OK), with its schema dump.
+
+**The plan, all six pull requests merged:** #1578 (phase 1), #1579 (2a), #1580 (2b, migration 316), #1581 (3a), #1582 (3b), #1583 (4). **Still owed, and only time decides them:** the real picks whose one-ask-a-day windows reopen Nov 20: Glen Abbey (Oakville) after 05:30 UTC, expected filled through the twice-listed rule; Ottawa Hunt's three nines after 14:35 UTC, expected filled from the combinations; Angus Glen after 14:35 UTC, expected split into North and South, then each new course picked. Each saved card is to be compared with a published one.
+
 ## November 19, 2026 (21:47) — Golf leftovers: production after phases 3 and 4, and the migration branch brought current
 
 Production serves `c58ea3bd` (#1583). Probe, one spec and project at a time: health + catalog-health 2 passed; `golf-quick-entry` 4 passed on `mobile` (with the club-split chooser) and 7 on `desktop`; `live-scoring-group` 5 passed on `desktop`. 18 passed, none failed. Earlier the same day: phase 1 (9 passed on `8d209f36`) and phase 2a (12 passed on `4e2cde7a`).
