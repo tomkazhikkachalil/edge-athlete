@@ -1,5 +1,15 @@
 # Development Log
 
+## November 20, 2026 (22:24) — Migration 319: a club website that did not answer is tried again after a week
+
+**Why.** Tom's second "yes": three of production's first four website visits ended `unreachable`, and 318 would not have tried those clubs again for 90 days.
+
+**What.** `golf_site_evidence_due` also returns a course whose last outcome is `unreachable` or `not_kept` once 7 days have passed. Nothing else changes; no code depends on it.
+
+**On both databases.** Production first, by Tom in the SQL editor: `319 APPLIED | 1 | true | false | 319`. Staging after (a browser test was using it): the same row, `check:schema` exit 0. The first paste failed in the editor with a syntax error at "ticated": a long line had lost its middle on the way from the terminal. The statements were given again with every line short, and the committed file is those statements (the ledger footer on one line, as the ledger test requires; the same statement).
+
+**Lesson kept.** SQL handed over in chat is written with short lines; a wrapped line can lose text when copied.
+
 ## November 20, 2026 (22:14) — The app's own par corrections are on, and only a strong source may change a card
 
 **Why.** Phase 3 of the plan. Tom, after the dry list from production (39 cards, 0 holes waiting, no correction proposed): "yes to both, go ahead" (corrections on; a shorter retry for sites that do not answer, which is migration 319 in its own PR).
