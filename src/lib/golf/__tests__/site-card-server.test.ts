@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { SITE_COURSE_BUDGET_MS, SITE_FETCH_MIN_MS, SITE_MAX_FETCHES, SITE_TICK_BUDGET_MS, mapEvidence, siteHomeUrl, visitCourseSite, type SiteVisitRow } from '../site-card-server';
+import { SITE_COURSE_BUDGET_MS, SITE_FETCH_MIN_MS, SITE_MAX_FETCHES, SITE_TICK_BUDGET_MS, mapEvidence, runSiteEvidenceBatch, siteHomeUrl, visitCourseSite, type SiteVisitRow } from '../site-card-server';
 import { SITE_FETCH_TIMEOUT_MS } from '../site-fetch-server';
 
 // Nov 18 2026: one course's website, visited. No network: the resolver, fetch
@@ -181,7 +181,118 @@ describe('the reader\'s clock', () => {
     expect(SITE_TICK_BUDGET_MS).toBeGreaterThanOrEqual(2 * SITE_COURSE_BUDGET_MS);
     expect(SITE_COURSE_BUDGET_MS).toBeGreaterThan(2 * SITE_FETCH_TIMEOUT_MS);
     expect(SITE_FETCH_MIN_MS).toBeLessThan(SITE_FETCH_TIMEOUT_MS);
-    expect(routeSrc).toContain("runSiteCardBatch(admin, { rows: 2, dryRun: false })");
+    // Two visits a tick in all: one may go to a carded course for its pars (318), the rest to courses with no card.
+    expect(routeSrc).toContain("runSiteEvidenceBatch(admin, { rows: 1, dryRun: false })");
+    expect(routeSrc).toContain("runSiteCardBatch(admin, { rows: 2 - evidence.visits, dryRun: false, deadlineMs: left })");
     expect(routeSrc).toContain('CRON_SECRET');
+  });
+});
+
+// Nov 20 2026 (migration 318): a course that HAS a card is visited for its
+// website's pars, kept as evidence. The card itself is never written.
+describe('runSiteEvidenceBatch: the club\'s own card as a confirmation', () => {
+  const SAVED = [4, 5, 3, 4, 4, 3, 4, 4, 4]; // hole 7 saved as a par 4; the website prints 5
+  const carded = (over: Record<string, unknown> = {}) => ({
+    id: 'c1', name: 'Camelot Golf & Country Club', club_name: null, lat: 45.3, lng: -75.7, holes_count: 9, website: 'https://www.camelot.com/',
+    total_par: 35, hole_data: SAVED.map((par, i) => ({ number: i + 1, par, yardage: { blue: Number(YARDS[i]) }, handicap: i + 1 })), course_rating: null, slope_rating: null, hole_geometry: null, sheet_sources: { pars: 'golfcourseapi' },
+    ...over,
+  });
+  const BOXES = [
+    { source: 'golfcourseapi', label: 'blue', votes: true, pars: [4, 5, 3, 4, 4, 3, 5, 4, 4] },
+    { source: 'golfcourseapi', label: 'white', votes: true, pars: SAVED },
+    { source: 'golfcourseapi', label: 'red', votes: true, pars: SAVED },
+  ];
+  function fakeAdmin(course: ReturnType<typeof carded>, opts: { due?: string[]; dueError?: boolean; budget?: boolean } = {}) {
+    const evidence: Array<Record<string, unknown>> = [...BOXES];
+    const courseUpdates: Array<Record<string, unknown>> = [];
+    const upserts: Array<Record<string, unknown>> = [];
+    const admin = {
+      rpc: (fn: string) => {
+        if (fn === 'golf_site_evidence_due') return Promise.resolve(opts.dueError ? { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.golf_site_evidence_due' } } : { data: (opts.due ?? ['c1']).map(id => ({ id })), error: null });
+        return { single: async () => ({ data: { allowed: opts.budget ?? true }, error: null }) };
+      },
+      from: (table: string) => {
+        if (table === 'golf_par_evidence') return {
+          upsert: async (rows: Array<Record<string, unknown>>) => { upserts.push(...rows); evidence.push(...rows); return { error: null }; },
+          delete: () => ({ eq: () => ({ eq: () => ({ lt: async () => ({ error: null }) }) }) }),
+          select: () => ({ eq: async () => ({ data: evidence, error: null }) }),
+        };
+        if (table === 'golf_par_changes') return { insert: async () => ({ error: null }) };
+        return {
+          select: (cols: string) => ({
+            in: async () => ({ data: [course], error: null }),
+            ilike: () => ({ neq: () => ({ limit: async () => ({ data: [], error: null }) }) }),
+            eq: () => ({ maybeSingle: async () => ({ data: cols.includes('hole_data') || cols === 'sheet_sources' ? course : null, error: null }) }),
+          }),
+          update: (fields: Record<string, unknown>) => { courseUpdates.push(fields); const chain: Record<string, unknown> = {}; chain.eq = () => chain; chain.is = () => chain; chain.select = async () => ({ data: [{ id: 'c1' }], error: null }); chain.then = (resolve: (v: unknown) => void) => resolve({ error: null }); return chain; },
+        };
+      },
+    };
+    return { admin: admin as never, upserts, courseUpdates };
+  }
+  const WEBSITE_PARS = [4, 5, 3, 4, 4, 3, 5, 4, 4];
+
+  it('a card read on the club\'s own site is kept as a website row and stamped; the saved card is not written', async () => {
+    const s = site({ 'https://www.camelot.com/': html(cardTable('Camelot Golf & Country Club')) });
+    const f = fakeAdmin(carded());
+    const r = await runSiteEvidenceBatch(f.admin, { rows: 1, dryRun: false }, s.deps);
+    expect(r).toMatchObject({ ok: true, phase: 'site-evidence', due: 1, visits: 1, outcomes: { ok: 1 }, kept: [{ id: 'c1', url: 'https://www.camelot.com/' }] });
+    expect(f.upserts).toEqual([expect.objectContaining({ course_id: 'c1', source: 'website', label: '', votes: false, pars: WEBSITE_PARS })]);
+    // Only the stamp is written on the course (the app's own corrections are off).
+    expect(f.courseUpdates).toEqual([{ site_evidence_at: expect.any(String), site_evidence_outcome: 'ok' }]);
+  });
+
+  it('the card is not held to the map\'s par tags here: a map that disagrees on three holes still lets the website speak', async () => {
+    const holes = SAVED.map((_, i) => ({ hole: i + 1, par: i < 3 ? 6 : WEBSITE_PARS[i], line: [[45.3, -75.7 + i * 0.01], [45.3 + Number(YARDS[i]) / 121_000, -75.7 + i * 0.01]] }));
+    const s = site({ 'https://www.camelot.com/': html(cardTable('Camelot Golf & Country Club')) });
+    const f = fakeAdmin(carded({ hole_geometry: { holes } }));
+    expect((await runSiteEvidenceBatch(f.admin, { rows: 1, dryRun: false }, s.deps)).outcomes).toEqual({ ok: 1 });
+  });
+
+  it('a card of another length is another card: nothing is kept, the visit is stamped', async () => {
+    const s = site({ 'https://www.camelot.com/': html(cardTable('Camelot Golf & Country Club')) });
+    const eighteen = [...SAVED, ...SAVED];
+    const f = fakeAdmin(carded({ holes_count: null, hole_data: eighteen.map((par, i) => ({ number: i + 1, par, yardage: { blue: 380 }, handicap: i + 1 })) }));
+    const r = await runSiteEvidenceBatch(f.admin, { rows: 1, dryRun: false }, s.deps);
+    expect(r.outcomes).toEqual({ other_card: 1 });
+    expect(f.upserts).toEqual([]);
+    expect(f.courseUpdates).toEqual([{ site_evidence_at: expect.any(String), site_evidence_outcome: 'other_card' }]);
+  });
+
+  it('another course\'s card on the same site is passed over and the visit goes on to this course\'s (staging: Angus Glen South was given the North card)', async () => {
+    const other = ['5', '4', '4', '3', '5', '4', '4', '3', '4']; // sums to 36 too, and differs on seven holes
+    const otherTable = `<title>Camelot Golf & Country Club</title><table>${tr(['Par', ...other, '36'])}${tr(['Blue', ...YARDS, '3320'])}</table>`;
+    const home = '<title>Camelot Golf & Country Club</title><a href="/north-scorecard">North scorecard</a><a href="/south-scorecard">South scorecard</a>';
+    const both = site({ 'https://www.camelot.com/': html(home), 'https://www.camelot.com/north-scorecard': html(otherTable), 'https://www.camelot.com/south-scorecard': html(cardTable('Camelot Golf & Country Club')) });
+    const f = fakeAdmin(carded());
+    const r = await runSiteEvidenceBatch(f.admin, { rows: 1, dryRun: false }, both.deps);
+    expect(r).toMatchObject({ outcomes: { ok: 1 }, kept: [{ url: 'https://www.camelot.com/south-scorecard' }] });
+    expect(f.upserts).toEqual([expect.objectContaining({ source: 'website', pars: WEBSITE_PARS })]);
+    // Only the other course's card on the site: nothing is kept.
+    const only = site({ 'https://www.camelot.com/': html(home), 'https://www.camelot.com/north-scorecard': html(otherTable) });
+    const g = fakeAdmin(carded());
+    expect((await runSiteEvidenceBatch(g.admin, { rows: 1, dryRun: false }, only.deps)).outcomes).toEqual({ other_card: 1 });
+    expect(g.upserts).toEqual([]);
+  });
+
+  it('a directory address is stamped without a visit; a dry run writes nothing; no budget, no visit', async () => {
+    const dir = fakeAdmin(carded({ website: 'https://www.golfpass.com/travel-advisor/courses/1-camelot' }));
+    const none = site({});
+    expect(await runSiteEvidenceBatch(dir.admin, { rows: 1, dryRun: false }, none.deps)).toMatchObject({ visits: 0, outcomes: { not_own_site: 1 } });
+    expect(none.asked).toHaveLength(0);
+    const s = site({ 'https://www.camelot.com/': html(cardTable('Camelot Golf & Country Club')) });
+    const dry = fakeAdmin(carded());
+    expect(await runSiteEvidenceBatch(dry.admin, { rows: 1, dryRun: true }, s.deps)).toMatchObject({ visits: 1, outcomes: { ok: 1 } });
+    expect(dry.upserts).toEqual([]);
+    expect(dry.courseUpdates).toEqual([]);
+    const broke = fakeAdmin(carded(), { budget: false });
+    expect(await runSiteEvidenceBatch(broke.admin, { rows: 1, dryRun: false }, s.deps)).toMatchObject({ visits: 0, budgetExhausted: true, outcomes: {} });
+  });
+
+  it('before migration 318 it says so and visits nothing; with no rows asked for it does nothing', async () => {
+    const s = site({});
+    expect(await runSiteEvidenceBatch(fakeAdmin(carded(), { dueError: true }).admin, { rows: 1, dryRun: false }, s.deps)).toMatchObject({ ok: false, error: 'migration 318 has not run', visits: 0 });
+    expect(await runSiteEvidenceBatch(fakeAdmin(carded()).admin, { rows: 0, dryRun: false }, s.deps)).toMatchObject({ ok: true, due: 0, visits: 0 });
+    expect(s.asked).toHaveLength(0);
   });
 });

@@ -8,6 +8,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { consumeProviderBudget, readSheetSources } from '@/lib/golf/course-catalog';
 import { polylineYards } from '@/lib/golf/hole-geometry';
+import { recordParEvidence, settleAfterEvidence } from '@/lib/golf/par-evidence-server';
 import { sheetFromGeometry, type MapSheetLine } from '@/lib/golf/map-sheet';
 import { creditSources, mergeSheets, type Sheet } from '@/lib/golf/sheet-merge';
 import { isFetchableUrl, isOwnSiteHost, parseSiteRead, robotsAllows, scorecardLinks, siteCardVerdict, type SiteCard, type SiteCardVerdict } from '@/lib/golf/site-card';
@@ -47,7 +48,10 @@ export type SiteOutcome =
   /** The text holds more than one course's card. */
   | 'several_cards'
   /** A pick saved a card while the visit ran. */
-  | 'taken';
+  | 'taken'
+  /** A card was read and it is not the one the caller is looking for (the
+   *  evidence visit: another course of the same club, or another length). */
+  | 'other_card';
 
 export interface SiteVisitRow {
   id: string;
@@ -89,7 +93,15 @@ export function siteHomeUrl(website: string | null | undefined): URL | null {
  *  course's (two courses' cards on one sheet are refused before that matters). */
 export async function visitCourseSite(
   row: SiteVisitRow,
-  evidence: { mapPars: ReadonlyArray<{ number: number; par: number }> | null; mapYards: ReadonlyArray<number> | null; siteIsThisCourseAlone: boolean },
+  evidence: {
+    mapPars: ReadonlyArray<{ number: number; par: number }> | null;
+    mapYards: ReadonlyArray<number> | null;
+    siteIsThisCourseAlone: boolean;
+    /** The caller's own test of a card that passed every check. A card it
+     *  refuses is passed over and the visit goes on to the site's other
+     *  scorecards (a club's site carries each of its courses' cards). */
+    accept?: (card: SiteCard) => boolean;
+  },
   deps: SiteVisitDeps = {}
 ): Promise<SiteVisit> {
   const now = deps.now ?? Date.now;
@@ -119,6 +131,7 @@ export async function visitCourseSite(
   let refusal: SiteCardVerdict | null = null;
   let several = false;
   let unread = false; // a scorecard that is a picture, or a PDF without text
+  let passedOver = false; // a good card the caller did not accept
 
   const tryLines = (lines: string[][], title: string, url: string): SiteVisit | null => {
     const parsed = parseCardLines(lines);
@@ -126,7 +139,11 @@ export async function visitCourseSite(
     const named = nameInText(lines, title, [row.name, row.club_name]);
     const read = parseSiteRead({ ...parsed.raw, printedName: named ? row.name : null });
     const { verdict, card } = siteCardVerdict(row, read, null, evidence.mapPars, evidence.mapYards, { singleReading: true, nameConfirmed: evidence.siteIsThisCourseAlone });
-    if (verdict === 'ok' && card) return done('ok', card, url);
+    if (verdict === 'ok' && card) {
+      if (!evidence.accept || evidence.accept(card)) return done('ok', card, url);
+      passedOver = true;
+      return null;
+    }
     refusal ??= verdict;
     return null;
   };
@@ -178,6 +195,7 @@ export async function visitCourseSite(
       if (inner.visit) return inner.visit;
     }
   }
+  if (passedOver) return done('other_card');
   if (refusal) return done(refusal);
   if (several) return done('several_cards');
   return done(unread ? 'picture_only' : 'no_card');
@@ -302,6 +320,103 @@ async function saveVisit(admin: SupabaseClient, row: DueRow, visit: SiteVisit): 
   if ((data ?? []).length) return 'ok';
   await admin.from('golf_courses').update({ ...stamp, site_card_outcome: 'taken' }).eq('id', row.id);
   return 'taken';
+}
+
+// ── The website as a confirmation of a saved card's pars (Nov 20 2026; 318) ──
+// A hole whose tees disagree on par is decided by logic (par-evidence.ts); the
+// club's own published card is the strongest confirmation there is, and the
+// reader above never visits a course that already has a card. This visit
+// does: the same site, the same fetcher, robots rule, own-site check and
+// parser, and the card's own arithmetic. Two differences. It does NOT require
+// the card to agree with the map's par tags (the map is a separate, weaker
+// vote there), and it never writes the card: it keeps one `website` row in
+// golf_par_evidence and lets the judgement decide.
+
+export type SiteEvidenceOutcome = SiteOutcome | 'not_kept';
+
+/** How many holes a website's card may differ on from the saved card and
+ *  still be that course's card (the bound the other provider is held to). A
+ *  confirmation can only ever move a hole the tees disagree on; a card that
+ *  differs widely is another course's (staging, Nov 20 2026: for Angus Glen
+ *  SOUTH the first card on the club's site was the NORTH course's, and the
+ *  club's name printed on it passed the name check). */
+export const SITE_EVIDENCE_PAR_DIFF_MAX = 2;
+
+export interface SiteEvidenceSummary {
+  ok: boolean;
+  phase: 'site-evidence';
+  dryRun: boolean;
+  due: number;
+  /** Sites actually visited (a row stamped without a visit is not one). */
+  visits: number;
+  outcomes: Record<string, number>;
+  kept: Array<{ id: string; name: string; url: string | null }>;
+  budgetExhausted: boolean;
+  elapsedMs: number;
+  error?: string;
+}
+
+/** Visit up to `rows` carded courses' own websites for their pars. Migration 318 must have run. */
+export async function runSiteEvidenceBatch(
+  admin: SupabaseClient,
+  opts: { rows: number; dryRun: boolean; courseId?: string; deadlineMs?: number },
+  deps: SiteVisitDeps = {}
+): Promise<SiteEvidenceSummary> {
+  const t0 = Date.now();
+  const deadline = t0 + (opts.deadlineMs ?? SITE_TICK_BUDGET_MS);
+  const summary: SiteEvidenceSummary = { ok: true, phase: 'site-evidence', dryRun: opts.dryRun, due: 0, visits: 0, outcomes: {}, kept: [], budgetExhausted: false, elapsedMs: 0 };
+  const finish = () => { summary.elapsedMs = Date.now() - t0; return summary; };
+  if (opts.rows < 1) return finish();
+
+  let ids: string[];
+  if (opts.courseId) ids = [opts.courseId];
+  else {
+    const due = await admin.rpc('golf_site_evidence_due', { p_limit: Math.max(1, Math.min(opts.rows * SITE_DUE_FACTOR, 20)) });
+    if (due.error) { summary.ok = false; summary.error = /golf_site_evidence_due|PGRST202|42883/.test(`${due.error.code} ${due.error.message}`) ? 'migration 318 has not run' : due.error.message; return finish(); }
+    ids = ((due.data ?? []) as Array<{ id: string }>).map(r => r.id);
+  }
+  summary.due = ids.length;
+  if (ids.length === 0) return finish();
+  const { data, error } = await admin
+    .from('golf_courses')
+    .select('id, name, club_name, lat, lng, holes_count, website, total_par, hole_data, course_rating, slope_rating, hole_geometry')
+    .in('id', ids);
+  if (error) { summary.ok = false; summary.error = error.message; return finish(); }
+  const byId = new Map(((data ?? []) as unknown as DueRow[]).map(r => [r.id, r]));
+
+  for (const id of ids) {
+    const row = byId.get(id);
+    if (!row || !row.hole_data?.length) continue;
+    const home = siteHomeUrl(row.website);
+    const visitable = !!home && isOwnSiteHost(home.hostname, [row.name, row.club_name]);
+    if (visitable) {
+      if (summary.visits >= opts.rows) break;
+      if (Date.now() > deadline - SITE_COURSE_BUDGET_MS) break;
+      if (!opts.dryRun && !(await consumeProviderBudget(admin, BUDGET_KEY))) { summary.budgetExhausted = true; break; }
+      summary.visits++;
+    }
+    const alone = visitable ? !(await hostIsShared(admin, row, bareHost(home!.hostname))) : false;
+    // No map pars: the card is not held to the map's tags here. The map's
+    // hole LENGTHS still say whose card it is when no name is printed.
+    // The card read must be THIS card: its length, and its pars on all but a
+    // couple of holes. Any other card on the site is passed over.
+    const saved = row.hole_data;
+    const accept = (card: SiteCard) => card.hole_data.length === saved.length && card.hole_data.filter((h, i) => h.par !== saved[i].par).length <= SITE_EVIDENCE_PAR_DIFF_MAX;
+    const visit = await visitCourseSite(row, { mapPars: null, mapYards: mapEvidence(row.hole_geometry).mapYards, siteIsThisCourseAlone: alone, accept }, deps);
+    let outcome: SiteEvidenceOutcome = visit.outcome;
+    if (!opts.dryRun) {
+      if (outcome === 'ok' && visit.card) {
+        const kept = await recordParEvidence(admin, row.id, [{ source: 'website', label: '', votes: false, pars: visit.card.hole_data.map(h => h.par) }]);
+        if (kept) await settleAfterEvidence(admin, row.id);
+        else outcome = 'not_kept';
+      }
+      const stamped = await admin.from('golf_courses').update({ site_evidence_at: new Date().toISOString(), site_evidence_outcome: outcome }).eq('id', row.id);
+      if (stamped.error) throw new Error(`site evidence stamp failed for ${row.id}: ${stamped.error.message}`);
+    }
+    summary.outcomes[outcome] = (summary.outcomes[outcome] ?? 0) + 1;
+    if (outcome === 'ok') summary.kept.push({ id: row.id, name: row.name, url: visit.url });
+  }
+  return finish();
 }
 
 // ── Progress ──────────────────────────────────────────────────────────────────

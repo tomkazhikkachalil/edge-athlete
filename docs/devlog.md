@@ -1,5 +1,26 @@
 # Development Log
 
+## November 20, 2026 (21:22) — Confirmations reach courses that already have a card: the club's own website and OpenGolfAPI (migration 318)
+
+**#1606 on production** (`f83169ce`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. The review list read through the app's own code against production: **0 holes waiting** on 39 cards (22 confirmed or decided by Tom, 18 decided by the rule, 0 impossible), 0.5 s, no card changed. The 13 holes that were waiting for a tap left the list with none.
+
+**Why this round.** Phase 2 of the plan Tom approved ("There is usually an official score card by the course on the website. Can we use a few confirmation methods?"). The rule already lets a strong source settle a hole whose tees disagree; nothing was feeding it on courses that have a card.
+
+**Built.**
+- **The club's own website as evidence** (`runSiteEvidenceBatch`, `site-card-server.ts`; migration 318: `site_evidence_at`, `site_evidence_outcome`, `golf_site_evidence_due`). A carded course whose voting tee boxes disagree, with a website on file, is visited at most once in 90 days, picked courses first, by the reader's own fetcher, robots rule, own-site check, parser and arithmetic. It is not held to the map's par tags. It keeps one `website` row in `golf_par_evidence` and never writes the card. One of the existing tick's two visits; the same daily cap; no new job.
+- **OpenGolfAPI on a complete card** (`confirmParsFromOpenGolf`): on a person's pick, once a day per course, when the tees disagree and no OpenGolfAPI row is held. Its card must be the same length and differ on at most two holes. The website its answer names is kept on a row that has none.
+- **A refresh keeps the row's website** when the provider gives none.
+
+**A fault the staging proof caught, fixed before anything shipped.** Run against the real club site for a seeded "Angus Glen Golf Club (South)", the first version kept the NORTH course's scorecard: the club's site carries both PDFs, North comes first, and the club's name printed on it passed the name check. With corrections on, that could have "confirmed" a wrong par. Now a card must be the saved card's length and match it on all but two holes (`SITE_EVIDENCE_PAR_DIFF_MAX`), and a card that is not is passed over while the visit goes on to the site's other scorecards (`accept` in `visitCourseSite`; outcome `other_card` when none fits). Re-run: South kept `AG_South_scorecard.pdf` (434443545443454534), North kept `AG_North_scorecard.pdf` (544354434454435434), each equal to its saved card, each card untouched, each course off the due list after its visit.
+
+**Wrong in my plan, said to Tom.** The plan said a refresh was erasing websites and one statement could restore them. Read on production: 34 of the 39 carded courses have no website on file, 26 of them because the row is GolfCourseAPI's own and that provider never gives one; only 7 have any catalog row with a website nearby, and all but Ottawa Hunt's are a different club. There is nothing reliable to restore from, so no statement was written. The website confirmation reaches a handful of today's cards; OpenGolfAPI's answer is the one free source that will add websites over time.
+
+**Not proven live.** OpenGolfAPI is still down on their side (HTTP 500 on search), so `confirmParsFromOpenGolf` is proven by unit tests only.
+
+**Proof.** Migration 318 on staging: `318 APPLIED | 2 | 1 | false | false | 318`. Unit tests for the visit (kept and stamped, not held to the map's tags, another length, another course's card passed over, directory address never visited, dry run, no budget, before 318), for the OpenGolfAPI confirmation and for the kept website. The staging run above against the club's real site.
+
+**Unchanged.** `PAR_SETTLE_WRITES` is `false`: a kept confirmation is judged and any correction is only named in the log. Production gets 318 from Tom in the SQL editor; this PR merges at his word.
+
 ## November 20, 2026 (21:01) — Pars decided by logic: no hole waits for a person unless its data is impossible
 
 **Why.** Tom, with 13 of 23 taps still open: "I need it to be automated… If we go to market, I can't go through 30k plus courses. Need to use logic." Then: "There is usually an official score card by the course on the website. Can we use a few confirmation methods?" What should still reach him: only impossible data. Planned in three phases; this is phase 1 (logic only, no migration, no network).
