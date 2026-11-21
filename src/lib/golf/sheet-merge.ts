@@ -164,29 +164,82 @@ export interface SheetSources {
  *  NOT a proof: the provider's boxes contradict each other and nothing in its
  *  answer says which is the club's card. `disputed` exists so that is visible.
  *
+ *  `yards` (Nov 20 2026, later the same day) are the same boxes' hole lengths,
+ *  box by box. With them two things change, both measured on the 40 holes of
+ *  production whose men's tees disagree:
+ *   - a par that is impossible for its length does not vote (believablePar:
+ *     Eagles Nest's white box says hole 1 is a par 3 at 501 yards);
+ *   - when the TWO LONGEST voting tees agree, that is the par, whatever the
+ *     shorter tees say. A hole shortened for the forward tees often drops a
+ *     stroke of par there, and the club's printed card follows the back tees
+ *     (Angus Glen North's 11th: 5, 5, 4, 4, 4, the card says 5). When they do
+ *     not agree the count decides as before (Angus Glen South's 1st: the back
+ *     tee alone says 5, the card says 4).
+ *  Still the better default, not a proof.
+ *
  *  `disputed` are the hole numbers on which the voters did not all agree. Pure. */
-export function parsFromTees(boxes: ReadonlyArray<ReadonlyArray<number | null | undefined>>, reference = 0, voters?: ReadonlyArray<number>): { pars: Array<number | null>; disputed: number[] } {
+export function parsFromTees(
+  boxes: ReadonlyArray<ReadonlyArray<number | null | undefined>>,
+  reference = 0,
+  voters?: ReadonlyArray<number>,
+  yards?: ReadonlyArray<ReadonlyArray<number | null | undefined> | null | undefined>
+): { pars: Array<number | null>; disputed: number[] } {
   const length = boxes[reference]?.length ?? 0;
   const same = boxes.map((b, i) => ({ b, i })).filter(x => x.b.length === length);
   const chosen = voters ? same.filter(x => voters.includes(x.i)) : same;
   const voting = chosen.length > 0 ? chosen : same;
+  const lengthOf = (i: number, h: number): number | null => {
+    const y = yards?.[i]?.[h];
+    return typeof y === 'number' && y > 0 ? y : null;
+  };
+  type Box = { b: ReadonlyArray<number | null | undefined>; i: number };
+  const rawPar = (x: Box, h: number): number | null => x.b[h] ?? null;
+  // A par impossible for its length loses its vote, but only to a believable
+  // one: a hole on which NO box is believable keeps what the boxes say (bad
+  // lengths must never turn a card into no card).
+  const believable = (x: Box, h: number): number | null => {
+    const p = rawPar(x, h);
+    return p !== null && believablePar(p, lengthOf(x.i, h)) ? p : null;
+  };
   const pars: Array<number | null> = [];
   const disputed: number[] = [];
   for (let h = 0; h < length; h++) {
-    const said = voting.map(x => x.b[h]).filter((p): p is number => p != null);
+    const parOf = yards && same.some(x => believable(x, h) !== null) ? believable : rawPar;
+    const votes = voting.map(x => ({ i: x.i, par: parOf(x, h) })).filter((v): v is { i: number; par: number } => v.par !== null);
+    const said = votes.map(v => v.par);
     if (said.length === 0) {
-      pars.push(same.map(x => x.b[h]).find((p): p is number => p != null) ?? null);
+      pars.push(same.map(x => parOf(x, h)).find((p): p is number => p != null) ?? null);
       continue;
     }
     const count = new Map<number, number>();
     for (const p of said) count.set(p, (count.get(p) ?? 0) + 1);
+    if (count.size > 1) disputed.push(h + 1);
+    // The two longest voting tees, when both lengths are known and they agree.
+    const byLength = votes.map(v => ({ ...v, y: lengthOf(v.i, h) })).filter((v): v is { i: number; par: number; y: number } => v.y !== null).sort((a, b) => b.y - a.y);
+    if (count.size > 1 && byLength.length >= 2 && byLength[0].par === byLength[1].par) {
+      pars.push(byLength[0].par);
+      continue;
+    }
     const top = Math.max(...count.values());
     const tied = said.filter(p => count.get(p) === top);
-    const ref = voting.some(x => x.i === reference) ? boxes[reference][h] : null;
+    const ref = voting.some(x => x.i === reference) ? parOf({ b: boxes[reference], i: reference }, h) : null;
     pars.push(ref != null && tied.includes(ref) ? ref : tied[0]);
-    if (count.size > 1) disputed.push(h + 1);
   }
   return { pars, disputed };
+}
+
+/** Could a hole of this length be this par at all? Deliberately WIDE: a
+ *  forward tee keeps its hole's par at a length no back tee would (production,
+ *  Nov 20 2026, 6,012 tee-and-hole pairs: par 4s from 130 yards and par 5s
+ *  from 235 are real cards). Only the plainly impossible fails: two boxes in
+ *  those 6,012, a par 3 at 501 yards and one at 391. An unknown length passes. */
+export function believablePar(par: number, yards: number | null | undefined): boolean {
+  if (typeof yards !== 'number' || !(yards > 0)) return true;
+  if (par === 3) return yards <= 300;
+  if (par === 4) return yards >= 100 && yards <= 560;
+  if (par === 5) return yards >= 200 && yards <= 800;
+  if (par === 6) return yards >= 500;
+  return false;
 }
 
 /** Is a provider's card whole and in agreement with itself? Holes numbered

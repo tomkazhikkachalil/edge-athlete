@@ -4,12 +4,15 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ParReview, ParReviewCourse, ParReviewHole } from '@/lib/golf/par-evidence-server';
 
 // Scorecard pars under review (Nov 20 2026; migration 317). A provider's tee
-// boxes sometimes disagree on a hole's par. Holes that independent evidence
-// has not settled wait here for a person: one tap keeps or sets the par, and
-// every change is recorded with who made it. No SQL.
+// boxes sometimes disagree on a hole's par. The app decides those holes by
+// rule and by confirmations from other sources (par-evidence.ts); nobody is
+// asked. What is listed here is only what logic cannot decide: a hole no tee
+// gives a believable par for, and a confirmed correction not yet written.
+// One tap keeps or sets the par, recorded with who made it. No SQL.
 
 const btn = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50';
-const SOURCE: Record<string, string> = { map: 'the map', website: 'the course website', opengolfapi: 'OpenGolfAPI' };
+const SOURCE: Record<string, string> = { map: 'the map', website: 'the course website', opengolfapi: 'OpenGolfAPI', length: 'the hole\'s length' };
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 /** One line per tee: its yardage on the saved card and the par that tee's box
@@ -85,16 +88,19 @@ export default function GolfParReviewPanel() {
     <section aria-label="Scorecard pars under review" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-admin-golf-par-review="">
       <h2 className="text-lg font-semibold text-primary mb-1">Scorecard pars under review</h2>
       <p className="text-xs text-muted mb-3">
-        A provider&apos;s tee boxes sometimes disagree on a hole&apos;s par. Holes that no other source has settled wait here. Choosing a par corrects the saved scorecard at once and records who decided; rounds already played keep their own pars.
+        A provider&apos;s tee boxes sometimes disagree on a hole&apos;s par. The app decides those holes itself: by the tees and their lengths, confirmed where the club&apos;s website, the other provider or the map agree. Only a hole it cannot decide is listed here. Choosing a par corrects the saved scorecard at once and records who decided; rounds already played keep their own pars.
       </p>
       {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3" data-par-review-error="">{error}</p>}
       {!review && !error && <p className="text-xs text-muted mb-3">Loading…</p>}
       {review && (
         <>
-          <p className="text-sm text-secondary mb-3" data-par-review-summary="">
+          <p className="text-sm text-secondary mb-1" data-par-review-summary="">
             {review.courses.length === 0
               ? `Nothing is waiting. ${review.judged} scorecards hold their tee boxes.`
-              : `${review.courses.reduce((n, c) => n + c.holes.length, 0)} holes on ${review.courses.length} courses are waiting, of ${review.judged} scorecards that hold their tee boxes.`}
+              : `${plural(review.courses.reduce((n, c) => n + c.holes.length, 0), 'hole', 'holes')} on ${plural(review.courses.length, 'course', 'courses')} waiting, of ${review.judged} scorecards that hold their tee boxes.`}
+          </p>
+          <p className="text-xs text-muted mb-3" data-par-review-counts="">
+            Holes whose tees disagree: {review.counts.confirmed} confirmed by another source or decided here · {review.counts.byRule} decided by the rule · {review.counts.impossible} impossible.
           </p>
           <ul className="space-y-4">
             {shown.map(course => (
@@ -110,6 +116,9 @@ export default function GolfParReviewPanel() {
                   {course.holes.map(hole => (
                     <li key={hole.hole} data-par-review-hole={hole.hole}>
                       <p className="text-sm text-primary">Hole {hole.hole} <span className="text-secondary">· saved as par {hole.saved}</span></p>
+                      <p className="text-xs text-muted mb-1" data-par-review-why={hole.why}>
+                        {hole.why === 'impossible' ? 'No tee gives a par its length allows.' : `Confirmed as par ${hole.settled ?? '?'}; the correction is not written yet.`}
+                      </p>
                       <ul className="text-xs text-secondary mb-1.5 grid grid-cols-1 sm:grid-cols-2 gap-x-4" data-par-review-says="">
                         {teeLines(hole).map(t => (
                           <li key={t.tee} className="break-words" data-par-review-tee={t.tee}>

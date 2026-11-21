@@ -737,7 +737,12 @@ function sheetEvidence(source: ParEvidenceRow['source'], holes: ReadonlyArray<{ 
 /** The pars of a GolfCourseAPI answer: hole by hole what most men's boxes say. */
 function gcaPars(sameCount: GcaTeeBox[], male: GcaTeeBox[], reference: GcaTeeBox | null) {
   const voters = sameCount.map((b, i) => (male.includes(b) ? i : -1)).filter(i => i >= 0);
-  return parsFromTees(sameCount.map(b => (b.holes ?? []).map(x => x.par)), Math.max(0, reference ? sameCount.indexOf(reference) : 0), voters.length ? voters : undefined);
+  return parsFromTees(
+    sameCount.map(b => (b.holes ?? []).map(x => x.par)),
+    Math.max(0, reference ? sameCount.indexOf(reference) : 0),
+    voters.length ? voters : undefined,
+    sameCount.map(b => (b.holes ?? []).map(x => x.yardage))
+  );
 }
 
 export function normalizeGcaDetail(d: GcaDetail): NewRow {
