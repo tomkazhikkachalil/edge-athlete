@@ -1,5 +1,22 @@
 # Development Log
 
+## November 20, 2026 (22:42) — Close: pars are decided without a person; all three phases and migrations 318 and 319 are on production
+
+**#1609 on production** (`02548d11`, the app's own corrections on) and **#1610 merged** (`c1c6b41d`, migration 319; a database-only merge, so no build): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed, run with `E2E_EXPECT_COMMIT=02548d11`.
+
+**Where production stands** (read-only, 03:41 UTC Nov 21).
+- Review list: 0 holes waiting on 39 cards. `golf_par_changes` is empty: no card has been changed by the app.
+- Website visits: Eagles Nest read and equal to its saved card; Angus Glen (South and North) and Falcon Ridge did not answer production and are due again on Nov 28 (319).
+- The job's latest tick found nothing due and visited nothing.
+
+**What the day's request came to.** Tom asked for pars to be automated because one person cannot review 30,000 courses. Since tonight: a hole whose tees disagree is decided by rule; confirmations (the club's own website, OpenGolfAPI, the map's tag, the hole's length) are gathered by the app; a strong one may correct a card, logged; only impossible data is listed for a person. The 23 holes that were queued this afternoon needed 10 taps and then none.
+
+**Still open, none of it blocking.**
+- OpenGolfAPI is down on their side, so its confirmation path is proven by unit tests only. Worth a read of `golf_par_evidence` for `opengolfapi` rows once it answers.
+- Why three club sites do not answer production is not read (likely hosting-provider addresses refused). Nov 28's retries will say whether it was passing.
+- 34 of 39 carded courses have no website on file; reach grows only as OpenGolfAPI names them.
+- Par per tee (a golfer on the back tee gets that tee's par) is not built; it is the only complete answer for holes that truly differ by tee.
+
 ## November 20, 2026 (22:24) — Migration 319: a club website that did not answer is tried again after a week
 
 **Why.** Tom's second "yes": three of production's first four website visits ended `unreachable`, and 318 would not have tried those clubs again for 90 days.
