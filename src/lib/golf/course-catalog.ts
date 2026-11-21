@@ -1547,6 +1547,9 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     // A whole card is not asked about again; one saved before the tee boxes
     // were kept gets them once, so it can be judged (topUpParEvidence).
     await topUpParEvidence(admin, row);
+    // And one whose tees disagree on a par is put to the other provider once
+    // a day, as a confirmation (confirmParsFromOpenGolf). Never the card.
+    await confirmParsFromOpenGolf(admin, row);
     return answer('already');
   }
   // A test row's card is whatever its spec seeded: never topped up from outside.
@@ -1799,6 +1802,73 @@ export async function topUpParEvidence(admin: SupabaseClient, row: CatalogRow): 
     return 'no_match';
   } catch (e) {
     console.error(`[course-catalog] par evidence top-up failed for ${row.id}:`, e instanceof Error ? e.message : e);
+    return 'no_match';
+  }
+}
+
+/** How many holes the other provider's card may differ on and still be this
+ *  course's card (the same bound the map's tags are held to). */
+const CONFIRM_PAR_DIFF_MAX = 2;
+
+/**
+ * OpenGolfAPI as a CONFIRMATION of a complete card's pars (Nov 20 2026, the
+ * evening: holes the tees disagree on are decided by logic and confirmed by
+ * other sources, par-evidence.ts). A whole card was never put to the other
+ * provider, so it could confirm nothing on exactly the cards with such holes.
+ *
+ * Only on a person's pick (the caller), only a card that holds GolfCourseAPI
+ * boxes whose voting tees disagree, only while it holds no OpenGolfAPI row,
+ * and at most one try a day per course, inside OpenGolfAPI's own daily
+ * budget. The answer must be this card's length and differ from it on at
+ * most two holes, or it is another card and nothing is kept. It is kept as
+ * evidence and judged; the card itself is never written here. Never throws.
+ */
+export async function confirmParsFromOpenGolf(admin: SupabaseClient, row: CatalogRow): Promise<'kept' | 'not_needed' | 'not_today' | 'no_match'> {
+  try {
+    const saved = row.hole_data ?? [];
+    if (saved.length === 0 || (row.external_source as string) === 'qa-e2e' || !openGolfSheets.configured()) return 'not_needed';
+    const had = await admin.from('golf_par_evidence').select('source, votes, pars').eq('course_id', row.id);
+    if (had.error) return 'not_needed';
+    const rows = (had.data ?? []) as Array<{ source: string; votes: boolean; pars: Array<number | null> }>;
+    if (rows.some(r => r.source === 'opengolfapi')) return 'not_needed';
+    const voting = rows.filter(r => r.source === 'golfcourseapi' && r.votes && r.pars.length === saved.length);
+    const disagree = saved.some((_, h) => new Set(voting.map(r => r.pars[h]).filter(p => p != null)).size > 1);
+    if (!disagree) return 'not_needed';
+    if (openGolfSheets.down()) return 'not_today';
+    if (!(await hitBudget(admin, `golf-par-confirm-ask:${row.id}`, 1))) return 'not_today';
+    // The row's own OpenGolfAPI id when the background link knows it; a search by name otherwise.
+    const linked = await admin.from('golf_courses').select('opengolf_id').eq('id', row.id).maybeSingle();
+    let id = (linked.data as { opengolf_id?: string | null } | null)?.opengolf_id ?? (row.external_source === 'opengolfapi' ? row.external_id : null);
+    if (!id) {
+      let candidates: SheetCandidate[] | null = [];
+      for (const query of sheetSearchQueries(row.name)) {
+        if (!(await consumeProviderBudget(admin, 'opengolfapi'))) return 'not_today';
+        candidates = await openGolfSheets.search(query);
+        if (!candidates || candidates.length > 0) break;
+      }
+      id = candidates?.length ? pickSheetCandidate(row, candidates, null)?.id ?? null : null;
+    }
+    if (!id) return 'no_match';
+    if (!(await consumeProviderBudget(admin, 'opengolfapi'))) return 'not_today';
+    const answer = await openGolfSheets.detail(id);
+    const holes = answer?.row?.hole_data;
+    if (!holes?.length || holes.length !== saved.length) return 'no_match';
+    const differ = saved.filter((h, i) => holes[i]?.par !== h.par).length;
+    if (differ > CONFIRM_PAR_DIFF_MAX) return 'no_match';
+    if (!(await recordParEvidence(admin, row.id, sheetEvidence('opengolfapi', holes)))) return 'no_match';
+    // The same answer often names the club's website, which most carded rows
+    // lack (production, Nov 20 2026: 34 of 39; GolfCourseAPI gives none). It is
+    // kept only on a row that has none, so the club's own card can be read
+    // later; whether it IS the club's own site is judged at that visit.
+    const site = answer?.row?.website?.trim();
+    if (site && !row.website?.trim()) {
+      const put = await admin.from('golf_courses').update({ website: site.slice(0, 500) }).eq('id', row.id).is('website', null);
+      if (put.error) console.error(`[course-catalog] could not keep the website for ${row.id}:`, put.error.message);
+    }
+    await settleAfterEvidence(admin, row.id);
+    return 'kept';
+  } catch (e) {
+    console.error(`[course-catalog] par confirmation from OpenGolfAPI failed for ${row.id}:`, e instanceof Error ? e.message : e);
     return 'no_match';
   }
 }
@@ -2195,7 +2265,11 @@ export async function hydrateCourseDetailed(
       architect: normalized.architect,
       year_built: normalized.year_built,
       course_type: normalized.course_type,
-      website: normalized.website,
+      // A provider that gives no website (GolfCourseAPI never does) must not
+      // erase the one the row holds from the map or the other provider: it is
+      // where the club's own scorecard is read (Nov 20 2026; only 3 of the 39
+      // carded courses on production still had theirs).
+      website: normalized.website ?? row.website ?? null,
       phone: normalized.phone,
       hydrated_at: new Date().toISOString(),
     })

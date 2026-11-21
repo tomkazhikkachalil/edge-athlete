@@ -127,6 +127,15 @@ describe('hydrateCourseDetailed — the outcomes', () => {
     expect(write.hole_data).toBeNull();
     expect(write.hydrated_at).toBeTruthy();
   });
+  it('a refresh keeps the website the row holds when the provider gives none; a provider\'s own website still wins', async () => {
+    stubFetch(async () => ({ ok: true, json: async () => gca({ id: 42, club_name: 'QA', course_name: 'Links', tees: {} }) }));
+    const kept = fakeAdmin();
+    await hydrateCourseDetailed(kept.admin, row({ website: 'https://qalinks.example/' }));
+    expect(kept.updates.find(u => 'hole_data' in u)!.website).toBe('https://qalinks.example/');
+    const none = fakeAdmin();
+    await hydrateCourseDetailed(none.admin, row());
+    expect(none.updates.find(u => 'hole_data' in u)!.website).toBeNull();
+  });
   it('boxes that disagree in hole count leave no yardage → no_yardage_for_tee', async () => {
     stubFetch(async () => ({ ok: true, json: async () => gca({ id: 42, club_name: 'QA', course_name: 'Links', tees: { male: [{ ...teeBox('white', Array(18).fill(0)), holes: Array.from({ length: 18 }, () => ({ par: 4 })) }] } }) }));
     const r = await hydrateCourseDetailed(fakeAdmin().admin, row());

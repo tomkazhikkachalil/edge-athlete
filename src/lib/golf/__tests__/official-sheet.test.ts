@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { nineFromCombination, type SheetHole } from '../sheet-merge';
-import { findOfficialSheet, topUpParEvidence, pickSheetCandidate, readMapSheet, resetProviderBreakerForTests, sheetAskUnanswered, sheetSearchQueries, withMapSheet, SHEET_ASK_RETRIES, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
+import { confirmParsFromOpenGolf, findOfficialSheet, topUpParEvidence, pickSheetCandidate, readMapSheet, resetProviderBreakerForTests, sheetAskUnanswered, sheetSearchQueries, withMapSheet, SHEET_ASK_RETRIES, SHEET_PROVIDERS, SHEET_SEARCH_MAX, type CatalogRow } from '../course-catalog';
 
 // Nov 16 2026: "Find the official scorecard" asks EVERY provider that is not
 // the row's own, by name, until the card lacks nothing; answers fill the card.
@@ -16,7 +16,7 @@ const row = (over: Partial<CatalogRow> = {}): CatalogRow => ({
   ...over,
 } as CatalogRow);
 
-function fakeAdmin(budget: boolean[] = [], geometry: unknown = null, sheetSources: unknown = undefined, heldEvidence: unknown[] = []) {
+function fakeAdmin(budget: boolean[] = [], geometry: unknown = null, sheetSources: unknown = undefined, heldEvidence: unknown[] = [], courseEvidence: unknown[] = []) {
   const updates: Array<Record<string, unknown>> = [];
   const keys: string[] = [];
   const released: string[] = [];
@@ -29,12 +29,15 @@ function fakeAdmin(budget: boolean[] = [], geometry: unknown = null, sheetSource
     upsert: async (rows: typeof evidence) => { evidence.push(...rows); return { error: null }; },
     delete: () => ({ eq: () => ({ eq: () => ({ lt: async () => ({ error: null }) }) }) }),
     // topUpParEvidence asks whether the course already holds the provider's boxes.
-    select: () => ({ eq: () => ({ eq: () => ({ limit: async () => ({ data: heldEvidence, error: null }) }) }) }),
+    // confirmParsFromOpenGolf reads every row the course holds (one eq, awaited).
+    select: () => ({ eq: () => ({ eq: () => ({ limit: async () => ({ data: heldEvidence, error: null }) }), then: (resolve: (v: unknown) => void) => resolve({ data: courseEvidence, error: null }) }) }),
   };
   read.maybeSingle = async () => ({ data: { hole_geometry: geometry, ...(sheetSources === undefined ? {} : { sheet_sources: sheetSources }) }, error: null });
   read.update = (fields: Record<string, unknown>) => {
     updates.push(fields);
-    return { eq: async () => ({ error: null }) };
+    // Awaited after .eq(), or after .eq().is() (a write guarded on a null column).
+    const done = Object.assign(Promise.resolve({ error: null }), { is: async () => ({ error: null }) });
+    return { eq: () => done };
   };
   const answers = [...budget];
   const admin = {
@@ -726,5 +729,56 @@ describe('an older card gets its tee boxes once, on a pick', () => {
     const { admin, evidence } = fakeAdmin([], null, { pars: 'golfcourseapi' });
     expect(await topUpParEvidence(admin, whole())).toBe('no_match');
     expect(evidence).toEqual([]);
+  });
+});
+
+// Nov 20 2026, the evening: a complete card whose tees disagree on a par is
+// put to the other provider once a day on a pick, as a confirmation. The card
+// itself is never written here.
+describe('OpenGolfAPI confirms a complete card\'s pars', () => {
+  const SAVED = [4, 4, 4, 4, 5, 4, 4, 4, 4];
+  const whole = () => row({ hole_data: SAVED.map((par, i) => ({ number: i + 1, par, yardage: { blue: 400 + i }, handicap: i + 1 })) as never, total_par: 37, holes_count: 9 });
+  const boxes = (...pars: number[][]) => pars.map((p, i) => ({ source: 'golfcourseapi', votes: true, label: `t${i}`, pars: p }));
+  const DISAGREE = boxes(SAVED, [4, 4, 4, 4, 4, 4, 4, 4, 4]);
+
+  it('tees that disagree, no OpenGolfAPI row yet: one search and one detail, its par row is kept as evidence and the card is untouched', async () => {
+    const calls = stubProviders({ openGolf: openGolfDetail(SAVED) });
+    const { admin, evidence, keys, updates } = fakeAdmin([], null, { pars: 'golfcourseapi' }, [], DISAGREE);
+    expect(await confirmParsFromOpenGolf(admin, whole())).toBe('kept');
+    expect(calls).toEqual(['opengolfapi:search', 'opengolfapi:detail']);
+    expect(evidence).toEqual([expect.objectContaining({ source: 'opengolfapi', label: '', votes: false, pars: SAVED })]);
+    expect(keys[0]).toBe('golf-par-confirm-ask:c1');
+    expect(updates.filter(u => 'hole_data' in u)).toEqual([]);
+    expect(updates).toEqual([]); // this answer names no website
+  });
+
+  it('the answer\'s website is kept on a row that has none, and never replaces one', async () => {
+    stubProviders({ openGolf: { ...openGolfDetail(SAVED), website: 'https://camelotgolf.example/' } });
+    const bare = fakeAdmin([], null, undefined, [], DISAGREE);
+    expect(await confirmParsFromOpenGolf(bare.admin, whole())).toBe('kept');
+    expect(bare.updates).toEqual([{ website: 'https://camelotgolf.example/' }]);
+    const has = fakeAdmin([], null, undefined, [], DISAGREE);
+    expect(await confirmParsFromOpenGolf(has.admin, { ...whole(), website: 'https://own.example/' })).toBe('kept');
+    expect(has.updates).toEqual([]);
+  });
+
+  it('nothing to confirm, or already answered: the provider is not asked', async () => {
+    const calls = stubProviders();
+    expect(await confirmParsFromOpenGolf(fakeAdmin([], null, undefined, [], boxes(SAVED, SAVED)).admin, whole())).toBe('not_needed');
+    expect(await confirmParsFromOpenGolf(fakeAdmin([], null, undefined, [], [...DISAGREE, { source: 'opengolfapi', votes: false, label: '', pars: SAVED }]).admin, whole())).toBe('not_needed');
+    expect(await confirmParsFromOpenGolf(fakeAdmin().admin, whole())).toBe('not_needed');
+    expect(calls).toEqual([]);
+  });
+
+  it('once a day per course; a card of another length or one that differs on three holes is another card', async () => {
+    const calls = stubProviders();
+    expect(await confirmParsFromOpenGolf(fakeAdmin([false], null, undefined, [], DISAGREE).admin, whole())).toBe('not_today');
+    expect(calls).toEqual([]);
+    stubProviders({ openGolf: openGolfDetail([5, 5, 5, 4, 5, 4, 4, 4, 4]) });
+    const other = fakeAdmin([], null, undefined, [], DISAGREE);
+    expect(await confirmParsFromOpenGolf(other.admin, whole())).toBe('no_match');
+    expect(other.evidence).toEqual([]);
+    stubProviders({ openGolfSearch: { courses: [] } });
+    expect(await confirmParsFromOpenGolf(fakeAdmin([], null, undefined, [], DISAGREE).admin, whole())).toBe('no_match');
   });
 });
