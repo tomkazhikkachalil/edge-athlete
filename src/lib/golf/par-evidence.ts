@@ -216,6 +216,15 @@ export function lengthVotes(yards: ReadonlyArray<Readonly<Record<string, unknown
   });
 }
 
+/** May this judgement CHANGE a saved par by itself? Only a hole settled with
+ *  a strong source among those that agree (the club's own website, the other
+ *  provider). Two weak sources together confirm a par and close the hole, and
+ *  never change one: the map's tag and the hole's length both follow the back
+ *  tee, and the hole's length comes from the provider's own yardages, so it
+ *  is not the independent source Tom's rule asks for (Angus Glen South's 1st
+ *  is 490 yards from the back and a par 4 on the club's card). */
+const changesCard = (j: HoleJudgement): boolean => j.status === 'settled' && (j.settledBy ?? []).some(source => !WEAK_SOURCES.has(source));
+
 /** The holes of a SAVED card that wait for a person: a hole no tee gives a
  *  believable par for, and a hole the confirmations have SETTLED on a par
  *  that is not the saved one while that correction is unwritten (the app's
@@ -224,7 +233,7 @@ export function lengthVotes(yards: ReadonlyArray<Readonly<Record<string, unknown
  *  is decided by the rule and waits for nobody. */
 export function openHoles(saved: ReadonlyArray<{ number: number; par: number }>, judged: ReadonlyArray<HoleJudgement>): number[] {
   return judged
-    .filter(j => j.status === 'impossible' || (j.status === 'settled' && saved.find(s => s.number === j.hole)?.par !== j.par))
+    .filter(j => j.status === 'impossible' || (changesCard(j) && saved.find(s => s.number === j.hole)?.par !== j.par))
     .map(j => j.hole);
 }
 
@@ -237,13 +246,13 @@ export interface ParCorrection {
 }
 
 /** What may change on a SAVED card: a hole whose saved par is not the judged
- *  one, and only when the hole was settled by independent evidence or decided
- *  by an admin. An agreed, leaning or rule-accepted hole is never touched,
+ *  one, and only when the hole was settled with a STRONG source (changesCard)
+ *  or decided by an admin. An agreed, leaning or rule-accepted hole is never touched,
  *  whatever the saved card says (a filled card is otherwise not replaced). */
 export function parCorrections(saved: ReadonlyArray<{ number: number; par: number }>, judged: ReadonlyArray<HoleJudgement>): ParCorrection[] {
   const out: ParCorrection[] = [];
   for (const j of judged) {
-    if (j.status !== 'settled' && j.status !== 'admin') continue;
+    if (j.status !== 'admin' && !changesCard(j)) continue;
     const hole = saved.find(s => s.number === j.hole);
     if (!hole || j.par === null || hole.par === j.par) continue;
     out.push({ hole: j.hole, from: hole.par, to: j.par, reason: j.status === 'admin' ? 'admin' : 'settled', settledBy: j.settledBy ?? [] });
