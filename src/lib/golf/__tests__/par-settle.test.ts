@@ -11,15 +11,18 @@ const BOXES = [['blue', true, TRUE_CARD], ['white', true, '535344344534443444'],
 const WEBSITE = { source: 'website', label: '', votes: false, pars: pars(TRUE_CARD) };
 const only = (hole: number, par: number) => Array.from({ length: 18 }, (_, i) => (i === hole - 1 ? par : null));
 
-function fake(over: { card?: string | null; evidence?: unknown[]; sources?: Record<string, unknown> | null; geometry?: unknown; updateRows?: unknown[]; updateError?: boolean; logError?: boolean } = {}) {
+function fake(over: { card?: string | null; evidence?: unknown[]; sources?: Record<string, unknown> | null; geometry?: unknown; updateRows?: unknown[]; updateError?: boolean; logError?: boolean; movedCard?: string } = {}) {
   const card = over.card === undefined ? SAVED_WRONG : over.card;
-  const course = { id: 'c1', name: 'Champlain', total_par: card ? pars(card).reduce((a, b) => a + b, 0) : null, hole_data: card ? pars(card).map((par, i) => ({ number: i + 1, par, yardage: { blue: 400 + i }, handicap: i + 1 })) : null, sheet_sources: over.sources === undefined ? { pars: 'golfcourseapi', parsDisputed: [1, 3, 5, 10] } : over.sources, hole_geometry: over.geometry ?? null };
+  const course = { id: 'c1', name: 'Champlain', total_par: card ? pars(card).reduce((a, b) => a + b, 0) : null, hole_data: card ? pars(card).map((par, i) => ({ number: i + 1, par, yardage: { blue: (par === 3 ? 150 : 400) + i }, handicap: i + 1 })) : null, sheet_sources: over.sources === undefined ? { pars: 'golfcourseapi', parsDisputed: [1, 3, 5, 10] } : over.sources, hole_geometry: over.geometry ?? null };
   const updates: Array<{ fields: Record<string, unknown>; guard: Array<[string, unknown]> }> = [];
+  // The card as a second read finds it (someone else wrote it meanwhile).
+  const moved = over.movedCard ? { ...course, hole_data: pars(over.movedCard).map((par, i) => ({ number: i + 1, par, yardage: { blue: 400 + i }, handicap: i + 1 })) } : course;
+  let reads = 0;
   const logs: Array<Record<string, unknown>> = [];
   const admin = {
     from: (table: string) => {
       if (table === 'golf_courses') return {
-        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: course, error: null }) }) }),
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: reads++ === 0 ? course : moved, error: null }) }) }),
         update: (fields: Record<string, unknown>) => {
           const guard: Array<[string, unknown]> = [];
           const chain: Record<string, unknown> = {};
@@ -66,19 +69,25 @@ describe('settleCoursePars', () => {
     expect(f.logs).toEqual([]);
   });
 
-  it('with no independent source the holes stay disputed and the saved card is not touched', async () => {
+  it('with no independent source nothing waits and the saved card is not touched: the rule decided', async () => {
     const f = fake({ evidence: BOXES });
     const r = await settleCoursePars(f.admin, 'c1');
-    expect(r).toMatchObject({ applied: false, corrections: [], disputed: [1, 3, 5, 10] });
+    expect(r).toMatchObject({ applied: false, corrections: [], disputed: [] });
+    expect(r!.judged.filter(j => j.status === 'accepted' || j.status === 'leaning').map(j => j.hole)).toEqual([1, 3, 5, 10]);
     expect(f.updates).toEqual([]);
   });
 
-  it('the tagged map alone changes nothing: a lean against the saved par leaves the hole open, a lean with it closes the hole', async () => {
+  it('the tagged map alone changes nothing and leaves nothing waiting, whichever way it leans', async () => {
     const mapSays = (par: number) => ({ holes: Array.from({ length: 18 }, (_, i) => ({ hole: i + 1, par: i === 4 ? par : null })) });
     const against = await settleCoursePars(fake({ evidence: BOXES, geometry: mapSays(5) }).admin, 'c1');
-    expect(against).toMatchObject({ applied: false, corrections: [], disputed: [1, 3, 5, 10] });
-    expect(against!.judged[4]).toMatchObject({ status: 'leaning', par: 5, settledBy: ['map'] });
-    expect((await settleCoursePars(fake({ evidence: BOXES, geometry: mapSays(4) }).admin, 'c1'))!.disputed).toEqual([1, 3, 10]);
+    expect(against).toMatchObject({ applied: false, corrections: [], disputed: [] });
+    // The fixture's blue tee plays the hole at 404 yards: its length says 4, the map says 5, so nothing is confirmed.
+    expect(against!.judged[4]).toMatchObject({ status: 'accepted', par: 4, independent: { map: 5, length: 4 } });
+    // The map and the length together confirm the saved par: settled, and nothing to correct.
+    const withIt = await settleCoursePars(fake({ evidence: BOXES, geometry: mapSays(4) }).admin, 'c1');
+    expect(withIt!.judged[4]).toMatchObject({ status: 'settled', par: 4, settledBy: ['length', 'map'] });
+    expect(withIt!.corrections).toEqual([]);
+    expect((await settleCoursePars(fake({ evidence: BOXES, geometry: mapSays(4) }).admin, 'c1'))!.disputed).toEqual([]);
   });
 
   it('the map and the course\'s website together settle a hole; a map the card overruled is not evidence against it', async () => {
@@ -110,6 +119,14 @@ describe('settleCoursePars', () => {
     expect(await settleCoursePars(fake({ updateError: true }).admin, 'c1')).toMatchObject({ applied: false, skipped: 'write_failed' });
   });
 
+  it('two holes that moved in opposite directions keep the total and are still caught: nothing is written', async () => {
+    // Hole 1 went 5 → 4 and hole 2 went 3 → 4 since the card was judged: the total is still 70.
+    const f = fake({ movedCard: '445344344534443444' });
+    expect(await settleCoursePars(f.admin, 'c1')).toMatchObject({ applied: false, skipped: 'changed_meanwhile' });
+    expect(f.updates).toEqual([]);
+    expect(f.logs).toEqual([]);
+  });
+
   it('a record that fails to save is loud, and the correction still stands', async () => {
     const f = fake({ logError: true });
     expect((await settleCoursePars(f.admin, 'c1'))!.applied).toBe(true);
@@ -135,7 +152,7 @@ describe('while the app\'s own corrections are switched off', () => {
     expect(f.updates).toEqual([]);
     const waiting = await sweepParSettlement(fake({ evidence: BOXES }).admin);
     expect(waiting.changed).toEqual([]);
-    expect(waiting.waiting).toEqual([{ courseId: 'c1', name: 'Champlain', disputed: [1, 3, 5, 10] }]);
+    expect(waiting.waiting).toEqual([]);
   });
 });
 

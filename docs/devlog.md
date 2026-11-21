@@ -1,5 +1,31 @@
 # Development Log
 
+## November 20, 2026 (21:01) — Pars decided by logic: no hole waits for a person unless its data is impossible
+
+**Why.** Tom, with 13 of 23 taps still open: "I need it to be automated… If we go to market, I can't go through 30k plus courses. Need to use logic." Then: "There is usually an official score card by the course on the website. Can we use a few confirmation methods?" What should still reach him: only impossible data. Planned in three phases; this is phase 1 (logic only, no migration, no network).
+
+**What production showed first** (read-only, 39 cards, 675 holes, 6,012 tee-and-hole pairs). 40 holes have men's tees that disagree, and in nearly all the tees really play the hole at different pars (490 yards par 5 from black, 469 par 4 from gold). All 23 holes a person had been asked about were right as saved. Two tee boxes in 6,012 are impossible (a par 3 at 501 yards, one at 391).
+
+**The rule now** (`par-evidence.ts`, `sheet-merge.ts`).
+- A tee's par that is impossible for its length does not vote (`believablePar`, deliberately wide so real forward tees pass). It loses only to a believable one: bad lengths never turn a card into no card.
+- Default par: the two longest voting tees when they agree, otherwise most tees. On the 40 holes: 38 match the saved card (most-tees alone: 37). The two misses are Amberwood Village's 2nd, which the club prints both ways, and Champlain's 5th, the same shape as Angus Glen South's 1st where the club card says the opposite. No rule on the tees alone separates those two; that is what a confirmation is for.
+- Confirmations are unequal. Strong (the club's own website, the other provider) settle alone and are not outvoted by weak ones. Weak (the map's tag, the hole's own length, silent within 30 yards of a boundary) settle only two together; one alone leans, and a lean never changes a card.
+- Nothing confirms: `accepted`. The default stands and the hole is closed.
+- `impossible`: of the tees whose length is known, none gives a par that length allows. This and a confirmed correction not yet written are all the console lists.
+
+**Also fixed.** An independent row of another hole count is no longer read against the card. `settleCoursePars` re-reads the pars before writing (two holes moved in opposite directions keep the total, which was the only guard). The console shows three counts and, for an impossible hole, offers what the boxes say and what the length suggests.
+
+**Changed while building, both found by tests.** The first version blanked a card whose lengths were nonsense (every par "impossible" became no par, so three real-course fixtures returned no card): an impossible par now only loses to a believable one. And a tee with no yardage on file was vouching for an impossible hole: only tees with a known length count for that check.
+
+**Proof.**
+- The 40 real holes are a fixture (`fixtures/par-disputed-holes.json`): every one is decided with no person and no correction; the two misses are named in the test.
+- The whole rule run read-only against production's 39 cards: 635 agreed, 12 settled, 10 admin, 13 leaning, 5 accepted, **0 waiting, 0 corrections**. All 12 settled holes equal the saved par.
+- `e2e/admin-golf-par-review.spec.ts` on staging against the built app: a course whose tees disagree on four holes lists two (one impossible, one confirmed and unwritten), the three counts show, a decision changes the card and is recorded, one tap closes the impossible hole and the course leaves the list. Passed.
+
+**Unchanged.** `PAR_SETTLE_WRITES` is `false`. Tom's 10 decisions stay and still win. Golfers enter no pars; no AI; nothing from a directory site.
+
+**Next (approved plan).** Phase 2: the website reader and OpenGolfAPI as confirmations on courses that already have a card, and a refresh that stops erasing a course's website (migration 318, Tom's SQL). Phase 3: the app's own corrections on, after Tom reads the dry list.
+
 ## November 20, 2026 (20:21) — Close of the par review round: 10 of 23 holes decided on production, 13 still wait for Tom's taps
 
 **#1604 on production** (`70437fee`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. The review list read as the console reads it: every waiting hole carries its tees' yardages.

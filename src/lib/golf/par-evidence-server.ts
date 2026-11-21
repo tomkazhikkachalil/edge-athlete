@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { PAR_BOX_SOURCE, judgePars, openHoles, parCorrections, taggedMapPars, type HoleJudgement, type ParCorrection, type ParEvidenceRow } from '@/lib/golf/par-evidence';
+import { estimatePar } from '@/lib/golf/map-sheet';
+import { PAR_BOX_SOURCE, judgePars, judgementCounts, lengthVotes, openHoles, parCorrections, taggedMapPars, type HoleJudgement, type ParCorrection, type ParEvidenceRow } from '@/lib/golf/par-evidence';
 
 /**
  * The one writer of `golf_par_evidence` (migration 317, Nov 20 2026): what a
@@ -57,7 +58,7 @@ export interface SettleResult {
   holes: number;
   /** What changed, or (dry) what would. */
   corrections: ParCorrection[];
-  /** Holes still waiting for evidence or a person. */
+  /** Holes waiting for a person: impossible data, or a settled correction not yet written. */
   disputed: number[];
   judged: HoleJudgement[];
   applied: boolean;
@@ -69,7 +70,7 @@ interface SettleRow {
   id: string;
   name: string;
   total_par: number | null;
-  hole_data: Array<{ number: number; par: number } & Record<string, unknown>> | null;
+  hole_data: Array<{ number: number; par: number; yardage?: unknown } & Record<string, unknown>> | null;
   sheet_sources: (Record<string, unknown> & { mapOverruled?: boolean; parsDisputed?: number[] }) | null;
   hole_geometry: { holes?: Array<{ hole: number; par?: number | null }> } | null;
 }
@@ -77,10 +78,14 @@ interface SettleRow {
 /** A saved card judged against its evidence and its own tagged map pars. A
  *  map the card overruled is not evidence against that card. In memory: the
  *  one judgement both a single course and the whole review list go through. */
-function judgeSavedCard(row: Pick<SettleRow, 'hole_data' | 'sheet_sources' | 'hole_geometry'>, evidence: ReadonlyArray<ParEvidenceRow>): HoleJudgement[] {
+export function judgeSavedCard(row: Pick<SettleRow, 'hole_data' | 'sheet_sources' | 'hole_geometry'>, evidence: ReadonlyArray<ParEvidenceRow>): HoleJudgement[] {
   const holes = row.hole_data?.length ?? 0;
   const mapPars = row.sheet_sources?.mapOverruled ? null : taggedMapPars(row.hole_geometry?.holes, holes);
-  return judgePars(evidence, mapPars, holes);
+  // The card's own lengths by tee: what makes a tee's par impossible, which
+  // tees are the longest, and the hole's length as one weak vote.
+  const yards = (row.hole_data ?? []).map(h => (h.yardage && typeof h.yardage === 'object' ? (h.yardage as Record<string, unknown>) : null));
+  const men = evidence.filter(e => e.source === PAR_BOX_SOURCE && e.votes).map(e => e.label);
+  return judgePars(evidence, mapPars, holes, { yards, lengthPars: lengthVotes(yards, men, estimatePar) });
 }
 
 /**
@@ -123,8 +128,14 @@ export async function settleCoursePars(
   });
   const sources = { ...(row.sheet_sources ?? {}) };
   if (disputed.length) sources.parsDisputed = disputed; else delete sources.parsDisputed;
+  // Only the card that was judged. The total guards the write itself; the pars
+  // are read once more first, because two holes moved in opposite directions
+  // leave the total where it was.
+  const again = await admin.from('golf_courses').select('id, name, total_par, hole_data, sheet_sources, hole_geometry').eq('id', courseId).maybeSingle();
+  const now = (again.data as unknown as SettleRow | null)?.hole_data ?? [];
+  if (again.error || now.length !== saved.length || now.some((h, i) => h.number !== saved[i].number || h.par !== saved[i].par)) return { ...result, skipped: 'changed_meanwhile' };
   let write = admin.from('golf_courses').update({ hole_data: next, total_par: next.reduce((sum, h) => sum + h.par, 0), sheet_sources: sources }).eq('id', courseId);
-  // Only the card that was judged: a total that moved meanwhile means someone else wrote it.
+  // A total that moved meanwhile means someone else wrote it.
   write = row.total_par === null ? write.is('total_par', null) : write.eq('total_par', row.total_par);
   const done = await write.select('id');
   if (done.error) {
@@ -206,8 +217,28 @@ export interface ParReviewHole {
   yards: Record<string, number>;
   /** What the independent sources say ('map', 'website', 'opengolfapi'). */
   independent: Record<string, number>;
-  /** Every par a box gave, lowest first: the choices offered. */
+  /** The choices offered, lowest first: every believable par a box gave; for
+   *  a hole no box is believable on, what the boxes say and what its length suggests. */
   candidates: number[];
+  /** Why it waits: no tee gives a par its length allows, or the confirmations
+   *  settled a par that is not written yet. */
+  why: 'impossible' | 'unwritten';
+  /** The par the confirmations settled on (why `unwritten`). */
+  settled: number | null;
+}
+
+/** The pars a person may choose for a hole without a note: what a believable
+ *  box gave, what any other source said, and for an impossible hole what the
+ *  boxes say as they stand and what the hole's longest tee suggests. */
+function holeChoices(saved: SettleRow['hole_data'], evidence: ReadonlyArray<ParEvidenceRow>, judged: HoleJudgement): number[] {
+  const out = new Set<number>([...judged.candidates, ...Object.values(judged.independent)]);
+  if (judged.status === 'impossible') {
+    const h = judged.hole - 1;
+    for (const b of evidence) if (b.source === PAR_BOX_SOURCE && typeof b.pars[h] === 'number') out.add(b.pars[h] as number);
+    const lengths = Object.values((saved?.[h]?.yardage as Record<string, unknown> | undefined) ?? {}).filter((y): y is number => typeof y === 'number' && y > 0);
+    if (lengths.length) out.add(estimatePar(Math.max(...lengths)));
+  }
+  return [...out].filter(p => Number.isInteger(p) && p >= 3 && p <= 6).sort((a, b) => a - b);
 }
 export interface ParReviewCourse {
   courseId: string;
@@ -236,6 +267,10 @@ export interface ParReview {
   changes: ParReviewChange[];
   /** Courses that hold provider tee boxes at all. */
   judged: number;
+  /** Holes whose tees disagreed, by how they were decided, over every judged
+   *  card: confirmed by other sources (or an admin), decided by the rule
+   *  alone, and impossible (the ones listed). */
+  counts: { confirmed: number; byRule: number; impossible: number };
 }
 
 /** How many course rows one read of the review list asks for (each carries its map lines). */
@@ -260,6 +295,7 @@ export async function readParReview(admin: SupabaseClient): Promise<ParReview> {
   }
   const ids = [...byCourse.entries()].filter(([, rows]) => rows.some(e => e.source === PAR_BOX_SOURCE)).map(([id]) => id).slice(0, 2000);
   const courses: ParReviewCourse[] = [];
+  const counts = { confirmed: 0, byRule: 0, impossible: 0 };
   for (let i = 0; i < ids.length; i += REVIEW_CHUNK) {
     const chunk = await admin.from('golf_courses').select('id, name, city, region, total_par, hole_data, sheet_sources, hole_geometry').in('id', ids.slice(i, i + REVIEW_CHUNK));
     if (chunk.error) throw new Error(chunk.error.message);
@@ -269,6 +305,10 @@ export async function readParReview(admin: SupabaseClient): Promise<ParReview> {
       if (saved.length === 0) continue;
       const evidence = byCourse.get(row.id) ?? [];
       const judged = judgeSavedCard(row, evidence);
+      const tally = judgementCounts(judged);
+      counts.confirmed += tally.confirmed;
+      counts.byRule += tally.byRule;
+      counts.impossible += tally.impossible;
       const open = openHoles(saved, judged);
       if (open.length === 0) continue;
       const boxes = evidence.filter(e => e.source === PAR_BOX_SOURCE);
@@ -284,7 +324,9 @@ export async function readParReview(admin: SupabaseClient): Promise<ParReview> {
           boxes: Object.fromEntries(boxes.map(b => [b.label, b.pars[hole - 1] ?? null])),
           yards: Object.fromEntries(Object.entries((saved.find(h => h.number === hole)?.yardage as Record<string, unknown> | undefined) ?? {}).filter((e): e is [string, number] => typeof e[1] === 'number' && e[1] > 0)),
           independent: judged[hole - 1].independent,
-          candidates: judged[hole - 1].candidates,
+          candidates: holeChoices(saved, evidence, judged[hole - 1]),
+          why: judged[hole - 1].status === 'impossible' ? 'impossible' as const : 'unwritten' as const,
+          settled: judged[hole - 1].status === 'settled' ? judged[hole - 1].par : null,
         })),
       });
     }
@@ -302,6 +344,7 @@ export async function readParReview(admin: SupabaseClient): Promise<ParReview> {
   return {
     courses,
     judged: ids.length,
+    counts,
     changes: (log.data ?? []).map(c => ({ id: c.id as string, courseName: c.course_name as string, hole: c.hole as number, fromPar: c.from_par as number, toPar: c.to_par as number, reason: c.reason as string, settledBy: (c.settled_by as string | null) ?? null, actor: c.actor as string, note: (c.note as string | null) ?? null, changedAt: c.changed_at as string })),
   };
 }
@@ -326,10 +369,11 @@ export async function decideHolePar(admin: SupabaseClient, input: { courseId: st
   if (!Number.isInteger(hole) || hole < 1 || hole > before.holes) return { ok: false, error: 'bad_hole' };
   const note = input.note?.trim() || null;
   const judged = before.judged[hole - 1];
-  const known = new Set([...(judged?.candidates ?? []), ...Object.values(judged?.independent ?? {})]);
-  if (!known.has(par) && !note) return { ok: false, error: 'note_required' };
   // One admin row per course: this hole's decision joins the ones already made.
   const evidence = await readParEvidence(admin, courseId);
+  const card = await admin.from('golf_courses').select('hole_data').eq('id', courseId).maybeSingle();
+  const known = new Set(judged ? holeChoices(((card.data as { hole_data?: SettleRow['hole_data'] } | null)?.hole_data) ?? null, evidence, judged) : []);
+  if (!known.has(par) && !note) return { ok: false, error: 'note_required' };
   const decided: Array<number | null> = Array.from({ length: before.holes }, (_, i) => evidence.filter(e => e.source === 'admin').map(e => e.pars[i]).filter((p): p is number => typeof p === 'number').pop() ?? null);
   decided[hole - 1] = par;
   if (!(await recordParEvidence(admin, courseId, [{ source: 'admin', label: '', votes: false, pars: decided }]))) return { ok: false, error: 'write_failed' };

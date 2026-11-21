@@ -1,4 +1,4 @@
-import { parsFromTees } from '@/lib/golf/sheet-merge';
+import { believablePar, parsFromTees } from '@/lib/golf/sheet-merge';
 
 /**
  * A scorecard's pars, judged from evidence (Nov 20 2026; migration 317). Pure.
@@ -21,8 +21,25 @@ import { parsFromTees } from '@/lib/golf/sheet-merge';
  *      all give ONE par, and it is a par some box of the provider gave:
  *      `settled` when that is the course's own website, the other provider,
  *      or two sources together; `leaning` when it is the map ALONE.
- *   4. Otherwise `disputed`: the par is parsFromTees' choice (the better
- *      default, not a proof) and the hole waits for evidence or a person.
+ *   4. Otherwise `accepted`: the par is parsFromTees' choice (the better
+ *      default, not a proof). The hole waits for NOBODY.
+ *
+ * Decided by logic, not by a person (Tom, Nov 20 2026, the same evening: "I
+ * need it to be automated… I can't go through 30k plus courses"; what still
+ * reaches him is "only impossible data"). A day of taps showed why: of the 40
+ * holes production held whose men's tees disagree, nearly every one is a hole
+ * the tees really play at different pars, and all 23 a person was asked
+ * about were right as saved. So:
+ *   - a tee's par that is impossible for that tee's length is ignored
+ *     (believablePar), and a hole NO tee gives a believable par for is
+ *     `impossible`: the one thing the admin console still lists;
+ *   - confirmations are several and unequal. STRONG, settling alone: the
+ *     club's own website card, the other provider. WEAK, settling only two
+ *     together: the map's par tag, the hole's own length (`lengthPars`, handed
+ *     in by the caller). When a strong source speaks the strong ones decide
+ *     and must all give the same par; otherwise the weak ones must. Always a
+ *     par some tee gave;
+ *   - a hole nothing confirms keeps the default and is closed.
  *
  * Why the map alone only leans (measured on production's first dry sweep, Nov
  * 20 2026, 39 cards): it agreed with the saved card on every disputed hole it
@@ -47,7 +64,18 @@ export interface ParEvidenceRow {
   pars: ReadonlyArray<number | null>;
 }
 
-export type ParStatus = 'admin' | 'agreed' | 'settled' | 'leaning' | 'disputed' | 'unknown';
+export type ParStatus = 'admin' | 'agreed' | 'settled' | 'leaning' | 'accepted' | 'impossible' | 'unknown';
+
+/** Sources that confirm only together with another (see the header). */
+const WEAK_SOURCES = new Set(['map', 'length']);
+
+/** What the caller knows beyond the evidence rows. */
+export interface ParContext {
+  /** Each hole's length by tee, in hole order, keyed like the evidence labels. */
+  yards?: ReadonlyArray<Readonly<Record<string, unknown>> | null | undefined> | null;
+  /** A par the hole's LENGTH alone suggests, hole by hole (null: says nothing). A weak vote, never a par. */
+  lengthPars?: ReadonlyArray<number | null> | null;
+}
 
 export interface HoleJudgement {
   hole: number;
@@ -67,14 +95,17 @@ const validPar = (p: unknown): p is number => typeof p === 'number' && Number.is
 /** What the independent sources say about each hole: the other provider, the
  *  course's own website, the tagged map. A source that contradicts itself
  *  across rows says nothing about that hole. */
-function independentPars(rows: ReadonlyArray<ParEvidenceRow>, mapPars: ReadonlyArray<number | null> | null | undefined, holes: number): Array<Record<string, number>> {
+function independentPars(rows: ReadonlyArray<ParEvidenceRow>, mapPars: ReadonlyArray<number | null> | null | undefined, holes: number, lengthPars?: ReadonlyArray<number | null> | null): Array<Record<string, number>> {
   const out: Array<Record<string, number>> = Array.from({ length: holes }, () => ({}));
   const bySource = new Map<string, Array<ReadonlyArray<number | null>>>();
   for (const r of rows) {
     if (r.source === PAR_BOX_SOURCE || r.source === 'admin') continue;
+    // A card of another length is another card (a nine's row is not this eighteen's front).
+    if (r.pars.length !== holes) continue;
     bySource.set(r.source, [...(bySource.get(r.source) ?? []), r.pars]);
   }
   if (mapPars) bySource.set('map', [mapPars]);
+  if (lengthPars?.length === holes) bySource.set('length', [lengthPars]);
   for (const [source, lists] of bySource) {
     for (let h = 0; h < holes; h++) {
       const said = new Set(lists.map(l => l[h]).filter(validPar));
@@ -84,40 +115,59 @@ function independentPars(rows: ReadonlyArray<ParEvidenceRow>, mapPars: ReadonlyA
   return out;
 }
 
-export function judgePars(rows: ReadonlyArray<ParEvidenceRow>, mapPars: ReadonlyArray<number | null> | null | undefined, holes: number): HoleJudgement[] {
-  const boxes = rows.filter(r => r.source === PAR_BOX_SOURCE && r.pars.length === holes);
+export function judgePars(rows: ReadonlyArray<ParEvidenceRow>, mapPars: ReadonlyArray<number | null> | null | undefined, holes: number, context: ParContext = {}): HoleJudgement[] {
+  const raw = rows.filter(r => r.source === PAR_BOX_SOURCE && r.pars.length === holes);
+  const yardsOf = (label: string, h: number): number | null => {
+    const y = context.yards?.[h]?.[label];
+    return typeof y === 'number' && y > 0 ? y : null;
+  };
+  // A tee's par that is impossible for that tee's length says nothing.
+  const boxes = raw.map(b => ({ ...b, pars: b.pars.map((p, h) => (validPar(p) && believablePar(p, yardsOf(b.label, h)) ? p : null)) }));
+  const boxYards = context.yards ? boxes.map(b => Array.from({ length: holes }, (_, h) => yardsOf(b.label, h))) : undefined;
   const admin = rows.filter(r => r.source === 'admin');
-  const independent = independentPars(rows, mapPars, holes);
+  const independent = independentPars(rows, mapPars, holes, context.lengthPars);
   const voterIndexes = boxes.map((b, i) => (b.votes ? i : -1)).filter(i => i >= 0);
   const voters = voterIndexes.length > 0 ? voterIndexes : boxes.map((_, i) => i);
   const reference = voters[0] ?? 0;
-  const chosen = boxes.length > 0 ? parsFromTees(boxes.map(b => b.pars), reference, voters) : null;
+  // The raw boxes go in: parsFromTees drops an impossible par itself, and keeps a hole no box is believable on.
+  const chosen = raw.length > 0 ? parsFromTees(raw.map(b => b.pars), reference, voters, boxYards) : null;
 
   return Array.from({ length: holes }, (_, h): HoleJudgement => {
     const hole = h + 1;
-    const candidates = [...new Set(boxes.map(b => b.pars[h]).filter(validPar))].sort((a, b) => a - b);
+    // Impossible: of the tees whose length is known, none gives a par that
+    // length allows. A tee with no length on the card cannot vouch for the hole.
+    const measured = raw.filter(b => validPar(b.pars[h]) && yardsOf(b.label, h) !== null);
+    const impossible = measured.length > 0 && measured.every(b => !believablePar(b.pars[h] as number, yardsOf(b.label, h)));
+    const candidates = impossible ? [] : [...new Set(boxes.map(b => b.pars[h]).filter(validPar))].sort((a, b) => a - b);
     const base = { hole, candidates, independent: independent[h] };
     // 1. An admin's decision (the last row that speaks about the hole).
     const decided = admin.map(r => r.pars[h]).filter(validPar).pop();
     if (decided !== undefined) return { ...base, par: decided, status: 'admin' };
     if (!chosen) return { ...base, par: null, status: 'unknown' };
+    // The tees speak about the hole and none is believable for its length.
+    if (impossible) return { ...base, par: chosen.pars[h] ?? null, status: 'impossible' };
     // 2. The voting boxes agree.
     const voted = new Set(voters.map(i => boxes[i].pars[h]).filter(validPar));
     const fallback = chosen.pars[h] ?? null;
     if (voted.size <= 1) return { ...base, par: fallback, status: fallback === null ? 'unknown' : 'agreed' };
-    // 3. They disagree: independent sources that all give one candidate par settle it.
+    // 3. They disagree: confirmations settle it. The STRONG sources decide
+    //    when any speaks (a club's own card is not outvoted by one mapper's
+    //    tag or by the hole's length); the weak ones only among themselves.
     const said = Object.entries(independent[h]);
-    const values = new Set(said.map(([, par]) => par));
+    const strong = said.filter(([source]) => !WEAK_SOURCES.has(source));
+    const deciding = strong.length > 0 ? strong : said;
+    const values = new Set(deciding.map(([, par]) => par));
     if (values.size === 1) {
       const par = [...values][0];
       if (candidates.includes(par)) {
-        const by = said.map(([source]) => source).sort();
-        // The map alone leans; anything else, or two together, settles.
-        return { ...base, par, status: by.length >= 2 || by[0] !== 'map' ? 'settled' : 'leaning', settledBy: by };
+        // Named: every source that gave this par, the weak ones that agree included.
+        const by = said.filter(([, p]) => p === par).map(([source]) => source).sort();
+        // One weak source alone leans; a strong one, or two weak together, settles.
+        return { ...base, par, status: strong.length > 0 || by.length >= 2 ? 'settled' : 'leaning', settledBy: by };
       }
     }
-    // 4. Still disputed.
-    return { ...base, par: fallback, status: 'disputed' };
+    // 4. Nothing confirms: the default stands and the hole is closed.
+    return { ...base, par: fallback, status: fallback === null ? 'unknown' : 'accepted' };
   });
 }
 
@@ -137,20 +187,44 @@ export function taggedMapPars(mapHoles: ReadonlyArray<{ hole: number; par?: numb
   return out.some(p => p !== null) ? out : null;
 }
 
-/** The hole numbers the evidence itself leaves open (no card in hand). */
+/** The holes the tees disagree on that no confirmation has settled (no card in hand). */
 export function disputedHoles(judged: ReadonlyArray<HoleJudgement>): number[] {
-  return judged.filter(j => j.status === 'disputed' || j.status === 'leaning').map(j => j.hole);
+  return judged.filter(j => j.status === 'accepted' || j.status === 'leaning').map(j => j.hole);
 }
 
-/** The holes of a SAVED card still waiting for evidence or a person: every
- *  disputed hole, and a hole the evidence leans on or has settled when its par
- *  is NOT the saved one. A lean or a settlement that agrees with the saved par
- *  closes the hole. A settled hole whose correction has not been written (the
- *  app's own corrections are switched off, or the write failed) is still open:
- *  it must not leave the review list while the card is still wrong. */
+/** How a card's holes were judged, for the console's summary line. */
+export function judgementCounts(judged: ReadonlyArray<HoleJudgement>): { confirmed: number; byRule: number; impossible: number } {
+  return {
+    confirmed: judged.filter(j => j.status === 'settled' || j.status === 'admin').length,
+    byRule: judged.filter(j => j.status === 'accepted' || j.status === 'leaning').length,
+    impossible: judged.filter(j => j.status === 'impossible').length,
+  };
+}
+
+/** The hole's own length as a WEAK vote: the par the longest men's tee's
+ *  length suggests, and only when that length is well clear of a boundary
+ *  (`margin` yards either side). Silent near a boundary, where length says
+ *  nothing a tee did not already say. `estimate` is map-sheet's estimatePar,
+ *  handed in so this file keeps its single import. */
+export function lengthVotes(yards: ReadonlyArray<Readonly<Record<string, unknown>> | null | undefined>, voterLabels: ReadonlyArray<string>, estimate: (yards: number) => number, margin = 30): Array<number | null> {
+  return yards.map(byTee => {
+    const lengths = voterLabels.map(l => byTee?.[l]).filter((y): y is number => typeof y === 'number' && y > 0);
+    if (lengths.length === 0) return null;
+    const longest = Math.max(...lengths);
+    const par = estimate(longest);
+    return estimate(longest - margin) === par && estimate(longest + margin) === par ? par : null;
+  });
+}
+
+/** The holes of a SAVED card that wait for a person: a hole no tee gives a
+ *  believable par for, and a hole the confirmations have SETTLED on a par
+ *  that is not the saved one while that correction is unwritten (the app's
+ *  own corrections are switched off, or the write failed): it must not be
+ *  hidden while the card is still wrong. A hole the tees merely disagree on
+ *  is decided by the rule and waits for nobody. */
 export function openHoles(saved: ReadonlyArray<{ number: number; par: number }>, judged: ReadonlyArray<HoleJudgement>): number[] {
   return judged
-    .filter(j => j.status === 'disputed' || ((j.status === 'leaning' || j.status === 'settled') && saved.find(s => s.number === j.hole)?.par !== j.par))
+    .filter(j => j.status === 'impossible' || (j.status === 'settled' && saved.find(s => s.number === j.hole)?.par !== j.par))
     .map(j => j.hole);
 }
 
@@ -164,7 +238,7 @@ export interface ParCorrection {
 
 /** What may change on a SAVED card: a hole whose saved par is not the judged
  *  one, and only when the hole was settled by independent evidence or decided
- *  by an admin. An agreed, leaning or still-disputed hole is never touched,
+ *  by an admin. An agreed, leaning or rule-accepted hole is never touched,
  *  whatever the saved card says (a filled card is otherwise not replaced). */
 export function parCorrections(saved: ReadonlyArray<{ number: number; par: number }>, judged: ReadonlyArray<HoleJudgement>): ParCorrection[] {
   const out: ParCorrection[] = [];
