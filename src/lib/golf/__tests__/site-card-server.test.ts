@@ -259,6 +259,22 @@ describe('runSiteEvidenceBatch: the club\'s own card as a confirmation', () => {
     expect(f.courseUpdates).toEqual([{ site_evidence_at: expect.any(String), site_evidence_outcome: 'other_card' }]);
   });
 
+  it('another course\'s card on the same site is passed over and the visit goes on to this course\'s (staging: Angus Glen South was given the North card)', async () => {
+    const other = ['5', '4', '4', '3', '5', '4', '4', '3', '4']; // sums to 36 too, and differs on seven holes
+    const otherTable = `<title>Camelot Golf & Country Club</title><table>${tr(['Par', ...other, '36'])}${tr(['Blue', ...YARDS, '3320'])}</table>`;
+    const home = '<title>Camelot Golf & Country Club</title><a href="/north-scorecard">North scorecard</a><a href="/south-scorecard">South scorecard</a>';
+    const both = site({ 'https://www.camelot.com/': html(home), 'https://www.camelot.com/north-scorecard': html(otherTable), 'https://www.camelot.com/south-scorecard': html(cardTable('Camelot Golf & Country Club')) });
+    const f = fakeAdmin(carded());
+    const r = await runSiteEvidenceBatch(f.admin, { rows: 1, dryRun: false }, both.deps);
+    expect(r).toMatchObject({ outcomes: { ok: 1 }, kept: [{ url: 'https://www.camelot.com/south-scorecard' }] });
+    expect(f.upserts).toEqual([expect.objectContaining({ source: 'website', pars: WEBSITE_PARS })]);
+    // Only the other course's card on the site: nothing is kept.
+    const only = site({ 'https://www.camelot.com/': html(home), 'https://www.camelot.com/north-scorecard': html(otherTable) });
+    const g = fakeAdmin(carded());
+    expect((await runSiteEvidenceBatch(g.admin, { rows: 1, dryRun: false }, only.deps)).outcomes).toEqual({ other_card: 1 });
+    expect(g.upserts).toEqual([]);
+  });
+
   it('a directory address is stamped without a visit; a dry run writes nothing; no budget, no visit', async () => {
     const dir = fakeAdmin(carded({ website: 'https://www.golfpass.com/travel-advisor/courses/1-camelot' }));
     const none = site({});

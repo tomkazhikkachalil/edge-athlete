@@ -48,7 +48,10 @@ export type SiteOutcome =
   /** The text holds more than one course's card. */
   | 'several_cards'
   /** A pick saved a card while the visit ran. */
-  | 'taken';
+  | 'taken'
+  /** A card was read and it is not the one the caller is looking for (the
+   *  evidence visit: another course of the same club, or another length). */
+  | 'other_card';
 
 export interface SiteVisitRow {
   id: string;
@@ -90,7 +93,15 @@ export function siteHomeUrl(website: string | null | undefined): URL | null {
  *  course's (two courses' cards on one sheet are refused before that matters). */
 export async function visitCourseSite(
   row: SiteVisitRow,
-  evidence: { mapPars: ReadonlyArray<{ number: number; par: number }> | null; mapYards: ReadonlyArray<number> | null; siteIsThisCourseAlone: boolean },
+  evidence: {
+    mapPars: ReadonlyArray<{ number: number; par: number }> | null;
+    mapYards: ReadonlyArray<number> | null;
+    siteIsThisCourseAlone: boolean;
+    /** The caller's own test of a card that passed every check. A card it
+     *  refuses is passed over and the visit goes on to the site's other
+     *  scorecards (a club's site carries each of its courses' cards). */
+    accept?: (card: SiteCard) => boolean;
+  },
   deps: SiteVisitDeps = {}
 ): Promise<SiteVisit> {
   const now = deps.now ?? Date.now;
@@ -120,6 +131,7 @@ export async function visitCourseSite(
   let refusal: SiteCardVerdict | null = null;
   let several = false;
   let unread = false; // a scorecard that is a picture, or a PDF without text
+  let passedOver = false; // a good card the caller did not accept
 
   const tryLines = (lines: string[][], title: string, url: string): SiteVisit | null => {
     const parsed = parseCardLines(lines);
@@ -127,7 +139,11 @@ export async function visitCourseSite(
     const named = nameInText(lines, title, [row.name, row.club_name]);
     const read = parseSiteRead({ ...parsed.raw, printedName: named ? row.name : null });
     const { verdict, card } = siteCardVerdict(row, read, null, evidence.mapPars, evidence.mapYards, { singleReading: true, nameConfirmed: evidence.siteIsThisCourseAlone });
-    if (verdict === 'ok' && card) return done('ok', card, url);
+    if (verdict === 'ok' && card) {
+      if (!evidence.accept || evidence.accept(card)) return done('ok', card, url);
+      passedOver = true;
+      return null;
+    }
     refusal ??= verdict;
     return null;
   };
@@ -179,6 +195,7 @@ export async function visitCourseSite(
       if (inner.visit) return inner.visit;
     }
   }
+  if (passedOver) return done('other_card');
   if (refusal) return done(refusal);
   if (several) return done('several_cards');
   return done(unread ? 'picture_only' : 'no_card');
@@ -315,7 +332,15 @@ async function saveVisit(admin: SupabaseClient, row: DueRow, visit: SiteVisit): 
 // vote there), and it never writes the card: it keeps one `website` row in
 // golf_par_evidence and lets the judgement decide.
 
-export type SiteEvidenceOutcome = SiteOutcome | 'other_card' | 'not_kept';
+export type SiteEvidenceOutcome = SiteOutcome | 'not_kept';
+
+/** How many holes a website's card may differ on from the saved card and
+ *  still be that course's card (the bound the other provider is held to). A
+ *  confirmation can only ever move a hole the tees disagree on; a card that
+ *  differs widely is another course's (staging, Nov 20 2026: for Angus Glen
+ *  SOUTH the first card on the club's site was the NORTH course's, and the
+ *  club's name printed on it passed the name check). */
+export const SITE_EVIDENCE_PAR_DIFF_MAX = 2;
 
 export interface SiteEvidenceSummary {
   ok: boolean;
@@ -373,10 +398,12 @@ export async function runSiteEvidenceBatch(
     const alone = visitable ? !(await hostIsShared(admin, row, bareHost(home!.hostname))) : false;
     // No map pars: the card is not held to the map's tags here. The map's
     // hole LENGTHS still say whose card it is when no name is printed.
-    const visit = await visitCourseSite(row, { mapPars: null, mapYards: mapEvidence(row.hole_geometry).mapYards, siteIsThisCourseAlone: alone }, deps);
+    // The card read must be THIS card: its length, and its pars on all but a
+    // couple of holes. Any other card on the site is passed over.
+    const saved = row.hole_data;
+    const accept = (card: SiteCard) => card.hole_data.length === saved.length && card.hole_data.filter((h, i) => h.par !== saved[i].par).length <= SITE_EVIDENCE_PAR_DIFF_MAX;
+    const visit = await visitCourseSite(row, { mapPars: null, mapYards: mapEvidence(row.hole_geometry).mapYards, siteIsThisCourseAlone: alone, accept }, deps);
     let outcome: SiteEvidenceOutcome = visit.outcome;
-    // The card read must be THIS card's shape: a nine is not an eighteen's front.
-    if (outcome === 'ok' && visit.card && visit.card.hole_data.length !== row.hole_data.length) outcome = 'other_card';
     if (!opts.dryRun) {
       if (outcome === 'ok' && visit.card) {
         const kept = await recordParEvidence(admin, row.id, [{ source: 'website', label: '', votes: false, pars: visit.card.hole_data.map(h => h.par) }]);
