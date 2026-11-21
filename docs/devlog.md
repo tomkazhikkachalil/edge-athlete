@@ -1,5 +1,15 @@
 # Development Log
 
+## November 20, 2026 (22:14) — The app's own par corrections are on, and only a strong source may change a card
+
+**Why.** Phase 3 of the plan. Tom, after the dry list from production (39 cards, 0 holes waiting, no correction proposed): "yes to both, go ahead" (corrections on; a shorter retry for sites that do not answer, which is migration 319 in its own PR).
+
+**Changed.** `PAR_SETTLE_WRITES = true`. From now a hole whose tees disagree is corrected by the app when a confirmation settles it on a par that is not the saved one: after evidence is kept on a pick, a weekly refresh or a website visit, and from the admin sweep when asked to write. One hole, to a par a tee gave, logged in `golf_par_changes` as `system` with what every source said, shown under recent changes on the console. An admin's decision still wins.
+
+**Tightened before switching on (my call, said to Tom).** Phase 1 let two weak sources together settle a hole. That is fine for confirming a par and closing the hole; it is not enough to CHANGE one. The map's tag and the hole's length both follow the back tee, and the length comes from the provider's own yardages, so the pair is not the independent source Tom's rule names. Angus Glen South's 1st is the case: 490 yards from the back, a par 4 on the club's card. So `changesCard` requires a strong source (the club's own website, the other provider) among those that agree; `parCorrections` and `openHoles` both use it. Nothing on production is affected today: no correction was proposed either way.
+
+**Proof.** `e2e/admin-golf-par-review.spec.ts` on staging against the built app: passed. Unit tests: after evidence the website-settled hole is written and logged as the system's; the map and the length agreeing against the saved par change nothing and list nothing; the sweep is dry unless asked and writes when asked; the website visit test now sees the judgement's correction after the kept row. `npm run verify` and the guardrails before the commit.
+
 ## November 20, 2026 (22:01) — Migration 318 on production; the first club website confirms a saved card; three sites do not answer production
 
 **#1607 on production** (`1e2b8249`), merged at Tom's word after he ran 318 (`318 APPLIED | 2 | 1 | false | false | 318`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. `check:schema:prod` exit 0. Baseline rebuilt from production at 318 (153 tables, 149 functions; dump `2026-11-21-schema.json`).

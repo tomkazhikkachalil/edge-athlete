@@ -134,29 +134,44 @@ describe('settleCoursePars', () => {
   });
 });
 
-describe('while the app\'s own corrections are switched off', () => {
-  it('the switch is off in this release', () => expect(PAR_SETTLE_WRITES).toBe(false));
+describe('the app\'s own corrections are on (Nov 20 2026, at Tom\'s word)', () => {
+  it('the switch is on in this release', () => expect(PAR_SETTLE_WRITES).toBe(true));
 
-  it('after evidence on a golfer\'s pick: nothing is written, the proposal is named', async () => {
+  it('after evidence on a golfer\'s pick: a hole the club\'s website settles is corrected and logged as the system\'s', async () => {
     const f = fake();
     await settleAfterEvidence(f.admin, 'c1');
-    expect(f.updates).toEqual([]);
-    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('hole 5 would go par 4 → 5 (settled by website)'));
+    expect(f.updates).toHaveLength(1);
+    expect(f.updates[0].fields.total_par).toBe(71);
+    expect(f.logs).toEqual([expect.objectContaining({ hole: 5, from_par: 4, to_par: 5, reason: 'settled', settled_by: 'website', actor: 'system' })]);
   });
 
-  it('the sweep is dry even when asked to write; each course is judged once', async () => {
-    const f = fake();
-    const sweep = await sweepParSettlement(f.admin, { dryRun: false });
+  it('two weak sources never change a card: the map and the hole\'s length agreeing against the saved par leave it alone and list nothing', async () => {
+    // Hole 5 saved as a par 5 here; the blue tee plays it at 404 yards (length says 4) and the map says 4.
+    const geometry = { holes: Array.from({ length: 18 }, (_, i) => ({ hole: i + 1, par: i === 4 ? 4 : null })) };
+    const f = fake({ card: TRUE_CARD, evidence: BOXES, geometry });
+    const r = await settleCoursePars(f.admin, 'c1');
+    expect(r!.judged[4]).toMatchObject({ status: 'settled', par: 4, settledBy: ['length', 'map'] });
+    expect(r).toMatchObject({ applied: false, corrections: [], disputed: [] });
+    expect(f.updates).toEqual([]);
+  });
+
+  it('the sweep is dry unless asked to write; asked, it corrects, each course judged once', async () => {
+    const dry = fake();
+    const sweep = await sweepParSettlement(dry.admin);
     expect(sweep).toMatchObject({ dryRun: true, courses: 1 });
     expect(sweep.changed.map(r => [r.name, r.applied, r.corrections.map(c => c.hole)])).toEqual([['Champlain', false, [5]]]);
-    expect(f.updates).toEqual([]);
+    expect(dry.updates).toEqual([]);
+    const wet = fake();
+    const written = await sweepParSettlement(wet.admin, { dryRun: false });
+    expect(written).toMatchObject({ dryRun: false, courses: 1 });
+    expect(written.changed.map(r => [r.name, r.applied])).toEqual([['Champlain', true]]);
+    expect(wet.updates).toHaveLength(1);
     const waiting = await sweepParSettlement(fake({ evidence: BOXES }).admin);
     expect(waiting.changed).toEqual([]);
     expect(waiting.waiting).toEqual([]);
   });
 });
 
-// Phase 3: what an admin's decision is refused for, before anything is written.
 describe('decideHolePar: refusals', () => {
   const decide = (over: Parameters<typeof fake>[0], input: { hole: number; par: number; note?: string }) => {
     const f = fake(over);

@@ -46,11 +46,13 @@ export async function readParEvidence(admin: SupabaseClient, courseId: string): 
 
 // ── Settling (phase 2, Nov 20 2026) ──────────────────────────────────────────
 
-/** Whether the app itself may correct a saved card when independent evidence
- *  settles a disputed hole. OFF while the first sweeps are read by a person:
- *  every caller on a golfer's path runs dry and only says what it would do.
- *  An admin's own decision on the console is not held back by this. */
-export const PAR_SETTLE_WRITES = false;
+/** Whether the app itself may correct a saved card when a strong source
+ *  settles a hole its tees disagree on. ON since Nov 20 2026 (Tom: "yes to
+ *  both, go ahead", after the dry list on production was read: 39 cards, no
+ *  correction proposed). Every correction is one hole, to a par a tee gave,
+ *  logged in golf_par_changes and shown on the admin console. An admin's own
+ *  decision always wins and was never held back by this. */
+export const PAR_SETTLE_WRITES = true;
 
 export interface SettleResult {
   courseId: string;
@@ -168,6 +170,7 @@ export async function settleCoursePars(
 /** After evidence arrived on a golfer's path: settle what it settles. Dry
  *  while PAR_SETTLE_WRITES is off, saying what it would have changed. Never
  *  throws, and never an admin decision's concern (those write at once). */
+// (PAR_SETTLE_WRITES is on: this writes.)
 export async function settleAfterEvidence(admin: SupabaseClient, courseId: string): Promise<void> {
   try {
     const r = await settleCoursePars(admin, courseId, { dryRun: !PAR_SETTLE_WRITES, allow: ['settled'] });

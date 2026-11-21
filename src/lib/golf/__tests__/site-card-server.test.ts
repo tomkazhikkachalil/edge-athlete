@@ -232,14 +232,19 @@ describe('runSiteEvidenceBatch: the club\'s own card as a confirmation', () => {
   }
   const WEBSITE_PARS = [4, 5, 3, 4, 4, 3, 5, 4, 4];
 
-  it('a card read on the club\'s own site is kept as a website row and stamped; the saved card is not written', async () => {
+  it('a card read on the club\'s own site is kept as a website row and stamped; the hole it settles is corrected by the judgement', async () => {
     const s = site({ 'https://www.camelot.com/': html(cardTable('Camelot Golf & Country Club')) });
     const f = fakeAdmin(carded());
     const r = await runSiteEvidenceBatch(f.admin, { rows: 1, dryRun: false }, s.deps);
     expect(r).toMatchObject({ ok: true, phase: 'site-evidence', due: 1, visits: 1, outcomes: { ok: 1 }, kept: [{ id: 'c1', url: 'https://www.camelot.com/' }] });
     expect(f.upserts).toEqual([expect.objectContaining({ course_id: 'c1', source: 'website', label: '', votes: false, pars: WEBSITE_PARS })]);
-    // Only the stamp is written on the course (the app's own corrections are off).
-    expect(f.courseUpdates).toEqual([{ site_evidence_at: expect.any(String), site_evidence_outcome: 'ok' }]);
+    // The visit itself writes only the stamp. The judgement that follows
+    // corrects hole 7 (saved 4; the blue tee and the club's card say 5): the
+    // app's own corrections are on since Nov 20 2026.
+    expect(f.courseUpdates).toHaveLength(2);
+    expect((f.courseUpdates[0].hole_data as Array<{ par: number }>).map(h => h.par)).toEqual(WEBSITE_PARS);
+    expect(f.courseUpdates[0].total_par).toBe(36);
+    expect(f.courseUpdates[1]).toEqual({ site_evidence_at: expect.any(String), site_evidence_outcome: 'ok' });
   });
 
   it('the card is not held to the map\'s par tags here: a map that disagrees on three holes still lets the website speak', async () => {
