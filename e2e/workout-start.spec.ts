@@ -6,7 +6,7 @@ import { apiAs, readErrorBody } from './helpers/qa-user';
 // starts its clock; untimed is decided there; a reload of the start screen
 // leaves nothing; with an open session the banner offers Resume.
 
-test('Create → Start a workout is a start screen; nothing exists until Start; untimed is chosen there; a reload leaves nothing @mobile', async ({ page }) => {
+test('Create → Workout is a start screen; nothing exists until Start; untimed is chosen there; a reload leaves nothing @mobile', async ({ page }) => {
   test.setTimeout(150_000);
   const api = await apiAs('state.json');
   const ids: string[] = [];
@@ -15,7 +15,6 @@ test('Create → Start a workout is a start screen; nothing exists until Start; 
     for (const s of await openSessions()) await api.delete(`/api/workouts/${s.id}`);
     await page.goto('/feed');
     await page.getByRole('button', { name: 'Create' }).first().click();
-    await page.locator('[data-create-record-activity]').click();
     await page.locator('[data-create-workout]').click();
     await page.waitForURL('**/app/workout/start', { timeout: 20_000 });
     await expect(page.locator('[data-workout-start-screen]')).toBeVisible();

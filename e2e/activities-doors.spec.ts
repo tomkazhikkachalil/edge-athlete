@@ -5,8 +5,9 @@ import { apiAs, loadQaUser } from './helpers/qa-user';
 // Activities section's link, the header's Create sheet. Reachability at
 // phone width is part of parity — a surface behind a desktop-only entry
 // has not shipped on mobile. Create menu redesign (Oct 13 2026): Create →
-// Record Activity is a second step (Start a workout | Record activity), and a
-// workout started there must be the one Training starts — proven below.
+// Workout and Activity were a second step behind Record Activity; since Nov 20
+// 2026 they are doors on the sheet itself. A workout started there must be
+// the one Training starts — proven below.
 // Training: three changes (Oct 22 2026): Training's one Start opens the SAME
 // two rows (Workout | Activity) in a sheet; the Activity row is the recorder
 // door (`data-training-record-activity`), the Workout row the start screen.
@@ -40,7 +41,6 @@ test('the recorder is reachable from Training and from Create @mobile', async ({
 
   await page.goto('/feed');
   await page.getByRole('button', { name: 'Create' }).first().click();
-  await page.locator('[data-create-record-activity]').click();
   await page.locator('[data-create-recording]').click();
   await expect(page).toHaveURL(/\/activities\/record$/);
   await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 20_000 });
@@ -87,7 +87,6 @@ test('a workout started from Create is the one Training starts: same session, sa
     // From Create.
     await page.goto('/feed');
     await page.getByRole('button', { name: 'Create' }).first().click();
-    await page.locator('[data-create-record-activity]').click();
     await page.locator('[data-create-workout]').click();
     await throughPicker();
     await page.waitForURL(/\/app\/workout\/[0-9a-f-]{36}$/, { timeout: 30_000 });
@@ -101,7 +100,6 @@ test('a workout started from Create is the one Training starts: same session, sa
     await page.goto('/feed');
     await expect(page.locator(`[data-resume-pill="workout:${fromCreate}"]`)).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Create' }).first().click();
-    await page.locator('[data-create-record-activity]').click();
     await page.locator('[data-create-workout]').click();
     await throughPicker();
     await page.waitForURL(new RegExp(`/app/workout/${fromCreate}$`), { timeout: 30_000 });

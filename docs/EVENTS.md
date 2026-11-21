@@ -172,8 +172,8 @@ redirect, so no PR links to a page that is not there yet.
 `/sports/events/new` hosts `EventCreateWizard` (basics → round → format →
 review; `src/lib/sport-events/wizard.ts` holds the rules). `CourseSearchField`
 (`src/components/golf/`) is the composer's course search, extracted. The
-header's **Create** button opens `CreateSheet` (Post | Event); the drawer
-carries Create Post and Create Event.
+header's **Create** button opens `CreateSheet` (Post | Event then; six doors today — `specs/ui-conventions.md`, "The Create menu"); the drawer
+carries one Create row that opens the same sheet.
 
 ## Navigation (PR 10)
 
