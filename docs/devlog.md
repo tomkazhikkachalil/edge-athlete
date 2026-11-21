@@ -1,5 +1,26 @@
 # Development Log
 
+## November 20, 2026 (22:01) — Migration 318 on production; the first club website confirms a saved card; three sites do not answer production
+
+**#1607 on production** (`1e2b8249`), merged at Tom's word after he ran 318 (`318 APPLIED | 2 | 1 | false | false | 318`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. `check:schema:prod` exit 0. Baseline rebuilt from production at 318 (153 tables, 149 functions; dump `2026-11-21-schema.json`).
+
+**The job.** `golf-site-cards` is scheduled on production and ticks every five minutes (its record in `platform_jobs`). `golf_site_evidence_due` named four courses: Eagles Nest, Angus Glen (South), Angus Glen (North), Falcon Ridge. One was visited per tick from 02:45 UTC.
+
+| Course | Outcome | What it means |
+| --- | --- | --- |
+| Eagles Nest | `ok` | The club's own card was read and equals the saved card on all 18 holes: its six disputed holes are confirmed by the club. |
+| Angus Glen (South) | `unreachable` | The site's home page did not answer production. |
+| Angus Glen (North) | `unreachable` | The same site. |
+| Falcon Ridge | `unreachable` | The site's home page did not answer production. |
+
+**After the visits** (the review list read through the app's code): 0 holes waiting, 24 confirmed, 16 decided by the rule, 0 impossible; no correction is proposed and `golf_par_changes` is empty. So the dry list for phase 3 is empty today.
+
+**The limit found.** Angus Glen's site answered the same reader from this machine an hour earlier (both scorecards read on staging). From production it did not. I have not read the status it returned; the likely cause is the site refusing requests from a hosting provider's addresses, which this reader cannot change (no proxy is bought). Two consequences, neither fixed here:
+- such a course is stamped and not tried again for 90 days, the same wait as a real answer. A shorter wait for `unreachable` needs a change to `golf_site_evidence_due` (a migration);
+- the website confirmation will reach fewer clubs than a local run suggests. Measured so far on production: 1 of 4.
+
+**Unchanged.** `PAR_SETTLE_WRITES` is `false`. Phase 3 waits for Tom.
+
 ## November 20, 2026 (21:22) — Confirmations reach courses that already have a card: the club's own website and OpenGolfAPI (migration 318)
 
 **#1606 on production** (`f83169ce`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. The review list read through the app's own code against production: **0 holes waiting** on 39 cards (22 confirmed or decided by Tom, 18 decided by the rule, 0 impossible), 0.5 s, no card changed. The 13 holes that were waiting for a tap left the list with none.
