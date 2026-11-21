@@ -6,7 +6,7 @@ const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8')
 
 /**
  * Videos program (296) — the doors and the player, pinned at the source:
- * the Create sheet's fifth door, the composer's "too long" hint naming the
+ * the Create sheet's Full game door, the composer's "too long" hint naming the
  * same door, the player built from the link helper and never a script, and
  * the pages that must stay reachable.
  */
@@ -16,8 +16,14 @@ describe('the Videos program\'s doors', () => {
     expect(sheet).toContain('data-create-full-game=""');
     expect(sheet).toMatch(/faFilm|fa-film/);
     expect(sheet).toContain('onFullGame');
-    // The four doors before it are untouched.
-    for (const hook of ['data-create-post', 'data-create-sport', 'data-create-event', 'data-create-record-activity']) expect(sheet).toContain(hook);
+    // Tom's order (Nov 20 2026): Post · Sport · Workout · Activity · Event · Full game, one screen.
+    const order = ['data-create-post=', 'data-create-sport=', '<StartSessionRows ', 'data-create-event=', 'data-create-full-game='].map((hook) => sheet.indexOf(hook));
+    expect(order.every((at) => at > 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    const rows = read('src/components/workouts/StartSessionRows.tsx');
+    expect(rows.indexOf('data-create-workout=""')).toBeGreaterThan(0);
+    expect(rows.indexOf('data-create-workout=""')).toBeLessThan(rows.indexOf('data-create-recording=""'));
+    expect(sheet).not.toContain('data-create-record-activity');
     expect(read('src/components/AppHeader.tsx')).toContain("onFullGame={() => { setIsCreateOpen(false); router.push('/videos/new'); }}");
   });
 
@@ -29,9 +35,9 @@ describe('the Videos program\'s doors', () => {
     expect(composer).toContain("'Add a caption or media to post'");
   });
 
-  it('the Create menu spec lists five doors', () => {
+  it('the Create menu spec lists six doors', () => {
     const spec = read('docs/specs/ui-conventions.md');
-    expect(spec).toContain('Five doors in this order');
+    expect(spec).toContain('Six doors in this order');
     expect(spec).toContain('`data-create-full-game`');
   });
 });

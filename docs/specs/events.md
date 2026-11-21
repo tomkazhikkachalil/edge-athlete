@@ -44,7 +44,7 @@ on reconnect; 409 = the player decides). Bells: `sport_event_invite` /
 (`NotificationActionRow`; the action route decides through
 `applyJoin`). Navigation is phase-1-minimal: Sports replaces Explore
 (`/sports/{explore,events,leaderboards}`, `/explore` redirects), the
-header's Create sheet (Post | Event), the drawer a superset. A
+header's Create sheet (Post | Event then; six doors today, `ui-conventions.md`), the drawer a superset. A
 supervised profile MAY host. Every prod probe waits for the deploy
 (`e2e/helpers/deploy.ts`). `docs/EVENTS.md` is the reference; read
 DEVLOG Sep 16 2026 PR 1–16 first. Phase 2 (below) took N rounds,

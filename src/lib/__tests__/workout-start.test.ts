@@ -36,6 +36,8 @@ describe('the Workout starts from /app/workout/start', () => {
     const create = code('src/components/CreateSheet.tsx');
     expect(create).toMatch(/<StartSessionRows onWorkout=\{onWorkout\} onActivity=\{onRecording\} \/>/);
     expect(create).not.toMatch(/Start a workout|Record activity</);
+    // Nov 20 2026: no second step — Workout and Activity are doors on the sheet itself.
+    expect(create).not.toMatch(/data-create-record-activity|data-create-back|useState|Record Activity/);
     const training = code('src/components/TrainingTab.tsx');
     expect(training).toMatch(/onWorkout=\{\(\) => \{ setShowStartSheet\(false\); openStartWorkout\(\); \}\}/);
     expect(training).toMatch(/onActivity=\{\(\) => \{ setShowStartSheet\(false\); router\.push\('\/activities\/record'\); \}\}/);

@@ -8,9 +8,9 @@ import { apiAs } from './helpers/qa-user';
 // onboarding CTA use. This guards the handoff end-to-end from two such pages.
 // Events program: the button is now "Create" and opens the sheet; Post is the
 // same handoff as before. Create menu redesign (Oct 13 2026): the sheet is
-// Post · Sport · Event · Record Activity (a second step: Start a workout |
-// Record activity) — the Sport and Record tests below are @smoke so CI
-// protects the menu.
+// Post · Sport · Event · Record Activity. Nov 20 2026: six doors on one screen,
+// Post · Sport · Workout · Activity · Event · Full game, no second step — the
+// Sport and Workout/Activity tests below are @smoke so CI protects the menu.
 for (const route of ['/sports/explore', '/messages']) {
   test(`header + on ${route} opens the composer via /feed?create=1`, async ({ page }) => {
     await page.goto(route);
@@ -70,14 +70,18 @@ test('header Create → Event opens the wizard', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Create an event' })).toBeVisible({ timeout: 15_000 });
 });
 
-// Create menu redesign (Oct 13 2026): the four doors and the second step; Videos program (Nov 4 2026): the fifth, Full game.
-test('header Create shows Post, Sport, Event, Full game and Record Activity — nothing else; Sport opens the composer with the sport picker @smoke', async ({ page }) => {
+// Six doors in Tom's order (Nov 20 2026): Post · Sport · Workout · Activity · Event · Full game, on one screen.
+test('header Create shows Post, Sport, Workout, Activity, Event and Full game in that order — nothing else; Sport opens the composer with the sport picker @smoke', async ({ page }) => {
   await page.goto('/messages');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   const sheet = page.locator('[data-create-sheet]');
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole('button')).toHaveCount(5);
-  for (const hook of ['post', 'sport', 'event', 'full-game', 'record-activity']) await expect(sheet.locator(`[data-create-${hook}]`)).toBeVisible();
+  const doors = ['post', 'sport', 'workout', 'recording', 'event', 'full-game'];
+  await expect(sheet.getByRole('button')).toHaveCount(doors.length);
+  // The ORDER is the rule: the nth button is the nth door.
+  for (const [i, hook] of doors.entries()) await expect(sheet.getByRole('button').nth(i)).toHaveAttribute(`data-create-${hook}`, '');
+  await expect(sheet.getByRole('button')).toHaveText([/^Post/, /^Sport/, /^Workout/, /^Activity/, /^Event/, /^Full game/]);
+  await expect(sheet.locator('[data-create-record-activity], [data-create-back]')).toHaveCount(0);
   await expect(sheet.locator('[data-create-activity]')).toHaveCount(0);
   await expect(sheet.getByText(/import/i)).toHaveCount(0);
 
@@ -135,25 +139,17 @@ test('Create → Sport on a phone: no field focused, the search at 16 px, the gr
   await expect(picker.getByRole('button', { name: /golf/i })).toHaveCount(1);
 });
 
-test('header Create → Record Activity is a second step: Start a workout | Record activity; Record activity opens the recorder @smoke', async ({ page }) => {
+test('header Create → Workout and Activity open straight from the sheet: Activity is the recorder, Workout the start screen @smoke', async ({ page }) => {
   await page.goto('/messages');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await page.locator('[data-create-record-activity]').click();
-  const step = page.locator('[data-create-sheet][data-create-step="record"]');
-  await expect(step).toBeVisible();
-  await expect(step.locator('[data-create-workout]')).toBeVisible();
-  await expect(step.locator('[data-create-recording]')).toBeVisible();
-  // Back returns to the four doors.
-  await step.locator('[data-create-back]').click();
-  await expect(page.locator('[data-create-sheet][data-create-step="root"] [data-create-sport]')).toBeVisible();
-  await page.locator('[data-create-record-activity]').click();
-  await page.locator('[data-create-recording]').click();
+  const sheet = page.locator('[data-create-sheet][data-create-step="root"]');
+  await expect(sheet.locator('[data-create-workout]')).toBeVisible();
+  await sheet.locator('[data-create-recording]').click();
   await expect(page).toHaveURL(/\/activities\/record$/, { timeout: 15_000 });
   await expect(page.locator('[data-record-type-picker]')).toBeVisible({ timeout: 20_000 });
-  // Start a workout is the start SCREEN (Program E2) — nothing starts until its Start.
+  // Workout is the start SCREEN (Program E2) — nothing starts until its Start.
   await page.goto('/messages');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await page.locator('[data-create-record-activity]').click();
   await page.locator('[data-create-workout]').click();
   await expect(page).toHaveURL(/\/app\/workout\/start$/, { timeout: 15_000 });
   await expect(page.locator('[data-workout-start]')).toBeVisible({ timeout: 20_000 });

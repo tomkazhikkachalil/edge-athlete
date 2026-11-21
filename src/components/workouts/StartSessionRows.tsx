@@ -8,7 +8,7 @@ import { faPersonWalking } from '@/lib/icons/fa/person-walking';
  * Tom: "When the user taps Training and then Start, offer two options:
  * Workout (sets, reps, weight) or Activity (run, yoga, climb and so on)."
  * ONE pair of rows for every door that offers the choice: the header's
- * Create → Record Activity step (CreateSheet) and Training's Start
+ * Create sheet (CreateSheet, where they sit after Sport) and Training's Start
  * (StartSessionSheet), so the two can never disagree. The hooks keep the
  * Create sheet's names (`data-create-workout` / `data-create-recording`);
  * Training's Activity row also carries `data-training-record-activity`, the
