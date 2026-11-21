@@ -1,5 +1,31 @@
 # Development Log
 
+## November 20, 2026 (20:21) — Close of the par review round: 10 of 23 holes decided on production, 13 still wait for Tom's taps
+
+**#1604 on production** (`70437fee`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. The review list read as the console reads it: every waiting hole carries its tees' yardages.
+
+**Where the list stands** (read-only from production, 01:20 UTC Nov 21). The list opened at 23 holes on six courses. Each was looked up against a published card first; all 23 are right as saved, so every decision is a "Keep".
+
+| Course | Decided | Still open |
+| --- | --- | --- |
+| Angus Glen (South) | 1, 7, 9, 14, 16 | none |
+| Champlain | 3 | none |
+| Emerald Links, West/East | 4, 11, 18 | none |
+| Angus Glen (North) | 1 | 5, 11, 15 |
+| Hautes Plaines | none | 1, 4, 5, 6, 8, 11, 14, 16 |
+| Amberwood Village | none | 2, 11 |
+
+All 10 decisions equal the saved par (an `admin` evidence row each), `golf_par_changes` is empty, and no card changed. The last tap is 23:38 UTC, before the yardage version shipped; the 13 open holes are Tom's to tap from the console, nothing else waits on them and a hole left open loses nothing.
+
+**Sources for the lookups.** Five courses from the club's own card; Emerald Links from GolfPass only (no card of the club's own was found). These were by-hand reads for Tom's decisions; nothing from a directory was written into the app's data.
+
+**Left unconfirmed, no action taken.**
+- Emerald Links' West nine total: 34 saved, directories say 35 or 36, no club card to settle it.
+- Amberwood Village holes 2 and 11 are par 5 from blue and par 4 from white on the club's own card; the saved card follows blue.
+- Wildwood Marshes has no tees at the provider, so it holds no evidence (39 of 40 older cards do).
+
+**Unchanged on purpose.** `PAR_SETTLE_WRITES` is `false`. The website as a settling source (phase 4) is not built: none of the six courses had a website on file when it was measured. Split courses now inherit the club's website (#1602) and the two Angus Glen rows were backfilled by Tom's statement.
+
 ## November 20, 2026 (18:40) — The par review panel shows each tee's yardage beside the par it gives
 
 **#1603 on production** (`aa93ad6a`): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed. The review list read against production: 0.4 s and 5 database reads (it was 5.4 s and 93).
