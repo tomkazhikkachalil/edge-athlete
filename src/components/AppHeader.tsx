@@ -123,9 +123,9 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
   const editProfile = useEditProfile();
   const installApp = useInstallApp();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  // Events program: the header's Create button opens a two-door sheet (Post | Event).
+  // Events program: the header's Create button opens the Create sheet (six doors since Nov 20 2026).
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  // Create → Record Activity → Start a workout: the SAME start path as
+  // Create → Workout: the SAME start path as
   // Training's Start Workout (useStartWorkout) — every door lands on /app/workout/start (E2).
   const startWorkout = useStartWorkout(!!user);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
@@ -1116,8 +1116,8 @@ export default function AppHeader({ onCreatePost, onCreateSport, onEditProfile }
             )}
 
             {/* ONE Create menu at every width (Oct 13 2026): the drawer opens
-                the same sheet the header button does — Post · Sport · Event ·
-                Record Activity — instead of its own copy of the rows. */}
+                the same sheet the header button does — Post · Sport · Workout ·
+                Activity · Event · Full game — instead of its own copy of the rows. */}
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);

@@ -1,5 +1,17 @@
 # Development Log
 
+## November 20, 2026 (23:16) — The Create menu is six doors on one screen: Post · Sport · Workout · Activity · Event · Full game
+
+**Why.** Tom: "When you go to create a post, I want to separate the 'record activity' to have it in this order: Post, Sport, Workout, Activity, Event, Full game." Since Oct 13 Workout and Activity sat behind a "Record Activity" row and a second screen; the sheet's order was Post · Sport · Event · Full game · Record Activity.
+
+**What.** Zero DDL, no route changes — every door keeps its target.
+- `src/components/CreateSheet.tsx`: the second step, its Back button and the Record Activity row are gone (`data-create-record-activity`, `data-create-step="record"`, `data-create-back`). The root lists Post, Sport, then `StartSessionRows` (Workout, Activity — the same pair Training's Start opens, unchanged), then Event and Full game. Props and `AppHeader`'s wiring are untouched; the drawer's Create row opens the same sheet.
+- It is the only chooser in the app (no tab-bar "+", no kind deep links besides Post and Sport), so "across" was the sheet, its pins, its specs and the docs. Training's Start already read Workout · Activity.
+- Pins: `videos-ui.test.ts` now holds the ORDER at the source (it only held presence before); `workout-start.test.ts` refuses a second step coming back. `e2e/header-create.spec.ts` holds the order in the DOM (the nth button is the nth door, and the six labels in order).
+- Specs: `ui-conventions.md` "The Create menu" rewritten (six doors, labels corrected to Workout / Activity — the spec still said "Start a workout" / "Record activity"); `specs/README.md`, `videos.md`, `workouts-and-sessions.md`, `events.md`, `WORKOUTS.md`, `ACTIVITIES.md`, `EVENTS.md` follow.
+
+**Proof.** `npm run verify` exit 0 (6,865 tests); guardrails, blocklists and `npm audit --omit=dev` clean. Staging: desktop 7 passed (`header-create`, `activities-doors`, `workout-start`, `activities-profile`); the Create specs on `mobile` 5 passed, `webkit-mobile` 4 passed + 1 skipped (the recorder-pill spec skips there by its own rule), `android` 5 passed. At 375 × 667, from the drawer's Create row, all six rows are fully in view in light and dark (read from screenshots).
+
 ## November 20, 2026 (22:42) — Close: pars are decided without a person; all three phases and migrations 318 and 319 are on production
 
 **#1609 on production** (`02548d11`, the app's own corrections on) and **#1610 merged** (`c1c6b41d`, migration 319; a database-only merge, so no build): health + catalog-health desktop 2 passed, `golf-quick-entry` mobile 4 passed, desktop 7 passed, run with `E2E_EXPECT_COMMIT=02548d11`.

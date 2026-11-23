@@ -287,8 +287,8 @@ export default function TrainingTab({ profileId, currentUserId, isOwnProfile = f
     run();
   }, [profileId, ownBodyKey]);
 
-  // ONE start path, shared with the header's Create → Record Activity →
-  // Start a workout (useStartWorkout, Oct 13 2026): the same POST, the same
+  // ONE start path, shared with the header's Create → Workout
+  // (useStartWorkout, Oct 13 2026): the same POST, the same
   // 409 → resume, the same refreshDrafts(), the same screen.
   const { refreshRoutines, starting: startingWorkout, open: openStartWorkout } = useStartWorkout(isOwnProfile);
 
