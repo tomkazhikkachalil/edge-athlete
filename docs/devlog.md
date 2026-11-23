@@ -1,5 +1,11 @@
 # Development Log
 
+## November 22, 2026 (22:48) — Close: the six-door Create menu is on production
+
+**#1612 merged** (`452c0ec5`) and `/api/health` shows the commit. Production probe with `E2E_EXPECT_COMMIT=452c0ec5`, one project at a time: desktop 7 passed (`health`, `header-create` — the order test and the Workout / Activity doors among them); mobile 4 passed (`header-create`, `activities-doors`, `workout-start`). The probe's four QA accounts were deleted by its teardown both times.
+
+**Still open.** Tom's look on his own phone: Create shows Post · Sport · Workout · Activity · Event · Full game on one screen.
+
 ## November 20, 2026 (23:16) — The Create menu is six doors on one screen: Post · Sport · Workout · Activity · Event · Full game
 
 **Why.** Tom: "When you go to create a post, I want to separate the 'record activity' to have it in this order: Post, Sport, Workout, Activity, Event, Full game." Since Oct 13 Workout and Activity sat behind a "Record Activity" row and a second screen; the sheet's order was Post · Sport · Event · Full game · Record Activity.
