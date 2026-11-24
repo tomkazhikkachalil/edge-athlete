@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { CREATE_OPTIONS } from '../create-options';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 
@@ -13,16 +14,13 @@ const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8')
 describe('the Videos program\'s doors', () => {
   it('the Create sheet has the Full game door and the header opens /videos/new', () => {
     const sheet = read('src/components/CreateSheet.tsx');
-    expect(sheet).toContain('data-create-full-game=""');
-    expect(sheet).toMatch(/faFilm|fa-film/);
-    expect(sheet).toContain('onFullGame');
-    // Tom's order (Nov 20 2026): Post · Sport · Workout · Activity · Event · Full game, one screen.
-    const order = ['data-create-post=', 'data-create-sport=', '<StartSessionRows ', 'data-create-event=', 'data-create-full-game='].map((hook) => sheet.indexOf(hook));
-    expect(order.every((at) => at > 0)).toBe(true);
-    expect(order).toEqual([...order].sort((a, b) => a - b));
-    const rows = read('src/components/workouts/StartSessionRows.tsx');
-    expect(rows.indexOf('data-create-workout=""')).toBeGreaterThan(0);
-    expect(rows.indexOf('data-create-workout=""')).toBeLessThan(rows.indexOf('data-create-recording=""'));
+    // Tile grid (Nov 23 2026): the sheet draws CREATE_OPTIONS; each option's hook is data-create-<key>.
+    expect(sheet).toContain('[`data-create-${o.key}`]: \'\'');
+    expect(sheet).toContain("'full-game': onFullGame");
+    expect(sheet).toContain('SquarePlay');
+    // Tom's order (Nov 20 2026), unchanged by the redesign: Post · Sport · Workout · Activity · Event · Full game, one screen.
+    expect(CREATE_OPTIONS.map((o) => o.key)).toEqual(['post', 'sport', 'workout', 'recording', 'event', 'full-game']);
+    expect(CREATE_OPTIONS[5].title).toBe('Game highlights');
     expect(sheet).not.toContain('data-create-record-activity');
     expect(read('src/components/AppHeader.tsx')).toContain("onFullGame={() => { setIsCreateOpen(false); router.push('/videos/new'); }}");
   });
@@ -37,7 +35,7 @@ describe('the Videos program\'s doors', () => {
 
   it('the Create menu spec lists six doors', () => {
     const spec = read('docs/specs/ui-conventions.md');
-    expect(spec).toContain('Six doors in this order');
+    expect(spec).toContain('six doors in this order');
     expect(spec).toContain('`data-create-full-game`');
   });
 });

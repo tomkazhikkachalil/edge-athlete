@@ -23,7 +23,7 @@ describe('the Workout starts from /app/workout/start', () => {
   });
   // Training: three changes (Oct 22 2026) — Training's Start offers Workout or
   // Activity; the rows are the Create sheet's, so the two doors cannot differ.
-  it('Training\'s Start opens the Workout | Activity sheet; its rows are the Create sheet\'s; Workout is the route, Activity the recorder', () => {
+  it('Training\'s Start opens the Workout | Activity sheet; its doors are the Create sheet\'s; Workout is the route, Activity the recorder', () => {
     const rows = code('src/components/workouts/StartSessionRows.tsx');
     expect(rows).toMatch(/data-create-workout=""/);
     expect(rows).toMatch(/data-create-recording=""/);
@@ -33,11 +33,18 @@ describe('the Workout starts from /app/workout/start', () => {
     const sheet = code('src/components/workouts/StartSessionSheet.tsx');
     expect(sheet).toMatch(/windowKey="start-session"/);
     expect(sheet).toMatch(/<StartSessionRows onWorkout=\{onWorkout\} onActivity=\{onActivity\} trainingDoor \/>/);
+    // Tile grid (Nov 23 2026): the Create sheet draws its own tiles with its own
+    // titles (Gym workout / Live activity); Training keeps these rows. The two
+    // doors share the HOOKS and the destinations, which the header wires.
     const create = code('src/components/CreateSheet.tsx');
-    expect(create).toMatch(/<StartSessionRows onWorkout=\{onWorkout\} onActivity=\{onRecording\} \/>/);
+    expect(create).not.toMatch(/StartSessionRows/);
+    expect(create).toMatch(/workout: onWorkout, recording: onRecording/);
     expect(create).not.toMatch(/Start a workout|Record activity</);
+    const header = code('src/components/AppHeader.tsx');
+    expect(header).toMatch(/onWorkout=\{\(\) => \{ setIsCreateOpen\(false\); startWorkout\.open\(\); \}\}/);
+    expect(header).toMatch(/onRecording=\{\(\) => \{ setIsCreateOpen\(false\); router\.push\('\/activities\/record'\); \}\}/);
     // Nov 20 2026: no second step — Workout and Activity are doors on the sheet itself.
-    expect(create).not.toMatch(/data-create-record-activity|data-create-back|useState|Record Activity/);
+    expect(create).not.toMatch(/data-create-record-activity|data-create-back|Record Activity/);
     const training = code('src/components/TrainingTab.tsx');
     expect(training).toMatch(/onWorkout=\{\(\) => \{ setShowStartSheet\(false\); openStartWorkout\(\); \}\}/);
     expect(training).toMatch(/onActivity=\{\(\) => \{ setShowStartSheet\(false\); router\.push\('\/activities\/record'\); \}\}/);

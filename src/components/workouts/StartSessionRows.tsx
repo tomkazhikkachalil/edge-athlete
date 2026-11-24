@@ -7,9 +7,10 @@ import { faPersonWalking } from '@/lib/icons/fa/person-walking';
  * The two ways to start a session (Training: three changes, Oct 22 2026) —
  * Tom: "When the user taps Training and then Start, offer two options:
  * Workout (sets, reps, weight) or Activity (run, yoga, climb and so on)."
- * ONE pair of rows for every door that offers the choice: the header's
- * Create sheet (CreateSheet, where they sit after Sport) and Training's Start
- * (StartSessionSheet), so the two can never disagree. The hooks keep the
+ * The pair of rows Training's Start opens (StartSessionSheet). The header's
+ * Create sheet drew these same rows until Nov 23 2026; it is a tile grid now
+ * with its own titles ("Gym workout" / "Live activity"), and the two doors
+ * share the destinations instead (`workout-start.test`). The hooks keep the
  * Create sheet's names (`data-create-workout` / `data-create-recording`);
  * Training's Activity row also carries `data-training-record-activity`, the
  * recorder door's hook since Live Activities PR 6.

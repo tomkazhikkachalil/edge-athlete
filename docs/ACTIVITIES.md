@@ -337,7 +337,7 @@ superseded for the web app.
   before the PATCH), adds / re-edits / removes photos. The feed card gains "1
   segment · 1 photo · ~N steps (est.)". The doors: Training's **Record Activity**
   pill (+ `RecordingResumeBanner`), the Activities section's link, the header's
-  Create sheet (the **Activity** door, on the sheet itself since Nov 20 2026 — the import door left Oct 13 2026) and the drawer.
+  Create sheet (the **Live activity** door — "Activity" until Nov 23 2026 — on the sheet itself since Nov 20 2026 — the import door left Oct 13 2026) and the drawer.
 
 ## Activities as sports — the share-time bridge (Oct 4 2026)
 

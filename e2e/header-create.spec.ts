@@ -71,16 +71,33 @@ test('header Create → Event opens the wizard', async ({ page }) => {
 });
 
 // Six doors in Tom's order (Nov 20 2026): Post · Sport · Workout · Activity · Event · Full game, on one screen.
-test('header Create shows Post, Sport, Workout, Activity, Event and Full game in that order — nothing else; Sport opens the composer with the sport picker @smoke', async ({ page }) => {
+// Tile grid (Nov 23 2026): the same doors under this sheet's titles, each with an info button beside it.
+const DOORS = [
+  ['post', 'Post'],
+  ['sport', 'Sport session'],
+  ['workout', 'Gym workout'],
+  ['recording', 'Live activity'],
+  ['event', 'Event & leaderboard'],
+  ['full-game', 'Game highlights'],
+] as const;
+
+test('header Create shows Post, Sport session, Gym workout, Live activity, Event & leaderboard and Game highlights in that order — nothing else; Sport opens the composer with the sport picker @smoke', async ({ page }) => {
   await page.goto('/messages');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   const sheet = page.locator('[data-create-sheet]');
   await expect(sheet).toBeVisible();
-  const doors = ['post', 'sport', 'workout', 'recording', 'event', 'full-game'];
-  await expect(sheet.getByRole('button')).toHaveCount(doors.length);
-  // The ORDER is the rule: the nth button is the nth door.
-  for (const [i, hook] of doors.entries()) await expect(sheet.getByRole('button').nth(i)).toHaveAttribute(`data-create-${hook}`, '');
-  await expect(sheet.getByRole('button')).toHaveText([/^Post/, /^Sport/, /^Workout/, /^Activity/, /^Event/, /^Full game/]);
+  // Two sibling buttons per door: the option, then its info button. The ORDER is the rule.
+  await expect(sheet.getByRole('button')).toHaveCount(DOORS.length * 2);
+  for (const [i, [hook, title]] of DOORS.entries()) {
+    const option = sheet.getByRole('button').nth(i * 2);
+    await expect(option).toHaveAttribute(`data-create-${hook}`, '');
+    await expect(option).toHaveAccessibleName(title);
+    await expect(option).toHaveAttribute('aria-pressed', 'false');
+    const info = sheet.getByRole('button').nth(i * 2 + 1);
+    await expect(info).toHaveAccessibleName(`About ${title}`);
+    await expect(info).toHaveAttribute('aria-expanded', 'false');
+  }
+  await expect(page.locator('[data-larger-window="create"]').getByRole('button', { name: 'Close', exact: true })).toBeVisible();
   await expect(sheet.locator('[data-create-record-activity], [data-create-back]')).toHaveCount(0);
   await expect(sheet.locator('[data-create-activity]')).toHaveCount(0);
   await expect(sheet.getByText(/import/i)).toHaveCount(0);
@@ -153,4 +170,93 @@ test('header Create → Workout and Activity open straight from the sheet: Activ
   await page.locator('[data-create-workout]').click();
   await expect(page).toHaveURL(/\/app\/workout\/start$/, { timeout: 15_000 });
   await expect(page.locator('[data-workout-start]')).toBeVisible({ timeout: 20_000 });
+});
+
+// Tile grid with info (Tom's spec, Nov 23 2026): the info button swaps an
+// option's content in place — it never opens the flow, never changes the
+// option's box or moves another one, one is open at a time, and every one is
+// closed when the sheet opens again. Run at the phone projects' width, at
+// 320 px (the smallest phone on the floor) and at 390 px (the mockup).
+test('Create: an info button shows the text in place — no navigation, no box moves, one open at a time, closed on reopen; a pick shows as selected @mobile', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('/messages');
+  const openSheet = async () => {
+    await page.getByRole('button', { name: 'Create', exact: true }).first().click();
+    await expect(page.locator('[data-create-sheet]')).toBeVisible();
+  };
+  const boxes = () => page.evaluate(() => Array.from(document.querySelectorAll('[data-create-option]')).map((el) => {
+    const r = el.getBoundingClientRect();
+    return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)].join(',');
+  }));
+  const base = page.viewportSize()!;
+  for (const width of [base.width, 320, 390]) {
+    await page.setViewportSize({ width, height: base.height });
+    await openSheet();
+    const sheet = page.locator('[data-create-sheet]');
+    const rest = await boxes();
+    expect(rest).toHaveLength(DOORS.length);
+    for (const [hook, title] of DOORS) {
+      const box = sheet.locator(`[data-create-option="${hook}"]`);
+      const info = sheet.getByRole('button', { name: `About ${title}`, exact: true });
+      await info.scrollIntoViewIfNeeded();
+      const before = await boxes();
+      await info.click();
+      await expect(info).toHaveAttribute('aria-expanded', 'true');
+      await expect(box.locator('[data-create-info-text]')).toBeVisible();
+      // Only one is open: every other info button reads collapsed.
+      await expect(sheet.locator('[data-create-info][aria-expanded="true"]')).toHaveCount(1);
+      // Nothing moved and nothing grew — and the text fits its fixed box.
+      expect(await boxes(), `${title} at ${width}px`).toEqual(before);
+      const fit = await box.evaluate((el) => {
+        const outer = el.getBoundingClientRect();
+        const text = el.querySelector('[data-create-info-text]')!.getBoundingClientRect();
+        const btn = el.querySelector('[data-create-info]')!.getBoundingClientRect();
+        return { inside: text.top >= outer.top && text.bottom <= outer.bottom + 0.5 && text.left >= outer.left && text.right <= outer.right + 0.5, target: Math.min(btn.width, btn.height) };
+      });
+      expect(fit.inside, `${title}'s info text fits its box at ${width}px`).toBe(true);
+      expect(fit.target, `${title}'s info button is a 44 px target`).toBeGreaterThanOrEqual(44);
+      // The info button is not the option: still on this page, the sheet still open.
+      await expect(page).toHaveURL(/\/messages/);
+      await expect(sheet).toBeVisible();
+    }
+    // A second tap swaps back to the title.
+    const last = sheet.getByRole('button', { name: 'About Game highlights', exact: true });
+    await last.click();
+    await expect(last).toHaveAttribute('aria-expanded', 'false');
+    await expect(sheet.locator('[data-create-option="full-game"] [data-create-title]')).toBeVisible();
+    // No sideways scroll at this width; long titles stay inside their tile.
+    const layout = await page.evaluate(() => ({
+      sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
+      titles: Array.from(document.querySelectorAll('[data-create-option]')).every((el) => {
+        const o = el.getBoundingClientRect();
+        const t = el.querySelector('[data-create-title]')!.getBoundingClientRect();
+        return t.left >= o.left && t.right <= o.right + 0.5 && t.top >= o.top && t.bottom <= o.bottom + 0.5;
+      }),
+    }));
+    expect(layout, `layout at ${width}px`).toEqual({ sideways: false, titles: true });
+    // Reopen: everything is closed again.
+    await sheet.getByRole('button', { name: 'About Post', exact: true }).click();
+    await page.locator('[data-larger-window="create"]').getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(sheet).toHaveCount(0);
+    await openSheet();
+    await expect(page.locator('[data-create-info][aria-expanded="true"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-create-sheet]')).toHaveCount(0);
+  }
+  await page.setViewportSize(base);
+
+  // A pick: the info text closes, the option reads selected (pressed), Post
+  // drops its solid fill, and the flow opens.
+  await openSheet();
+  const sheet = page.locator('[data-create-sheet]');
+  await sheet.getByRole('button', { name: 'About Gym workout', exact: true }).click();
+  await expect(sheet.locator('[data-create-option="post"]')).toHaveAttribute('data-solid', '');
+  const event = sheet.locator('[data-create-event]');
+  await event.scrollIntoViewIfNeeded();
+  await event.click();
+  await expect(event).toHaveAttribute('aria-pressed', 'true');
+  await expect(sheet.locator('[data-create-option="event"]')).toHaveAttribute('data-selected', '');
+  await expect(sheet.locator('[data-create-info][aria-expanded="true"]')).toHaveCount(0);
+  await expect(sheet.locator('[data-create-option="post"]')).not.toHaveAttribute('data-solid', '');
+  await expect(page).toHaveURL(/\/sports\/events\/new/, { timeout: 15_000 });
 });
