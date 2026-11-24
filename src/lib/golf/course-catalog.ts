@@ -1223,6 +1223,61 @@ function sheetKm(aLat: number, aLng: number, bLat: number, bLng: number): number
 const located = (c: { lat?: number | null; lng?: number | null }): c is { lat: number; lng: number } =>
   typeof c.lat === 'number' && typeof c.lng === 'number' && Number.isFinite(c.lat) && Number.isFinite(c.lng);
 
+/** Where a row or a listing says it is. */
+interface Placed { city?: string | null; region_code?: string | null; country_code?: string | null; lat?: number | null; lng?: number | null }
+const sameText = (a: string | null | undefined, b: string | null | undefined): boolean => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+const nearRow = (row: Placed, c: Placed): boolean => located(row) && located(c) && sheetKm(row.lat, row.lng, c.lat, c.lng) <= SHEET_NEAR_KM;
+const codesFit = (row: Placed, c: Placed): boolean =>
+  (!row.country_code || !c.country_code || row.country_code === c.country_code) && (!row.region_code || !c.region_code || row.region_code === c.region_code);
+
+/** Is the listing where the row is? At the row's point, whatever province the
+ *  provider wrote (Nov 24 2026: GolfCourseAPI holds Rideau Glen, 0.4 km from
+ *  our row, as Kemptville QC; the province test dropped it before the distance
+ *  was looked at), else the country and region codes must not contradict. */
+function fitsPlace(row: Placed, c: Placed): boolean {
+  return nearRow(row, c) || codesFit(row, c);
+}
+
+/** The course's own part of a listing's name: what follows the dash
+ *  ("Ottawa Hylands – North" → "North"), else what its brackets hold. Pure. */
+export function sectionPart(name: string): string {
+  const dash = /\s+[-–—]\s+(.+)$/.exec(name);
+  if (dash) return dash[1].trim();
+  return [...name.matchAll(/\(([^)]*)\)/g)].map(m => m[1]).join(' ').trim();
+}
+
+/** A course's label as it is compared: its words in the provider's order,
+ *  without the words every course has, a combination of two nines kept as
+ *  "a/b" ("Lake / Island" → "lake/island", "Red (9 Hole)" → "red"). Pure. */
+export function sectionLabelKey(part: string | null | undefined): string {
+  return (part ?? '')
+    .split('/')
+    .map(p => [...nameTokens(p)].filter(t => !SECTION_GENERIC.has(t) && t !== 'old').join(' '))
+    .filter(Boolean)
+    .join('/');
+}
+
+/** A listing whose CLUB name has a word ours lacks ("Grand" Meadows for The
+ *  Meadows, "Wildwood" Marshes for The Marshes, "Ottawa" Hylands for Hylands)
+ *  is this facility only where the place agrees: within SHEET_NEAR_KM when both
+ *  have a point, else the same city with no contradicting region or country.
+ *  Measured Nov 24 2026: The Meadows (Ottawa) was given "Grand Meadows", a
+ *  listing with no location at all, because one shared word made the names
+ *  "the same". A name that adds nothing needs no such proof. Pure. */
+export function placeConfirms(row: Pick<CatalogRow, 'name'> & Placed, c: SheetCandidate): boolean {
+  const mine = nameTokens(row.name);
+  if ([...nameTokens(sectionlessName(c.name))].every(t => mine.has(t))) return true;
+  if (located(row) && located(c)) return nearRow(row, c);
+  return sameText(row.city, c.city) && codesFit(row, c);
+}
+
+/** A listing the provider marks "Old" ("North Old", "Lake (Old)") is left out
+ *  when a current listing stands beside it. All old: they stay. */
+function currentListings<T extends { name: string }>(list: T[]): T[] {
+  const current = list.filter(c => !/\bold\b/i.test(sectionPart(c.name)));
+  return current.length > 0 ? current : list;
+}
+
 /** A section's word in a candidate's words. The same word, or the same word
  *  spelled with one more letter at the end, on a long word only (measured
  *  Nov 19 2026: our "Premier" is GolfCourseAPI's "Premiere"). Never "north"
@@ -1240,7 +1295,7 @@ export function sectionWordIn(theirs: ReadonlySet<string>, word: string): boolea
 /** The row's section words, and the candidates that carry this facility's name
  *  (`sameName`) and, of those, its section (`named`). Pure. */
 function sheetNamed(
-  row: Pick<CatalogRow, 'name'> & { section_name?: string | null },
+  row: Pick<CatalogRow, 'name'> & { section_name?: string | null } & Placed,
   candidates: SheetCandidate[]
 ): { sameName: SheetCandidate[]; named: SheetCandidate[] } {
   // A SECTION of a club (Greensmere's Legacy, Ottawa Hunt's North Nine) takes
@@ -1255,21 +1310,23 @@ function sheetNamed(
   // The FACILITY's name: for a section row, the club's (so a sibling section,
   // or a section spelled a letter apart, still counts as this facility).
   const club = sectionlessName(row.name);
-  const sameName = candidates.filter(c => sameFacilityName(row.name, c.name) || (section.length > 0 && sameFacilityName(club, sectionlessName(c.name))));
-  const named = section.length === 0 ? sameName : sameName.filter(c => { const theirs = nameTokens(c.name); return section.every(t => sectionWordIn(theirs, t)); });
+  const sameName = candidates.filter(c => (sameFacilityName(row.name, c.name) || (section.length > 0 && sameFacilityName(club, sectionlessName(c.name)))) && placeConfirms(row, c));
+  const named = currentListings(section.length === 0 ? sameName : sameName.filter(c => { const theirs = nameTokens(c.name); return section.every(t => sectionWordIn(theirs, t)); }));
   return { sameName, named };
 }
 
 /** Why no candidate was picked, for the trace: nothing found, nothing with the
- *  facility's name, nothing naming this row's section, or a real tie. Pure. */
+ *  facility's name, nothing naming this row's section, the name only in
+ *  another region or country (`not_here`), or a real tie. Pure. */
 export function sheetMissReason(
-  row: Pick<CatalogRow, 'name'> & { section_name?: string | null },
+  row: Pick<CatalogRow, 'name'> & { section_name?: string | null } & Placed,
   candidates: SheetCandidate[]
-): 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_narrowed' {
+): 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_here' | 'not_narrowed' {
   if (candidates.length === 0) return 'no_candidates';
   const { sameName, named } = sheetNamed(row, candidates);
   if (sameName.length === 0) return 'no_name_match';
-  return named.length === 0 ? 'no_section_match' : 'not_narrowed';
+  if (named.length === 0) return 'no_section_match';
+  return named.some(c => fitsPlace(row, c)) ? 'not_narrowed' : 'not_here';
 }
 
 /** Listings of one course folded into one candidate: the same words in the
@@ -1279,7 +1336,9 @@ export function sheetMissReason(
  *  two indistinguishable candidates used to mean no card. Pure. */
 export function foldSheetTwins(candidates: SheetCandidate[]): SheetCandidate[] {
   const out: SheetCandidate[] = [];
-  const words = (c: SheetCandidate) => [...nameTokens(c.name)].sort().join(' ');
+  // In the provider's order: "Island/Lake" and "Lake / Island" are two
+  // routings of one club's nines, not one course listed twice.
+  const words = (c: SheetCandidate) => [...nameTokens(c.name)].join(' ');
   for (const c of candidates) {
     const first = located(c) ? out.find(o => located(o) && words(o) === words(c) && sheetKm(o.lat, o.lng, c.lat, c.lng) <= SHEET_TWIN_KM) : undefined;
     if (first) first.twins = [...(first.twins ?? []), c.id];
@@ -1303,39 +1362,65 @@ export interface ClubSectionFound {
  *  Measured: "Angus Glen Golf Club" is one row here; GolfCourseAPI holds
  *  "… – South Course" and "… – North Course" at the club's one address.
  *  Returned only when every listing left after the name and place rules:
- *  carries the club's own name plus one or two words of its own, no two
- *  alike; sits at ONE point (SHEET_TWIN_KM); and that point is the row's
- *  (SHEET_NEAR_KM). Two to CLUB_SECTIONS_MAX of them. A row that is already a
- *  section, a listing that is the club itself, an unlocated listing: null,
- *  and the tie stays a tie. Sections are never invented: each one is a
- *  course the provider names. Pure. */
+ *  carries the club's name plus a course name of its own (one or two words,
+ *  or two such joined by "/": a combination of nines); and all of them sit at
+ *  ONE point (SHEET_TWIN_KM) that is the row's (SHEET_NEAR_KM). Two to
+ *  CLUB_SECTIONS_MAX of them. A row that is already a section, or a listing
+ *  that is the club itself: null, and the tie stays a tie. Sections are never
+ *  invented: each one is a course the provider names.
+ *
+ *  Nov 24 2026, measured on Ottawa's clubs (Tom could find no course that
+ *  worked): the label is the provider's own course name, not the words left
+ *  over ("Ottawa Hylands – North" is "North", "Pakenham Highlands –
+ *  Island/Lake" is "Island/Lake"); listings with NO point stand in one town
+ *  of the row's region, when it is the row's town or the club name is exactly
+ *  the row's (Hylands, Irish Hills: GolfCourseAPI gives neither a point); a
+ *  listing marked "Old" is left out beside a current one; and a club whose
+ *  nines are listed both alone and combined splits into its nines. Pure. */
 export function clubSectionsFromCandidates(
   row: Pick<CatalogRow, 'name' | 'city' | 'region_code' | 'country_code'> & { section_name?: string | null; section_kind?: string | null; lat?: number | null; lng?: number | null },
   candidates: SheetCandidate[]
 ): ClubSectionFound[] | null {
   if (row.section_name || (row.section_kind && row.section_kind !== 'unspecified')) return null;
-  if (sectionlessName(row.name) !== row.name.trim() || !located(row)) return null;
+  if (sectionlessName(row.name) !== row.name.trim()) return null;
   const { named } = sheetNamed(row, candidates);
-  const placed = foldSheetTwins(named.filter(
-    c =>
-      (!row.country_code || !c.country_code || row.country_code === c.country_code) &&
-      (!row.region_code || !c.region_code || row.region_code === c.region_code)
-  ));
-  if (placed.length < 2 || placed.length > CLUB_SECTIONS_MAX) return null;
-  const mine = nameTokens(row.name);
-  const out: ClubSectionFound[] = [];
-  const first = placed[0];
-  if (!located(first) || sheetKm(row.lat, row.lng, first.lat, first.lng) > SHEET_NEAR_KM) return null;
-  for (const c of placed) {
-    if (!located(c) || sheetKm(first.lat, first.lng, c.lat, c.lng) > SHEET_TWIN_KM) return null;
-    // The words the listing adds, in the order it writes them.
-    const extra = [...nameTokens(c.name)].filter(t => !mine.has(t) && !SECTION_GENERIC.has(t));
-    if (extra.length < 1 || extra.length > 2) return null;
-    const label = extra.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    if (out.some(o => o.label === label)) return null;
-    out.push({ label, id: c.id });
+  const here = named.filter(c => fitsPlace(row, c));
+  if (here.length < 2) return null;
+  const first = here[0];
+  if (here.some(c => located(c))) {
+    // Located listings: ONE point, and it is the row's.
+    if (!located(row) || !located(first) || sheetKm(row.lat, row.lng, first.lat, first.lng) > SHEET_NEAR_KM) return null;
+    if (here.some(c => !located(c) || sheetKm(first.lat, first.lng, c.lat, c.lng) > SHEET_TWIN_KM)) return null;
+  } else {
+    // No listing has a point: one town in the row's region, and either the
+    // row's town or exactly the row's club name.
+    if (!row.region_code || here.some(c => c.region_code !== row.region_code || !sameText(c.city, first.city))) return null;
+    const words = (name: string) => [...nameTokens(name)].sort().join(' ');
+    const mine = words(row.name);
+    if (!sameText(row.city, first.city) && !here.every(c => words(sectionlessName(c.name)) === mine)) return null;
   }
-  return out.sort((a, b) => a.label.localeCompare(b.label));
+  const rowWords = nameTokens(row.name);
+  const found = new Map<string, ClubSectionFound & { combination: boolean }>();
+  for (const c of here) {
+    // The provider's own name for the course; a listing written without a
+    // dash gives the words it adds to the club's.
+    const key = sectionLabelKey(sectionPart(c.name)) || [...nameTokens(c.name)].filter(t => !rowWords.has(t) && !SECTION_GENERIC.has(t)).join(' ');
+    if (!key) return null;
+    const parts = key.split('/');
+    if (parts.length > 2 || parts.some(p => p.split(' ').length > 2)) return null;
+    const label = parts.map(p => p.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')).join('/');
+    // The same course listed again counts once.
+    if (!found.has(key)) found.set(key, { label, id: c.id, combination: parts.length === 2 });
+  }
+  let sections = [...found.entries()];
+  // Nines listed on their own AND as combinations: the nines are the courses.
+  const nines = sections.filter(([, s]) => !s.combination);
+  if (nines.length >= 2 && nines.length < sections.length) {
+    const known = new Set(nines.map(([key]) => key));
+    if (sections.filter(([, s]) => s.combination).every(([key]) => key.split('/').every(p => known.has(p)))) sections = nines;
+  }
+  if (sections.length < 2 || sections.length > CLUB_SECTIONS_MAX) return null;
+  return sections.map(([, s]) => ({ label: s.label, id: s.id })).sort((a, b) => a.label.localeCompare(b.label));
 }
 
 /** The one candidate that is this facility, or null. Pure — tests cover it. */
@@ -1346,13 +1431,17 @@ export function pickSheetCandidate(
   map?: { par: number; holes: number } | null
 ): SheetCandidate | null {
   const { named } = sheetNamed(row, candidates);
-  const placed = foldSheetTwins(named.filter(
-    c =>
-      (!row.country_code || !c.country_code || row.country_code === c.country_code) &&
-      (!row.region_code || !c.region_code || row.region_code === c.region_code)
-  ));
+  const placed = foldSheetTwins(named.filter(c => fitsPlace(row, c)));
   if (placed.length <= 1) return placed[0] ?? null;
   // Several fit: narrow by what is positively known, never by guessing.
+  // A course of a club takes the listing that IS that course, not a
+  // combination that contains it ("Red (9 Hole)" for Red, not "Red/Blue";
+  // "Lake / Island" for Lake/Island, not "Island/Lake").
+  const section = sectionLabelKey(row.section_name ?? sectionPart(row.name));
+  if (section) {
+    const own = placed.filter(c => sectionLabelKey(sectionPart(c.name)) === section);
+    if (own.length === 1) return own[0];
+  }
   // A candidate confirmed in the same region beats one with no location…
   const confirmed = placed.filter(c => !!row.region_code && c.region_code === row.region_code);
   const pool = confirmed.length > 0 ? confirmed : placed;
@@ -1415,7 +1504,7 @@ export interface SheetAsk {
   picked?: string | null;
   /** The card is the front nine of an eighteen, confirmed by a sibling listing. */
   fromCombination?: boolean;
-  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error' | 'provider_down';
+  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_here' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error' | 'provider_down';
 }
 
 /** One source of official cards (Nov 16 2026). `search` answers the provider's
@@ -1501,6 +1590,13 @@ const gcaSheets: SheetProvider = {
  *  so GolfCourseAPI's 50 a day are spent only on what is still missing. */
 export const SHEET_PROVIDERS: ReadonlyArray<SheetProvider> = [openGolfSheets, gcaSheets];
 
+/** The key of a course's one ask a day. It carries the version of the rules
+ *  that judge the answer: a course asked under older rules is asked again once
+ *  they change (v2, Nov 24 2026: Hylands had spent its day on a rule that
+ *  could not read its listings). */
+export const SHEET_RULES_VERSION = 2;
+export const sheetAskKey = (courseId: string): string => `golf-sheet-ask:v${SHEET_RULES_VERSION}:${courseId}`;
+
 /** How many times a day a course's ask is handed back after a provider's trouble. */
 export const SHEET_ASK_RETRIES = 2;
 
@@ -1519,7 +1615,7 @@ async function releaseSheetAsk(admin: SupabaseClient, courseId: string, trace: R
   if (!sheetAskUnanswered(trace)) return;
   if (!(await hitBudget(admin, `golf-sheet-retry:${courseId}`, SHEET_ASK_RETRIES))) return;
   try {
-    const { error } = await admin.from('rate_limits').delete().eq('key', `golf-sheet-ask:${courseId}`);
+    const { error } = await admin.from('rate_limits').delete().eq('key', sheetAskKey(courseId));
     if (error) console.error(`[course-catalog] official sheet: the ask for ${courseId} could not be handed back:`, error.message);
   } catch { /* the ask stays spent */ }
 }
@@ -1556,7 +1652,7 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
   if (hadCard && (row.external_source as string) === 'qa-e2e') return answer('already');
   const providers = SHEET_PROVIDERS.filter(p => p.source !== row.external_source && p.configured());
   if (providers.length === 0) return miss('not_configured');
-  if (!(await hitBudget(admin, `golf-sheet-ask:${row.id}`, 1))) return miss('no_match');
+  if (!(await hitBudget(admin, sheetAskKey(row.id), 1))) return miss('no_match');
 
   // A map card is protected: a wrong same-named course must not replace it.
   const mapSheet = hadCard ? null : await readMapSheet(admin, row.id);

@@ -108,7 +108,7 @@ describe('findOfficialSheet — every other provider, until the card lacks nothi
     expect(r.course.slopeRating).toEqual({ blue: 128, white: 127 });
     expect(updates).toHaveLength(1);
     expect(updates[0].sheet_sources).toEqual({ pars: 'opengolfapi', strokeIndex: 'golfcourseapi', tees: { white: 'opengolfapi', blue: 'golfcourseapi' }, ratings: { blue: 'golfcourseapi', white: 'golfcourseapi' } });
-    expect(keys[0]).toBe('golf-sheet-ask:c1');
+    expect(keys[0]).toBe('golf-sheet-ask:v2:c1');
   });
 
   it('stops asking once the card is complete', async () => {
@@ -591,7 +591,7 @@ describe('a provider error does not spend the course\'s ask for the day', () => 
     const r = await findOfficialSheet(admin, row());
     expect(r.outcome).toBe('provider_error');
     expect(updates).toEqual([]);
-    expect(released).toEqual([`golf-sheet-ask:${row().id}`]);
+    expect(released).toEqual([`golf-sheet-ask:v2:${row().id}`]);
     expect(keys[keys.length - 1]).toBe(`golf-sheet-retry:${row().id}`);
   });
 
