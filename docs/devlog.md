@@ -1,5 +1,11 @@
 # Development Log
 
+## November 23, 2026 (20:53) — Close: the tile-grid Create sheet is on production
+
+**#1614 merged** (`cdff979f`) and `/api/health` shows the commit. Production probe with `E2E_EXPECT_COMMIT=cdff979f`, one project at a time: desktop 6 passed (`header-create` — the twelve buttons in order with their names, every door's destination); mobile 2 passed (`header-create` — the info buttons at the project width, 320 px and 390 px, and a pick reading selected). The probe's four QA accounts were deleted by its teardown both times.
+
+**Still open.** Tom's look on his own phone. Next: the golf posting work (live, finished and indoor rounds).
+
 ## November 23, 2026 (20:40) — The Create sheet is a tile grid: titles only, each description behind an info button
 
 **Why.** Tom's spec "Create Sheet Redesign" (Nov 23 2026) with the mockup "Option B, tile grid with info": restyle the Create sheet as a full-width Post button, a 2 x 2 grid and a full-width last row, titles only, an info button on every option. A visual change only: the six doors, their order and what each opens are the Nov 20 ones.
