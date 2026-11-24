@@ -28,6 +28,7 @@ import { getCourseHoleElevation, readCourseHoleElevation } from '@/lib/golf/elev
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { ORG_ID, orgRefOf } from '@/lib/orgs/org-ref';
 import { reportRouteError } from '@/lib/observability/report';
+import { RECENT_ROUNDS_SCANNED, recentCourseIds } from '@/lib/golf/recent-courses';
 
 // ── GET /api/golf/courses ────────────────────────────────────────────────────
 // The course picker's data source, over the golf_courses catalog (migration
@@ -63,6 +64,53 @@ export async function GET(request: NextRequest) {
       viewerId = user.id;
       viewerEmail = user.email ?? null;
     } catch { /* anonymous — platform courses only */ }
+
+    // ── ?recent=1 — the course step's RECENT list (Nov 23 2026): the
+    //    catalog courses of the caller's OWN latest rounds, each once,
+    //    newest first (recent-courses.ts). Derived, never stored; anonymous
+    //    callers get an empty list. Per-viewer → private, no-store.
+    if (searchParams.get('recent') === '1') {
+      const headers = { 'Cache-Control': 'private, no-store' };
+      if (!viewerId) return NextResponse.json({ courses: [] }, { headers });
+      // A round lives in one of two places (recent-courses.ts): the caller's
+      // own group posts (a live or scorecard round → golf_scorecard_data)
+      // and their individual golf_rounds. Both read by the caller's id only.
+      const [individual, posts] = await Promise.all([
+        admin
+          .from('golf_rounds')
+          .select('course_id, created_at')
+          .eq('profile_id', viewerId)
+          .not('course_id', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(RECENT_ROUNDS_SCANNED),
+        admin
+          .from('group_posts')
+          .select('id, created_at')
+          .eq('creator_id', viewerId)
+          .order('created_at', { ascending: false })
+          .limit(RECENT_ROUNDS_SCANNED),
+      ]);
+      if (individual.error || posts.error) {
+        reportRouteError('[GET /api/golf/courses?recent=1]', individual.error ?? posts.error);
+        return NextResponse.json({ courses: [] }, { headers });
+      }
+      const postAt = new Map((posts.data ?? []).map(p => [p.id as string, p.created_at as string]));
+      const cards = postAt.size > 0
+        ? await admin
+            .from('golf_scorecard_data')
+            .select('group_post_id, course_id')
+            .in('group_post_id', [...postAt.keys()])
+            .not('course_id', 'is', null)
+        : { data: [], error: null };
+      if (cards.error) reportRouteError('[GET /api/golf/courses?recent=1]', cards.error);
+      const played = [
+        ...(individual.data ?? []).map(r => ({ course_id: r.course_id, at: r.created_at })),
+        ...(cards.data ?? []).map(c => ({ course_id: c.course_id, at: postAt.get(c.group_post_id as string) })),
+      ];
+      const rows = await Promise.all(recentCourseIds(played).map(id => getCatalogRow(admin, id)));
+      const courses = rows.filter((r): r is NonNullable<typeof r> => r !== null).map(rowToCourse);
+      return NextResponse.json({ courses }, { headers });
+    }
 
     // ── Course by id — the hydration touchpoint ──────────────────────────
     if (courseId) {

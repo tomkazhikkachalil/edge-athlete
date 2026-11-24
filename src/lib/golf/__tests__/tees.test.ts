@@ -45,3 +45,46 @@ describe('tidyCourseName', () => {
     expect(tidyCourseName('1757 Golf Club')).toBe('1757 Golf Club');
   });
 });
+
+// The tee table (the mechanical dialect, Nov 23 2026).
+describe('the tee table — sides, labels, dots, and when the rating is typed', () => {
+  it('the women\'s side is the " (f)" keys; the switch needs both sides', async () => {
+    const { splitTeeSides, hasBothTeeSides, isWomensTee } = await import('../tees');
+    expect(splitTeeSides(['black', 'blue', 'white', 'blue (f)', 'red (f)'])).toEqual({
+      men: ['black', 'blue', 'white'],
+      women: ['blue (f)', 'red (f)'],
+    });
+    expect(hasBothTeeSides(['blue', 'blue (f)'])).toBe(true);
+    expect(hasBothTeeSides(['blue', 'white'])).toBe(false);
+    expect(hasBothTeeSides(['red (f)'])).toBe(false);
+    expect(isWomensTee('Blue (F)')).toBe(true);
+    expect(isWomensTee('forward')).toBe(false);
+  });
+  it('a row drops the "(F)" — the switch says the side', async () => {
+    const { teeRowLabel } = await import('../tees');
+    expect(teeRowLabel('blue (f)')).toBe('Blue');
+    expect(teeRowLabel('championship')).toBe('Championship');
+  });
+  it('a colour name gets its dot; a name that is not a colour gets none', async () => {
+    const { teeDotColour } = await import('../tees');
+    expect(teeDotColour('black')).toBe('#0B0B0D');
+    expect(teeDotColour('gold')).toBe('#D4A72C');
+    expect(teeDotColour('blue (f)')).toBe('#3B82F6');
+    expect(teeDotColour('White')).toBe('#EDEDED');
+    expect(teeDotColour('red')).toBe('#E5484D');
+    expect(teeDotColour('blue/white')).toBe('#3B82F6');
+    expect(teeDotColour('championship')).toBeNull();
+    expect(teeDotColour('map')).toBeNull();
+  });
+  it('rating and slope are typed only where the card cannot answer', async () => {
+    const { ratingEntryNeeded } = await import('../tees');
+    const full = { courseRating: { blue: 72.9, white: 71.2 }, slopeRating: { blue: 134, white: 128 } };
+    expect(ratingEntryNeeded(null, '')).toBe(true); // a typed course
+    expect(ratingEntryNeeded(null, 'white')).toBe(true);
+    expect(ratingEntryNeeded(full, 'white')).toBe(false);
+    expect(ratingEntryNeeded(full, '')).toBe(false); // no tee yet: the table asks, not the fields
+    expect(ratingEntryNeeded(full, 'red')).toBe(true); // a tee the card has no numbers for
+    expect(ratingEntryNeeded({ courseRating: { blue: 72.9 }, slopeRating: {} }, 'blue')).toBe(true);
+    expect(ratingEntryNeeded({ courseRating: {}, slopeRating: {} }, '')).toBe(true); // a map-only row
+  });
+});

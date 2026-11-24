@@ -72,7 +72,7 @@ describe('StepFlow — variant="mech"', () => {
     const composer = read('src/components/CreatePostModal.tsx');
     expect(composer).toContain("const isGolf = postType === 'golf';");
     expect(composer).toMatch(/isGolf\s*\? 'ea-mech ea-mech-overlay fixed inset-0/);
-    expect(composer).toContain("golfFrame === 'wide' ? 'sm:max-w-[760px]' : 'sm:max-w-[480px]'");
+    for (const width of ["narrow: 'sm:max-w-[480px]'", "wide: 'sm:max-w-[760px]'", "full: 'sm:max-w-[920px]'"]) expect(composer).toContain(width);
     // A custom class takes no breakpoint prefix: the cap lives in the dialog class.
     expect(composer).not.toContain('sm:max-h-modal');
     expect(read('src/components/SportSelector.tsx')).not.toContain('sm:max-h-modal');

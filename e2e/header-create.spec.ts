@@ -116,7 +116,7 @@ test('header Create shows Post, Sport session, Gym workout, Live activity, Event
   await expect(flow.locator('[data-step-header]')).toHaveText(/Step 1 of 7 · Round type/);
   await expect(page.getByText('Playing now')).toBeVisible();
   await flow.locator('[data-step-next]').click();
-  await expect(page.getByPlaceholder(/search for a golf course/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByPlaceholder(/search courses/i)).toBeVisible({ timeout: 15_000 });
 });
 
 // Oct 22 2026, Tom's iPhone: after a cold open, Create → Sport zoomed the

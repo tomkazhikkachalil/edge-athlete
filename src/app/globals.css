@@ -1169,6 +1169,8 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-text-dim: #4a4656;      /* info text beside an option name */
   --mech-label: #6b6777;
   --mech-chevron: #9c98a8;
+  --mech-tick: #b9b5c4;           /* a dial's minor ticks, a bolt's rim */
+  --mech-dot-ring: rgb(20 16 40 / 0.35);
   --mech-hairline: rgb(20 16 40 / 0.10);
   --mech-divider: rgb(20 16 40 / 0.07);
   --mech-outline: rgb(20 16 40 / 0.22);   /* Back's border */
@@ -1231,6 +1233,8 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-text-dim: #c4c1cc;
   --mech-label: #9a96a6;
   --mech-chevron: #6e6a79;
+  --mech-tick: #55525f;
+  --mech-dot-ring: rgb(255 255 255 / 0.4);
   --mech-hairline: rgb(255 255 255 / 0.07);
   --mech-divider: rgb(255 255 255 / 0.05);
   --mech-outline: rgb(255 255 255 / 0.14);

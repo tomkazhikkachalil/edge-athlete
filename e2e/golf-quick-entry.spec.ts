@@ -34,13 +34,14 @@ async function next(flow: Locator, reached: RegExp) {
   await expect(header(flow)).toHaveText(reached);
 }
 
-/** Type a custom course on the course step and close the suggestions by
- *  pressing somewhere neutral (the card's heading). */
+/** Type a custom course on the course step and take it on by hand ("Add
+ *  course manually", Nov 23 2026): the step swaps the search for the course. */
 async function nameCourse(page: Page, courseName: string) {
-  const courseInput = page.getByPlaceholder(/search for a golf course/i);
+  const courseInput = page.getByPlaceholder(/search courses/i);
   await courseInput.fill(courseName);
-  await page.getByRole('heading', { name: 'Course Details' }).click();
-  await page.waitForTimeout(300);
+  await page.locator('[data-course-add-manually]').click();
+  await expect(page.locator('[data-course-chosen]')).toContainText(courseName);
+  await expect(page.locator('[data-course-view="selected"]')).toBeVisible();
 }
 
 test('log an already-played round through the steps and see the scorecard post', { tag: '@smoke' }, async ({ page }) => {
@@ -266,16 +267,31 @@ test('a catalog tee shows its yards and rating / slope; the sport row is one lin
     await expect(page.getByText('Post Type', { exact: true })).toHaveCount(0);
 
     await next(flow, /Step 2 of 7 · Course/);
-    const courseInput = page.getByPlaceholder(/search for a golf course/i);
+    const courseInput = page.getByPlaceholder(/search courses/i);
     await courseInput.fill('QA Tee Links');
-    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
-    await expect(courseInput).toHaveValue(name);
+    await page.locator('[data-course-results] button', { hasText: name }).first().click({ timeout: 15_000 });
+    await expect(page.locator('[data-course-chosen]')).toContainText(name);
 
-    const tees = page.locator('select').filter({ has: page.locator('option', { hasText: 'Select tees' }) }).first();
-    await expect(tees).toBeVisible();
-    // Hardest first (blue 72.9 over white 71.2), each with yards · rating / slope.
-    await expect(tees.locator('option')).toHaveText(['Select tees', 'Blue · 3,420 yds · 72.9 / 134', 'White · 3,150 yds · 71.2 / 128']);
-    await tees.selectOption('white');
+    // The tee table (Nov 23 2026): hardest first (blue 72.9 over white 71.2),
+    // each row with its yards and rating / slope; no tee yet → the dials rest
+    // and read dashes, and nothing asks for a rating the card already has.
+    const rows = page.locator('[data-tee-table] [data-tee-row]');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toHaveText(/Blue\s*3,420\s*72\.9 \/ 134/);
+    await expect(rows.nth(1)).toHaveText(/White\s*3,150\s*71\.2 \/ 128/);
+    await expect(page.locator('[data-dial="yards"] [data-dial-readout]')).toHaveText('—');
+    await expect(page.locator('[data-dial="rating"]')).toHaveAttribute('data-dial-angle', '-135');
+    await expect(page.locator('[data-course-rating-entry]')).toHaveCount(0);
+    await expect(page.locator('[data-key-switch]')).toHaveCount(0); // one side only: no Men | Women
+    const white = page.locator('[data-tee-row="white"]');
+    await white.click();
+    await expect(white).toHaveAttribute('aria-pressed', 'true');
+    // The dials follow the tee in play.
+    await expect(page.locator('[data-dial="yards"] [data-dial-readout]')).toHaveText('3,150');
+    await expect(page.locator('[data-dial="rating"] [data-dial-readout]')).toHaveText('71.2');
+    await expect(page.locator('[data-dial="slope"] [data-dial-readout]')).toHaveText('128');
+    await expect(page.locator('[data-dial="rating"]')).not.toHaveAttribute('data-dial-angle', '-135');
+    for (const row of await rows.all()) expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     // The summary on the last step names the tee the same way.
     await next(flow, /Step 3 of 7 · Game format/);
     await next(flow, /Step 4 of 7 · Conditions/);
@@ -348,13 +364,14 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
 
     // Step 2: the seeded course → Show Map | Official Scorecard, one open at a time; no "(optional)", no handicap line.
     await next(flow, /Step 2 of 7 · Course/);
-    await page.getByPlaceholder(/search for a golf course/i).fill('QA Look Links');
-    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
-    await expect(page.locator('[data-course-chosen]')).toHaveClass(/bg-brand-soft/);
+    await page.getByPlaceholder(/search courses/i).fill('QA Look Links');
+    await page.locator('[data-course-results] button', { hasText: name }).first().click({ timeout: 15_000 });
+    await expect(page.locator('[data-course-chosen]')).toContainText(name);
     const showMap = page.locator('[data-course-show-map]');
     const showCard = page.locator('[data-course-show-scorecard]');
-    await expect(showMap).toHaveText(/Show Map/, { timeout: 15_000 });
-    await expect(showCard).toHaveText(/Official Scorecard/);
+    // The utility row (Nov 23 2026): Map · Scorecard, the open one reads Hide.
+    await expect(showMap).toHaveText(/^\s*Map\s*$/, { timeout: 15_000 });
+    await expect(showCard).toHaveText(/^\s*Scorecard\s*$/);
     await expect(page.getByText('View on map')).toHaveCount(0);
     await showCard.click();
     await expect(showCard).toHaveText(/Hide/);
@@ -364,7 +381,7 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     await expect(page.locator('[data-course-scorecard-sum="total"]').first()).toHaveClass(/border-l-2/);
     await showMap.click();
     await expect(showMap).toHaveText(/Hide/);
-    await expect(showCard).toHaveText(/Official Scorecard/);
+    await expect(showCard).toHaveText(/^\s*Scorecard\s*$/);
     await expect(page.locator('[data-course-scorecard]')).toHaveCount(0);
     await expect(page.locator('.leaflet-container')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('(optional)')).toHaveCount(0);
@@ -383,8 +400,12 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
       .single();
     expect(osm.error, osm.error?.message).toBeNull();
     osmId = osm.data!.id as string;
-    await page.getByPlaceholder(/search for a golf course/i).fill('QA Map Only Links');
-    await page.locator('div.absolute.max-h-60 button', { hasText: osmName }).first().click({ timeout: 15_000 });
+    // "Change" on the plate returns to the search.
+    await page.locator('[data-course-change]').click();
+    await expect(page.locator('[data-course-view="search"]')).toBeVisible();
+    await expect(page.getByPlaceholder(/search courses/i)).toHaveValue('');
+    await page.getByPlaceholder(/search courses/i).fill('QA Map Only Links');
+    await page.locator('[data-course-results] button', { hasText: osmName }).first().click({ timeout: 15_000 });
     await expect(page.locator('[data-course-chosen]')).toContainText(osmName);
     // The detail answers without holes → the button is dropped (the
     // summary's "Not fully mapped" follows the slower map-lines request).
@@ -394,9 +415,12 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     // …and asks for one on its own (Oct 31 2026): the provider by name. A QA-named row matches nothing → the honest line.
     await expect(page.locator('[data-course-sheet-none]')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('[data-course-find-sheet]')).toHaveCount(0);
+    // A row without ratings asks for them (the slots), where the carded course did not.
+    await expect(page.locator('[data-course-rating-entry]')).toBeVisible();
     // Back to the real course for the rest of the walk.
-    await page.getByPlaceholder(/search for a golf course/i).fill('QA Look Links');
-    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    await page.locator('[data-course-change]').click();
+    await page.getByPlaceholder(/search courses/i).fill('QA Look Links');
+    await page.locator('[data-course-results] button', { hasText: name }).first().click({ timeout: 15_000 });
     await expect(page.locator('[data-course-chosen]')).toContainText(name);
 
     // Step 3: the pressed format is purple.
@@ -460,8 +484,8 @@ test('a course with no sheet: the preview and the full scorecard before any scor
     expect(seeded.error, seeded.error?.message).toBeNull();
     courseId = seeded.data!.id as string;
     const pick = async () => {
-      await page.getByPlaceholder(/search for a golf course/i).fill('QA No Sheet Links');
-      await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+      await page.getByPlaceholder(/search courses/i).fill('QA No Sheet Links');
+      await page.locator('[data-course-results] button', { hasText: name }).first().click({ timeout: 15_000 });
       await expect(page.locator('[data-course-chosen]')).toContainText(name);
     };
     let flow = await openGolf(page);
@@ -568,8 +592,8 @@ test('a course with map lines and no card: the scorecard comes from the map and 
     courseId = seeded.data!.id as string;
     const flow = await openGolf(page);
     await next(flow, /Step 2 of 7/);
-    await page.getByPlaceholder(/search for a golf course/i).fill('QA Map Card Links');
-    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    await page.getByPlaceholder(/search courses/i).fill('QA Map Card Links');
+    await page.locator('[data-course-results] button', { hasText: name }).first().click({ timeout: 15_000 });
     const show = page.locator('[data-course-show-scorecard]');
     await expect(show).toBeVisible({ timeout: 15_000 });
     await show.click();
@@ -638,8 +662,8 @@ test('a course with map lines and NO pars: the card is shown with estimated pars
     courseId = seeded.data!.id as string;
     const flow = await openGolf(page);
     await next(flow, /Step 2 of 7/);
-    await page.getByPlaceholder(/search for a golf course/i).fill('QA Map Estimate Links');
-    await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
+    await page.getByPlaceholder(/search courses/i).fill('QA Map Estimate Links');
+    await page.locator('[data-course-results] button', { hasText: name }).first().click({ timeout: 15_000 });
     const show = page.locator('[data-course-show-scorecard]');
     await expect(show).toBeVisible({ timeout: 15_000 });
     await expect(show).toHaveText(/^\s*Scorecard\s*$/); // not "Official"
@@ -739,8 +763,8 @@ test('a club the lookup finds to be two courses: the golfer is asked which, and 
 
     const flow = await openGolf(page);
     await next(flow, /Step 2 of 7/);
-    await page.getByPlaceholder(/search for a golf course/i).fill(`QA Split Glen Golf Club ${stamp}`);
-    await page.locator('div.absolute.max-h-60 button', { hasText: clubName }).filter({ hasNotText: '(' }).first().click({ timeout: 15_000 });
+    await page.getByPlaceholder(/search courses/i).fill(`QA Split Glen Golf Club ${stamp}`);
+    await page.locator('[data-course-results] button', { hasText: clubName }).filter({ hasNotText: '(' }).first().click({ timeout: 15_000 });
 
     // The question, with both courses; no "nothing found" line beside it.
     const chooser = page.locator('[data-club-section-chooser]');

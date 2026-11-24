@@ -45,10 +45,11 @@ export interface SportComposerExtraProps {
   /** The mechanical dialect (Nov 23 2026): the composer's sport row ("Golf ·
    *  Change · Remove"), drawn by the section's step frame beside its step
    *  counter; and the section tells the composer how wide its dialog is on a
-   *  desktop — 'narrow' (480 px: the round type, the course search) or
-   *  'wide' (760 px: a picked course and every later step). */
+   *  desktop — 'narrow' (480 px: the round type, the course search),
+   *  'wide' (760 px: a picked course and every later step) or 'full'
+   *  (920 px: the picked course with its scorecard open). */
   lead?: ReactNode;
-  onFrame?: (frame: 'narrow' | 'wide') => void;
+  onFrame?: (frame: 'narrow' | 'wide' | 'full') => void;
 }
 
 export const SPORT_COMPOSER_EXTRAS: Partial<Record<SportKey, ComponentType<SportComposerExtraProps>>> = {

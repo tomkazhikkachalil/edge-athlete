@@ -33,7 +33,7 @@ export interface CourseSummaryCardProps {
   loading?: boolean;
 }
 
-const gapCopy = (gap: MappingGap, teeInPlay?: string | null, sections = 0): string =>
+export const gapCopy = (gap: MappingGap, teeInPlay?: string | null, sections = 0): string =>
   gap === 'no-hole-data'
     ? COPY.GOLF_COURSE.GAP_NO_HOLE_DATA
     : gap === 'no-yardage-for-tee'

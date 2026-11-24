@@ -173,12 +173,14 @@ test.describe('suggestion dropdowns are visible and clickable', () => {
         const flow = page.locator('[data-step-flow="golf-round"]');
         await expect(flow).toBeVisible({ timeout: 15_000 });
         await flow.locator('[data-step-next]').click();
-        const course = page.getByPlaceholder(/search for a golf course/i);
+        const course = page.getByPlaceholder(/search courses/i);
         await expect(course).toBeVisible();
         await course.click();
         await course.fill('a');
 
-        const list = 'div.absolute.max-h-60.overflow-y-auto';
+        // Nov 23 2026: the course list is IN the step's flow (never a floating
+        // panel), so there is nothing to clip — the same checks still hold.
+        const list = '[data-course-results]';
         await expect(page.locator(`${list} button`).first()).toBeVisible({ timeout: 10_000 });
         await assertSuggestionsUsable(page, {
           listSelector: list,
@@ -200,7 +202,10 @@ test.describe('suggestion dropdowns are visible and clickable', () => {
           sc.scrollTop = start;
           return moved;
         });
-        expect(scrolls, `composer stopped scrolling with the course dropdown open @ ${viewport.width}px`).toBe(true);
+        // null = nothing overflows (Nov 23 2026: the round is a full screen on a
+        // phone and the list sits in the flow, so a short list needs no scroll);
+        // a scroller that DOES overflow must still move.
+        expect(scrolls, `composer stopped scrolling with the course dropdown open @ ${viewport.width}px`).not.toBe(false);
 
         await page.keyboard.press('Escape');
       }

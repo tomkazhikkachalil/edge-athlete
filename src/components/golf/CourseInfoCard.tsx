@@ -7,7 +7,9 @@ import type { GolfCourse } from '@/types/golf';
 import type { GreenRing, HoleLine } from '@/lib/golf/hole-geometry';
 import CourseMap from '@/components/golf/CourseMap';
 import CourseScorecardTable from '@/components/golf/CourseScorecardTable';
-import CourseSummaryCard from '@/components/golf/CourseSummaryCard';
+import CourseSummaryCard, { gapCopy } from '@/components/golf/CourseSummaryCard';
+import { COPY } from '@/lib/copy';
+import { mappingGaps } from '@/lib/golf/course-summary';
 import BrandLogo from '@/components/BrandLogo';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { websiteDomain, logoUrl } from '@/lib/logo-dev';
@@ -67,9 +69,23 @@ interface CourseInfoCardProps {
   /** The person just picked this course to play: ask for its card without a
    *  tap (Oct 31 2026). Other surfaces keep the button, and never ask unprompted. */
   autoFindSheet?: boolean;
+  /** The mechanical dialect (Nov 23 2026, the golf round's course step): the
+   *  SAME card — one panel at a time, the honest states, the lookups — drawn
+   *  as the spec's utility row (Map · Scorecard · Website) with the panels
+   *  under it. The summary, the logo and the description are the step's own
+   *  (the plate, the dials, the tee table), so they are not drawn here.
+   *  `openClassName` is added while a panel is open (the step lets the card
+   *  span both columns on a desktop). */
+  variant?: 'card' | 'mech';
+  className?: string;
+  openClassName?: string;
+  /** Which panel is open, told to the caller on every change (the golf
+   *  round widens its dialog for the scorecard). */
+  onPanelChange?: (panel: 'map' | 'scorecard' | null) => void;
 }
 
-export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated, onClubFound, autoFindSheet = false }: CourseInfoCardProps) {
+export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated, onClubFound, autoFindSheet = false, variant = 'card', className = '', openClassName = '', onPanelChange }: CourseInfoCardProps) {
+  const mech = variant === 'mech';
   // ONE panel at a time (Oct 29 2026, Tom's refinement spec): the map or
   // the official scorecard, opened by two side-by-side buttons under the
   // summary; opening one closes the other. `defaultOpen` opens the map.
@@ -79,6 +95,13 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const [open, setOpen] = useState<'map' | 'scorecard' | null>(defaultOpen ? 'map' : null);
   const showMap = open === 'map';
   const showScorecard = open === 'scorecard';
+  // The caller hears which panel is open — and "none" when the card goes away.
+  const onPanelChangeRef = useRef(onPanelChange);
+  useEffect(() => { onPanelChangeRef.current = onPanelChange; });
+  useEffect(() => {
+    onPanelChangeRef.current?.(open);
+    return () => onPanelChangeRef.current?.(null);
+  }, [open]);
   const setShowMap = (next: boolean) => setOpen(next ? 'map' : null);
   const setShowScorecard = (next: boolean) => setOpen(next ? 'scorecard' : null);
   const [fetchedCourse, setFetchedCourse] = useState<GolfCourse | null>(null);
@@ -322,9 +345,26 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   };
 
 
+  // The utility row's buttons (mech) and the card's two buttons share every
+  // rule; only the dress differs.
+  const utilBtn = 'ea-mech-panel ea-mech-row ea-mech-btn flex-1 min-w-0 inline-flex h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-[13px] font-medium whitespace-nowrap text-[color:var(--mech-text)] disabled:opacity-60';
+  const cardBtn = (on: boolean) =>
+    `ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-2 text-xs sm:text-sm font-semibold whitespace-nowrap ${
+      on ? 'border-brand bg-brand-soft text-brand-fg-strong' : 'border-border-strong bg-surface text-primary'
+    }`;
+  const mechGaps = mech && !summaryLoading
+    ? mappingGaps({ holes: summaryCourse.holes, teeInPlay, geometry: holeLinesKnown ? holeLines : undefined, greensOnly, sections: sectionCount })
+    : [];
+
   return (
-    <div className="mt-3 rounded-lg border border-border bg-surface-sunken p-3 text-left">
+    <div
+      className={mech
+        ? `text-left ${className} ${open ? openClassName : ''}`
+        : 'mt-3 rounded-lg border border-border bg-surface-sunken p-3 text-left'}
+      data-course-card={variant}
+    >
       {/* M3: the course at a glance — FIRST, on every surface this card has. */}
+      {!mech && (
       <CourseSummaryCard
         course={summaryCourse}
         holeLines={holeLinesKnown ? holeLines : undefined}
@@ -334,6 +374,8 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
         onViewMap={viewMap}
         loading={summaryLoading}
       />
+      )}
+      {!mech && (
       <div className={logoAvailable ? 'flex items-start gap-3' : ''}>
         {logoAvailable && (
           <BrandLogo domain={logoDomain ?? undefined} name={course.name} size={40} fallback={null} />
@@ -354,23 +396,23 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
           )}
         </div>
       </div>
+      )}
       {/* Show Map | Official Scorecard (Oct 29 2026): two equal buttons; the
           open one reads Hide; one panel at a time, directly below. The old
           "View on map" Google link is gone. */}
-      {((hasCoords && mapMode !== 'hidden') || scorecardPossible || sheetFindable) && (
-        <div className="mt-3 grid grid-cols-2 gap-2" data-course-panels="">
+      {((hasCoords && mapMode !== 'hidden') || scorecardPossible || sheetFindable || (mech && !!course.website)) && (
+        <div className={mech ? 'flex gap-2' : 'mt-3 grid grid-cols-2 gap-2'} data-course-panels="">
           {hasCoords && mapMode !== 'hidden' && (
             <button
               type="button"
               onClick={() => setShowMap(!showMap)}
               aria-expanded={showMap}
               data-course-show-map=""
-              className={`ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-2 text-xs sm:text-sm font-semibold whitespace-nowrap ${
-                showMap ? 'border-brand bg-brand-soft text-brand-fg-strong' : 'border-border-strong bg-surface text-primary'
-              }`}
+              {...(mech && showMap ? { 'data-selected': '' } : {})}
+              className={mech ? utilBtn : cardBtn(showMap)}
             >
-              <FaIcon icon={showMap ? faChevronUp : faMap} />
-              {showMap ? 'Hide' : 'Show Map'}
+              <FaIcon icon={showMap ? faChevronUp : faMap} className={mech ? 'ea-mech-icon text-[16px]' : ''} />
+              {showMap ? 'Hide' : mech ? 'Map' : 'Show Map'}
             </button>
           )}
           {sheetFindable && !(autoFindSheet && sheetAsk !== 'failed') && (
@@ -380,10 +422,11 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
               disabled={sheetAsk === 'asking'}
               aria-busy={sheetAsk === 'asking' || undefined}
               data-course-find-sheet=""
-              className="ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface px-2 text-xs sm:text-sm font-semibold whitespace-nowrap text-primary disabled:opacity-60"
+              aria-label={mech && sheetAsk !== 'asking' ? 'Find the official scorecard' : undefined}
+              className={mech ? utilBtn : 'ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface px-2 text-xs sm:text-sm font-semibold whitespace-nowrap text-primary disabled:opacity-60'}
             >
-              <FaIcon icon={sheetAsk === 'asking' ? faSpinner : faTableList} spin={sheetAsk === 'asking' ? true : false} />
-              {sheetAsk === 'asking' ? 'Looking…' : 'Find the official scorecard'}
+              <FaIcon icon={sheetAsk === 'asking' ? faSpinner : faTableList} spin={sheetAsk === 'asking' ? true : false} className={mech ? 'ea-mech-icon text-[16px]' : ''} />
+              {sheetAsk === 'asking' ? 'Looking…' : mech ? 'Find card' : 'Find the official scorecard'}
             </button>
           )}
           {scorecardPossible && (
@@ -392,15 +435,34 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
               onClick={toggleScorecard}
               aria-expanded={showScorecard}
               data-course-show-scorecard=""
-              className={`ea-interactive inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-2 text-xs sm:text-sm font-semibold whitespace-nowrap ${
-                showScorecard ? 'border-brand bg-brand-soft text-brand-fg-strong' : 'border-border-strong bg-surface text-primary'
-              }`}
+              {...(mech && showScorecard ? { 'data-selected': '' } : {})}
+              className={mech ? utilBtn : cardBtn(showScorecard)}
             >
-              <FaIcon icon={showScorecard ? faChevronUp : faTableList} />
-              {showScorecard ? 'Hide' : scorecardSource?.sheetSource === 'map_estimated' ? 'Scorecard' : 'Official Scorecard'}
+              <FaIcon icon={showScorecard ? faChevronUp : faTableList} className={mech ? 'ea-mech-icon text-[16px]' : ''} />
+              {showScorecard ? 'Hide' : mech || scorecardSource?.sheetSource === 'map_estimated' ? 'Scorecard' : 'Official Scorecard'}
             </button>
           )}
+          {mech && course.website && (
+            <a
+              href={course.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-course-website=""
+              className={utilBtn}
+            >
+              <FaIcon icon={faGlobe} className="ea-mech-icon text-[16px]" />
+              Website
+            </a>
+          )}
         </div>
+      )}
+      {mechGaps.length > 0 && (
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs text-[color:var(--mech-text-soft)]" data-course-unmapped="">
+          <span className="ea-mech-micro">{COPY.GOLF_COURSE.NOT_FULLY_MAPPED}</span>
+          {mechGaps.map(g => (
+            <span key={g} data-course-gap={g}>{gapCopy(g, teeInPlay, sectionCount)}</span>
+          ))}
+        </p>
       )}
       {sheetFindable && autoFindSheet && sheetAsk === 'asking' && (
         <p className="mt-2 text-sm text-tertiary" data-course-sheet-looking="">Looking for the official scorecard…</p>
@@ -436,7 +498,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             Home of {homeOf.orgName}
           </Link>
         )}
-        {course.website && (
+        {!mech && course.website && (
           <a
             href={course.website}
             target="_blank"
@@ -489,7 +551,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
           />
         </div>
       )}
-      {logoAvailable && <LogoDevAttribution className="mt-2 block text-[10px] text-faint" />}
+      {!mech && logoAvailable && <LogoDevAttribution className="mt-2 block text-[10px] text-faint" />}
     </div>
   );
 }

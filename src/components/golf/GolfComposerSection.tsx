@@ -28,7 +28,7 @@ import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores } from '@/lib/golf/score-entry';
 import { localDayKey } from '@/lib/calendar/grid';
-import { courseTeeOptions, teeLabel, FALLBACK_TEES } from '@/lib/golf/tees';
+import { courseTeeOptions, teeLabel, FALLBACK_TEES, hasBothTeeSides, isWomensTee, splitTeeSides, ratingEntryNeeded } from '@/lib/golf/tees';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
@@ -37,13 +37,21 @@ import type { GolfCourse } from '@/types/golf';
 import { deriveCourseHoles as deriveCourseHolesPure } from '@/lib/golf/holes';
 import { isMapSheet } from '@/lib/golf/map-sheet';
 import { composeCourses, buildComposition, type CourseComposition } from '@/lib/golf/course-sections';
-import { courseSummary, teeChoiceLabel } from '@/lib/golf/course-summary';
+import { courseSummary, teeChoiceLabel, type TeeTotal } from '@/lib/golf/course-summary';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
-import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
+import { GOLF_INPUT_COMPACT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
 import { formatPlace } from '@/lib/geo/regions';
 import StepFlow from '@/components/StepFlow';
 import RoundTypeStep from '@/components/golf/round-steps/RoundTypeStep';
+import CoursePlate from '@/components/golf/round-steps/CoursePlate';
+import DialCluster from '@/components/golf/round-steps/DialCluster';
+import TeeTable from '@/components/golf/round-steps/TeeTable';
+import KeySwitch from '@/components/mech/KeySwitch';
+import LogoDevAttribution from '@/components/LogoDevAttribution';
+import { logoUrl, websiteDomain } from '@/lib/logo-dev';
+import { dialValue } from '@/lib/golf/dial';
+import { faChevronRight } from '@/lib/icons/fa/chevron-right';
 import FormatStep, { gameFormatLabel } from '@/components/golf/round-steps/FormatStep';
 import ConditionsStep, { type ForecastFilled } from '@/components/golf/round-steps/ConditionsStep';
 import { loadWeather } from '@/lib/weather/weather-client';
@@ -68,7 +76,6 @@ import {
 } from '@/lib/golf/round-steps';
 import FaIcon from '@/components/FaIcon';
 import { faBolt } from '@/lib/icons/fa/bolt';
-import { faCircleCheck } from '@/lib/icons/fa/circle-check';
 import { faEye } from '@/lib/icons/fa/eye';
 import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
 import { faGlobe } from '@/lib/icons/fa/globe';
@@ -208,6 +215,54 @@ interface ProfileData {
   avatar_url?: string | null;
 }
 
+type TeeSide = 'men' | 'women';
+const TEE_SIDE_OPTIONS = [
+  { value: 'men' as TeeSide, label: 'Men' },
+  { value: 'women' as TeeSide, label: 'Women' },
+] as const;
+
+/** One course in a list of the course step (results, nearby, recent): the
+ *  name on one line, the place or the distance under it, a chevron. */
+function CourseRow({ course, showKm, divided, onPick }: { course: GolfCourse; showKm: boolean; divided: boolean; onPick: (course: GolfCourse) => void }) {
+  const [pressed, setPressed] = useState(false);
+  const release = () => setPressed(false);
+  const place = formatPlace({ city: course.city, region: course.state, country: course.country });
+  // Thin provider rows have no hole data until first selection — "0 holes"
+  // read as broken, so say what actually happens instead. OSM rows never
+  // get details (no provider knows them), so they say THAT rather than
+  // promise a load.
+  const sheet = course.holes.length > 0
+    ? `Par ${course.totalPar} • ${course.holes.length} holes`
+    : course.source !== 'osm' && course.hydratedAt
+      ? 'No hole data from the provider yet'
+      : 'Details load when selected';
+  const km = showKm && typeof course.distanceKm === 'number' ? formatKm(course.distanceKm) : null;
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(course)}
+      data-course-row={course.id}
+      {...(pressed ? { 'data-pressed': '' } : {})}
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={release}
+      onPointerLeave={release}
+      onPointerCancel={release}
+      className="ea-mech-row w-full flex items-center gap-2 h-14 pl-3.5 pr-3 text-left"
+      style={divided ? { borderTop: '1px solid var(--mech-divider)' } : undefined}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-[color:var(--mech-text)]">{course.name}</span>
+        <span className="block truncate text-xs text-[color:var(--mech-text-soft)]">
+          {km && <span data-course-km="">{km} · </span>}
+          {place || sheet}
+          {place ? ` · ${sheet}` : ''}
+        </span>
+      </span>
+      <FaIcon icon={faChevronRight} className="text-[16px] text-[color:var(--mech-chevron)]" />
+    </button>
+  );
+}
+
 export default function GolfComposerSection({
   userId,
   active,
@@ -269,6 +324,23 @@ export default function GolfComposerSection({
   const [availableCourses, setAvailableCourses] = useState<GolfCourse[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<GolfCourse | null>(null);
+  // The course step's two views (Nov 23 2026): the search, until a course is
+  // picked or a typed name is "added manually"; then the picked course. A
+  // restored draft carries the name but not the catalog row, so it comes
+  // back as the hand-typed course it then is.
+  const [manualCourse, setManualCourse] = useState<boolean>(() => !!seed?.sharedRoundDetails?.courseName?.trim());
+  // Men | Women over the tee table: null follows the tee in play.
+  const [teeSideChoice, setTeeSideChoice] = useState<TeeSide | null>(null);
+  // The account's own last courses (GET /api/golf/courses?recent=1), asked
+  // once when the course step first shows.
+  const [recentCourses, setRecentCourses] = useState<GolfCourse[]>([]);
+  const recentAskedRef = useRef(false);
+  // What the last ANSWERED search was for — "No course found" is only ever
+  // said about the text an answer actually came back for.
+  const [searchedFor, setSearchedFor] = useState<string | null>(null);
+  // The picked course's open panel (the course card reports it): the
+  // scorecard asks for the full frame on a desktop.
+  const [coursePanel, setCoursePanel] = useState<'map' | 'scorecard' | null>(null);
 
   // Weather at the course (Oct 29 2026): the Conditions step's button asks
   // for the COURSE's cell on a TAP (never on entry) and fills the three
@@ -341,6 +413,7 @@ export default function GolfComposerSection({
       if (response.ok) {
         const data = await response.json();
         setAvailableCourses(data.courses || []);
+        setSearchedFor(query);
         setGlobalSearchAvailable(!!data.globalAvailable);
         setCatalogAttribution(data.attribution ?? null);
         setSearchFailed(false);
@@ -424,7 +497,6 @@ export default function GolfComposerSection({
 
   // Outside press + Escape, instead of a viewport-covering backdrop div.
   const courseFieldRef = useRef<HTMLDivElement>(null);
-  const courseDropdownRef = useRef<HTMLDivElement>(null);
   const closeCourseSearch = useCallback(() => {
     setCourseSearchOpen(false);
     setAvailableCourses([]);
@@ -438,21 +510,6 @@ export default function GolfComposerSection({
     courseSearchOpen && (availableCourses.length > 0 || worldwideOffer || searchFailed);
   const nearOffer = nearFix ? nearbyOffer(availableCourses, nearFix) : null;
   usePopoverDismiss(courseFieldRef, courseDropdownOpen, closeCourseSearch);
-
-  // The dropdown is `absolute` inside the composer's `overflow-y-auto` body, so
-  // it is CLIPPED at that ancestor's edge — measured at 240px tall hanging out
-  // of a scroller that ended 138px earlier, i.e. most of the list was
-  // invisible and unclickable. Nudge it into view, the same fix
-  // AddEquipmentModal.tsx already uses for its brand/model panels (which is
-  // why those measure clean). No-op when the list is already fully visible.
-  useEffect(() => {
-    if (!courseDropdownOpen) return;
-    // rAF: the panel must be laid out before it can be measured.
-    const id = requestAnimationFrame(() =>
-      courseDropdownRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-    );
-    return () => cancelAnimationFrame(id);
-  }, [courseDropdownOpen, availableCourses.length]);
 
   /** Par/yardage rows for the CURRENT hole range from a catalog course —
    *  the pure rule lives in holes.ts (H2: an unknown yardage stays unknown). */
@@ -538,6 +595,7 @@ export default function GolfComposerSection({
     setSharedRoundDetails(prev => ({ ...prev, courseComposition: null }));
     setSectionChoice(null);
     setComboFront(null);
+    setTeeSideChoice(null);
     setCourseSearchOpen(false);
     setCourseSearchQuery('');
     // Cancel first: a response already in flight would otherwise land after
@@ -876,8 +934,30 @@ export default function GolfComposerSection({
     alreadyPlayed: sharedRoundDetails.alreadyPlayed,
   });
 
+  // The course step's view: the picked course (or the hand-typed one, once
+  // added), else the search.
+  const typedCourse = sharedRoundDetails.courseName.trim();
+  const courseShown = !!selectedCourse || (manualCourse && typedCourse !== '');
+
+  useEffect(() => {
+    if (!active || currentStep.id !== 'course' || recentAskedRef.current) return;
+    recentAskedRef.current = true;
+    let cancelled = false;
+    fetch('/api/golf/courses?recent=1', { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : null))
+      .then((body: { courses?: GolfCourse[] } | null) => {
+        if (!cancelled && Array.isArray(body?.courses)) setRecentCourses(body.courses);
+      })
+      .catch(() => { /* a convenience list: the search works without it */ });
+    return () => {
+      cancelled = true;
+      // StrictMode's second mount must ask again (the first was cancelled).
+      recentAskedRef.current = false;
+    };
+  }, [active, currentStep.id]);
+
   // The composer's dialog follows the step (480 → 760 px on a desktop).
-  const frame = roundFrame(currentStep.id, sharedRoundDetails.courseName);
+  const frame = roundFrame(currentStep.id, courseShown, coursePanel === 'scorecard');
   useEffect(() => {
     if (active) onFrame?.(frame);
   }, [active, frame, onFrame]);
@@ -909,7 +989,106 @@ export default function GolfComposerSection({
   const wantedIds = (currentStep.id === 'finish' && active ? [userId, ...sharedRoundParticipants] : []).filter((id): id is string => !!id);
   if (wantedIds.join(',') !== handicapsWanted.join(',')) setHandicapsWanted(wantedIds);
 
-  const teeTotals = selectedCourse ? courseSummary(selectedCourse).tees : [];
+  const courseFacts = selectedCourse ? courseSummary(selectedCourse) : { holeCount: sharedRoundDetails.holesPlayed, par: null, tees: [] };
+  const teeTotals = courseFacts.tees;
+
+  // ── The picked course's tee table, dials and rating slots ────────────────
+  // The rows are the old Tees select's options: a catalog course's REAL
+  // tees, the classic five colours for a map-only card or a typed course.
+  const teeKeys: string[] = isMapSheet(selectedCourse?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(selectedCourse);
+  const bothTeeSides = hasBothTeeSides(teeKeys);
+  const teeSide: TeeSide = teeSideChoice ?? (isWomensTee(sharedRoundDetails.teeColor) ? 'women' : 'men');
+  const teeRows: TeeTotal[] = (bothTeeSides ? splitTeeSides(teeKeys)[teeSide] : teeKeys).map(key =>
+    teeTotals.find(t => t.key === key) ?? { key, label: teeLabel(key), yards: null, rating: null, slope: null }
+  );
+  /** A tee row's tap — the old Tees select's onChange, verbatim. */
+  const pickTee = (tee: string) => {
+    const course = selectedCourse;
+    setSharedRoundDetails(prev => ({
+      ...prev,
+      teeColor: tee,
+      // Re-fill THIS tee's rating/slope (the flagged follow-up from the
+      // catalog round — tee changes used to leave the old tee's numbers
+      // standing).
+      ...(course && tee
+        ? {
+            courseRating: String(
+              course.courseRating?.[tee] ??
+                Object.values(course.courseRating ?? {})[0] ?? prev.courseRating ?? ''
+            ),
+            slopeRating: String(
+              course.slopeRating?.[tee] ??
+                Object.values(course.slopeRating ?? {})[0] ?? prev.slopeRating ?? ''
+            ),
+          }
+        : {}),
+    }));
+    if (course && tee) {
+      setCourseHoleData(
+        deriveCourseHoles(course, tee, course.holesCount === 9 ? 9 : 18, 1)
+      );
+    }
+  };
+  // Rating and slope are TYPED only where the card cannot answer; the dials
+  // show them once a tee is in play (or wherever they are typed).
+  const ratingTyped = ratingEntryNeeded(selectedCourse, sharedRoundDetails.teeColor);
+  const ratingShown = ratingTyped || sharedRoundDetails.teeColor !== '';
+  const teeYards = teeTotals.find(t => t.key === sharedRoundDetails.teeColor)?.yards ?? null;
+  const mapYards = isMapSheet(selectedCourse?.sheetSource) ? teeTotals.find(t => t.key === 'map')?.yards ?? null : null;
+  const dialYards = teeYards ?? mapYards;
+  const dialYardsApprox = teeYards === null && mapYards !== null;
+
+  /** "Add course manually": the typed name goes on as a custom course. */
+  const addCourseManually = () => {
+    cancelCourseSearch();
+    setAvailableCourses([]);
+    setCourseSearchOpen(false);
+    setManualCourse(true);
+  };
+  /** The plate's "Change": back to the search. A picked catalog course is
+   *  let go exactly as editing its name used to let it go; a typed name
+   *  stays in the slot to be corrected. */
+  const changeCourse = () => {
+    setManualCourse(false);
+    setTeeSideChoice(null);
+    if (!selectedCourse) return;
+    setSelectedCourse(null);
+    selectedCourseIdRef.current = null;
+    setSectionChoice(null);
+    setComboFront(null);
+    setCourseSearchQuery('');
+    setSharedRoundDetails(prev => ({
+      ...prev,
+      courseName: '',
+      courseId: null,
+      courseComposition: null,
+      holesPlayed: 18,
+      // A course-specific tee name means nothing on another course —
+      // keep only classic colors.
+      teeColor: (FALLBACK_TEES as readonly string[]).includes(prev.teeColor) ? prev.teeColor : '',
+    }));
+  };
+  const noCourseFound =
+    courseSearchOpen && !searchLoading && !searchFailed && availableCourses.length === 0 && searchedFor === typedCourse && !selectedCourse;
+
+  const dateField = (
+    <label className="block mb-2.5" htmlFor="golf-round-date">
+      <span className="ea-mech-micro block mb-2">Date</span>
+      <span className="ea-mech-recess flex items-center h-12 px-3.5 rounded-[14px]">
+        <input
+          id="golf-round-date"
+          type="date"
+          value={sharedRoundDetails.date}
+          max={localDayKey(new Date())}
+          onChange={(e) => {
+            const date = e.target.value;
+            setSharedRoundDetails(prev => ({ ...prev, date }));
+          }}
+          className="ea-mech-slot-input w-full min-w-0 h-full text-[15px]"
+        />
+      </span>
+    </label>
+  );
   const teeInPlayTotal = teeTotals.find(t => t.key === sharedRoundDetails.teeColor);
   const teeInPlay = sharedRoundDetails.teeColor
     ? teeInPlayTotal ? teeChoiceLabel(teeInPlayTotal) : teeLabel(sharedRoundDetails.teeColor)
@@ -978,6 +1157,10 @@ export default function GolfComposerSection({
           // the bottom of a phone screen and the body scrolls above it.
           variant="mech"
           lead={lead}
+          // The plate's logo is Logo.dev's: its credit sits between Back and Next.
+          footerCenter={currentStep.id === 'course' && courseShown && selectedCourse && logoUrl(websiteDomain(selectedCourse.website) ?? undefined, 44)
+            ? <LogoDevAttribution className="text-[11px] text-[color:var(--mech-label)]" />
+            : null}
           className="flex-1 min-h-0"
         >
           {currentStep.id === 'type' && (
@@ -990,413 +1173,365 @@ export default function GolfComposerSection({
             />
           )}
 
-          {currentStep.id === 'course' && (
-            <div className="space-y-6" data-round-step="course">
-              <div className={GOLF_SECTION_CARD}>
-                <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                  <FaIcon icon={faFlagCheckered} className="mr-2 text-green-600 dark:text-green-400" />
-                  Course Details
-                </h3>
+          {/* ── Step 2: the course (the mechanical dialect, Nov 23 2026) ────
+              Two views of ONE step, swapped in place: the SEARCH (a slot, the
+              Near me key, the lists) until a course is picked or added by
+              hand, then the PICKED course (the plate, the dials, the tee
+              table, the utility row). Every handler is the one-page form's;
+              only what is drawn changed. */}
+          {currentStep.id === 'course' && !courseShown && (
+            <div ref={courseFieldRef} data-round-step="course" data-course-view="search">
+              {/* Date — an already-played round's only; a live round is
+                  today (set when Playing now is chosen). */}
+              {sharedRoundDetails.alreadyPlayed && dateField}
 
-                {/* Date — an already-played round's only; a live round is
-                    today (set when Playing now is chosen). */}
-                {sharedRoundDetails.alreadyPlayed && (
-                  <div className="mb-4">
-                    <label className={GOLF_LABEL} htmlFor="golf-round-date">
-                      Date
-                    </label>
-                    <input
-                      id="golf-round-date"
-                      type="date"
-                      value={sharedRoundDetails.date}
-                      max={localDayKey(new Date())}
-                      onChange={(e) => {
-                        const date = e.target.value;
-                        setSharedRoundDetails(prev => ({ ...prev, date }));
-                      }}
-                      className={GOLF_INPUT}
-                    />
-                  </div>
-                )}
-
-          {/* Course Name with Search. The ref bounds "inside" for
-              usePopoverDismiss — a press anywhere else closes the
-              dropdown, and unlike the backdrop it used to render, that
-              press still reaches whatever it landed on. */}
-          <div ref={courseFieldRef} className="mb-4 relative">
-            <label className={GOLF_LABEL}>
-              Course Name *
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={sharedRoundDetails.courseName}
-                onChange={(e) => {
-                  setSharedRoundDetails(prev => ({ ...prev, courseName: e.target.value }));
-                  setCourseSearchQuery(e.target.value);
-                  // Typing ends the one-shot Near me: typeahead again.
-                  setNearFix(null);
-                  searchCourses(e.target.value);
-                  setCourseSearchOpen(true);
-                  // Clear selected course if user types manually —
-                  // including the catalog link: a hand-edited name is
-                  // no longer that course.
-                  if (selectedCourse && e.target.value !== selectedCourse.name) {
-                    setSelectedCourse(null);
-                    selectedCourseIdRef.current = null;
-                    setSectionChoice(null);
-                    setComboFront(null);
-                    setSharedRoundDetails(prev => ({
-                      ...prev,
-                      courseId: null,
-                      courseComposition: null,
-                      holesPlayed: 18,
-                      // A course-specific tee name means nothing on a
-                      // hand-typed course — keep only classic colors.
-                      teeColor: (FALLBACK_TEES as readonly string[]).includes(prev.teeColor) ? prev.teeColor : '',
-                    }));
-                  }
-                }}
-                ref={courseInputRef}
-                onFocus={() => {
-                  // The step's own focus-on-entry is not a tap: the field is
-                  // ready to type into, the catalog list waits for a gesture.
-                  if (programmaticFocusRef.current) {
-                    programmaticFocusRef.current = false;
-                    return;
-                  }
-                  setCourseSearchOpen(true);
-                  // Empty input browses the catalog head — the field
-                  // answers "what courses are there?" on first tap.
-                  searchCourses(courseSearchQuery, { browse: true });
-                }}
-                onKeyDown={(e) => {
-                  // Escape closes the DROPDOWN first and stops there —
-                  // the composer's own Escape would otherwise discard
-                  // the whole post. Innermost layer closes first, the
-                  // same rule the message action sheet follows.
-                  if (e.key === 'Escape' && courseDropdownOpen) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    closeCourseSearch();
-                  }
-                }}
-                placeholder="Search for a golf course..."
-                className={`${GOLF_INPUT} pr-10`}
-              />
-              {searchLoading && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin h-5 w-5 border-2 border-brand border-t-transparent rounded-full"></div>
-                </div>
-              )}
-              {!searchLoading && sharedRoundDetails.courseName && (
-                <FaIcon icon={faMagnifyingGlass} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-decor" />
-              )}
-            </div>
-            {/* Near me — the ONLY place the composer asks for the
-                device's location, and only on this tap. */}
-            <div className="mt-2 flex items-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => void findNearMe()}
-                disabled={nearBusy}
-                aria-pressed={!!nearFix}
-                data-course-near-me=""
-                className={`inline-flex items-center gap-2 px-3 min-h-[44px] rounded-lg border text-sm font-semibold ea-interactive disabled:opacity-60 ${
-                  nearFix ? 'border-violet-200 dark:border-violet-800 bg-brand-soft text-brand-fg-strong' : 'border-border bg-surface text-primary'
-                }`}
-              >
-                <FaIcon icon={nearBusy ? faSpinner : faLocationCrosshairs} spin={nearBusy ? true : false} />
-                {nearBusy ? 'Finding you…' : nearFix ? 'Courses near you' : 'Near me'}
-              </button>
-              {nearError && <span className="text-xs text-tertiary" role="alert">{nearError}</span>}
-            </div>
-
-            {/* Course Search Results Dropdown.
-                There used to be a `fixed inset-0 z-10` click-catcher
-                here. It FROZE the composer: being `position: fixed` it
-                covered the whole viewport above the modal body, and a
-                scroll gesture landing on it chained to the document —
-                which useBodyScrollLock has set to overflow:hidden. So
-                nothing moved, and every tap elsewhere in the modal was
-                swallowed. Dismissal is now usePopoverDismiss (outside
-                press + Escape), which is the house pattern precisely
-                because invisible backdrops do this. */}
-            {courseDropdownOpen && (
-              <div
-                ref={courseDropdownRef}
-                className="absolute z-20 w-full mt-1 bg-surface-raised border border-border-strong rounded-lg shadow-lg max-h-60 overflow-y-auto overscroll-contain"
-              >
-                {/* Standing on a course and about to play it: offer it
-                    first. Only while starting a LIVE round — an already-
-                    played round is wherever it was played. */}
-                {nearOffer && !sharedRoundDetails.alreadyPlayed && (
-                  <button
-                    type="button"
-                    onClick={() => selectCourse(nearOffer.course)}
-                    data-course-nearby-offer=""
-                    className="w-full px-4 py-3 text-left bg-brand-soft hover:bg-violet-100 dark:hover:bg-violet-950/60 transition-colors border-b border-border-subtle"
-                  >
-                    <div className="font-semibold text-brand-fg-strong">
-                      <FaIcon icon={faLocationDot} className="mr-2 text-brand-fg" />
-                      Playing at {nearOffer.course.name}?
-                      <span className="ml-2 text-xs font-medium text-brand-fg">· {formatKm(nearOffer.km)}</span>
-                    </div>
-                  </button>
-                )}
-                {availableCourses.map((course) => (
-                  <button
-                    key={course.id}
-                    onClick={() => selectCourse(course)}
-                    className="w-full px-4 py-3 text-left hover:bg-brand-soft transition-colors border-b border-border-subtle last:border-b-0"
-                  >
-                    <div className="font-semibold text-primary">
-                      {course.name}
-                      {nearFix && typeof course.distanceKm === 'number' && (
-                        <span className="ml-2 text-xs font-medium text-tertiary" data-course-km="">{formatKm(course.distanceKm)}</span>
-                      )}
-                    </div>
-                    {(course.city || course.state || course.country) && (
-                      <div className="text-sm text-tertiary">
-                        {formatPlace({ city: course.city, region: course.state, country: course.country })}
-                      </div>
-                    )}
-                    {/* Thin provider rows have no hole data until first
-                        selection — "0 holes" read as broken, so say
-                        what actually happens instead. OSM rows never
-                        get details (no provider knows them), so they
-                        say THAT rather than promise a load. */}
-                    <div className="text-xs text-muted mt-1">
-                      {course.holes.length > 0
-                        ? `Par ${course.totalPar} • ${course.holes.length} holes`
-                        : course.source === 'osm'
-                          ? 'Details load when selected'
-                          : course.hydratedAt
-                            ? 'No hole data from the provider yet'
-                            : 'Details load when selected'}
-                    </div>
-                  </button>
-                ))}
-                {searchFailed && (
-                  <div className="px-4 py-3 text-sm text-tertiary">
-                    Course search is unavailable right now — you can
-                    keep typing the course name and try again in a
-                    minute.
-                  </div>
-                )}
-                {/* The ONLY trigger for external course providers —
-                    worldwide search is explicit, never per keystroke
-                    (free-tier budgets; see course-catalog.ts). */}
-                {worldwideOffer && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGlobalSearchedFor(trimmedCourseQuery);
-                      debouncedCourseSearch(trimmedCourseQuery, true);
+              {/* The search slot and the Near me key. The slot's text IS the
+                  round's course name, as the field always was: a typed name
+                  may go on as a custom course. */}
+              <div className="flex items-center gap-2">
+                <div className="ea-mech-recess flex-1 min-w-0 flex items-center gap-2.5 h-12 px-3.5 rounded-[14px]">
+                  {searchLoading ? (
+                    <span className="inline-block animate-spin h-[18px] w-[18px] shrink-0 rounded-full border-2 border-[color:var(--mech-accent-light)] border-t-transparent" aria-hidden="true" />
+                  ) : (
+                    <FaIcon icon={faMagnifyingGlass} className="text-[18px] text-[color:var(--mech-label)]" />
+                  )}
+                  <input
+                    type="text"
+                    value={sharedRoundDetails.courseName}
+                    onChange={(e) => {
+                      setSharedRoundDetails(prev => ({ ...prev, courseName: e.target.value }));
+                      setCourseSearchQuery(e.target.value);
+                      // Typing ends the one-shot Near me: typeahead again.
+                      setNearFix(null);
+                      searchCourses(e.target.value);
+                      setCourseSearchOpen(true);
                     }}
-                    className="w-full px-4 py-3 text-left text-sm font-medium text-brand-fg hover:bg-brand-soft transition-colors border-t border-border-subtle"
-                  >
-                    <FaIcon icon={faGlobe} className="mr-2" />
-                    Search all courses worldwide for &ldquo;{trimmedCourseQuery}&rdquo;
-                  </button>
-                )}
-                {catalogAttribution && (
-                  <div className="px-4 py-1.5 text-[10px] text-faint border-t border-border-subtle">
-                    {catalogAttribution}
-                  </div>
-                )}
+                    ref={courseInputRef}
+                    onFocus={() => {
+                      // The step's own focus-on-entry is not a tap: the field is
+                      // ready to type into, the catalog list waits for a gesture.
+                      if (programmaticFocusRef.current) {
+                        programmaticFocusRef.current = false;
+                        return;
+                      }
+                      setCourseSearchOpen(true);
+                      // Empty input browses the catalog head — the field
+                      // answers "what courses are there?" on first tap.
+                      searchCourses(courseSearchQuery, { browse: true });
+                    }}
+                    onKeyDown={(e) => {
+                      // Escape closes the LIST first and stops there — the
+                      // composer's own Escape would otherwise discard the
+                      // whole post. Innermost layer closes first.
+                      if (e.key === 'Escape' && courseDropdownOpen) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        closeCourseSearch();
+                      }
+                    }}
+                    placeholder="Search courses"
+                    aria-label="Course name"
+                    data-course-search=""
+                    className="ea-mech-slot-input flex-1 min-w-0 h-full text-[15px]"
+                  />
+                </div>
+                {/* Near me — the ONLY place the composer asks for the
+                    device's location, and only on this tap. */}
+                <button
+                  type="button"
+                  onClick={() => void findNearMe()}
+                  disabled={nearBusy}
+                  aria-pressed={!!nearFix}
+                  aria-label={nearBusy ? 'Finding you…' : nearFix ? 'Courses near you' : 'Near me'}
+                  data-course-near-me=""
+                  {...(nearFix ? { 'data-selected': '' } : {})}
+                  className="ea-mech-panel ea-mech-row ea-mech-btn inline-flex items-center justify-center w-12 h-12 shrink-0 rounded-[14px] disabled:opacity-60"
+                >
+                  <FaIcon icon={nearBusy ? faSpinner : faLocationCrosshairs} spin={nearBusy ? true : false} className="ea-mech-icon text-[20px]" />
+                </button>
               </div>
-            )}
+              {nearError && <p className="mt-2 text-xs text-[color:var(--mech-text-soft)]" role="alert">{nearError}</p>}
 
-            {/* Selected Course Badge */}
-            {selectedCourse && (
-              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-brand-soft text-brand-fg-strong rounded-full text-sm font-medium border border-violet-200 dark:border-violet-800" data-course-chosen="">
-                <FaIcon icon={faCircleCheck} className="text-xs" />
-                {selectedCourse.name}
-                {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
-              </div>
-            )}
-            {/* Section chooser — a multi-course club prompts for the
-                course/section (and, for nines, the back nine). Backing
-                out ("keep as selected") is always available: the
-                already-applied selection stands. */}
-            {sectionChoice && (
-              <div className="mt-2 p-3 bg-surface-raised border border-border-strong rounded-lg" data-club-section-chooser="">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold text-primary">
-                    {comboFront
-                      ? `Playing 18 at ${sectionChoice.club.name}? Pick your back nine`
-                      : `${sectionChoice.club.name} has more than one course — which are you playing?`}
-                  </p>
+              {/* The results, in the flow (never a floating panel: nothing to
+                  clip, nothing to scroll into view). */}
+              {courseDropdownOpen && (
+                <div className="mt-2.5">
+                  <p className="ea-mech-micro mb-2">{nearFix ? 'Nearby' : 'Courses'}</p>
+                  <div className="ea-mech-panel rounded-2xl overflow-hidden" data-course-results="">
+                    {/* Standing on a course and about to play it: offer it
+                        first. Only while starting a LIVE round — an already-
+                        played round is wherever it was played. */}
+                    {nearOffer && !sharedRoundDetails.alreadyPlayed && (
+                      <button
+                        type="button"
+                        onClick={() => selectCourse(nearOffer.course)}
+                        data-course-nearby-offer=""
+                        data-selected=""
+                        className="ea-mech-row w-full flex items-center gap-2 h-14 pl-3.5 pr-3 text-left"
+                      >
+                        <FaIcon icon={faLocationDot} className="ea-mech-icon text-[16px]" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-[color:var(--mech-text)]">Playing at {nearOffer.course.name}?</span>
+                          <span className="block truncate text-xs text-[color:var(--mech-text-soft)]">{formatKm(nearOffer.km)}</span>
+                        </span>
+                        <FaIcon icon={faChevronRight} className="text-[16px] text-[color:var(--mech-chevron)]" />
+                      </button>
+                    )}
+                    {availableCourses.map((course, i) => (
+                      <CourseRow
+                        key={course.id}
+                        course={course}
+                        showKm={!!nearFix}
+                        divided={i > 0 || (!!nearOffer && !sharedRoundDetails.alreadyPlayed)}
+                        onPick={selectCourse}
+                      />
+                    ))}
+                    {searchFailed && (
+                      <p className="px-3.5 py-3 text-[13px] text-[color:var(--mech-text-soft)]" style={{ borderTop: '1px solid var(--mech-divider)' }}>
+                        Course search is unavailable right now — you can keep
+                        typing the course name and try again in a minute.
+                      </p>
+                    )}
+                    {/* The ONLY trigger for external course providers —
+                        worldwide search is explicit, never per keystroke
+                        (free-tier budgets; see course-catalog.ts). */}
+                    {worldwideOffer && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGlobalSearchedFor(trimmedCourseQuery);
+                          debouncedCourseSearch(trimmedCourseQuery, true);
+                        }}
+                        data-course-worldwide=""
+                        className="ea-mech-row w-full flex items-center gap-2 min-h-[44px] px-3.5 py-2 text-left text-[13px] font-medium text-[color:var(--mech-accent-light)]"
+                        style={{ borderTop: '1px solid var(--mech-divider)' }}
+                      >
+                        <FaIcon icon={faGlobe} className="text-[16px]" />
+                        <span className="min-w-0">Search all courses worldwide for &ldquo;{trimmedCourseQuery}&rdquo;</span>
+                      </button>
+                    )}
+                    {catalogAttribution && (
+                      <p className="px-3.5 py-1.5 text-[10px] leading-snug text-[color:var(--mech-label)]" style={{ borderTop: '1px solid var(--mech-divider)' }}>
+                        {catalogAttribution}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent: the account's own last courses, until a search or a
+                  Near me list takes the place. */}
+              {!courseDropdownOpen && typedCourse === '' && recentCourses.length > 0 && (
+                <div className="mt-2.5" data-course-recent="">
+                  <p className="ea-mech-micro mb-2">Recent</p>
+                  <div className="ea-mech-panel rounded-2xl overflow-hidden">
+                    {recentCourses.map((course, i) => (
+                      <CourseRow key={course.id} course={course} showKm={false} divided={i > 0} onPick={selectCourse} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* A typed name is a course too: say so, and offer the way on. */}
+              {typedCourse !== '' && (
+                <div className="mt-4 flex flex-col items-center gap-2.5" data-course-manual="">
+                  {noCourseFound && (
+                    <p className="text-sm text-[color:var(--mech-text-dim)]" data-course-none="">No course found</p>
+                  )}
                   <button
                     type="button"
-                    onClick={() => { setSectionChoice(null); setComboFront(null); }}
-                    className="text-xs text-tertiary hover:text-primary whitespace-nowrap"
+                    onClick={addCourseManually}
+                    data-course-add-manually=""
+                    className="ea-mech-panel ea-mech-btn inline-flex items-center justify-center h-11 px-4 rounded-xl text-sm font-semibold text-[color:var(--mech-text)]"
                   >
-                    {comboFront ? 'Just this nine' : 'Keep as selected'}
+                    Add course manually
                   </button>
                 </div>
-                {comboFront && (
-                  <p className="mt-1 text-xs text-muted">
-                    {comboFront.sectionName ?? comboFront.name} is your front nine (holes 1–9);
-                    the nine you pick next scores as holes 10–18.
-                  </p>
-                )}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {sectionChoice.options.map(option => (
+              )}
+            </div>
+          )}
+
+          {currentStep.id === 'course' && courseShown && (
+            <div data-round-step="course" data-course-view="selected">
+              {sharedRoundDetails.alreadyPlayed && dateField}
+
+              {/* Section chooser — a multi-course club prompts for the
+                  course/section (and, for nines, the back nine). Backing
+                  out ("keep as selected") is always available: the
+                  already-applied selection stands. */}
+              {sectionChoice && (
+                <div className="ea-mech-panel mb-2.5 p-3 rounded-2xl" data-club-section-chooser="">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-[color:var(--mech-text)]">
+                      {comboFront
+                        ? `Playing 18 at ${sectionChoice.club.name}? Pick your back nine`
+                        : `${sectionChoice.club.name} has more than one course — which are you playing?`}
+                    </p>
                     <button
-                      key={option.id}
                       type="button"
-                      disabled={sectionLoading}
-                      onClick={() => (comboFront ? applyBackNine(option) : applySectionSelection(option))}
-                      data-club-section-option={option.id}
-                      className="px-3 py-2 min-h-[44px] rounded-lg border border-border-strong bg-surface text-sm font-medium text-primary hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors disabled:opacity-50"
+                      onClick={() => { setSectionChoice(null); setComboFront(null); }}
+                      className="ea-mech-btn inline-flex items-center min-h-[44px] -my-2.5 px-1 rounded-lg text-[13px] text-[color:var(--mech-text-soft)] whitespace-nowrap"
                     >
-                      {option.sectionName ?? option.name}
-                      {(isNineOption(option) || option.sectionKind === 'course_18' || option.holesCount === 18) && (
-                        <span className="ml-1.5 text-xs text-muted">
-                          {isNineOption(option) ? '9 holes' : '18 holes'}
-                        </span>
-                      )}
+                      {comboFront ? 'Just this nine' : 'Keep as selected'}
                     </button>
-                  ))}
+                  </div>
+                  {comboFront && (
+                    <p className="mt-1 text-xs text-[color:var(--mech-text-soft)]">
+                      {comboFront.sectionName ?? comboFront.name} is your front nine (holes 1–9);
+                      the nine you pick next scores as holes 10–18.
+                    </p>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {sectionChoice.options.map(option => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        disabled={sectionLoading}
+                        onClick={() => (comboFront ? applyBackNine(option) : applySectionSelection(option))}
+                        data-club-section-option={option.id}
+                        className="ea-mech-recess ea-mech-btn px-3 min-h-[44px] rounded-xl text-sm font-medium text-[color:var(--mech-text)] disabled:opacity-50"
+                      >
+                        {option.sectionName ?? option.name}
+                        {(isNineOption(option) || option.sectionKind === 'course_18' || option.holesCount === 18) && (
+                          <span className="ml-1.5 text-xs text-[color:var(--mech-text-soft)]">
+                            {isNineOption(option) ? '9 holes' : '18 holes'}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {sectionLoading && (
+                    <p className="mt-2 text-xs text-[color:var(--mech-text-soft)]">Loading course…</p>
+                  )}
                 </div>
-                {sectionLoading && (
-                  <p className="mt-2 text-xs text-muted">Loading course…</p>
+              )}
+
+              {/* A phone reads top to bottom: plate, dials, tees, utility row.
+                  From 640 px the same four are two columns — plate, dials and
+                  utility row on the left, the tees on the right; an open map
+                  or scorecard takes the full width under both. */}
+              <div className="flex flex-col gap-2.5 sm:grid sm:grid-cols-2 sm:gap-x-4 sm:items-start">
+                <div className="sm:col-start-1 sm:row-start-1">
+                  <CoursePlate
+                    name={selectedCourse?.name ?? typedCourse}
+                    place={selectedCourse
+                      ? formatPlace({ city: selectedCourse.city, region: selectedCourse.state, country: selectedCourse.country }) || null
+                      : 'Custom course'}
+                    logoDomain={selectedCourse ? websiteDomain(selectedCourse.website) : null}
+                    onChange={changeCourse}
+                  />
+                </div>
+
+                <div className="sm:col-start-1 sm:row-start-2">
+                  <DialCluster
+                    holes={courseFacts.holeCount}
+                    par={courseFacts.par}
+                    parEstimated={selectedCourse?.sheetSource === 'map_estimated'}
+                    yards={dialYards}
+                    yardsApprox={dialYardsApprox}
+                    rating={ratingShown ? dialValue(sharedRoundDetails.courseRating) : null}
+                    slope={ratingShown ? dialValue(sharedRoundDetails.slopeRating) : null}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2.5 sm:col-start-2 sm:row-start-1 sm:row-span-3">
+                  {/* Tees (outdoor only) — a catalog course lists its REAL
+                      tees (hardest first); picking one re-fills that tee's
+                      exact rating/slope and per-hole yardages. Custom and
+                      history courses keep the classic five colours. */}
+                  {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
+                    <>
+                      {bothTeeSides && (
+                        <div className="flex items-center h-[50px]">
+                          <KeySwitch
+                            size="sm"
+                            light
+                            label="Tees for"
+                            options={TEE_SIDE_OPTIONS}
+                            value={teeSide}
+                            onChange={setTeeSideChoice}
+                            keyClassName="w-[86px]"
+                          />
+                        </div>
+                      )}
+                      <TeeTable tees={teeRows} value={sharedRoundDetails.teeColor} onPick={pickTee} />
+                    </>
+                  )}
+
+                  {/* Course rating & slope — the key that unlocks the
+                      computed handicap. Typed only where the card cannot
+                      answer (tees.ts ratingEntryNeeded): a course typed by
+                      hand, an unrated row, a tee without its numbers. */}
+                  {ratingTyped && (
+                    <div className="grid grid-cols-2 gap-2" data-course-rating-entry="">
+                      <label className="block">
+                        <span className="ea-mech-micro block mb-2">Course rating</span>
+                        <span className="ea-mech-recess flex items-center h-12 px-3.5 rounded-[14px]">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="50"
+                            max="90"
+                            inputMode="decimal"
+                            value={sharedRoundDetails.courseRating}
+                            onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, courseRating: e.target.value }))}
+                            placeholder="72.4"
+                            className="ea-mech-slot-input ea-mech-readout w-full min-w-0 h-full text-[15px]"
+                          />
+                        </span>
+                      </label>
+                      <label className="block">
+                        <span className="ea-mech-micro block mb-2">Slope rating</span>
+                        <span className="ea-mech-recess flex items-center h-12 px-3.5 rounded-[14px]">
+                          <input
+                            type="number"
+                            min="55"
+                            max="155"
+                            inputMode="numeric"
+                            value={sharedRoundDetails.slopeRating}
+                            onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, slopeRating: e.target.value }))}
+                            placeholder="128"
+                            className="ea-mech-slot-input ea-mech-readout w-full min-w-0 h-full text-[15px]"
+                          />
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                {/* Keyed: a course swap remounts the card (and its Leaflet
+                    map) cleanly instead of re-using one instance's state. */}
+                {selectedCourse && (
+                  <CourseInfoCard
+                    key={selectedCourse.id}
+                    course={selectedCourse}
+                    teeInPlay={sharedRoundDetails.teeColor}
+                    autoFindSheet
+                    variant="mech"
+                    className="min-w-0 sm:col-start-1 sm:row-start-3"
+                    openClassName="sm:!col-span-2 sm:!row-start-4"
+                    onPanelChange={setCoursePanel}
+                    // "Find the official scorecard" found one: the selection takes
+                    // the fuller row so the round's pars, tees and ratings follow.
+                    onCourseUpdated={full => {
+                      setSelectedCourse(full);
+                      selectedCourseIdRef.current = full.id;
+                      applyCourseData(full);
+                    }}
+                    // The lookup found the club is several courses (Nov 19 2026):
+                    // the same question a club already split asks on selection.
+                    onClubFound={(club, sections) => {
+                      if (selectedCourseIdRef.current !== selectedCourse.id) return;
+                      setComboFront(null);
+                      setSectionChoice({ club, options: sections });
+                    }}
+                  />
                 )}
               </div>
-            )}
 
-            {/* Keyed: a course swap remounts the card (and its Leaflet
-                map) cleanly instead of re-using one instance's state. */}
-            {selectedCourse && (
-              <CourseInfoCard
-                key={selectedCourse.id}
-                course={selectedCourse}
-                teeInPlay={sharedRoundDetails.teeColor}
-                autoFindSheet
-                // "Find the official scorecard" found one: the selection takes
-                // the fuller row so the round's pars, tees and ratings follow.
-                onCourseUpdated={full => {
-                  setSelectedCourse(full);
-                  selectedCourseIdRef.current = full.id;
-                  applyCourseData(full);
-                }}
-                // The lookup found the club is several courses (Nov 19 2026):
-                // the same question a club already split asks on selection.
-                onClubFound={(club, sections) => {
-                  if (selectedCourseIdRef.current !== selectedCourse.id) return;
-                  setComboFront(null);
-                  setSectionChoice({ club, options: sections });
-                }}
-              />
-            )}
-
-            {/* Help text for manual entry */}
-            {!selectedCourse && sharedRoundDetails.courseName && (
-              <SectionInfo as="p" heading="Custom course detected." label="a custom course" headingClassName="text-xs font-semibold text-primary" dense className="mt-2">
-                <p>Since this course isn&apos;t in our database, you can enter par and yardage below (optional).</p>
-              </SectionInfo>
-            )}
-          </div>
-
-          {/* Tees (optional, outdoor only) — a catalog course lists
-              its REAL tees (hardest first); picking one re-fills that
-              tee's exact rating/slope and per-hole yardages. Custom
-              and history courses keep the classic five colors. */}
-          {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
-            <div className="mb-4">
-              <label className={GOLF_LABEL}>
-                {selectedCourse ? 'Tees' : 'Tee Color'}
-              </label>
-              <select
-                value={sharedRoundDetails.teeColor}
-                onChange={(e) => {
-                  const tee = e.target.value;
-                  const course = selectedCourse;
-                  setSharedRoundDetails(prev => ({
-                    ...prev,
-                    teeColor: tee,
-                    // Re-fill THIS tee's rating/slope (the flagged
-                    // follow-up from the catalog round — tee changes
-                    // used to leave the old tee's numbers standing).
-                    ...(course && tee
-                      ? {
-                          courseRating: String(
-                            course.courseRating?.[tee] ??
-                              Object.values(course.courseRating ?? {})[0] ?? prev.courseRating ?? ''
-                          ),
-                          slopeRating: String(
-                            course.slopeRating?.[tee] ??
-                              Object.values(course.slopeRating ?? {})[0] ?? prev.slopeRating ?? ''
-                          ),
-                        }
-                      : {}),
-                  }));
-                  if (course && tee) {
-                    setCourseHoleData(
-                      deriveCourseHoles(course, tee, course.holesCount === 9 ? 9 : 18, 1)
-                    );
-                  }
-                }}
-                className={GOLF_SELECT}
-              >
-                <option value="">{selectedCourse ? 'Select tees' : 'Select tee color'}</option>
-                {/* A catalog tee shows its yardage, rating and slope beside
-                    its name (teeChoiceLabel); a custom course's classic
-                    colours stay names. */}
-                {(isMapSheet(selectedCourse?.sheetSource) ? FALLBACK_TEES : courseTeeOptions(selectedCourse)).map(key => {
-                  const total = teeTotals.find(t => t.key === key);
-                  return (
-                    <option key={key} value={key}>{total ? teeChoiceLabel(total) : teeLabel(key)}</option>
-                  );
-                })}
-              </select>
-            </div>
-          )}
-
-          {/* Course rating & slope — the key that unlocks the computed
-              handicap (trends hard-requires both, non-null, 18 holes).
-              Promoted OUT of the buried "Par & Yardage (Optional)" box:
-              DB/history courses auto-fill these on pick (visible and
-              editable here), custom courses get typed in. Shown once a
-              course is named; still optional — never a gauntlet. */}
-          {sharedRoundDetails.courseName && (
-            <div className="mb-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={GOLF_LABEL}>Course Rating</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="50"
-                    max="90"
-                    value={sharedRoundDetails.courseRating}
-                    onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, courseRating: e.target.value }))}
-                    placeholder="e.g. 72.4"
-                    className={GOLF_INPUT_COMPACT}
-                  />
-                </div>
-                <div>
-                  <label className={GOLF_LABEL}>Slope Rating</label>
-                  <input
-                    type="number"
-                    min="55"
-                    max="155"
-                    value={sharedRoundDetails.slopeRating}
-                    onChange={(e) => setSharedRoundDetails(prev => ({ ...prev, slopeRating: e.target.value }))}
-                    placeholder="e.g. 128"
-                    className={GOLF_INPUT_COMPACT}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-              </div>
-
-          {/* Manual Par & Yardage Entry - White Box (when course not in database) */}
+          {/* Manual Par & Yardage Entry (when course not in database) */}
           {!selectedCourse && sharedRoundDetails.courseName && (
-            <div className={GOLF_SECTION_CARD}>
+            <div className={`${GOLF_SECTION_CARD} mt-2.5`}>
               <SectionInfo
                 as="h3"
                 heading={<><FaIcon icon={faPenToSquare} className="mr-2 text-brand-fg" />Course Par & Yardage (Optional)</>}

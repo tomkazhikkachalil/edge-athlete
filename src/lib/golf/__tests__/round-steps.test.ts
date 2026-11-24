@@ -115,15 +115,21 @@ describe('conditionsLine — "Cloudy, 7°C, 5–10 mph"', () => {
 });
 
 describe('roundFrame — the dialog width on a desktop', () => {
-  it('the round type and an empty course step are narrow; a named course and every later step are wide', async () => {
+  it('the round type and the course search are narrow; a shown course and every later step are wide', async () => {
     const { roundFrame } = await import('../round-steps');
-    expect(roundFrame('type', '')).toBe('narrow');
-    expect(roundFrame('type', 'Loch March')).toBe('narrow');
-    expect(roundFrame('course', '')).toBe('narrow');
-    expect(roundFrame('course', '   ')).toBe('narrow');
-    expect(roundFrame('course', 'Loch March')).toBe('wide');
+    expect(roundFrame('type', false)).toBe('narrow');
+    expect(roundFrame('type', true)).toBe('narrow');
+    expect(roundFrame('course', false)).toBe('narrow');
+    expect(roundFrame('course', true)).toBe('wide');
     for (const id of ['format', 'conditions', 'players', 'scores', 'finish'] as const) {
-      expect(roundFrame(id, '')).toBe('wide');
+      expect(roundFrame(id, false)).toBe('wide');
     }
+  });
+  it('the open scorecard of a shown course takes the full frame — and only there', async () => {
+    const { roundFrame } = await import('../round-steps');
+    expect(roundFrame('course', true, true)).toBe('full');
+    expect(roundFrame('course', false, true)).toBe('narrow');
+    expect(roundFrame('type', true, true)).toBe('narrow');
+    expect(roundFrame('format', true, true)).toBe('wide');
   });
 });
