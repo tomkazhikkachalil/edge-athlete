@@ -1,5 +1,26 @@
 # Development Log
 
+## November 23, 2026 (23:12) — Maintenance pass after the Create sheet rounds: every gate green, production on main's code
+
+**Why.** Tom asked for the full maintenance checklist after the two Create sheet rounds (#1614 tile grid, #1616 larger screens), and for proof that production is right on web, large screens, phones and the installed app.
+
+**State.** Production serves `0f2bc157` (#1616), which is main's code; the two merges since (#1617 and this entry) are devlog only and build nothing. No open pull requests besides this one.
+
+**Gates, on `0f2bc157`.** `npm run verify` exit 0 (707 files, 6,869 tests; lint at 0; build; weight; 371 client chunks inside the iOS 15 floor). `npm audit --omit=dev` 0 vulnerabilities. `scripts/hardening-guardrails.sh` and `npm run check:blocklists` pass. `check:schema` and `check:schema:prod`: ledger head 319 on both, every file on disk has run, 153 tables reachable.
+
+**Staging sweep, against the production build, in chunks with pauses.** Desktop 65 passed, 0 failed (29 specs: the core set plus `header-create`, `dropdown-visibility`, `live-scoring-group`, `round-delete`). `mobile` 28 passed, 2 skipped (14 specs, `install-app`, `sw-static-cache`, `offline`, `hydration` among them). `webkit-mobile` 12 passed, 1 skipped. `android` 12 passed, 1 skipped. No failure anywhere.
+
+**Production probe, `E2E_EXPECT_COMMIT=0f2bc157`, one spec at a time, health under 360 ms throughout.**
+- Desktop: 46 passed, 3 failed. All three are `org-site` tests that read `robots.txt` / `sitemap.xml`, which production answers gated while the launch gate is up (the other org-site tests pass). By design.
+- `mobile`: 26 passed, 1 failed. `webkit-mobile`: 10 passed, 2 failed. `android`: 12 passed, 1 failed. `install-app` and `sw-static-cache` pass on all three; `header-create`, `hydration`, `offline`, `golf-quick-entry`, `workout-start`, `drafts`, `composer-upload` pass.
+- The failure on all three phone projects is `tab-bar`'s signed-out step (it waits for a "Log in" link the launch gate does not show). By design.
+- The second `webkit-mobile` failure is `golf-quick-entry`'s two-course club test: the page was Vercel's Security Checkpoint ("Failed to verify your browser", Code 21), not the app. The same test passes on `mobile` and `android` on production and on `webkit-mobile` on staging. Probing stopped there.
+- No application fault found. Each probe's QA accounts were deleted by its teardown.
+
+**Noted, not fixed.** Against the Turbopack dev server the workout editor and the recorder render an empty page after Start at phone width, on main too; they pass against the build (Nov 23 entry below). CI: one smoke job hung 19 minutes on "Install Playwright browsers" and one `capture-attach` test failed in about 100 ms in `brave-android` on a docs-only change; both green on a rerun.
+
+**Still open.** Tom's look on a real iPhone, in the installed app and on a desktop: every check here ran in emulated browsers. There is no App Store or Google Play app; "installed" means the installable web app.
+
 ## November 23, 2026 (22:03) — Close: the Create sheet's larger-screens round is on production
 
 **#1616 merged** (`0f2bc157`) and `/api/health` shows the commit; #1615's devlog commit rode with it. Production probe with `E2E_EXPECT_COMMIT=0f2bc157`, one project at a time: desktop 7 passed (`header-create`, the new larger-screens test at 1280 and 768 px with the hover among them); mobile 2 passed. The probe's four QA accounts were deleted by its teardown both times.
