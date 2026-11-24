@@ -25,7 +25,8 @@ import { CREATE_OPTIONS, CREATE_PICK_BEAT_MS, toggleInfo, type CreateOption, typ
  * short beat, so the tap is always answered on screen; Post is solid brand
  * only while nothing is selected. The look per state is `.ea-create-opt` in
  * globals.css. The drawer opens this same sheet; it is the one Create menu
- * at every width.
+ * at every width: a bottom sheet on phones, a centred card from sm: up, where
+ * a mouse also gets hover feedback (the box's tint, the info button's tone).
  */
 const ICONS: Record<CreateOptionKey, ReactNode> = {
   post: <Pencil size={20} strokeWidth={2} aria-hidden="true" />,
@@ -85,7 +86,7 @@ export default function CreateSheet({ onPost, onSport, onEvent, onFullGame, onWo
         aria-controls={infoId}
         data-create-info={o.key}
         onClick={() => setInfoOpen(toggleInfo(infoOpen, o.key))}
-        className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors ${isOpen ? (solid ? 'bg-white text-brand' : 'bg-brand text-white') : (solid ? 'bg-white/15 text-white' : 'text-faint')}`}
+        className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center transition-colors ${isOpen ? (solid ? 'bg-white text-brand' : 'bg-brand text-white') : (solid ? 'bg-white/15 text-white hover:bg-white/25' : 'text-faint hover:text-primary')}`}
       >
         <Info size={20} strokeWidth={2} aria-hidden="true" />
       </button>

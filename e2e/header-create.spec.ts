@@ -1,4 +1,4 @@
-import { test, expect } from './helpers/test';
+import { test, expect, type Page } from './helpers/test';
 import { apiAs } from './helpers/qa-user';
 
 // The header "+" on pages without their own composer mount (explore, live,
@@ -177,8 +177,9 @@ test('header Create → Workout and Activity open straight from the sheet: Activ
 // option's box or moves another one, one is open at a time, and every one is
 // closed when the sheet opens again. Run at the phone projects' width, at
 // 320 px (the smallest phone on the floor) and at 390 px (the mockup).
-test('Create: an info button shows the text in place — no navigation, no box moves, one open at a time, closed on reopen; a pick shows as selected @mobile', async ({ page }) => {
-  test.setTimeout(90_000);
+// ONE walk for every width, so the phone and the larger-screen tests cannot
+// drift: `widths` are tried in turn at the project's height.
+async function infoWalk(page: Page, widths: (base: number) => number[]) {
   await page.goto('/messages');
   const openSheet = async () => {
     await page.getByRole('button', { name: 'Create', exact: true }).first().click();
@@ -189,7 +190,7 @@ test('Create: an info button shows the text in place — no navigation, no box m
     return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)].join(',');
   }));
   const base = page.viewportSize()!;
-  for (const width of [base.width, 320, 390]) {
+  for (const width of widths(base.width)) {
     await page.setViewportSize({ width, height: base.height });
     await openSheet();
     const sheet = page.locator('[data-create-sheet]');
@@ -259,4 +260,43 @@ test('Create: an info button shows the text in place — no navigation, no box m
   await expect(sheet.locator('[data-create-info][aria-expanded="true"]')).toHaveCount(0);
   await expect(sheet.locator('[data-create-option="post"]')).not.toHaveAttribute('data-solid', '');
   await expect(page).toHaveURL(/\/sports\/events\/new/, { timeout: 15_000 });
+}
+
+test('Create: an info button shows the text in place — no navigation, no box moves, one open at a time, closed on reopen; a pick shows as selected @mobile', async ({ page }) => {
+  test.setTimeout(90_000);
+  await infoWalk(page, (base) => [base, 320, 390]);
+});
+
+// Larger screens (Tom, Nov 23 2026: "ensure that it's done on larger screens,
+// not just mobile"): the same walk on the desktop project at its own width
+// (1280 px, the centred card) and at a tablet's 768 px — and a mouse gets
+// hover feedback before the press.
+test('Create on larger screens: the same info walk at 1280 px and 768 px; an option answers the pointer', async ({ page }) => {
+  test.setTimeout(90_000);
+  await infoWalk(page, (base) => [base, 768]);
+  await page.goto('/messages');
+  await page.getByRole('button', { name: 'Create', exact: true }).first().click();
+  const sheet = page.locator('[data-create-sheet]');
+  await expect(sheet).toBeVisible();
+  // The card is centred and no wider than its cap; the grid is still 2 x 2.
+  const card = await page.locator('[data-larger-window="create"]').boundingBox();
+  const view = page.viewportSize()!;
+  expect(card!.width).toBeLessThanOrEqual(448);
+  expect(Math.abs(card!.x + card!.width / 2 - view.width / 2)).toBeLessThan(2);
+  const tiles = await sheet.locator('[data-create-option]').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+  expect(new Set(tiles.slice(1, 5)).size, 'four tiles on two rows').toBe(2);
+  // Hover: the tile under the pointer changes, and goes back when it leaves.
+  const tile = sheet.locator('[data-create-option="sport"]');
+  const paint = () => tile.evaluate((el) => getComputedStyle(el).backgroundImage);
+  expect(await paint()).toBe('none');
+  await sheet.locator('[data-create-sport]').hover();
+  await expect.poll(paint).not.toBe('none');
+  await page.locator('[data-larger-window="create"]').getByRole('heading', { name: 'Create' }).hover();
+  await expect.poll(paint).toBe('none');
+  // Solid Post answers the pointer too.
+  const post = sheet.locator('[data-create-option="post"]');
+  const fill = () => post.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const rest = await fill();
+  await sheet.locator('[data-create-post]').hover();
+  await expect.poll(fill).not.toBe(rest);
 });

@@ -56,6 +56,11 @@ describe('the Create sheet\'s options', () => {
     const css = read('src/app/globals.css');
     expect(css).toContain('.ea-create-opt[data-pressed] { transform: scale(0.97); }');
     expect(css).not.toContain('.ea-create-opt:active');
+    // Larger screens: hover only where a pointer can hover, never over a selected option.
+    const hover = css.slice(css.indexOf('@media (hover: hover) {\n  .ea-create-opt'), css.indexOf('.ea-create-layer {'));
+    expect(hover).toContain('.ea-create-opt:not([data-selected]):not([data-solid]):hover');
+    expect(hover).toContain('.ea-create-opt[data-solid]:hover');
+    expect(css.replace(hover, '')).not.toMatch(/\.ea-create-opt[^{]*:hover/);
     const rule = css.slice(css.indexOf('.ea-create-opt {'), css.indexOf('.ea-create-layer {'));
     expect(rule).not.toMatch(/display:|\bwidth:|color-mix/);
   });

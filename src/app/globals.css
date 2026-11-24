@@ -1116,6 +1116,18 @@ html:has(.org-scope[data-theme="dark"]) body {
   background-image: none;
   box-shadow: none;
 }
+/* A mouse gets a sign before the press (larger screens, Nov 23 2026): the
+ * option under the pointer takes the shared hover tint, solid Post the brand
+ * hover. Inside (hover: hover) so a phone never keeps a hover after a tap; a
+ * selected option keeps its selected look. */
+@media (hover: hover) {
+  .ea-create-opt:not([data-selected]):not([data-solid]):hover {
+    background-image: linear-gradient(var(--ea-tint), var(--ea-tint));
+  }
+  .ea-create-opt[data-solid]:hover {
+    background-color: var(--color-brand-hover);
+  }
+}
 /* The title and the info text are two layers in the same box: a crossfade,
  * never a height change. visibility rides the fade so the hidden layer is
  * out of the accessibility tree and of a browser test's "visible". */
