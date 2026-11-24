@@ -47,10 +47,10 @@ async function next(flow: Locator, reached: RegExp) {
   await expect(header(flow)).toHaveText(reached);
 }
 async function pickCourse(page: Page, name: string) {
-  const courseInput = page.getByPlaceholder(/search for a golf course/i);
+  const courseInput = page.getByPlaceholder(/search courses/i);
   await courseInput.fill(name.slice(0, 18));
-  await page.locator('div.absolute.max-h-60 button', { hasText: name }).first().click({ timeout: 15_000 });
-  await expect(courseInput).toHaveValue(name);
+  await page.locator('[data-course-results] button', { hasText: name }).first().click({ timeout: 15_000 });
+  await expect(page.locator('[data-course-chosen]')).toContainText(name);
 }
 async function chooseUnit(page: Page, unit: 'km' | 'mi') {
   await page.goto('/settings?tab=account');

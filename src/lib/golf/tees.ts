@@ -33,6 +33,78 @@ export function teeLabel(key: string): string {
   return key.replace(/\b[a-z]/g, c => c.toUpperCase());
 }
 
+// ── The tee table (the mechanical dialect, Nov 23 2026) ─────────────────────
+// Tom's visual spec: the tee picker is a table, with a Men | Women switch in
+// place of the separate "(F)" rows. The catalog marks a women's box only
+// where its key collides with a men's one — that " (f)" suffix (rowToCourse)
+// — so that is what the switch can honestly split on.
+
+const WOMENS_SUFFIX = / \(f\)$/i;
+
+export function isWomensTee(key: string): boolean {
+  return WOMENS_SUFFIX.test(key);
+}
+
+/** The tee keys by side, each in the given (tee-sheet) order. */
+export function splitTeeSides(keys: readonly string[]): { men: string[]; women: string[] } {
+  return { men: keys.filter(k => !isWomensTee(k)), women: keys.filter(isWomensTee) };
+}
+
+/** The switch is offered only when the course has BOTH sides. */
+export function hasBothTeeSides(keys: readonly string[]): boolean {
+  const { men, women } = splitTeeSides(keys);
+  return men.length > 0 && women.length > 0;
+}
+
+/** A row's name under the switch: the side is the switch's to say, so the
+ *  "(F)" is dropped — "blue (f)" → "Blue". */
+export function teeRowLabel(key: string): string {
+  return teeLabel(key.replace(WOMENS_SUFFIX, ''));
+}
+
+/** The dot beside a tee: the spec's five colours and the other names courses
+ *  commonly use; a name that is not a colour ("championship", "member")
+ *  gets null — a hollow dot, never a guessed colour. */
+const TEE_DOT: Readonly<Record<string, string>> = {
+  black: '#0B0B0D',
+  gold: '#D4A72C',
+  blue: '#3B82F6',
+  white: '#EDEDED',
+  red: '#E5484D',
+  green: '#3FA36B',
+  yellow: '#E8C534',
+  silver: '#B8BCC6',
+  orange: '#F08A3C',
+  purple: '#8B5CF6',
+  copper: '#B87333',
+  bronze: '#B08D57',
+  grey: '#8A8F98',
+  gray: '#8A8F98',
+};
+
+export function teeDotColour(key: string): string | null {
+  const base = key.replace(WOMENS_SUFFIX, '').trim().toLowerCase();
+  if (TEE_DOT[base]) return TEE_DOT[base];
+  const word = base.split(/[\s/-]+/).find(w => TEE_DOT[w]);
+  return word ? TEE_DOT[word] : null;
+}
+
+/** Whether the round still needs its rating and slope TYPED (Tom, Nov 23:
+ *  "make it dynamic so it follows real data"): a course with no catalog row
+ *  (typed by hand), and a catalog course that cannot answer for the tee in
+ *  play — or for any tee, when none is chosen. A course whose card has both
+ *  numbers for the tee shows them on the dials and asks for nothing. */
+export function ratingEntryNeeded(
+  course: Pick<GolfCourse, 'courseRating' | 'slopeRating'> | null,
+  tee: string,
+): boolean {
+  if (!course) return true;
+  const rating = course.courseRating ?? {};
+  const slope = course.slopeRating ?? {};
+  if (tee) return typeof rating[tee] !== 'number' || typeof slope[tee] !== 'number';
+  return Object.keys(rating).length === 0 || Object.keys(slope).length === 0;
+}
+
 // ── Provider sub-course name tidy ────────────────────────────────────────────
 // OpenGolfAPI names nine-combos and numbered courses like "1 At Ponkapoag
 // Golf Club" or "10 19 At University Park Country Club" — alphabetically

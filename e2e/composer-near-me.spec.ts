@@ -65,7 +65,7 @@ test('composer: Near me sorts the picker by distance and offers the course you a
     await expect(flow).toBeVisible({ timeout: 15_000 });
     await flow.locator('[data-step-next]').click();
     await expect(flow).toHaveAttribute('data-step', 'course');
-    await expect(page.getByPlaceholder(/search for a golf course/i)).toHaveValue('');
+    await expect(page.getByPlaceholder(/search courses/i)).toHaveValue('');
     await page.waitForTimeout(1500);
     await expect(page.locator('[data-course-nearby-offer]')).toHaveCount(0);
     await expect(page.locator('[data-course-near-me]')).toHaveAttribute('aria-pressed', 'false');
@@ -79,7 +79,7 @@ test('composer: Near me sorts the picker by distance and offers the course you a
 
     await offer.click();
     await expect(page.getByText(name).first()).toBeVisible();
-    await expect(page.getByPlaceholder(/search for a golf course/i)).toHaveValue(name);
+    await expect(page.locator('[data-course-chosen]')).toContainText(name);
     await expect(page.locator('[data-course-nearby-offer]')).toHaveCount(0);
   } finally {
     await cleanup('composer-near-me', [

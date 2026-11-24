@@ -194,6 +194,14 @@ interface PostPreviewProps {
 // Sport composer slot entries, resolved once at module scope so the section
 // components are identity-stable across renders (a new array per render would
 // still reuse elements by key, but there is no reason to rebuild it).
+// The golf round's dialog width from 640 px up, by the frame its step names
+// (round-steps.ts roundFrame). Whole class names: Tailwind reads them here.
+const GOLF_FRAME_WIDTH = {
+  narrow: 'sm:max-w-[480px]',
+  wide: 'sm:max-w-[760px]',
+  full: 'sm:max-w-[920px]',
+} as const;
+
 const SPORT_COMPOSER_ENTRIES = Object.entries(SPORT_COMPOSER_EXTRAS) as [
   SportKey,
   ComponentType<SportComposerExtraProps>
@@ -274,7 +282,7 @@ export default function CreatePostModal({
   const [sportSectionResetKey, setSportSectionResetKey] = useState(0);
   // The golf round's dialog width on a desktop, named by the section's step
   // (round-steps.ts roundFrame): 480 px, then 760 px once a course is named.
-  const [golfFrame, setGolfFrame] = useState<'narrow' | 'wide'>('narrow');
+  const [golfFrame, setGolfFrame] = useState<'narrow' | 'wide' | 'full'>('narrow');
 
   // Visibility and submission
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
@@ -1262,7 +1270,7 @@ export default function CreatePostModal({
       />
       <div
         className={isGolf
-          ? `ea-mech-dialog w-full flex flex-col sm:py-5 transition-[max-width] duration-[260ms] ${golfFrame === 'wide' ? 'sm:max-w-[760px]' : 'sm:max-w-[480px]'}`
+          ? `ea-mech-dialog w-full flex flex-col sm:py-5 transition-[max-width] duration-[260ms] ${GOLF_FRAME_WIDTH[golfFrame]}`
           : 'bg-surface-raised rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col'}
         data-composer-frame={isGolf ? golfFrame : undefined}
       >
