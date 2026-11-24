@@ -1,5 +1,42 @@
 # Development Log
 
+## November 24, 2026 (01:39) — The golf round's first four screens in the mechanical dialect: the sport picker, the round type, the course search and the picked course
+
+**Why.** Tom's "Golf Round Flow: Visual Design Spec" (Nov 23 2026): restyle Select sport, Round type, Course search and Course selected — recessed slots, raised keys, engraved micro labels, fixed-width numbers. Visuals only. His instruction: break nothing, and every visual wired to the function behind it.
+
+**Tom's decisions (Nov 23).** The spec's dark palette exactly plus a light twin (the spec said dark only). Built: the Men | Women tee switch, Recent courses, the LAST tag. Not built: the 18 / F9 / B9 switch (9 or 18 is still worked out from the holes scored). Favourites stay as they work: stored on the account, and a favourite still appears under All Sports. Rating and slope fields "follow real data": typed only where the card cannot answer.
+
+**What shipped, zero DDL.**
+- **#1619** (`028c0264`): the `.ea-mech` scope (two palettes, the house tokens re-pointed inside it), JetBrains Mono for micro labels and numbers, the sport picker as a tile grid (3 across on a phone, 5 on a desktop) with the favourite as a switch, and LAST from `GET /api/settings/last-sport`.
+- **#1620** (`b7efd7ea`): the composer's shell while golf is the post type (full screen on a phone, a centred dialog on a desktop), `StepFlow variant="mech"` (the sport row and "STEP n / N" on one row, a segment per step, the spec's footer), Round type as two key switches with the helper text behind an info button that swaps in place.
+- **#1621** (`9c6468ba`): the course step as two views. Search: a slot, the Near me key, the lists in the flow, Recent (`GET /api/golf/courses?recent=1`, derived from the account's own rounds), "Add course manually". Picked course: the plate, three dials, Men | Women, the tee table, the utility row over the same course card.
+
+**Found on the way.**
+- A custom CSS class takes no breakpoint prefix: `sm:max-h-modal` did nothing, the desktop dialog grew past the screen and Next sat below it (the phone project passed; five desktop tests timed out). The cap now lives in `.ea-mech-dialog`.
+- An eighteen-hole scorecard with its tee rows is wider than the spec's 760 px dialog. The dialog takes a third width, 920 px, while the scorecard is open, so the table fits with no sideways scroll.
+- A live round started from the composer is a group post with a `golf_scorecard_data` row; `golf_rounds` has none at Go Live. Recent reads both.
+- The app's "Pick up where you left off?" prompt blocks a test that reopens the feed after Go Live; the new spec answers "Not now".
+
+**Departures from the spec, as it asked to be told (§10).**
+- Not built: 18 / F9 / B9; favourites listed once.
+- The sport tiles keep the app's own (filled) icons, in the accent colour; the spec's line style applies to the info button's glyph only.
+- "Fits one phone screen" holds for a picked catalog course; it does not while the club chooser, a map or scorecard panel, or a typed course's par table is open.
+- A typed course keeps the classic five tee colours (rows with dashes), and its rating and slope are two slots under the table.
+- The course's description and "designed by" line are not drawn on this step. They remain on every other course surface.
+- Steps 3 to 7 take the new shell and palette; their bodies are not redrawn (not in the spec).
+- The Logo.dev credit keeps Logo.dev's own required wording ("Logos provided by Logo.dev").
+
+**Proof.**
+- Gates on the last branch: `npm run verify` exit 0 (6,902 tests; lint 0; build; 372 client chunks inside the iOS 15 floor). `npm audit --omit=dev` 0. `hardening-guardrails.sh` and `check:blocklists` pass. `check:schema` and `check:schema:prod` pass (no migration in this round).
+- Staging, against the build, one project at a time: desktop 25 passed, `mobile` 10, `webkit-mobile` 6, `android` 2 (`golf-course-step`, `golf-quick-entry`, `composer-near-me`, `dropdown-visibility`, `golf-forecast`, `header-create`, `sport-favourites`, `composer-default-general`, `composer-upload`).
+- The new `golf-course-step.spec.ts` walks the wiring: a women's tee tapped in the table shows on the dials (5,400 · 71.9 · 124) and is what the live round saves (tee, rating, slope); that course then appears under Recent; a typed course asks for its rating; an indoor round has no tee table.
+- Photographed at 390 and 1280 px in dark and light on every new screen; zero horizontal overflow.
+- **Production**, `/api/health` on `9c6468ba`, probe with `E2E_EXPECT_COMMIT=9c6468ba`, one project at a time, health under 140 ms throughout: desktop 18 passed, `mobile` 9 passed, `webkit-mobile` 2 passed, none failed. Each probe's QA accounts and seeded courses were removed by its teardown.
+
+**Noted, not fixed.** `composer-default-general`'s "profile tabs: Training inside the viewport" fails on the `mobile` project on main: the profile bar is All · Videos · Stats · Training and Training ends at 473 px on a 390 px screen. This round does not touch the profile. Two code comments still say a live round has no Scores step (`GolfComposerSection`, `round-steps.ts`); the spec's step table is corrected here.
+
+**Still open.** Tom's look on his own phone and desktop (every check ran in emulated browsers). The look of steps 3 to 7. The parked golf posting findings and Tom's three indoor questions (Nov 23 entry).
+
 ## November 23, 2026 (23:12) — Maintenance pass after the Create sheet rounds: every gate green, production on main's code
 
 **Why.** Tom asked for the full maintenance checklist after the two Create sheet rounds (#1614 tile grid, #1616 larger screens), and for proof that production is right on web, large screens, phones and the installed app.

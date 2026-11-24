@@ -162,6 +162,20 @@ the `prefers-reduced-motion` block neutralises transitions globally.
 
 ---
 
+## The mechanical dialect — `.ea-mech` (Nov 23–24 2026, Tom's golf round visual spec; zero DDL)
+
+A second accent of the house language, for the sport picker and the golf round: recessed slots, raised keys, engraved micro labels, fixed-width numbers. Everything activates only under `.ea-mech` (`globals.css`), so it cannot leak; the callers are `SportSelector` and `CreatePostModal` while golf is the post type.
+
+- **Two palettes, one structure.** The dark values are the spec's own hex (`--mech-surface #141318`, `--mech-panel #1b1a20`, `--mech-recess #0b0a0d`, `--mech-key #34323c`, `--mech-accent #6d3af0`, `--mech-accent-light #bba6ff`, `--mech-selected-border #9b7bff`, …); the light values are their twin (Tom, Nov 23: "spec dark + a light twin"). The scope also **re-points the house tokens** (`--surface`, `--border-default`, `--brand-fg` …), the way `.tr-scope` re-points its shadows, so an existing panel inside the scope takes the palette unrewritten and the global focus ring becomes the spec's 2 px accent-light outline. Never a hex at a call site.
+- **The classes:** `.ea-mech-dialog` (the surface; from 640 px a 24 px-radius dialog capped at 90dvh — the cap lives IN the class: a custom class takes no `sm:` prefix), `.ea-mech-panel` (cards, lists, utility buttons), `.ea-mech-recess` (slots, switch tracks), `.ea-mech-key` (flat until `aria-pressed`), `.ea-mech-tile` / `.ea-mech-row` (state on the box: `data-selected`, `data-pressed`), `.ea-mech-fav-track` / `-knob`, `.ea-mech-back` / `.ea-mech-next`, `.ea-mech-micro` (10 px mono, uppercase, 0.14em) and `.ea-mech-readout` (mono 700, tabular). The shared-class rule holds: none sets `display` or a width.
+- **Shared parts:** `src/components/mech/KeySwitch.tsx` (a recessed track of `aria-pressed` buttons; `lg` 56 px keys with the selected border, `sm` 44 px keys with an optional indicator light) and `InfoToggle.tsx` (44 px target, 28 px circle; it only reports the tap). `StepFlow variant="mech"` is the frame.
+- **Type:** Inter for text; **JetBrains Mono** (500, 700) for micro labels and numbers, through `next/font` in the app layout, `preload: false`, as `--font-mono-ea`.
+- **Spacing inside the scope is the spec's** — 16 px sides, 10 between blocks, 8 from a label to its control, 8 between tiles — not the app's 12 / 24 / 48. Radii: dialog 24, panel 16, tile and slot 14, footer buttons 14, utility buttons 12. Targets stay ≥ 44 px.
+- **Motion:** a press is `scale(0.97)` over 120 ms (`data-pressed` on a box that holds sibling buttons, `:active` on a single button); hover is a brightness step, inside `(hover: hover)` only; the knob and the dial needles use one spring (`--mech-spring`); everything is transition- or animation-based, so the global reduced-motion block stills it.
+- **Pinned by** `step-flow.test.ts`, `sport-picker-rows.test.ts`, `golf-course-step.test.ts`; the screens are in `golf-round-setup.md`.
+
+---
+
 ## The Create menu (Create menu redesign, Oct 13 2026; six doors on one screen, Nov 20 2026; tile grid with info, Nov 23 2026; zero DDL)
 
 Tom's spec: ONE Create menu — the header button, the phone drawer's "Create" row, and therefore the feed and the profile (the header is on both) all open `src/components/CreateSheet.tsx`, the house `LargerWindow` (its `bare` option: the sheet draws its own header). The same six doors in this order on ONE screen (Tom, Nov 20 2026) — there is no second step: from Oct 13 to Nov 20 2026 Workout and Activity sat behind a "Record Activity" row (`data-create-record-activity`, `data-create-step="record"`, `data-create-back` — all three hooks are gone). `videos-ui.test.ts` and `create-options.test.ts` pin the order at the source, `e2e/header-create.spec.ts` in the DOM.
