@@ -92,7 +92,7 @@ export default function SportSelector({ onSelectSport, onClose }: SportSelectorP
 
   return (
     <div className="ea-mech ea-mech-overlay fixed inset-0 flex items-stretch sm:items-center justify-center z-[60] sm:p-4">
-      <div className="ea-mech-dialog w-full sm:max-w-[640px] sm:max-h-modal flex flex-col px-4 sm:p-5 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
+      <div className="ea-mech-dialog w-full sm:max-w-[640px] flex flex-col px-4 sm:p-5 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)]">
         {/* Top bar */}
         <div className="flex items-center justify-between min-h-[44px] shrink-0">
           <h3 className="ea-mech-title">Select Sport</h3>

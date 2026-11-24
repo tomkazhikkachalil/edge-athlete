@@ -148,3 +148,16 @@ export function conditionsLine(input: { weather: string; temperature: number | n
   ].filter((p): p is string => !!p);
   return parts.length > 0 ? parts.join(', ') : null;
 }
+
+// ── The dialog's width on a desktop (the mechanical dialect, Nov 23 2026) ──
+// Tom's visual spec: the round type and the course SEARCH sit in a 480 px
+// dialog; once a course is named the dialog widens to 760 px (two columns),
+// and every later step keeps that width (a scorecard needs it). A phone is
+// full screen either way — this only names the frame.
+export type RoundFrame = 'narrow' | 'wide';
+
+export function roundFrame(stepId: RoundStepId, courseName: string): RoundFrame {
+  if (stepId === 'type') return 'narrow';
+  if (stepId === 'course') return courseName.trim() ? 'wide' : 'narrow';
+  return 'wide';
+}

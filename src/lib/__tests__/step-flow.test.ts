@@ -41,3 +41,41 @@ describe('StepFlow — the refusal line, the finish tone and the busy label', ()
     expect(src).toMatch(/live: 'bg-red-600 hover:bg-red-700/);
   });
 });
+
+// Nov 23 2026 (Tom's visual spec — the mechanical dialect): the golf round's
+// look is a VARIANT of the same frame, never a second frame. The default
+// renders as before; the words "Step n of N · label" stay in the text.
+describe('StepFlow — variant="mech"', () => {
+  const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
+  it('the default is the house frame, and mech keeps every hook and the readable step line', () => {
+    expect(src).toMatch(/variant = 'default'/);
+    expect(src).toContain('<span className="sr-only">Step {index + 1} of {steps.length} · {step.label}</span>');
+    expect(src).toContain('<span aria-hidden="true">Step {index + 1} / {steps.length} · {step.label}</span>');
+    expect(src.match(/data-step-header=""/g)?.length).toBe(2);
+    expect(src.match(/data-step-dot=\{s\.id\}/g)?.length).toBe(2);
+    // One footer for both looks: the same buttons, the same rules.
+    expect(src.match(/data-step-back=""/g)?.length).toBe(1);
+    expect(src.match(/data-step-next=""/g)?.length).toBe(1);
+    expect(src.match(/data-step-finish=""/g)?.length).toBe(1);
+  });
+  it('one segment per step in the progress tokens; Back 92 × 48, Next at least 132 × 48', () => {
+    expect(src).toContain("className=\"h-1.5 flex-1 rounded-[2px] transition-colors\"");
+    for (const token of ['--mech-progress-current', '--mech-progress-done', '--mech-progress-empty']) expect(src).toContain(token);
+    expect(src).toContain("'ea-mech-back min-h-[44px] h-12 w-[92px] shrink-0'");
+    expect(src).toContain("'ea-mech-next min-h-[44px] h-12 min-w-[132px] shrink-0 px-4'");
+  });
+  it('only the golf round asks for it; the composer wears the scope only while golf is the post type', () => {
+    expect(read('src/components/golf/GolfComposerSection.tsx')).toContain('variant="mech"');
+    for (const other of ['src/components/SportSetupFlow.tsx', 'src/components/videos/NewVideoFlow.tsx']) {
+      expect(read(other), other).not.toContain('variant="mech"');
+    }
+    const composer = read('src/components/CreatePostModal.tsx');
+    expect(composer).toContain("const isGolf = postType === 'golf';");
+    expect(composer).toMatch(/isGolf\s*\? 'ea-mech ea-mech-overlay fixed inset-0/);
+    expect(composer).toContain("golfFrame === 'wide' ? 'sm:max-w-[760px]' : 'sm:max-w-[480px]'");
+    // A custom class takes no breakpoint prefix: the cap lives in the dialog class.
+    expect(composer).not.toContain('sm:max-h-modal');
+    expect(read('src/components/SportSelector.tsx')).not.toContain('sm:max-h-modal');
+    expect(read('src/app/globals.css')).toMatch(/\.ea-mech-dialog \{[^}]*max-height: 90dvh;/);
+  });
+});

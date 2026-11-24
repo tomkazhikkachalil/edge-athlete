@@ -62,6 +62,7 @@ import {
   roundFinishLabel,
   roundStepIndex,
   roundStepRefusal,
+  roundFrame,
   stepsForRound,
   type RoundStepId,
 } from '@/lib/golf/round-steps';
@@ -217,6 +218,8 @@ export default function GolfComposerSection({
   busy = false,
   busyLabel,
   finishSlot,
+  lead,
+  onFrame,
 }: SportComposerExtraProps) {
   // activeProfile first, so a guardian composing AS a managed athlete seeds
   // that athlete's row rather than their own.
@@ -873,6 +876,12 @@ export default function GolfComposerSection({
     alreadyPlayed: sharedRoundDetails.alreadyPlayed,
   });
 
+  // The composer's dialog follows the step (480 → 760 px on a desktop).
+  const frame = roundFrame(currentStep.id, sharedRoundDetails.courseName);
+  useEffect(() => {
+    if (active) onFrame?.(frame);
+  }, [active, frame, onFrame]);
+
   const setAlreadyPlayed = (alreadyPlayed: boolean) => {
     // An already-played round never carries a forecast: what was filled
     // stays as values the person now owns.
@@ -963,9 +972,13 @@ export default function GolfComposerSection({
           busyLabel={busyLabel ?? roundBusyLabel(sharedRoundDetails.alreadyPlayed)}
           canAdvance={refusal === null}
           refusal={refusal ?? undefined}
-          // The composer's body carries the gutter; the frame's own px-4 is
-          // the step's, so the sticky footer runs edge to edge.
-          className="-mx-4 sm:-mx-6"
+          // The mechanical dialect (Nov 23 2026): the composer wears the
+          // `.ea-mech` scope while golf is the post type and hands over its
+          // sport row; the frame fills the dialog, so the footer sits at
+          // the bottom of a phone screen and the body scrolls above it.
+          variant="mech"
+          lead={lead}
+          className="flex-1 min-h-0"
         >
           {currentStep.id === 'type' && (
             <RoundTypeStep

@@ -1264,11 +1264,16 @@ html:has(.org-scope[data-theme="dark"]) body {
   background-color: var(--mech-surface);
   color: var(--mech-text);
 }
+/* From 640 px up: a centred dialog whose height fits its content, capped
+ * like .max-h-modal (dvh with the vh fallback). Below that the caller
+ * stretches it to the full screen. */
 @media (min-width: 640px) {
   .ea-mech-dialog {
     border: 1px solid var(--mech-hairline);
     border-radius: 24px;
     box-shadow: var(--mech-dialog-depth);
+    max-height: 90vh;
+    max-height: 90dvh;
   }
 }
 
