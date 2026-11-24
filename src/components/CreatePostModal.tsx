@@ -272,6 +272,9 @@ export default function CreatePostModal({
   // clears at exactly the moments the old inline golf state was reset
   // (confirmed discard / post success).
   const [sportSectionResetKey, setSportSectionResetKey] = useState(0);
+  // The golf round's dialog width on a desktop, named by the section's step
+  // (round-steps.ts roundFrame): 480 px, then 760 px once a course is named.
+  const [golfFrame, setGolfFrame] = useState<'narrow' | 'wide'>('narrow');
 
   // Visibility and submission
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
@@ -1209,8 +1212,45 @@ export default function CreatePostModal({
     </>
   );
 
+  // The golf round wears the mechanical dialect (Tom's visual spec, Nov 23
+  // 2026): its own palette inside `.ea-mech`, a full screen on a phone and a
+  // centred dialog on a desktop whose width follows the step. Every other
+  // post type keeps the composer as it was.
+  const isGolf = postType === 'golf';
+  // The sport row, handed to the golf section's step frame, which draws it
+  // beside its step counter: the same two doors — Change (the picker) and
+  // Remove sport.
+  const golfLead = (
+    <div className="flex items-center gap-1 min-w-0" data-post-type-compact="">
+      <button
+        type="button"
+        onClick={() => setShowSportSelector(true)}
+        className="ea-mech-btn inline-flex min-h-[44px] items-center gap-2 rounded-lg text-left"
+        aria-label="Change sport"
+      >
+        <span className="text-sm font-semibold text-[color:var(--mech-text)]">{isGolf ? getSportDefinition(postType as SportKey).display_name : ''}</span>
+        <span className="text-[13px] font-medium text-[color:var(--mech-accent-light)]">Change</span>
+      </button>
+      <button
+        type="button"
+        data-post-type-clear=""
+        aria-label="Remove sport"
+        onClick={() => {
+          setPostType('general');
+          setStatLineData(null);
+        }}
+        className="ea-mech-btn inline-flex min-h-[44px] items-center rounded-lg px-2 text-[13px] text-[color:var(--mech-text-soft)]"
+      >
+        Remove
+      </button>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className={isGolf
+      ? 'ea-mech ea-mech-overlay fixed inset-0 flex items-stretch sm:items-center justify-center z-50 sm:p-4'
+      : 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'}
+    >
       <ConfirmModal
         isOpen={confirmOpen}
         title={COPY.FORMS.DISCARD_TITLE}
@@ -1220,8 +1260,25 @@ export default function CreatePostModal({
         onConfirm={confirmDiscard}
         onCancel={cancelDiscard}
       />
-      <div className="bg-surface-raised rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col">
+      <div
+        className={isGolf
+          ? `ea-mech-dialog w-full flex flex-col sm:py-5 transition-[max-width] duration-[260ms] ${golfFrame === 'wide' ? 'sm:max-w-[760px]' : 'sm:max-w-[480px]'}`
+          : 'bg-surface-raised rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col'}
+        data-composer-frame={isGolf ? golfFrame : undefined}
+      >
         {/* Header */}
+        {isGolf ? (
+          <div className="flex items-center justify-between min-h-[44px] shrink-0 px-4 sm:px-5 pt-[calc(0.5rem+env(safe-area-inset-top))] sm:pt-0">
+            <h2 className="ea-mech-title">Create Post</h2>
+            <button
+              onClick={requestClose}
+              className="ea-mech-close inline-flex items-center justify-center"
+              aria-label="Close modal"
+            >
+              <FaIcon icon={faXmark} />
+            </button>
+          </div>
+        ) : (
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border">
           <h2 className="text-2xl font-bold text-primary">Create Post</h2>
           <button
@@ -1232,12 +1289,14 @@ export default function CreatePostModal({
             <FaIcon icon={faXmark} className="text-muted text-lg" />
           </button>
         </div>
+        )}
 
-        {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {/* Content - Scrollable. For golf the step frame fills it: its own
+            body scrolls and its footer stays at the bottom. */}
+        <div className={isGolf ? 'flex-1 min-h-0 flex flex-col overflow-y-auto' : 'flex-1 overflow-y-auto p-4 sm:p-6'}>
           {/* Crash-recovery draft notice — restore is a choice, never automatic */}
           {availableDraft && caption.trim() === '' && (
-            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2">
+            <div className={`mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2 ${isGolf ? 'mx-4 sm:mx-5 mt-2 shrink-0' : ''}`}>
               <FaIcon icon={faClockRotateLeft} className="text-brand-fg" />
               <p className="text-sm text-violet-900 dark:text-violet-200 flex-1 min-w-40">
                 You have an unfinished post{availableDraft.caption ? ` — “${availableDraft.caption.slice(0, 40)}${availableDraft.caption.length > 40 ? '…' : ''}”` : ''}
@@ -1285,36 +1344,12 @@ export default function CreatePostModal({
               round (finishSlot) — a live round tells its story at the finish. */}
           {postType !== 'golf' && postFields}
 
-          {/* Sport/Post Type Selection. While a golf round's steps run the
-              card is ONE line (Oct 29 2026): the big card took a third of a
+          {/* Sport/Post Type Selection. While a golf round's steps run, the
+              sport row is ONE line drawn by the round's step frame (golfLead
+              above, Oct 29 / Nov 23 2026): the big card took a third of a
               phone screen above every step; the same two doors stay —
               Change (the picker) and Remove sport. */}
-          {postType === 'golf' ? (
-            <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1" data-post-type-compact="">
-              <button
-                type="button"
-                onClick={() => setShowSportSelector(true)}
-                className="ea-interactive inline-flex min-h-[44px] items-center gap-2 rounded-lg px-2 -ml-2 text-left"
-                aria-label="Change sport"
-              >
-                <FaIcon icon={sportIcon(postType as SportKey)} className="text-brand-fg" />
-                <span className="font-semibold text-primary">{getSportDefinition(postType as SportKey).display_name}</span>
-                <span className="text-sm font-medium text-brand-fg">Change</span>
-              </button>
-              <button
-                type="button"
-                data-post-type-clear=""
-                onClick={() => {
-                  setPostType('general');
-                  setStatLineData(null);
-                }}
-                className="ea-interactive inline-flex min-h-[44px] items-center text-sm text-muted hover:text-primary"
-              >
-                <FaIcon icon={faXmark} className="mr-1" />
-                Remove sport
-              </button>
-            </div>
-          ) : (
+          {postType === 'golf' ? null : (
           <div className="mb-6">
             <label className="block text-sm font-semibold text-secondary mb-3">Post Type</label>
             <button
@@ -1401,6 +1436,8 @@ export default function CreatePostModal({
               busy={isSubmitting}
               busyLabel={uploadingLine(mediaFiles.map(f => uploads.itemFor(f.id)?.progress)) ?? undefined}
               finishSlot={postFields}
+              lead={sportKey === 'golf' ? golfLead : undefined}
+              onFrame={sportKey === 'golf' ? setGolfFrame : undefined}
             />
           ))}
 

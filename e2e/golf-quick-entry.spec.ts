@@ -325,15 +325,26 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     expect(seeded.error, seeded.error?.message).toBeNull();
     courseId = seeded.data!.id as string;
 
-    // Step 1: the pressed buttons are purple; the dot is red while Playing now is selected, white when not.
+    // Step 1 (the mechanical dialect, Nov 23 2026): two key switches — the pressed key is raised;
+    // the broadcast dot is lit while Playing now is the pressed key, dimmed when it is not.
     const flow = await openGolf(page);
     const playingNow = page.getByRole('button', { name: 'Playing now' });
-    await expect(playingNow).toHaveClass(/bg-brand/);
-    await expect(playingNow.locator('[data-live-dot]')).toHaveClass(/bg-red-500/);
-    await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveClass(/bg-brand/);
+    await expect(playingNow).toHaveAttribute('aria-pressed', 'true');
+    await expect(playingNow.locator('[data-live-dot]')).toHaveAttribute('data-on', '');
+    await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('button', { name: 'Already played' }).click();
-    await expect(playingNow.locator('[data-live-dot]')).toHaveClass(/bg-white/);
+    await expect(playingNow).toHaveAttribute('aria-pressed', 'false');
+    await expect(playingNow.locator('[data-live-dot]')).not.toHaveAttribute('data-on', '');
     await playingNow.click();
+    // The info button swaps the first switch for a panel of the same height: nothing below moves.
+    const roundType = page.getByRole('group', { name: 'Round type' });
+    const before = await roundType.boundingBox();
+    await page.getByRole('button', { name: 'About when the round is' }).click();
+    await expect(page.locator('[data-round-when-info]')).toBeVisible();
+    expect((await roundType.boundingBox())!.y).toBe(before!.y);
+    await page.getByRole('button', { name: 'About when the round is' }).click();
+    await expect(page.locator('[data-round-when-info]')).toHaveCount(0);
+    await expect(playingNow).toBeVisible();
 
     // Step 2: the seeded course → Show Map | Official Scorecard, one open at a time; no "(optional)", no handicap line.
     await next(flow, /Step 2 of 7 · Course/);

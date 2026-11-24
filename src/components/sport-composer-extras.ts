@@ -42,6 +42,13 @@ export interface SportComposerExtraProps {
   busy?: boolean;
   busyLabel?: string;
   finishSlot?: ReactNode;
+  /** The mechanical dialect (Nov 23 2026): the composer's sport row ("Golf ·
+   *  Change · Remove"), drawn by the section's step frame beside its step
+   *  counter; and the section tells the composer how wide its dialog is on a
+   *  desktop — 'narrow' (480 px: the round type, the course search) or
+   *  'wide' (760 px: a picked course and every later step). */
+  lead?: ReactNode;
+  onFrame?: (frame: 'narrow' | 'wide') => void;
 }
 
 export const SPORT_COMPOSER_EXTRAS: Partial<Record<SportKey, ComponentType<SportComposerExtraProps>>> = {

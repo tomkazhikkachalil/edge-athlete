@@ -1,22 +1,28 @@
 'use client';
 
-import { GOLF_LABEL } from '@/components/golf/golf-form-styles';
+import { useId, useState } from 'react';
 import FaIcon from '@/components/FaIcon';
+import KeySwitch from '@/components/mech/KeySwitch';
+import InfoToggle from '@/components/mech/InfoToggle';
 import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
-import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
 import { faTree } from '@/lib/icons/fa/tree';
 import { faWarehouse } from '@/lib/icons/fa/warehouse';
 
 /**
- * Step 1 of the golf round (Oct 28 2026): the sport named, then WHEN
- * ("Playing now" goes live, "Already played" logs a finished round) and
- * WHERE (Outdoor / Indoor). Both default as the one-page form did —
- * Playing now, Outdoor (Tom: keep today's defaults). The copy and the
- * labels are the form's, moved verbatim; the e2e idioms
- * (`/already played/i`, `/outdoor/i`) still find exactly these buttons.
- * The look (Oct 29 2026, Tom's refinement spec): purple is the ONE
- * selected colour on every step; Playing now keeps a small status dot —
- * red while it is selected (the round goes live), white when it is not.
+ * Step 1 of the golf round (Oct 28 2026): WHEN ("Playing now" goes live,
+ * "Already played" logs a finished round) and WHERE (Outdoor / Indoor).
+ * Both default as the one-page form did — Playing now, Outdoor (Tom: keep
+ * today's defaults). The e2e idioms (`/already played/i`, `/outdoor/i`)
+ * still find exactly these buttons.
+ *
+ * The look (Tom's visual spec, Nov 23 2026 — the mechanical dialect): two
+ * key switches, one per question, 18 px apart. The sport is named in the
+ * frame's sport row above, so the "Golf" heading is gone. The helper
+ * sentence under the first pair moved behind an info button: a tap swaps
+ * the switch for a panel of the SAME height (64 px), so nothing below
+ * moves; a second tap brings the switch back. Playing now keeps its
+ * broadcast dot in the live red — lit and pulsing while it is the pressed
+ * key (`data-on`), dimmed when it is not.
  */
 interface RoundTypeStepProps {
   alreadyPlayed: boolean;
@@ -27,91 +33,88 @@ interface RoundTypeStepProps {
   forName?: string | null;
 }
 
+type When = 'now' | 'played';
+type Where = 'outdoor' | 'indoor';
+
+const WHEN_OPTIONS = [
+  {
+    value: 'now' as When,
+    label: 'Playing now',
+    icon: (selected: boolean) => (
+      <span
+        data-live-dot=""
+        {...(selected ? { 'data-on': '' } : {})}
+        aria-hidden="true"
+        className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${selected ? 'animate-pulse' : 'opacity-50'}`}
+        style={{ backgroundColor: 'var(--mech-live)' }}
+      />
+    ),
+  },
+  {
+    value: 'played' as When,
+    label: 'Already played',
+    icon: () => <FaIcon icon={faFlagCheckered} className="text-[18px]" />,
+  },
+] as const;
+
+const WHERE_OPTIONS = [
+  { value: 'outdoor' as Where, label: 'Outdoor', icon: () => <FaIcon icon={faTree} className="text-[18px]" /> },
+  { value: 'indoor' as Where, label: 'Indoor', icon: () => <FaIcon icon={faWarehouse} className="text-[18px]" /> },
+] as const;
+
 export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, onIndoor, forName }: RoundTypeStepProps) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const whenId = useId();
+
   return (
-    <div className="space-y-6" data-round-step="type">
-      <div>
-        <h3 className="text-lg font-semibold text-primary flex items-center">
-          <FaIcon icon={faGolfBallTee} className="mr-2 text-green-600 dark:text-green-400" />
-          Golf
-          {forName && <span className="ml-2 text-sm font-medium text-tertiary">· for {forName}</span>}
-        </h3>
-      </div>
+    <div data-round-step="type">
+      {forName && (
+        <p className="mb-2.5 text-[13px] text-[color:var(--mech-text-soft)]">For {forName}</p>
+      )}
 
       <div>
-        <label className={GOLF_LABEL}>When is this round?</label>
-        {/* Stacks below sm — "Already played" + icon wraps in a ~90px
-            half-column at 320px */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => onAlreadyPlayed(false)}
-            aria-pressed={!alreadyPlayed}
-            className={`px-4 py-3 min-h-[44px] rounded-lg font-semibold transition-all ${
-              !alreadyPlayed
-                ? 'bg-brand text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
-            }`}
-          >
-            <span
-              data-live-dot=""
-              className={`inline-block w-2 h-2 rounded-full mr-2 ${!alreadyPlayed ? 'bg-red-500 animate-pulse' : 'bg-white border border-border-strong'}`}
-            ></span>
-            Playing now
-          </button>
-          <button
-            type="button"
-            onClick={() => onAlreadyPlayed(true)}
-            aria-pressed={alreadyPlayed}
-            className={`px-4 py-3 min-h-[44px] rounded-lg font-semibold transition-all ${
-              alreadyPlayed
-                ? 'bg-brand text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
-            }`}
-          >
-            <FaIcon icon={faFlagCheckered} className="mr-2" />
-            Already played
-          </button>
+        <div className="flex items-center justify-between h-7 mb-2">
+          <span className="ea-mech-micro">When is this round?</span>
+          <InfoToggle
+            open={infoOpen}
+            onToggle={() => setInfoOpen(o => !o)}
+            label="About when the round is"
+            controls={whenId}
+            className="-mr-2"
+          />
         </div>
-        <p className="mt-1.5 text-xs text-muted">
-          {alreadyPlayed
-            ? 'Log a finished round — full scorecard, solo or with friends.'
-            : 'Round goes LIVE — score hole by hole as you play, solo or with friends.'}
-        </p>
+        {infoOpen ? (
+          <div
+            id={whenId}
+            className="ea-mech-panel h-16 rounded-[15px] px-3.5 flex flex-col justify-center gap-1.5 text-xs leading-4 text-[color:var(--mech-text-dim)]"
+            data-round-when-info=""
+          >
+            <p><span className="font-semibold text-[color:var(--mech-text)]">Playing now:</span> live scoring, hole by hole.</p>
+            <p><span className="font-semibold text-[color:var(--mech-text)]">Already played:</span> log a finished round.</p>
+          </div>
+        ) : (
+          <KeySwitch
+            id={whenId}
+            label="When is this round?"
+            options={WHEN_OPTIONS}
+            value={alreadyPlayed ? 'played' : 'now'}
+            onChange={v => onAlreadyPlayed(v === 'played')}
+          />
+        )}
       </div>
 
-      <div>
-        <label className={GOLF_LABEL}>Round Type</label>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => onIndoor(false)}
-            aria-pressed={!indoor}
-            className={`px-4 py-3 min-h-[44px] rounded-lg font-semibold transition-all ${
-              !indoor
-                ? 'bg-brand text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
-            }`}
-          >
-            <FaIcon icon={faTree} className="mr-2" />
-            Outdoor
-          </button>
-          <button
-            type="button"
-            onClick={() => onIndoor(true)}
-            aria-pressed={indoor}
-            className={`px-4 py-3 min-h-[44px] rounded-lg font-semibold transition-all ${
-              indoor
-                ? 'bg-brand text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
-            }`}
-          >
-            <FaIcon icon={faWarehouse} className="mr-2" />
-            Indoor
-          </button>
+      <div className="mt-[18px]">
+        <div className="flex items-center h-7 mb-2">
+          <span className="ea-mech-micro">Round type</span>
         </div>
+        <KeySwitch
+          label="Round type"
+          options={WHERE_OPTIONS}
+          value={indoor ? 'indoor' : 'outdoor'}
+          onChange={v => onIndoor(v === 'indoor')}
+        />
         {indoor && (
-          <p className="mt-1.5 text-xs text-muted">Indoor rounds skip the tee and the playing conditions.</p>
+          <p className="mt-2 text-xs text-[color:var(--mech-text-soft)]">Indoor rounds skip the tee and the playing conditions.</p>
         )}
       </div>
     </div>

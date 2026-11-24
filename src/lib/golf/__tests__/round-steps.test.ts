@@ -113,3 +113,17 @@ describe('conditionsLine — "Cloudy, 7°C, 5–10 mph"', () => {
     expect(weatherWord('hail')).toBeNull();
   });
 });
+
+describe('roundFrame — the dialog width on a desktop', () => {
+  it('the round type and an empty course step are narrow; a named course and every later step are wide', async () => {
+    const { roundFrame } = await import('../round-steps');
+    expect(roundFrame('type', '')).toBe('narrow');
+    expect(roundFrame('type', 'Loch March')).toBe('narrow');
+    expect(roundFrame('course', '')).toBe('narrow');
+    expect(roundFrame('course', '   ')).toBe('narrow');
+    expect(roundFrame('course', 'Loch March')).toBe('wide');
+    for (const id of ['format', 'conditions', 'players', 'scores', 'finish'] as const) {
+      expect(roundFrame(id, '')).toBe('wide');
+    }
+  });
+});
