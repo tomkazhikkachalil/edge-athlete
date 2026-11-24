@@ -166,7 +166,7 @@ test.describe('suggestion dropdowns are visible and clickable', () => {
         // unscoped /golf/i can resolve to a covered element underneath.
         await page.getByRole('button', { name: /general post/i }).click();
         const sportSelector = page.locator('div[class*="z-[60]"]');
-        await sportSelector.getByPlaceholder('Search sports...').fill('golf');
+        await sportSelector.getByPlaceholder('Search sports').fill('golf');
         await sportSelector.getByRole('button', { name: /golf/i }).first().click();
 
         // The round as steps (Oct 28 2026): the course field is step 2.

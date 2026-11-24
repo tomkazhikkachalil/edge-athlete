@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { headers } from "next/headers";
-import { Inter } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import { AuthProvider } from "@/lib/auth";
 import { NotificationsProvider } from "@/lib/notifications";
 import { MessagesProvider } from "@/lib/messages";
@@ -34,6 +34,17 @@ const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-inter'
+});
+
+// The mechanical dialect's numbers and micro labels (.ea-mech-micro /
+// .ea-mech-readout, Nov 23 2026). Not preloaded: only the sport picker and
+// the golf round read it, and both open after a tap.
+const mono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['500', '700'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-mono-ea'
 });
 
 export const metadata: Metadata = {
@@ -112,7 +123,7 @@ export default async function RootLayout({
     // suppressHydrationWarning is attribute-scoped to <html> only: the theme
     // script below stamps data-theme before React hydrates, and that delta
     // is expected, not a bug.
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         {/* BLOCKING on purpose — resolves the stored theme (the schedule
             included — and the default schedule when nothing is stored) and

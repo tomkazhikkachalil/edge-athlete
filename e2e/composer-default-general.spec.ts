@@ -19,7 +19,7 @@ test('a golfer\'s new post starts General: "Create a post", no golf fields', asy
     // The sport picker is still one tap away (functionality unchanged).
     await page.getByText('General Post', { exact: true }).click();
     const selector = page.locator('div[class*="z-[60]"]');
-    await selector.getByPlaceholder('Search sports...').fill('golf');
+    await selector.getByPlaceholder('Search sports').fill('golf');
     await selector.getByRole('button', { name: /golf/i }).first().click();
     // The golf round's steps (Oct 28 2026) open on Round type.
     await expect(page.locator('[data-step-flow="golf-round"]')).toBeVisible();

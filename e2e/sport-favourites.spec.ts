@@ -40,7 +40,7 @@ for (const tag of ['', ' @mobile']) {
       // The star never picked the sport: the picker is still open.
       await expect(picker.getByRole('heading', { name: 'Select Sport' })).toBeVisible();
       // Search filters both sections; nothing found is said, not blank.
-      const search = picker.getByPlaceholder('Search sports...');
+      const search = picker.getByPlaceholder('Search sports');
       await search.fill('row');
       await expect(picker.locator('[data-sport-row]')).toHaveCount(2); // Rowing in Favourites and in All Sports
       await search.fill('zzz');
@@ -58,7 +58,7 @@ for (const tag of ['', ' @mobile']) {
       await expect(picker.locator('[data-sport-favourites]')).toHaveCount(0);
       await expect(picker.locator('[data-sport-favourite="rowing"]')).toHaveAttribute('aria-pressed', 'false');
       // A row tap picks the sport and advances; "Remove sport" is the way back to General.
-      await picker.getByPlaceholder('Search sports...').fill('golf');
+      await picker.getByPlaceholder('Search sports').fill('golf');
       await picker.getByRole('button', { name: /golf/i }).click();
       await expect(page.locator('[data-step-flow="golf-round"]')).toBeVisible();
       await page.locator('[data-post-type-clear]').click();

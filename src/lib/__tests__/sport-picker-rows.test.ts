@@ -36,14 +36,32 @@ describe('the sport picker rows', () => {
     expect(star).toBeGreaterThan(rowClose);
   });
 
-  it('the sections come from the one rule module and the star is gold by token', () => {
+  it('the sections come from the one rule module and the switch is gold by token', () => {
     expect(picker).toContain("from '@/lib/sports/favourite-sports'");
-    expect(picker).toContain('partitionSports(getAllSports(), favourites, searchQuery)');
+    // The SECTION follows the stored list a beat late (the tile slides in
+    // after the switch has moved); the switch itself reads the stored list.
+    expect(picker).toContain('partitionSports(getAllSports(), shown.keys, searchQuery)');
+    expect(picker).toContain('isFavourite={favourites.includes(sport.sport_key)}');
     expect(picker).toContain('data-sport-favourites=""');
-    expect(picker).toContain('text-star');
+    // Nov 23 2026 (the mechanical dialect): the star is a switch; its gold
+    // is a token with a light and a dark value, never a literal at the site.
+    expect(picker).toContain('ea-mech-fav-track');
+    expect(picker).not.toMatch(/#[0-9a-fA-F]{6}/);
     const css = read('app/globals.css');
-    expect(css).toMatch(/--color-star: var\(--star\);/);
-    expect((css.match(/^\s*--star: #[0-9a-f]{6};/gm) ?? []).length, 'a light and a dark value').toBe(2);
+    expect(css).toMatch(/\[aria-pressed="true"\] > \.ea-mech-fav-track > \.ea-mech-fav-knob \{\s*background-color: var\(--mech-gold\);/);
+    expect((css.match(/^\s*--mech-gold: #[0-9a-f]{6};/gm) ?? []).length, 'a light and a dark value').toBe(2);
+  });
+
+  it('a tile is the mechanical tile: LAST from the account, SOON in place of the switch, the scope on the overlay', () => {
+    expect(picker).toContain('className="ea-mech ea-mech-overlay fixed inset-0');
+    expect(picker).toContain('z-[60]'); // the specs find the picker by its layer
+    expect(picker).toContain('grid grid-cols-3 sm:grid-cols-5 gap-2');
+    expect(picker).toContain('useLastSport()');
+    expect(picker).toContain('data-sport-last=""');
+    expect(read('hooks/useLastSport.ts')).toContain("fetch('/api/settings/last-sport'");
+    const route = read('app/api/settings/last-sport/route.ts');
+    expect(route).toContain("'Cache-Control': 'private, no-store'");
+    expect(route).toContain(".eq('profile_id', user.id)");
   });
 
   it('a gold star is its own confirmation — the hook shows no notice', () => {
