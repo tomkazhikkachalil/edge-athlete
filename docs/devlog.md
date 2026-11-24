@@ -1,5 +1,22 @@
 # Development Log
 
+## November 23, 2026 (21:06) — The Create sheet on larger screens: hover feedback, and the info walk proven at 1280 and 768 px
+
+**Why.** Tom, after the tile grid went live: "ensure that it's done on larger screens, not just mobile." The redesign was already live at every width (one sheet; a centred card from `sm:` up), but it had been built and proven phone-first: a mouse got no sign before the press, and the info-button test was `@mobile` only, which the desktop project skips.
+
+**What.** Zero DDL, no layout change.
+- `globals.css`: inside `@media (hover: hover)`, an option under the pointer takes the shared hover tint and solid Post the brand hover; a selected option is excluded. `CreateSheet.tsx`: the info button's tone answers the pointer.
+- `e2e/header-create.spec.ts`: the info walk is ONE function (`infoWalk`) run by the phone test (project width, 320, 390 px) and by a new desktop test (1280 and 768 px), which also holds the card centred and at most 448 px wide, the grid on two rows, and the hover on a tile and on Post.
+- `create-options.test.ts` pins that every `.ea-create-opt` hover rule sits inside the hover media query. `ui-conventions.md` "The Create menu" gains the larger-screens paragraph.
+- The app's buttons keep the default cursor (no global pointer rule), so none was added here.
+
+**Proof.** `npm run verify` exit 0 (6,869 tests). Staging against the production build: `header-create` on `desktop` 7 passed, `mobile` 2, `webkit-mobile` 2, `android` 2. Read from screenshots in light and dark at 768, 1,280 and 1,920 px: rest, a hovered tile, a tile's info open, Post's info open, a selected tile.
+## November 23, 2026 (20:53) — Close: the tile-grid Create sheet is on production
+
+**#1614 merged** (`cdff979f`) and `/api/health` shows the commit. Production probe with `E2E_EXPECT_COMMIT=cdff979f`, one project at a time: desktop 6 passed (`header-create` — the twelve buttons in order with their names, every door's destination); mobile 2 passed (`header-create` — the info buttons at the project width, 320 px and 390 px, and a pick reading selected). The probe's four QA accounts were deleted by its teardown both times.
+
+**Still open.** Tom's look on his own phone. Next: the golf posting work (live, finished and indoor rounds).
+
 ## November 23, 2026 (20:40) — The Create sheet is a tile grid: titles only, each description behind an info button
 
 **Why.** Tom's spec "Create Sheet Redesign" (Nov 23 2026) with the mockup "Option B, tile grid with info": restyle the Create sheet as a full-width Post button, a 2 x 2 grid and a full-width last row, titles only, an info button on every option. A visual change only: the six doors, their order and what each opens are the Nov 20 ones.
