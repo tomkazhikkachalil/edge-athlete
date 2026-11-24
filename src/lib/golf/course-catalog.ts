@@ -50,7 +50,7 @@ import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geom
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
 import { createProviderBreaker, hostOf } from '@/lib/golf/provider-breaker';
 import { splitUnlinkedClub, type ClubSectionRow } from '@/lib/golf/club-split-server';
-import { creditSources, mergeSheets, nineFromCombination, parsFromTees, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
+import { cardParsVerdict, creditSources, mergeSheets, nineFromCombination, parsFromTees, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 import { evidenceFromBoxes, type ParEvidenceRow } from '@/lib/golf/par-evidence';
 import { recordParEvidence, settleAfterEvidence } from '@/lib/golf/par-evidence-server';
@@ -1504,7 +1504,7 @@ export interface SheetAsk {
   picked?: string | null;
   /** The card is the front nine of an eighteen, confirmed by a sibling listing. */
   fromCombination?: boolean;
-  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_here' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error' | 'provider_down';
+  result: 'filled' | 'nothing_new' | 'bad_card' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_here' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error' | 'provider_down';
 }
 
 /** One source of official cards (Nov 16 2026). `search` answers the provider's
@@ -1771,6 +1771,13 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     if (!normalized?.hole_data?.length) { why = 'no_sheet'; ask.result = 'no_holes'; continue; }
     // A nine takes a nine: an eighteen (a combination of two nines) is not this row's card.
     if (row.section_kind === 'nine' && normalized.hole_data.length !== 9) { why = 'no_sheet'; ask.result = 'wrong_holes'; continue; }
+    // A card that fails its own arithmetic is nobody's card (cardParsVerdict).
+    if (cardParsVerdict(normalized) !== 'ok') {
+      console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${provider.source}:${pick.id}'s card fails its own arithmetic (${cardParsVerdict(normalized)})`);
+      why = 'no_sheet';
+      ask.result = 'bad_card';
+      continue;
+    }
     const agreesWithMap = sheetAgreesWithMap(normalized.hole_data, mapSheet);
     // Kept in case another provider says the same against the map (below).
     if (!agreesWithMap) against.push({ source: provider.source, id: pick.id, sheet: normalized, evidence: detail.evidence });
@@ -2154,6 +2161,8 @@ export interface HydrationOutcome {
     | 'provider_down'
     | 'no_tees'
     | 'no_yardage_for_tee'
+    /** The answer's card failed its own arithmetic and was not this row's first card. */
+    | 'card_refused'
     | `http_${number}`
     | 'timeout'
     | 'network';
@@ -2332,6 +2341,17 @@ export async function hydrateCourseDetailed(
     providerCoords
   );
 
+  // Nov 24 2026: an answer whose card fails its own arithmetic never becomes
+  // a row's FIRST card (seven on production read "5 5 5 5 5 …" for 83 to 85
+  // against a stated 72). The rest of the answer (name, place, ratings) is kept.
+  let refusedCard = false;
+  if (!(row.hole_data?.length ?? 0) && (normalized.hole_data?.length ?? 0) > 0 && cardParsVerdict(normalized) !== 'ok') {
+    console.warn(`[course-catalog] hydrate: ${row.id} "${row.name}": ${row.external_source}:${row.external_id}'s card fails its own arithmetic (${cardParsVerdict(normalized)}), not saved`);
+    normalized = { ...normalized, hole_data: null, total_par: null, holes_count: null };
+    evidence = [];
+    refusedCard = true;
+  }
+
   // Nov 16 2026: the answer FILLS the stored card and never replaces it. A
   // card found by name on the other provider used to be overwritten here by
   // this provider's thinner answer; an answer that looks like a different
@@ -2397,6 +2417,6 @@ export async function hydrateCourseDetailed(
   const written = (updated as unknown as CatalogRow) ?? { ...row, ...normalized };
   if (keptEvidence) await settleAfterEvidence(admin, row.id);
   const anyYardage = (normalized.hole_data ?? []).some(h => Object.values(h.yardage ?? {}).some(y => typeof y === 'number' && y > 0));
-  const outcome: HydrationOutcome['outcome'] = !normalized.hole_data ? 'no_tees' : anyYardage ? 'ok' : 'no_yardage_for_tee';
+  const outcome: HydrationOutcome['outcome'] = refusedCard ? 'card_refused' : !normalized.hole_data ? 'no_tees' : anyYardage ? 'ok' : 'no_yardage_for_tee';
   return done(rowToCourse(written), outcome, normalized);
 }

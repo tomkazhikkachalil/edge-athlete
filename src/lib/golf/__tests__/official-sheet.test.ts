@@ -234,7 +234,9 @@ describe('findOfficialSheet — two providers against the map', () => {
     stubProviders({ openGolfSearch: { courses: [] }, gca: bad });
     const { admin, updates } = fakeAdmin([], par3s);
     const r = await findOfficialSheet(admin, row());
-    expect(r).toMatchObject({ found: false, outcome: 'map_disagrees' });
+    // Nov 24 2026: such a card is refused before the map is even asked (cardParsVerdict).
+    expect(r).toMatchObject({ found: false, outcome: 'no_sheet' });
+    expect(r.trace!.find(t => t.source === 'golfcourseapi')!.result).toBe('bad_card');
     expect(updates).toEqual([]);
   });
 
@@ -247,7 +249,10 @@ describe('findOfficialSheet — two providers against the map', () => {
   });
 
   it('two providers that disagree with the map AND with each other are both refused', async () => {
-    stubProviders({ gca: gcaDetail(NINE.map(() => 5)) });
+    // Each card agrees with its own total (nine 5s make 45): two whole cards that differ.
+    const fives = gcaDetail(NINE.map(() => 5));
+    for (const tee of fives.course.tees.male) tee.par_total = 45;
+    stubProviders({ gca: fives });
     const { admin, updates } = fakeAdmin([], par3s);
     const r = await findOfficialSheet(admin, row());
     expect(r).toMatchObject({ found: false, outcome: 'map_disagrees' });
@@ -676,13 +681,13 @@ describe('the lookup keeps what each source said as evidence', () => {
 
   const mapOfPar3s = { source: 'osm', greens: [], holes: NINE.map((_, i) => ({ hole: i + 1, par: 3, line: [[45.3 + i * 0.001, -75.7], [45.3004 + i * 0.001, -75.7]] })) };
 
-  it('an answer refused for disagreeing with the map may be another course: nothing is kept from it', async () => {
-    // Its pars do not add up to its own total, so it cannot overrule the map either.
+  it('an answer whose pars do not add up to its own total is nobody\'s card: nothing is kept from it', async () => {
+    // Refused on its own arithmetic (Nov 24 2026), before the map is asked.
     const bad = gcaDetail();
     for (const tee of bad.course.tees.male) tee.par_total = 35;
     stubProviders({ openGolfSearch: { courses: [] }, gca: bad });
     const { admin, evidence } = fakeAdmin([], mapOfPar3s);
-    expect((await findOfficialSheet(admin, row())).outcome).toBe('map_disagrees');
+    expect((await findOfficialSheet(admin, row())).outcome).toBe('no_sheet');
     expect(evidence).toEqual([]);
   });
 

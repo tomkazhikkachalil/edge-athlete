@@ -1,5 +1,26 @@
 # Development Log
 
+## November 24, 2026 (08:10) — Ottawa courses that found no scorecard: our matching rules refused GolfCourseAPI's answer
+
+**Why.** Tom, after GolfCourseAPI's notice of new rating fields: "the cards in Ottawa are broken again, I can't find courses that work… we're using two golf APIs, so I feel it's something we're doing wrong." He was right. (The new front / back nine ratings are parked: production holds no nine-hole round.)
+
+**Measured first, read-only on production.** 962 of 28,989 courses hold a card (800 from OpenGolfAPI's fill, 71 from club websites, 13 credited to GolfCourseAPI). Within 45 km of Ottawa: 66 courses, 28 with a card. The app's own rules, run against both providers' live answers for the Ottawa courses without one:
+- OpenGolfAPI finds every one by name and holds no holes for any (24 of 24). In Canada it is not a second source.
+- GolfCourseAPI holds most of them. Production's log at 12:20 UTC: Hylands "no golfcourseapi match among 6 (not_narrowed)".
+- Nine would get a card on their first pick (never picked since the lookup was widened). No regression was found: no failing course ever held a card.
+
+**What was wrong, each on a real club.** Hylands: four listings with no coordinates, and a club split needed coordinates. Pakenham: listed as "Pakenham Highlands" in four routings of three nines; the split built labels from leftover words and allowed two. Irish Hills: three nines and three combinations, no coordinates, another town name. Rideau Glen: one listing 0.4 km from our row, written as QC, dropped on the province before the distance was looked at. The Meadows (Ottawa): PICKED "Grand Meadows", a listing with no location, on one shared word. Rideau View and Eagle Creek: an invented card from the first golf migration, complete, so never asked about, while GolfCourseAPI held the real one.
+
+**What shipped, zero DDL.**
+- **#1623** the matching rules (`course-catalog.ts`): place before province; a name with a word ours lacks needs the place to agree; the split's label is the provider's course name, listings with no point stand in one town, "Old" listings are left out, nines beat their combinations; a course of a club takes the listing that IS that course; `not_here`; the day's ask carries the rules' version.
+- The second PR: a typed-in seed card with no source is replaced whole by a provider's card on a pick (six on production: five have a real card at a provider, St Andrews Old Course does not and keeps its card; Tom: replacement only). Every first card passes its own arithmetic (`cardParsVerdict`), on the pick-time refresh and the by-name lookup as it always did on the fill; the owner's door gains `audit` (Admin → Scorecard fill → "Check saved cards", then "Withdraw failing cards") for the seven cards already saved that read "5 5 5 5 5 …" for 83 to 85 against a stated 72.
+
+**Proof so far.** `npm run verify` exit 0 on #1623 (6,920 tests). The real listings of the day are the fixtures (`ottawa-listings.test.ts`). The branch's rules run live against both providers: Hylands → North, South; Pakenham → Canyon/Island, Island/Lake, Lake/Canyon, Lake/Island; Irish Hills → Blue, Red, Yellow; Rideau Glen → its 18-hole card (par 68, 4 tees); The Meadows → nothing; eleven courses that matched before still match. Production proof (Tom's picks, the log lines, the Ottawa count) follows the deploy.
+
+**Not fixed by rules.** The Marshes, Glen Mar, Pineview, The Marchwood, Chaudière, Edelweiss and Mer Bleue are not in GolfCourseAPI; Bearbrook is listed with no holes. Their routes are the club's website (25 of the 38 Ottawa rows without a card hold none) or the map card.
+
+**Also seen, not acted on.** The fill asked nothing between Nov 19 06:20 and Nov 24 08:44 UTC (cause not found; it runs now, about 6,900 linked courses left). The Marshes' row says country US (the OpenGolfAPI reader's default). A burst of about forty GolfCourseAPI calls in a minute had three refused. The spec's section: `docs/specs/golf-course-data.md`, "Matching a provider's listings".
+
 ## November 24, 2026 (01:39) — The golf round's first four screens in the mechanical dialect: the sport picker, the round type, the course search and the picked course
 
 **Why.** Tom's "Golf Round Flow: Visual Design Spec" (Nov 23 2026): restyle Select sport, Round type, Course search and Course selected — recessed slots, raised keys, engraved micro labels, fixed-width numbers. Visuals only. His instruction: break nothing, and every visual wired to the function behind it.
