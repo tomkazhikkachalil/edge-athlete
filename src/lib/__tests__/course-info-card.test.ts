@@ -36,7 +36,7 @@ describe('CourseInfoCard — honest scorecard states', () => {
     const composer = fs.readFileSync(path.join(process.cwd(), 'src/components/golf/GolfComposerSection.tsx'), 'utf8');
     expect(composer).toMatch(/autoFindSheet\n/);
     const catalog = fs.readFileSync(path.join(process.cwd(), 'src/lib/golf/course-catalog.ts'), 'utf8');
-    expect(catalog).toContain('golf-sheet-ask:${row.id}');
+    expect(catalog).toContain('hitBudget(admin, sheetAskKey(row.id), 1)');
     expect(catalog).toContain('const mapSheet = hadCard ? null : await readMapSheet(admin, row.id);');
     // The map card is checked first, and an answer that disagrees with it is merged only if a second provider confirms it (Nov 18 2026).
     expect(catalog).toContain('const agreesWithMap = sheetAgreesWithMap(normalized.hole_data, mapSheet);');

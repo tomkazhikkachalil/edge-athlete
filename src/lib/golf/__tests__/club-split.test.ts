@@ -29,11 +29,17 @@ describe('clubSectionsFromCandidates', () => {
     expect(clubSectionsFromCandidates(club, [c('a', 'Angus Glen Golf Club – North Course'), c('b', 'Angus Glen Golf Club – North Course', { lat: 43.95, lng: -79.3 })])).toBeNull();
     expect(clubSectionsFromCandidates(club, ['North', 'South', 'East', 'West', 'Valley'].map((n, i) => c(String(i), `Angus Glen Golf Club – ${n}`)))).toBeNull();
   });
-  it('null: the listings are not at one point, not at the row, or not located', () => {
+  it('null: the listings are not at one point, or not at the row; listings with no point stand in the row\'s town', () => {
     expect(clubSectionsFromCandidates(club, [ANGUS()[0], c('n', 'Angus Glen Golf Club – North Course', { lat: 43.95, lng: -79.32 })])).toBeNull();
     expect(clubSectionsFromCandidates({ ...club, lat: 44.9, lng: -79.3 }, ANGUS())).toBeNull();
     expect(clubSectionsFromCandidates({ ...club, lat: null, lng: null }, ANGUS())).toBeNull();
-    expect(clubSectionsFromCandidates(club, ANGUS().map(x => ({ ...x, lat: null, lng: null })))).toBeNull();
+    // Nov 24 2026 (Hylands): no listing has a point, and they are in the row's own town.
+    expect(clubSectionsFromCandidates(club, ANGUS().map(x => ({ ...x, lat: null, lng: null })))).toHaveLength(2);
+    // …one located and one not is still nothing to stand on.
+    expect(clubSectionsFromCandidates(club, [ANGUS()[0], { ...ANGUS()[1], lat: null, lng: null }])).toBeNull();
+    // …nor are unlocated listings in two towns, or in a region the row is not in.
+    expect(clubSectionsFromCandidates(club, [{ ...ANGUS()[0], lat: null, lng: null }, { ...ANGUS()[1], lat: null, lng: null, city: 'Stouffville' }])).toBeNull();
+    expect(clubSectionsFromCandidates({ ...club, region_code: null }, ANGUS().map(x => ({ ...x, lat: null, lng: null })))).toBeNull();
   });
   it('null: the row is already a course of a club, or names one', () => {
     expect(clubSectionsFromCandidates({ ...club, section_name: 'North' }, ANGUS())).toBeNull();
@@ -43,7 +49,9 @@ describe('clubSectionsFromCandidates', () => {
     expect(clubSectionsFromCandidates({ ...club, section_kind: 'unspecified' }, ANGUS())).toHaveLength(2);
   });
   it('null: another country or region, or another club\'s name', () => {
-    expect(clubSectionsFromCandidates(club, ANGUS().map(x => ({ ...x, region_code: 'BC' })))).toBeNull();
+    expect(clubSectionsFromCandidates(club, ANGUS().map(x => ({ ...x, region_code: 'BC', lat: 49.2, lng: -123.1 })))).toBeNull();
+    // Nov 24 2026 (Rideau Glen): AT the row's point, the province the provider wrote does not decide.
+    expect(clubSectionsFromCandidates(club, ANGUS().map(x => ({ ...x, region_code: 'BC' })))).toHaveLength(2);
     expect(clubSectionsFromCandidates(club, [c('a', 'Other Glen Golf Club – North'), c('b', 'Other Glen Golf Club – South')])).toBeNull();
   });
   it('a label of more than two words is not a course name we will make', () => {
