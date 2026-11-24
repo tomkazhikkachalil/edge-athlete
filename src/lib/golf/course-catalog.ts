@@ -1620,6 +1620,19 @@ async function releaseSheetAsk(admin: SupabaseClient, courseId: string, trace: R
   } catch { /* the ask stays spent */ }
 }
 
+/** Is this row's card one of the first golf migration's typed-in cards, with
+ *  no source behind it? (Nov 24 2026: six on production. Rideau View's tees
+ *  step down by exactly 25 yards and its pars add up to 71 against a stated
+ *  72, while GolfCourseAPI holds the club's real card; a complete card was
+ *  never asked about again, so the real one could not arrive.) A `seed` row
+ *  that is not a course made by a club split, holding a card nothing is
+ *  credited for. A database without the credits column answers no. */
+export async function isUnsourcedSeedCard(admin: SupabaseClient, row: Pick<CatalogRow, 'id' | 'external_source' | 'external_id' | 'hole_data'>): Promise<boolean> {
+  if (row.external_source !== 'seed' || row.external_id.startsWith('split:') || !(row.hole_data?.length ?? 0)) return false;
+  const sources = await readSheetSources(admin, row.id);
+  return sources !== undefined && !sources?.pars;
+}
+
 /** Only ever for a person who picked this course: the providers' terms allow
  *  caching what serves a user and ban harvesting a copy, so there is no bulk
  *  caller (Oct 31 2026). One ask per course per day, whoever asks.
@@ -1636,10 +1649,13 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     course: rowToCourse(r),
     ...(asked?.length ? { trace: asked } : {}),
   });
-  const hadCard = (row.hole_data?.length ?? 0) > 0;
+  // A seed card nobody supplied is looked up like no card at all, and the
+  // answer replaces it whole (isUnsourcedSeedCard). No answer: it stays shown.
+  const unsourced = await isUnsourcedSeedCard(admin, row);
+  const hadCard = (row.hole_data?.length ?? 0) > 0 && !unsourced;
   /** No answer came: a card the row already holds is still a card. */
   const miss = (outcome: OfficialSheetResult['outcome'], asked?: SheetAsk[]) => answer(hadCard ? 'already' : outcome, row, asked);
-  if (sheetComplete(row)) {
+  if (!unsourced && sheetComplete(row)) {
     // A whole card is not asked about again; one saved before the tee boxes
     // were kept gets them once, so it can be judged (topUpParEvidence).
     await topUpParEvidence(admin, row);
@@ -1656,13 +1672,15 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
 
   // A map card is protected: a wrong same-named course must not replace it.
   const mapSheet = hadCard ? null : await readMapSheet(admin, row.id);
-  let card: Sheet = {
-    total_par: row.total_par,
-    holes_count: row.holes_count,
-    hole_data: row.hole_data,
-    course_rating: row.course_rating,
-    slope_rating: row.slope_rating,
-  };
+  let card: Sheet = unsourced
+    ? { total_par: null, holes_count: null, hole_data: null, course_rating: {}, slope_rating: {} }
+    : {
+        total_par: row.total_par,
+        holes_count: row.holes_count,
+        hole_data: row.hole_data,
+        course_rating: row.course_rating,
+        slope_rating: row.slope_rating,
+      };
   const from: string[] = [];
   const trace: SheetAsk[] = [];
   /** Answers refused for disagreeing with the map card. */

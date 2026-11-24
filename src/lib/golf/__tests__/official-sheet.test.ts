@@ -782,3 +782,56 @@ describe('OpenGolfAPI confirms a complete card\'s pars', () => {
     expect(await confirmParsFromOpenGolf(fakeAdmin([], null, undefined, [], DISAGREE).admin, whole())).toBe('no_match');
   });
 });
+
+// Nov 24 2026: six cards on production were typed into the first golf
+// migration with no source (Rideau View: tees in exact 25-yard steps, pars
+// adding up to 71 against a stated 72) while GolfCourseAPI held the real ones.
+describe('a typed-in seed card with no source is replaced by a provider\'s card', () => {
+  const invented = () => row({
+    external_source: 'seed', external_id: 'camelot', total_par: 37, holes_count: 9,
+    hole_data: NINE.map(n => ({ number: n, par: 5, yardage: { black: 410 - n * 25 }, handicap: n })),
+    course_rating: { black: 73.2 }, slope_rating: { black: 135 },
+  });
+
+  it('the rule: a seed row, not a split course, holding a card nothing is credited for', async () => {
+    const { isUnsourcedSeedCard } = await import('../course-catalog');
+    expect(await isUnsourcedSeedCard(fakeAdmin([], null, null).admin, invented())).toBe(true);
+    expect(await isUnsourcedSeedCard(fakeAdmin([], null, { pars: 'golfcourseapi' }).admin, invented())).toBe(false);
+    expect(await isUnsourcedSeedCard(fakeAdmin([], null, null).admin, { ...invented(), external_id: 'split:c0:north' })).toBe(false);
+    expect(await isUnsourcedSeedCard(fakeAdmin([], null, null).admin, { ...invented(), external_source: 'osm' })).toBe(false);
+    expect(await isUnsourcedSeedCard(fakeAdmin([], null, null).admin, { ...invented(), hole_data: null })).toBe(false);
+  });
+
+  it('the lookup runs though the card is complete, and the answer replaces it whole', async () => {
+    const calls = stubProviders();
+    const { admin, updates } = fakeAdmin([], null, null);
+    const r = await findOfficialSheet(admin, invented());
+    expect(r.outcome).toBe('found');
+    expect(calls).toContain('golfcourseapi:detail');
+    const saved = updates[updates.length - 1] as { hole_data: SheetHole[]; course_rating: Record<string, number>; sheet_sources: { pars?: string } };
+    expect(saved.hole_data.map(h => h.par)).toEqual(NINE.map(() => 4));
+    // Nothing of the typed-in card is left: not its tee, not its rating.
+    expect(saved.hole_data.every(h => !('black' in h.yardage))).toBe(true);
+    expect(saved.course_rating).not.toHaveProperty('black');
+    expect(saved.sheet_sources.pars).toBe('opengolfapi');
+  });
+
+  it('no provider has the course: nothing is written and the card stays', async () => {
+    stubProviders({ openGolfSearch: { courses: [] }, gcaSearch: { courses: [] } });
+    const { admin, updates } = fakeAdmin([], null, null);
+    const r = await findOfficialSheet(admin, invented());
+    expect(r.found).toBe(false);
+    expect(updates).toEqual([]);
+    expect(r.course.holes).toHaveLength(9);
+  });
+
+  it('a seed row whose card a provider supplied is a whole card like any other: not asked about', async () => {
+    stubProviders();
+    const whole = { ...invented(), hole_data: NINE.map(n => ({ number: n, par: 4, yardage: { blue: 400 }, handicap: n })), course_rating: { blue: 71 }, slope_rating: { blue: 128 } };
+    const { admin, updates } = fakeAdmin([], null, { pars: 'golfcourseapi' });
+    const r = await findOfficialSheet(admin, whole);
+    expect(r.outcome).toBe('already');
+    // (Its tee boxes may be kept as evidence, as for every whole card; the card is not written.)
+    expect(updates.filter(u => 'hole_data' in u)).toEqual([]);
+  });
+});
