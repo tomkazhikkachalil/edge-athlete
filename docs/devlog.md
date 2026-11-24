@@ -1,5 +1,27 @@
 # Development Log
 
+## November 23, 2026 (20:40) — The Create sheet is a tile grid: titles only, each description behind an info button
+
+**Why.** Tom's spec "Create Sheet Redesign" (Nov 23 2026) with the mockup "Option B, tile grid with info": restyle the Create sheet as a full-width Post button, a 2 x 2 grid and a full-width last row, titles only, an info button on every option. A visual change only: the six doors, their order and what each opens are the Nov 20 ones.
+
+**Tom's decision (asked, Nov 23).** Colours are the app's theme tokens in light and dark, not the mockup's hex values; layout, sizes, states and behaviour follow the spec.
+
+**What.** Zero DDL, no route changes, `AppHeader`'s wiring untouched.
+- `src/lib/create-options.ts` (new, zero imports): `CREATE_OPTIONS` — Post · Sport session · Gym workout · Live activity · Event & leaderboard · Game highlights, with the spec's info texts word for word — `toggleInfo` (one info text open at a time) and `CREATE_PICK_BEAT_MS` (150).
+- `src/components/CreateSheet.tsx` rewritten: a drag handle (phones), "Create", a round Close button (44 px target); each option is a box with two SIBLING buttons — the option (`data-create-<key>`, the same hooks as before, named by its title, `aria-pressed`) and its info button ("About <title>", `aria-expanded`, 44 x 44 px). The info text swaps in place as a 150 ms crossfade of two layers; every option has a fixed height (Post and Game highlights 72 px, tiles 136 px), so nothing moves. Pressed scales the option to 97 % from its own pointer events (a tap on the info button never shrinks it); a pick shows selected (brand tint, 2 px inside ring), closes any info text and opens the flow after the beat; Post is solid brand only while nothing is selected. Line icons are `lucide-react`.
+- `LargerWindow` gains `bare` (the host draws its own header; 28 px corners, a narrower card from `sm:` up, a deeper backdrop). Focus, Tab, Escape, the backdrop and the scroll lock stay shared; no other window changed.
+- `globals.css`: `.ea-create-opt` (one rule per state, plain `rgb()` alphas — `color-mix` is above the browser floor) and `.ea-create-layer`.
+- The new titles are this sheet's only. Training's Start keeps `StartSessionRows` ("Workout" / "Activity"); the Create sheet no longer renders those rows and the two doors share the hooks and the destinations.
+- **One departure from the mockup:** under 360 px wide a tile is 172 px tall, not 136. At 320 px the longest info text (Gym workout, 68 characters) runs to four lines and does not fit 136 px; the height is still one fixed value, open or closed.
+- Pins: `create-options.test.ts` (new: the list, the rule, the sheet's names and fixed heights, no `:active` on the box); `videos-ui.test.ts` holds the order through `CREATE_OPTIONS`; `workout-start.test.ts` holds both doors to the same handlers. `e2e/header-create.spec.ts`: twelve buttons in order with their accessible names, and a new `@mobile` test at the project's width, 320 px and 390 px — each info button shows its text, the text fits its box, no box moves or grows, one open at a time, no navigation, closed on reopen, no sideways scroll, a pick reads `aria-pressed` and Post drops its solid fill.
+- Specs: `ui-conventions.md` "The Create menu" rewritten; `specs/README.md`, `videos.md`, `workouts-and-sessions.md`, `ACTIVITIES.md` follow.
+
+**Proof.** `npm run verify` exit 0 (6,869 tests); guardrails, blocklists and `npm audit --omit=dev` clean. Staging, against the production build (`npm run start`): `header-create`, `activities-doors`, `workout-start` on `mobile` 5 passed, `webkit-mobile` 5 passed, `android` 5 passed; `activities-record` + `activities-profile` on `mobile` 8 passed. Desktop (dev server): 13 passed across `header-create`, `activities-doors`, `workout-start`, `sport-favourites`, `composer-default-general`, `combat-sports`, `activities-record`, `activities-profile`. Read from screenshots in light and dark at 320, 390 and 1,100 px: rest, a tile's info open, Post's info open, a selected tile.
+
+**Found on the way, not from this change.** Against the Turbopack dev server the workout editor and the recorder render an empty page after Start at phone width (`workout-start`, `activities-doors`' second test, `activities-record` fail there), on unmodified main too; the same tests pass against the build. Not investigated further.
+
+**Still open.** Tom's look on his own phone. The golf posting work (live, finished and indoor rounds) starts after this is on production.
+
 ## November 22, 2026 (22:48) — Close: the six-door Create menu is on production
 
 **#1612 merged** (`452c0ec5`) and `/api/health` shows the commit. Production probe with `E2E_EXPECT_COMMIT=452c0ec5`, one project at a time: desktop 7 passed (`health`, `header-create` — the order test and the Workout / Activity doors among them); mobile 4 passed (`header-create`, `activities-doors`, `workout-start`). The probe's four QA accounts were deleted by its teardown both times.

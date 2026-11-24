@@ -26,6 +26,13 @@ export interface LargerWindowProps {
   hostsOwnHeading?: boolean;
   /** e2e hook: data-larger-window={windowKey}. */
   windowKey?: string;
+  /**
+   * The host draws its own header and padding (the Create sheet, Nov 23
+   * 2026): no title bar, no body padding, the sheet's 28 px corners, a
+   * narrower card from sm: up and a deeper backdrop. `title` still names the
+   * dialog; focus, Tab, Escape, the backdrop and the scroll lock are shared.
+   */
+  bare?: boolean;
 }
 
 export default function LargerWindow({
@@ -35,6 +42,7 @@ export default function LargerWindow({
   children,
   hostsOwnHeading = false,
   windowKey,
+  bare = false,
 }: LargerWindowProps) {
   useBodyScrollLock(true);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -86,7 +94,7 @@ export default function LargerWindow({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center ea-backdrop-fade"
+      className={`fixed inset-0 ${bare ? 'bg-black/70' : 'bg-black/50'} z-50 flex items-end sm:items-center justify-center ea-backdrop-fade`}
       onClick={e => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -98,8 +106,11 @@ export default function LargerWindow({
         aria-label={title}
         tabIndex={-1}
         data-larger-window={windowKey}
-        className="ea-sheet-pop bg-surface-raised rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-modal overflow-hidden flex flex-col modal-sheet-bottom"
+        className={`ea-sheet-pop bg-surface-raised shadow-xl w-full max-h-modal overflow-hidden flex flex-col modal-sheet-bottom ${bare ? 'rounded-t-[28px] sm:rounded-[28px] sm:max-w-md' : 'rounded-t-2xl sm:rounded-2xl sm:max-w-2xl'}`}
       >
+        {bare ? (
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">{children}</div>
+        ) : (<>
         <div
           className={`shrink-0 flex items-center justify-between gap-3 ${
             hostsOwnHeading ? 'px-4 pt-3 sm:px-6' : 'p-4 sm:px-6 border-b border-border-subtle'
@@ -125,6 +136,7 @@ export default function LargerWindow({
         <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain ${hostsOwnHeading ? 'px-4 pb-4 sm:px-6 sm:pb-6' : 'p-4 sm:p-6'}`}>
           {children}
         </div>
+        </>)}
       </div>
     </div>
   );

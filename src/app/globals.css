@@ -1083,6 +1083,52 @@ html:has(.org-scope[data-theme="dark"]) body {
   }
 }
 
+/* ── The Create sheet's options (tile grid with info, Nov 23 2026) ────────────
+ * One option = a box holding two SIBLING buttons (the option, its info
+ * button). The box carries the state as data attributes, so the look is one
+ * rule per state: resting, info open (one step lighter), selected (brand
+ * tint + a 2 px inside ring), and Post's solid brand fill while nothing is
+ * selected. The press scale is set from the OPTION button's pointer events
+ * (data-pressed), never :active on the box — a tap on the info button must
+ * not shrink the option. Plain rgb() alphas: color-mix is above the browser
+ * floor. Sets no display and no width (the shared-class rule). */
+.ea-create-opt {
+  position: relative;
+  border-radius: 18px;
+  background-color: var(--color-surface-muted);
+  box-shadow: inset 0 0 0 1px var(--ea-hairline);
+  transition:
+    transform 120ms var(--ea-ease),
+    background-color 160ms var(--ea-ease),
+    box-shadow 160ms var(--ea-ease);
+}
+.ea-create-opt[data-pressed] { transform: scale(0.97); }
+.ea-create-opt[data-info-open] {
+  background-image: linear-gradient(var(--ea-tint), var(--ea-tint));
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+.ea-create-opt[data-selected] {
+  background-image: linear-gradient(rgb(124 58 237 / 0.16), rgb(124 58 237 / 0.16)); /* brand @ 16% */
+  box-shadow: inset 0 0 0 2px var(--color-brand-fg);
+}
+.ea-create-opt[data-solid] {
+  background-color: var(--color-brand);
+  background-image: none;
+  box-shadow: none;
+}
+/* The title and the info text are two layers in the same box: a crossfade,
+ * never a height change. visibility rides the fade so the hidden layer is
+ * out of the accessibility tree and of a browser test's "visible". */
+.ea-create-layer {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 150ms var(--ea-ease), visibility 150ms;
+}
+.ea-create-layer[data-on] {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* Respect reduced-motion preference — disables animations for users
  * who have motion sensitivity set at the OS level. */
 @media (prefers-reduced-motion: reduce) {
