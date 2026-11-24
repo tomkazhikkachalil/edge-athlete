@@ -35,7 +35,7 @@ async function openGolf(page: Page): Promise<Locator> {
   }
   await page.getByRole('button', { name: /general post/i }).click();
   const sportSelector = page.locator('div[class*="z-[60]"]');
-  await sportSelector.getByPlaceholder('Search sports...').fill('golf');
+  await sportSelector.getByPlaceholder('Search sports').fill('golf');
   await sportSelector.getByRole('button', { name: /golf/i }).first().click();
   const flow = page.locator('[data-step-flow="golf-round"]');
   await expect(flow).toBeVisible({ timeout: 15_000 });

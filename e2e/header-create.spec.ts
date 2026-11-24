@@ -107,7 +107,7 @@ test('header Create shows Post, Sport session, Gym workout, Live activity, Event
   await expect(page).toHaveURL(/\/feed/, { timeout: 15_000 });
   const picker = page.locator('div[class*="z-[60]"]');
   await expect(picker.getByRole('heading', { name: 'Select Sport' })).toBeVisible({ timeout: 15_000 });
-  await picker.getByPlaceholder('Search sports...').fill('golf');
+  await picker.getByPlaceholder('Search sports').fill('golf');
   await picker.getByRole('button', { name: /golf/i }).first().click();
   // The round as steps (Oct 28 2026): step 1 is the round type, Playing now
   // pre-selected; the course field is step 2.

@@ -55,7 +55,7 @@ describe('the iOS focus-zoom guard', () => {
     expect(picker).toMatch(/window\.matchMedia\('\(hover: hover\) and \(pointer: fine\)'\)\.matches/);
     expect(picker).toMatch(/searchRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
     expect(picker).toMatch(/ref=\{searchRef\}/);
-    expect(picker).toMatch(/py-2 text-base border/);
+    expect(picker).toMatch(/ea-mech-slot-input [^"]*text-base/);
     expect(picker).toMatch(/data-sport-search=""/);
   });
 

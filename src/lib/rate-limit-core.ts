@@ -104,6 +104,8 @@ export const RATE_LIMITS = {
   'result-visibility': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Favourite sports (285): a star tap in the sport picker — cheap and reversible, `like`'s shape.
   'favourite-sports': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // The sport picker's LAST tag (Nov 23 2026): one small read each time the picker opens.
+  'last-sport': { max: 240, windowSeconds: 3600, keyBy: 'user' },
   // The unit system (293): a Metric / Imperial or °F / °C tap — cheap and reversible, the favourites' shape.
   units: { max: 120, windowSeconds: 3600, keyBy: 'user' },
   'comment-create': { max: 60, windowSeconds: 600, keyBy: 'user' },

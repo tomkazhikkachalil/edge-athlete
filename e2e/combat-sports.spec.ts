@@ -83,7 +83,7 @@ test('the composer logs an MMA win by TKO and the feed card reads its headline @
     await page.getByRole('button', { name: 'Create', exact: true }).first().click();
     await page.locator('[data-create-sport]').click();
     const selector = page.locator('div[class*="z-[60]"]');
-    await selector.getByPlaceholder('Search sports...').fill('mma');
+    await selector.getByPlaceholder('Search sports').fill('mma');
     await selector.getByRole('button', { name: /mma/i }).first().click();
     const fields = page.locator('[data-bout-fields="mma"]');
     await expect(fields).toBeVisible({ timeout: 15_000 });

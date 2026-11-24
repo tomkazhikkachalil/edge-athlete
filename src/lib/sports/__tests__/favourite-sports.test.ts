@@ -5,6 +5,8 @@ import {
   partitionSports,
   sanitizeFavouriteSports,
   toggleFavourite,
+  lastUsedSport,
+  enteringFavourites,
 } from '../favourite-sports';
 
 const KNOWN = ['golf', 'rowing', 'boxing', 'bjj', 'tennis', 'baseball', 'wrestling'];
@@ -78,5 +80,29 @@ describe('partitionSports — Favourites then All Sports, both alphabetical', ()
     expect(hit.all.map(s => s.sport_key)).toEqual(['golf']);
     const miss = partitionSports(SPORTS, ['rowing'], 'zzz');
     expect(miss).toEqual({ favourites: [], all: [] });
+  });
+});
+
+describe('lastUsedSport — the picker\'s LAST tag', () => {
+  const SPORTS = [
+    { sport_key: 'golf', display_name: 'Golf', enabled: true },
+    { sport_key: 'rowing', display_name: 'Rowing', enabled: true },
+    { sport_key: 'cricket', display_name: 'Cricket', enabled: false },
+  ];
+  it('a known, enabled sport is the tag', () => {
+    expect(lastUsedSport('golf', SPORTS)).toBe('golf');
+  });
+  it('general, junk, an unknown key and a sport that is off are no tag', () => {
+    for (const raw of ['general', '', 'zzz', 'Golf', null, undefined, 42, {}, 'cricket']) {
+      expect(lastUsedSport(raw, SPORTS)).toBeNull();
+    }
+  });
+});
+
+describe('enteringFavourites — the tiles that slide in', () => {
+  it('only the keys the section did not show before, in the new order', () => {
+    expect(enteringFavourites(['golf'], ['boxing', 'golf', 'rowing'])).toEqual(['boxing', 'rowing']);
+    expect(enteringFavourites(['golf', 'rowing'], ['golf'])).toEqual([]);
+    expect(enteringFavourites([], [])).toEqual([]);
   });
 });

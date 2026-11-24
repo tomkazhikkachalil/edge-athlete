@@ -66,3 +66,23 @@ export function partitionSports<T extends PickerSport>(
     all: matching,
   };
 }
+
+/**
+ * The picker's LAST tag (Nov 23 2026): the sport of the account's newest
+ * sport post. Any value in → that key only when the registry knows it AND it
+ * is still on; 'general', junk and a sport switched off since all answer
+ * null (no tag), never a tag on a tile that cannot be picked.
+ */
+export function lastUsedSport(raw: unknown, sports: readonly PickerSport[]): string | null {
+  if (typeof raw !== 'string') return null;
+  const hit = sports.find(s => s.sport_key === raw);
+  return hit && hit.enabled ? hit.sport_key : null;
+}
+
+/**
+ * Which favourites tiles are NEW since the picker last drew the section —
+ * the ones that slide in. Order follows `next`.
+ */
+export function enteringFavourites(shown: readonly string[], next: readonly string[]): string[] {
+  return next.filter(k => !shown.includes(k));
+}
