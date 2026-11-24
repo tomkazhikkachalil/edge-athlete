@@ -11,6 +11,11 @@
 - The app's buttons keep the default cursor (no global pointer rule), so none was added here.
 
 **Proof.** `npm run verify` exit 0 (6,869 tests). Staging against the production build: `header-create` on `desktop` 7 passed, `mobile` 2, `webkit-mobile` 2, `android` 2. Read from screenshots in light and dark at 768, 1,280 and 1,920 px: rest, a hovered tile, a tile's info open, Post's info open, a selected tile.
+## November 23, 2026 (20:53) — Close: the tile-grid Create sheet is on production
+
+**#1614 merged** (`cdff979f`) and `/api/health` shows the commit. Production probe with `E2E_EXPECT_COMMIT=cdff979f`, one project at a time: desktop 6 passed (`header-create` — the twelve buttons in order with their names, every door's destination); mobile 2 passed (`header-create` — the info buttons at the project width, 320 px and 390 px, and a pick reading selected). The probe's four QA accounts were deleted by its teardown both times.
+
+**Still open.** Tom's look on his own phone. Next: the golf posting work (live, finished and indoor rounds).
 
 ## November 23, 2026 (20:40) — The Create sheet is a tile grid: titles only, each description behind an info button
 
