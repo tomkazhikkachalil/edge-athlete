@@ -1,5 +1,13 @@
 # Development Log
 
+## November 23, 2026 (22:03) — Close: the Create sheet's larger-screens round is on production
+
+**#1616 merged** (`0f2bc157`) and `/api/health` shows the commit; #1615's devlog commit rode with it. Production probe with `E2E_EXPECT_COMMIT=0f2bc157`, one project at a time: desktop 7 passed (`header-create`, the new larger-screens test at 1280 and 768 px with the hover among them); mobile 2 passed. The probe's four QA accounts were deleted by its teardown both times.
+
+**CI on the way.** #1615's smoke failed once on `capture-attach` in `brave-android` (about 100 ms on both tries; a docs-only change) and its rerun was cancelled when #1616's run started. #1616's first smoke job sat 19 minutes on "Install Playwright browsers" before any test; cancelled and rerun, green.
+
+**Still open.** Tom's look on his own phone and on a desktop. Next: the golf posting work (live, finished and indoor rounds).
+
 ## November 23, 2026 (21:06) — The Create sheet on larger screens: hover feedback, and the info walk proven at 1280 and 768 px
 
 **Why.** Tom, after the tile grid went live: "ensure that it's done on larger screens, not just mobile." The redesign was already live at every width (one sheet; a centred card from `sm:` up), but it had been built and proven phone-first: a mouse got no sign before the press, and the info-button test was `@mobile` only, which the desktop project skips.
