@@ -9,6 +9,7 @@ import {
   getCatalogRow,
   hydrateCourseDetailed,
   findOfficialSheet,
+  isUnsourcedSeedCard,
   withMapSheet,
   hydrationDue,
   hydrateCourse,
@@ -174,6 +175,13 @@ export async function GET(request: NextRequest) {
       if (searchParams.get('picked') === '1') {
         if (viewerId && countsAsPick(viewerEmail)) {
           await admin.rpc('golf_course_pick_hit', { p_course_id: row.id, p_card: 'provider' }).then(() => undefined, () => undefined);
+        }
+        // Nov 24 2026: a typed-in seed card with no source is the one "official"
+        // card that IS asked about: a provider's real card replaces it whole,
+        // and the pick gets it in this answer. Signed in, one ask a day.
+        if (viewerId && (await isUnsourcedSeedCard(admin, row))) {
+          const replaced = await findOfficialSheet(admin, row);
+          if (replaced.outcome === 'found') return NextResponse.json({ ok: true, course: replaced.course }, { headers: { 'Cache-Control': 'private, no-store' } });
         }
         return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'private, no-store' } });
       }

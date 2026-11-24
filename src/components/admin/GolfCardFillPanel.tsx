@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ConfirmModal from '@/components/ConfirmModal';
-import type { CardFillProgress, CardFillSummary, CardLinkSummary } from '@/lib/golf/card-fill-server';
+import type { CardAuditSummary, CardFillProgress, CardFillSummary, CardLinkSummary } from '@/lib/golf/card-fill-server';
 
 // ── The scorecard fill's door (Nov 17 2026, migration 314) ──────────────────
 // `/api/admin/golf-card-fill` is dry-run by default. The schedule (the map
@@ -10,8 +10,8 @@ import type { CardFillProgress, CardFillSummary, CardLinkSummary } from '@/lib/g
 // cards every two minutes inside the day's cap; this panel reads the progress
 // and runs either step by hand.
 
-type Step = 'link' | 'cards';
-type Result = CardLinkSummary | CardFillSummary;
+type Step = 'link' | 'cards' | 'audit';
+type Result = CardLinkSummary | CardFillSummary | CardAuditSummary;
 
 const btn = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50';
 
@@ -20,6 +20,10 @@ export function describeCardFill(r: Result): string {
   const dry = r.dryRun ? ' (dry run, nothing written)' : '';
   if (r.phase === 'link') {
     return `${r.matched} of ${r.ours} unlinked US courses matched in ${r.dataset} OpenGolfAPI courses${r.dryRun ? '' : ` · ${r.linked} linked`} · ${r.ambiguous} ambiguous · ${r.unmatched} no match${dry}`;
+  }
+  if (r.phase === 'audit') {
+    const list = r.failing.map(f => `${f.name} (${f.sum} over ${f.holes} holes, stated ${f.total ?? 'none'})`).join('; ');
+    return `${r.failing.length} of ${r.cards} saved cards fail their own arithmetic${list ? `: ${list}` : ''}${r.dryRun ? '' : ` · ${r.withdrawn} withdrawn`}${dry}`;
   }
   const outcomes = Object.entries(r.outcomes).map(([k, v]) => `${v} ${k.replace(/_/g, ' ')}`).join(', ');
   return `${r.due} due${outcomes ? ` · ${outcomes}` : ''}${r.budgetExhausted ? ' · today’s cap is spent' : ''}${dry}`;
@@ -132,6 +136,12 @@ export default function GolfCardFillPanel() {
         <button type="button" disabled={!!busy} onClick={() => setConfirm('cards')} className={btn} data-card-fill-cards="">
           {busy === 'cards-live' ? 'Filling…' : 'Fill a batch'}
         </button>
+        <button type="button" disabled={!!busy} onClick={() => run('audit', true)} className={btn} data-card-fill-audit-dry="">
+          {busy === 'audit-dry' ? 'Reading…' : 'Check saved cards'}
+        </button>
+        <button type="button" disabled={!!busy} onClick={() => setConfirm('audit')} className={btn} data-card-fill-audit="">
+          {busy === 'audit-live' ? 'Withdrawing…' : 'Withdraw failing cards'}
+        </button>
       </div>
 
       {outcome && (
@@ -154,6 +164,14 @@ export default function GolfCardFillPanel() {
         message="Asks OpenGolfAPI for up to ten linked courses' cards and saves each one that passes its checks. A course that already has a card is never touched."
         confirmText="Fill a batch"
         onConfirm={() => { setConfirm(null); void run('cards', false); }}
+        onCancel={() => setConfirm(null)}
+      />
+      <ConfirmModal
+        isOpen={confirm === 'audit'}
+        title="Withdraw scorecards that fail their own arithmetic?"
+        message="Every saved card whose holes are not 9 or 18, or whose pars do not add up to its own total, loses its holes, pars and yardages: the course shows its map card or none until a correct card arrives. Ratings stay, and rounds already played keep their own pars. Run “Check saved cards” first to see the list. This cannot be undone here."
+        confirmText="Withdraw failing cards"
+        onConfirm={() => { setConfirm(null); void run('audit', false); }}
         onCancel={() => setConfirm(null)}
       />
     </section>

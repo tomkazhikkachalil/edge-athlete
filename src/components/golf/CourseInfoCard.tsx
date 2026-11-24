@@ -234,7 +234,8 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       setSheetAsk('failed');
     }
   };
-  useEffect(() => { findSheetRef.current = findSheet; });
+  const courseUpdatedRef = useRef(onCourseUpdated);
+  useEffect(() => { findSheetRef.current = findSheet; courseUpdatedRef.current = onCourseUpdated; });
   useEffect(() => {
     if (detailRequestedFor.current === course.id || !UUID_SHAPE.test(course.id) || course.holes.length > 0) return;
     const id = course.id;
@@ -299,7 +300,17 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
         queueMicrotask(() => { void findSheetRef.current(); });
         return;
       }
-      void fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}&picked=1`, { credentials: 'include' }).catch(() => undefined);
+      // The answer carries a course only when a typed-in seed card was just
+      // replaced by a provider's real one (Nov 24 2026).
+      const pickedId = course.id;
+      void fetch(`/api/golf/courses?id=${encodeURIComponent(pickedId)}&picked=1`, { credentials: 'include' })
+        .then(res => (res.ok ? (res.json() as Promise<{ course?: GolfCourse }>) : null))
+        .then(body => {
+          if (!body?.course?.holes?.length || autoAskedFor.current !== pickedId) return;
+          setFetchedCourse(body.course);
+          courseUpdatedRef.current?.(body.course);
+        })
+        .catch(() => undefined);
       return;
     }
     if (!(sheetFindable || isMapSheet(course.sheetSource))) return;

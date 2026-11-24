@@ -242,6 +242,26 @@ export function believablePar(par: number, yards: number | null | undefined): bo
   return false;
 }
 
+export type CardParsVerdict = 'ok' | 'hole_count' | 'par_sum';
+
+/** Does a card agree with its own arithmetic? Nine or eighteen holes numbered
+ *  1..n (and the count the card states, when it states one): else
+ *  `hole_count`. Every par 3 to 6, adding up to the total the card states, when
+ *  it states one: else `par_sum`. The background fill always asked this
+ *  (card-fill.ts); since Nov 24 2026 so does every path that gives a course
+ *  its FIRST card. Measured that day on production: seven cards saved by the
+ *  pick-time refresh read "5 5 5 5 5 …" for 83 to 85 against a stated 72. Pure. */
+export function cardParsVerdict(card: { hole_data?: ReadonlyArray<{ number: number; par: number }> | null; total_par?: number | null; holes_count?: number | null }): CardParsVerdict {
+  const holes = card.hole_data ?? [];
+  const n = holes.length;
+  const numbered = [...holes].map(h => h.number).sort((x, y) => x - y).every((v, i) => v === i + 1);
+  if ((n !== 9 && n !== 18) || !numbered) return 'hole_count';
+  if (card.holes_count != null && card.holes_count !== n) return 'hole_count';
+  if (holes.some(h => !Number.isInteger(h.par) || h.par < 3 || h.par > 6)) return 'par_sum';
+  if (card.total_par != null && holes.reduce((s, h) => s + h.par, 0) !== card.total_par) return 'par_sum';
+  return 'ok';
+}
+
 /** Is a provider's card whole and in agreement with itself? Holes numbered
  *  1..n for a nine or an eighteen, every par 3 to 6, the pars adding up to
  *  the card's OWN stated total, and at least one yardage. What ONE provider's

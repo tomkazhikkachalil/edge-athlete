@@ -15,7 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { CATALOG_ROW_COLUMNS, SHEET_PROVIDERS, consumeProviderBudget, readMapSheet, readSheetSources, type CatalogRow } from '@/lib/golf/course-catalog';
 import { FILL_RETRY_MS, LINK_RULE_VERSION, cardFillVerdict, linkDataset, linkDue, linkEntryKey, parseDatasetLine, type CardFillVerdict, type LinkOurs, type LinkTheirs } from '@/lib/golf/card-fill';
 import { readMeta, writeMeta } from '@/lib/golf/map-sweep-server';
-import { creditSources, mergeSheets, type Sheet } from '@/lib/golf/sheet-merge';
+import { cardParsVerdict, creditSources, mergeSheets, type CardParsVerdict, type Sheet } from '@/lib/golf/sheet-merge';
 
 /** OpenGolfAPI's published file (ODbL 1.0; "Contains data from OpenGolfAPI
  *  (opengolfapi.org)" — the catalog's attribution line already names it). */
@@ -257,6 +257,58 @@ async function saveCard(
     .select('id');
   if (error) throw new Error(`card fill write failed for ${row.id}: ${error.message}`);
   return (data ?? []).length ? 'ok' : 'taken';
+}
+
+// ── Phase: audit ──────────────────────────────────────────────────────────────
+
+export interface CardAuditSummary {
+  phase: 'audit';
+  dryRun: boolean;
+  /** Saved cards read. */
+  cards: number;
+  /** Cards that fail their own arithmetic, with what they say. */
+  failing: Array<{ id: string; name: string; verdict: CardParsVerdict; holes: number; sum: number; total: number | null }>;
+  withdrawn: number;
+  elapsedMs: number;
+}
+
+/** More failing cards than this is not a few bad cards: nothing is withdrawn. */
+export const AUDIT_WITHDRAW_MAX = 25;
+
+/** Saved cards that fail their own arithmetic (sheet-merge.ts cardParsVerdict),
+ *  listed, and on a live run withdrawn: the holes, the total and the credits go,
+ *  the reason is stamped where the fill stamps a refusal, the ratings stay.
+ *  Nov 24 2026: seven cards saved before any path but the fill checked them.
+ *  Never a `seed` row (a typed-in card is replaced on a pick, by
+ *  isUnsourcedSeedCard) and never a test row. Rounds already played hold their
+ *  own copy of the pars. The owner's door only; no schedule runs it. */
+export async function runCardAudit(admin: SupabaseClient, opts: { dryRun: boolean }): Promise<CardAuditSummary | { ok: false; error: string }> {
+  const t0 = Date.now();
+  type Carded = { id: string; name: string; total_par: number | null; holes_count: number | null; hole_data: Array<{ number: number; par: number }> | null };
+  const read = await pages<Carded>((from, to) =>
+    admin.from('golf_courses').select('id, name, total_par, holes_count, hole_data').not('hole_data', 'is', null).not('external_source', 'in', '(seed,qa-e2e)').order('id').range(from, to)
+  );
+  if ('ok' in read) return read;
+  const failing = read.rows
+    .map(r => ({ id: r.id, name: r.name, verdict: cardParsVerdict(r), holes: r.hole_data?.length ?? 0, sum: (r.hole_data ?? []).reduce((s, h) => s + (h.par ?? 0), 0), total: r.total_par }))
+    .filter(f => f.verdict !== 'ok');
+  const summary: CardAuditSummary = { phase: 'audit', dryRun: opts.dryRun, cards: read.rows.length, failing, withdrawn: 0, elapsedMs: 0 };
+  if (!opts.dryRun && failing.length > 0) {
+    if (failing.length > AUDIT_WITHDRAW_MAX) return { ok: false, error: `${failing.length} cards fail the check: more than ${AUDIT_WITHDRAW_MAX}, nothing withdrawn` };
+    for (const f of failing) {
+      const { data, error } = await admin
+        .from('golf_courses')
+        .update({ hole_data: null, total_par: null, holes_count: null, sheet_sources: null, sheet_fill_at: iso(Date.now()), sheet_fill_outcome: f.verdict })
+        .eq('id', f.id)
+        .not('hole_data', 'is', null)
+        .select('id');
+      if (error) return fail(error);
+      if ((data ?? []).length) summary.withdrawn++;
+    }
+    console.warn(`[card-fill] audit: ${summary.withdrawn} cards withdrawn: ${failing.map(f => `"${f.name}" (${f.verdict}: ${f.sum} over ${f.holes}, stated ${f.total ?? 'none'})`).join('; ')}`);
+  }
+  summary.elapsedMs = Date.now() - t0;
+  return summary;
 }
 
 // ── Progress ──────────────────────────────────────────────────────────────────

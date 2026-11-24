@@ -50,7 +50,7 @@ import { courseNameScore, nameTokens, polylineYards } from '@/lib/golf/hole-geom
 import { sheetAgreesWithMap, sheetFromGeometry, type MapSheetHole, type MapSheetLine } from '@/lib/golf/map-sheet';
 import { createProviderBreaker, hostOf } from '@/lib/golf/provider-breaker';
 import { splitUnlinkedClub, type ClubSectionRow } from '@/lib/golf/club-split-server';
-import { creditSources, mergeSheets, nineFromCombination, parsFromTees, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
+import { cardParsVerdict, creditSources, mergeSheets, nineFromCombination, parsFromTees, providersConfirm, sheetComplete, sheetGaps, sheetSelfConsistent, type Sheet, type SheetHole, type SheetSources } from '@/lib/golf/sheet-merge';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
 import { evidenceFromBoxes, type ParEvidenceRow } from '@/lib/golf/par-evidence';
 import { recordParEvidence, settleAfterEvidence } from '@/lib/golf/par-evidence-server';
@@ -1504,7 +1504,7 @@ export interface SheetAsk {
   picked?: string | null;
   /** The card is the front nine of an eighteen, confirmed by a sibling listing. */
   fromCombination?: boolean;
-  result: 'filled' | 'nothing_new' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_here' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error' | 'provider_down';
+  result: 'filled' | 'nothing_new' | 'bad_card' | 'no_candidates' | 'no_name_match' | 'no_section_match' | 'not_here' | 'not_narrowed' | 'no_holes' | 'wrong_holes' | 'map_disagrees' | 'card_disagrees' | 'budget_refused' | 'provider_error' | 'provider_down';
 }
 
 /** One source of official cards (Nov 16 2026). `search` answers the provider's
@@ -1620,6 +1620,19 @@ async function releaseSheetAsk(admin: SupabaseClient, courseId: string, trace: R
   } catch { /* the ask stays spent */ }
 }
 
+/** Is this row's card one of the first golf migration's typed-in cards, with
+ *  no source behind it? (Nov 24 2026: six on production. Rideau View's tees
+ *  step down by exactly 25 yards and its pars add up to 71 against a stated
+ *  72, while GolfCourseAPI holds the club's real card; a complete card was
+ *  never asked about again, so the real one could not arrive.) A `seed` row
+ *  that is not a course made by a club split, holding a card nothing is
+ *  credited for. A database without the credits column answers no. */
+export async function isUnsourcedSeedCard(admin: SupabaseClient, row: Pick<CatalogRow, 'id' | 'external_source' | 'external_id' | 'hole_data'>): Promise<boolean> {
+  if (row.external_source !== 'seed' || row.external_id.startsWith('split:') || !(row.hole_data?.length ?? 0)) return false;
+  const sources = await readSheetSources(admin, row.id);
+  return sources !== undefined && !sources?.pars;
+}
+
 /** Only ever for a person who picked this course: the providers' terms allow
  *  caching what serves a user and ban harvesting a copy, so there is no bulk
  *  caller (Oct 31 2026). One ask per course per day, whoever asks.
@@ -1636,10 +1649,13 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     course: rowToCourse(r),
     ...(asked?.length ? { trace: asked } : {}),
   });
-  const hadCard = (row.hole_data?.length ?? 0) > 0;
+  // A seed card nobody supplied is looked up like no card at all, and the
+  // answer replaces it whole (isUnsourcedSeedCard). No answer: it stays shown.
+  const unsourced = await isUnsourcedSeedCard(admin, row);
+  const hadCard = (row.hole_data?.length ?? 0) > 0 && !unsourced;
   /** No answer came: a card the row already holds is still a card. */
   const miss = (outcome: OfficialSheetResult['outcome'], asked?: SheetAsk[]) => answer(hadCard ? 'already' : outcome, row, asked);
-  if (sheetComplete(row)) {
+  if (!unsourced && sheetComplete(row)) {
     // A whole card is not asked about again; one saved before the tee boxes
     // were kept gets them once, so it can be judged (topUpParEvidence).
     await topUpParEvidence(admin, row);
@@ -1656,13 +1672,15 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
 
   // A map card is protected: a wrong same-named course must not replace it.
   const mapSheet = hadCard ? null : await readMapSheet(admin, row.id);
-  let card: Sheet = {
-    total_par: row.total_par,
-    holes_count: row.holes_count,
-    hole_data: row.hole_data,
-    course_rating: row.course_rating,
-    slope_rating: row.slope_rating,
-  };
+  let card: Sheet = unsourced
+    ? { total_par: null, holes_count: null, hole_data: null, course_rating: {}, slope_rating: {} }
+    : {
+        total_par: row.total_par,
+        holes_count: row.holes_count,
+        hole_data: row.hole_data,
+        course_rating: row.course_rating,
+        slope_rating: row.slope_rating,
+      };
   const from: string[] = [];
   const trace: SheetAsk[] = [];
   /** Answers refused for disagreeing with the map card. */
@@ -1753,6 +1771,13 @@ export async function findOfficialSheet(admin: SupabaseClient, row: CatalogRow):
     if (!normalized?.hole_data?.length) { why = 'no_sheet'; ask.result = 'no_holes'; continue; }
     // A nine takes a nine: an eighteen (a combination of two nines) is not this row's card.
     if (row.section_kind === 'nine' && normalized.hole_data.length !== 9) { why = 'no_sheet'; ask.result = 'wrong_holes'; continue; }
+    // A card that fails its own arithmetic is nobody's card (cardParsVerdict).
+    if (cardParsVerdict(normalized) !== 'ok') {
+      console.warn(`[course-catalog] official sheet: ${row.id} "${row.name}": ${provider.source}:${pick.id}'s card fails its own arithmetic (${cardParsVerdict(normalized)})`);
+      why = 'no_sheet';
+      ask.result = 'bad_card';
+      continue;
+    }
     const agreesWithMap = sheetAgreesWithMap(normalized.hole_data, mapSheet);
     // Kept in case another provider says the same against the map (below).
     if (!agreesWithMap) against.push({ source: provider.source, id: pick.id, sheet: normalized, evidence: detail.evidence });
@@ -2136,6 +2161,8 @@ export interface HydrationOutcome {
     | 'provider_down'
     | 'no_tees'
     | 'no_yardage_for_tee'
+    /** The answer's card failed its own arithmetic and was not this row's first card. */
+    | 'card_refused'
     | `http_${number}`
     | 'timeout'
     | 'network';
@@ -2314,6 +2341,17 @@ export async function hydrateCourseDetailed(
     providerCoords
   );
 
+  // Nov 24 2026: an answer whose card fails its own arithmetic never becomes
+  // a row's FIRST card (seven on production read "5 5 5 5 5 …" for 83 to 85
+  // against a stated 72). The rest of the answer (name, place, ratings) is kept.
+  let refusedCard = false;
+  if (!(row.hole_data?.length ?? 0) && (normalized.hole_data?.length ?? 0) > 0 && cardParsVerdict(normalized) !== 'ok') {
+    console.warn(`[course-catalog] hydrate: ${row.id} "${row.name}": ${row.external_source}:${row.external_id}'s card fails its own arithmetic (${cardParsVerdict(normalized)}), not saved`);
+    normalized = { ...normalized, hole_data: null, total_par: null, holes_count: null };
+    evidence = [];
+    refusedCard = true;
+  }
+
   // Nov 16 2026: the answer FILLS the stored card and never replaces it. A
   // card found by name on the other provider used to be overwritten here by
   // this provider's thinner answer; an answer that looks like a different
@@ -2379,6 +2417,6 @@ export async function hydrateCourseDetailed(
   const written = (updated as unknown as CatalogRow) ?? { ...row, ...normalized };
   if (keptEvidence) await settleAfterEvidence(admin, row.id);
   const anyYardage = (normalized.hole_data ?? []).some(h => Object.values(h.yardage ?? {}).some(y => typeof y === 'number' && y > 0));
-  const outcome: HydrationOutcome['outcome'] = !normalized.hole_data ? 'no_tees' : anyYardage ? 'ok' : 'no_yardage_for_tee';
+  const outcome: HydrationOutcome['outcome'] = refusedCard ? 'card_refused' : !normalized.hole_data ? 'no_tees' : anyYardage ? 'ok' : 'no_yardage_for_tee';
   return done(rowToCourse(written), outcome, normalized);
 }

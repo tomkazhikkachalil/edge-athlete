@@ -15,6 +15,7 @@
 
 import { sameFacilityName } from '@/lib/golf/course-catalog';
 import { sheetAgreesWithMap } from '@/lib/golf/map-sheet';
+import { cardParsVerdict } from '@/lib/golf/sheet-merge';
 
 /** A link needs the two points this close. */
 export const LINK_MAX_KM = 2;
@@ -157,13 +158,11 @@ export function cardFillVerdict(
   const holes = card?.hole_data ?? [];
   if (!card || holes.length === 0) return 'no_card';
   if (row.lat != null && row.lng != null && card.lat != null && card.lng != null && distanceKm(row.lat, row.lng, card.lat, card.lng) > LINK_MAX_KM) return 'moved';
-  const n = holes.length;
-  const numbered = [...holes].map(h => h.number).sort((x, y) => x - y).every((v, i) => v === i + 1);
-  if ((n !== 9 && n !== 18) || !numbered) return 'hole_count';
-  if (card.holes_count != null && card.holes_count !== n) return 'hole_count';
-  if (row.holes_count != null && row.holes_count !== n) return 'hole_count';
-  if (holes.some(h => !Number.isInteger(h.par) || h.par < 3 || h.par > 6)) return 'par_sum';
-  if (card.total_par != null && holes.reduce((s, h) => s + h.par, 0) !== card.total_par) return 'par_sum';
+  // The card's own arithmetic (sheet-merge.ts cardParsVerdict), then our row's hole count.
+  const own = cardParsVerdict(card);
+  if (own === 'hole_count') return own;
+  if (row.holes_count != null && row.holes_count !== holes.length) return 'hole_count';
+  if (own !== 'ok') return own;
   if (!holes.some(h => Object.values(h.yardage ?? {}).some(v => typeof v === 'number' && v > 0))) return 'no_yardage';
   if (!sheetAgreesWithMap(holes, mapSheet)) return 'map_disagrees';
   return 'ok';
