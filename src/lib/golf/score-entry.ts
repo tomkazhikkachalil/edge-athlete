@@ -99,6 +99,9 @@ export interface DraftHole {
   green_in_regulation: boolean | null;
   /** One element per occurrence — vocabulary in src/lib/golf/penalties.ts. */
   penalties: string[] | null;
+  /** Each penalty's strokes, aligned with `penalties` (320). Optional: a
+   *  draft written before it reads as one stroke each. */
+  penalty_strokes?: number[] | null;
 }
 
 export interface ScoreDraft {
@@ -184,7 +187,7 @@ export function mergeDraftIntoHoles<T extends { hole_number: number | null } & D
       return h;
     }
     restored.push(h.hole_number);
-    return { ...h, strokes: d.strokes, putts: d.putts, fairway_hit: d.fairway_hit, green_in_regulation: d.green_in_regulation, penalties: d.penalties ?? null };
+    return { ...h, strokes: d.strokes, putts: d.putts, fairway_hit: d.fairway_hit, green_in_regulation: d.green_in_regulation, penalties: d.penalties ?? null, penalty_strokes: d.penalty_strokes ?? null };
   });
   return { holes: merged, restored };
 }

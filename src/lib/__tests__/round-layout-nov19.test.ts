@@ -66,9 +66,11 @@ describe('the temperature row', () => {
 describe('leftovers, Nov 19: the scorer badge and the round detail page', () => {
   it('the scorer badge follows the round: Final when completed, LIVE otherwise', () => {
     const src = read('components/golf/ScoreEntryModal.tsx');
-    expect(src).toContain("{isLive && (roundStatus === 'completed' ? (");
-    expect(src).toContain('data-scorer-status="final"');
-    expect(src).toContain('data-scorer-status="live"');
+    // Nov 25 2026: the badge is the card's RoundBadge (red LIVE, grey Final).
+    expect(src).toContain("{isLive && <RoundBadge status={roundStatus === 'completed' ? 'final' : 'live'} />}");
+    const controls = read('components/golf/scoring/ScoreControls.tsx');
+    expect(controls).toContain('data-scorer-status="final"');
+    expect(controls).toContain('data-scorer-status="live"');
     // The flag that drives saving is not the badge's.
     expect(src).toContain('const isLive = !!onSaveHole;');
     for (const caller of ['app/(app)/live/[groupPostId]/page.tsx', 'components/PostCard.tsx']) {

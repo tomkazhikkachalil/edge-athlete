@@ -1,6 +1,7 @@
 import { test, expect, type Browser } from './helpers/test';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
+import { expectScorerClosed, expectScorerOnHole, mapPreview, previousHole } from './helpers/score-card';
 
 type LatLng = [number, number];
 interface HoleLine {
@@ -118,10 +119,10 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     const page = await ctx.newPage();
     await page.goto(`/live/${roundId}`);
     // The scorer resumes on the first unscored hole — 2 — and is walked back.
-    await expect(page.getByText('Hole 2 media')).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: 'Previous', exact: true }).click();
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 10_000 });
-    await page.getByRole('button', { name: 'Open course map' }).click();
+    await expectScorerOnHole(page, 2, 30_000);
+    await previousHole(page).click();
+    await expectScorerOnHole(page, 1, 10_000);
+    await mapPreview(page).click();
 
     await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
     await expect(page.getByText(/^Hole 1\b/)).toBeVisible();
@@ -203,13 +204,16 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     const scorecardTab = page.getByRole('tab', { name: 'Scorecard' });
     const continueScoring = page.getByRole('button', { name: 'Continue scoring' });
     await scorecardTab.click();
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 15_000 });
+    await expectScorerOnHole(page, 1, 15_000);
     await expect(continueScoring).toHaveCount(0);
 
-    // …and the way to the map is a labelled button, not a bare icon.
-    const mapButton = page.locator('[data-scorer-map]');
+    // …and the way to the map is the labelled preview on the hole plate
+    // (the separate Map pill is gone, Nov 25 2026).
+    const mapButton = mapPreview(page);
     await expect(mapButton).toHaveText(/Map/);
+    await expect(mapButton).toHaveAttribute('aria-label', 'Open the map on hole 1');
     expect((await mapButton.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('[data-scorer-map]')).toHaveCount(0);
     await mapButton.click();
     await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 15_000 });
     await expect(page.getByText(/^Hole 1\b/)).toBeVisible();
@@ -218,17 +222,17 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     await page.getByRole('button', { name: 'Next hole' }).click();
     await page.getByRole('button', { name: 'Next hole' }).click();
     await page.getByRole('button', { name: 'Score hole 3' }).click();
-    await expect(page.getByText('Hole 3 media')).toBeVisible({ timeout: 15_000 });
+    await expectScorerOnHole(page, 3, 15_000);
 
     // Score entry opened FROM the map closes back to the map…
     const closeScorer = page.getByRole('button', { name: 'Close', exact: true }).first();
     await closeScorer.click();
-    await expect(page.getByText('Hole 3 media')).toHaveCount(0, { timeout: 15_000 });
+    await expectScorerClosed(page, 15_000);
     await expect(page.locator('[aria-label="Previous hole"]')).toBeVisible();
     // …and with no hole handed over, Scorecard resumes on the first hole with
     // no score (2).
     await scorecardTab.click();
-    await expect(page.getByText('Hole 2 media')).toBeVisible({ timeout: 15_000 });
+    await expectScorerOnHole(page, 2, 15_000);
 
     // Closing THAT one shows the live leaderboard, Continue scoring still on
     // it — and the Scorecard tab is the same door from there.
@@ -236,15 +240,15 @@ test('gps: the map opens on the hole the scorer is ON, with a flag on the green 
     await expect(continueScoring).toBeVisible({ timeout: 15_000 });
     await expect(scorecardTab).toHaveAttribute('aria-selected', 'true');
     await scorecardTab.click();
-    await expect(page.getByText('Hole 2 media')).toBeVisible({ timeout: 15_000 });
+    await expectScorerOnHole(page, 2, 15_000);
 
     // ── Far from the course (M1): Follow decides OFF and nothing pans ───
     const away = await phoneContext(browser, [45.4215, -75.6972]); // downtown Ottawa, ~13 km
     try {
       const far = await away.newPage();
       await far.goto(`/live/${roundId}`);
-      await expect(far.getByText('Hole 2 media')).toBeVisible({ timeout: 30_000 });
-      await far.getByRole('button', { name: 'Open course map' }).click();
+      await expectScorerOnHole(far, 2, 30_000);
+      await mapPreview(far).click();
       await far.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
       const farFollow = far.locator('[data-map-follow]');
       await expect(farFollow).toHaveAttribute('data-map-follow', 'off', { timeout: 15_000 });

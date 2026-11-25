@@ -1,5 +1,6 @@
 import { test, expect } from './helpers/test';
 import { cleanup } from './helpers/cleanup';
+import { expectScorerClosed, expectScorerOnHole, nextHole, typeStrokes as typeOnDial } from './helpers/score-card';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Nov 19 2026 (Tom's group round): two faults while scoring for a group.
@@ -36,38 +37,32 @@ test('switching players keeps the hole on screen, and saves the hole being left'
     expect((await api.post(`/api/golf/scorecards/${rowB}/scores`, { data: { scores: [{ hole_number: 1, strokes: 4 }, { hole_number: 3, strokes: 5 }] } })).status()).toBe(201);
     await page.goto(`/live/${id}`);
     // The scorer opens on A's first unscored hole.
-    await expect(page.getByText('Hole 5 of 9')).toBeVisible({ timeout: 30_000 });
+    await expectScorerOnHole(page, 5, 30_000);
     // By the card's id: the QA accounts share a first name.
     const chip = (rowId: string) => page.locator(`[data-scorer-player="${rowId}"]`);
-    // Typing a digit on the wheel commits it (the quick-entry contract).
-    const typeStrokes = async (digit: string) => {
-      const strokes = page.getByRole('spinbutton', { name: 'Strokes' });
-      await strokes.focus();
-      await strokes.press(digit);
-      await expect(strokes).toHaveAttribute('aria-valuenow', digit);
-    };
+    // A typed digit on the dial sets the score (and records the hole).
+    const typeStrokes = (digit: string) => typeOnDial(page, digit);
 
     // To B: the same hole, not B's gap at hole 2.
-    await expect(chip(rowA)).toHaveAttribute('aria-pressed', 'true');
+    await expect(chip(rowA)).toHaveAttribute('aria-selected', 'true');
     await chip(rowB).click();
-    await expect(chip(rowB)).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
-    await expect(page.getByText('Hole 5 of 9')).toBeVisible();
-    await expect(page.getByText('Hole 2 of 9')).toHaveCount(0);
+    await expect(chip(rowB)).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+    await expectScorerOnHole(page, 5);
 
     // Score B's hole 5 and leave it by the chip: it is saved, and A opens on hole 5 too.
     await typeStrokes('6');
     await chip(rowA).click();
-    await expect(chip(rowA)).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
-    await expect(page.getByText('Hole 5 of 9')).toBeVisible({ timeout: 15_000 });
+    await expect(chip(rowA)).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+    await expectScorerOnHole(page, 5, 15_000);
     await expect.poll(async () => rowOf(await readCard(api, id), userB.id).scores?.hole_scores?.find(h => h.hole_number === 5)?.strokes, { timeout: 15_000 }).toBe(6);
 
     // Next still walks on, and a switch from there carries the new hole.
     await typeStrokes('4');
-    await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await expect(page.getByText('Hole 6 of 9')).toBeVisible({ timeout: 15_000 });
+    await nextHole(page).click();
+    await expectScorerOnHole(page, 6, 15_000);
     await chip(rowB).click();
-    await expect(chip(rowB)).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
-    await expect(page.getByText('Hole 6 of 9')).toBeVisible();
+    await expect(chip(rowB)).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+    await expectScorerOnHole(page, 6);
   } finally {
     await cleanup('live-scoring-switch', [
       () => id && api.patch(`/api/group-posts/${id}`, { data: { status: 'cancelled' } }),
@@ -101,7 +96,7 @@ test('a group round finishes when the LAST golfer\'s card fills, not the first; 
 
     // …and the creator is not locked out: the live page still opens the scorer, on a golfer who is not done.
     await page.goto(`/live/${live}`);
-    await expect(page.getByText(/Hole 1 of 9/)).toBeVisible({ timeout: 30_000 });
+    await expectScorerOnHole(page, 1, 30_000);
     await expect(page.getByText('Your card is complete')).toHaveCount(0);
     await expect(page.getByText('This round is final')).toHaveCount(0);
 
@@ -237,12 +232,12 @@ test('a round finished on another device: the resume pill goes and an open score
     // 2. The scorer: the second device has it open on hole 3.
     const second = await start('Other Device Scorer');
     await page.goto(`/live/${second}`);
-    await expect(page.getByText('Hole 3 of 9')).toBeVisible({ timeout: 30_000 });
+    await expectScorerOnHole(page, 3, 30_000);
     // The scorer's badge says what the round is: live while it is.
     await expect(page.locator('[data-scorer-status="live"]')).toBeVisible();
     expect((await api.patch(`/api/group-posts/${second}`, { data: { status: 'completed' } })).ok()).toBe(true);
     await expect(page.locator('[data-live-finished-elsewhere]')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('Hole 3 of 9')).toHaveCount(0);
+    await expectScorerClosed(page);
     await expect(page.getByText('This round is final')).toBeVisible();
   } finally {
     await cleanup('live-scoring-other-device', [

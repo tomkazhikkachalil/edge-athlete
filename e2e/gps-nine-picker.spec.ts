@@ -1,4 +1,5 @@
 import { test, expect, type Browser } from './helpers/test';
+import { expectScorerOnHole, mapPreview } from './helpers/score-card';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
 
@@ -76,8 +77,8 @@ test('gps: unlabelled nines are pickable — nothing drawn before a pick, the pi
     // Far away: the picker is offered, nothing is drawn, the chip says so.
     const page = await far.newPage();
     await page.goto(`/live/${roundId}`);
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: 'Open course map' }).click();
+    await expectScorerOnHole(page, 1, 30_000);
+    await mapPreview(page).click();
     await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
     const picker = page.locator('[data-loop-picker]');
     await expect(picker).toBeVisible({ timeout: 15_000 });
@@ -95,8 +96,8 @@ test('gps: unlabelled nines are pickable — nothing drawn before a pick, the pi
 
     // The pick survives a reload on this device.
     await page.reload();
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: 'Open course map' }).click();
+    await expectScorerOnHole(page, 1, 30_000);
+    await mapPreview(page).click();
     await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
     await expect(page.locator('[data-loop-picker] [data-loop-pick="front:B"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
     await expect(page.locator('.leaflet-marker-pane [data-green-flag]')).toHaveCount(1, { timeout: 15_000 });
@@ -105,8 +106,8 @@ test('gps: unlabelled nines are pickable — nothing drawn before a pick, the pi
     onB = await phoneContext(browser, [45.3, LNG_C]);
     const page2 = await onB.newPage();
     await page2.goto(`/live/${roundId}`);
-    await expect(page2.getByText('Hole 1 media')).toBeVisible({ timeout: 30_000 });
-    await page2.getByRole('button', { name: 'Open course map' }).click();
+    await expectScorerOnHole(page2, 1, 30_000);
+    await mapPreview(page2).click();
     await page2.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
     await expect(page2.locator('.leaflet-marker-pane [data-green-flag]')).toHaveCount(1, { timeout: 20_000 });
     await expect(page2.locator('[data-hole-pick-nine]')).toHaveCount(0);

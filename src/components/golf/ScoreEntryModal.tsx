@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import HoleHeader from '@/components/golf/HoleHeader';
-import { groupScoresForHole, holeHeaderFacts, liveLine, runningToPar, teeSheetForHole, type GroupPlayer, type TeeSheetSource } from '@/lib/golf/hole-detail';
-import { holeDiagramWithPoint } from '@/lib/golf/hole-svg';
+import HolePlate from '@/components/golf/scoring/HolePlate';
+import StrokesDial from '@/components/golf/scoring/StrokesDial';
+import { HoleKeys, PlayerTabs, PuttsCapsule, RoundBadge, ScoreFooter, StatLamp, TotalsStrip, type PlayerTab } from '@/components/golf/scoring/ScoreControls';
+import { ActionRow, PenaltyEntryRow, PenaltyStack } from '@/components/golf/scoring/PenaltyParts';
+import { CloseIcon } from '@/components/golf/scoring/icons';
+import { groupScoresForHole, holeHeaderFacts, liveLine, teeSheetForHole, type GroupPlayer, type TeeSheetSource } from '@/lib/golf/hole-detail';
 import type { HoleLine, GreenRing } from '@/lib/golf/hole-geometry';
 import type { HoleElevation } from '@/lib/golf/elevation';
-import Image from 'next/image';
-import { isOptimizableImageSrc } from '@/lib/media/image-src';
-import NumberWheel from '@/components/golf/NumberWheel';
-import { holePar, toParColorClass, toParLabel } from '@/lib/golf/scoring';
+import { holePar } from '@/lib/golf/scoring';
+import { cardTotals, confirmedScore, holeKeyRows, maxPutts, nextHoleNumber, shownScore, withPutts, withStrokes } from '@/lib/golf/score-card';
+import { playerColour } from '@/lib/golf/player-colour';
 import {
   firstUnscoredHole,
   readDraft,
@@ -21,34 +23,14 @@ import {
   type DraftHole,
 } from '@/lib/golf/score-entry';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import {
-  PENALTY_TYPES,
-  PENALTY_LABELS,
-  isPenaltyType,
-  aggregatePenalties,
-  totalPenalties,
-} from '@/lib/golf/penalties';
-import { GOLF_LABEL, GOLF_SELECT, GOLF_INPUT_COMPACT } from '@/components/golf/golf-form-styles';
+import { penaltyColumns, penaltyEntries, totalPenaltyStrokes, type PenaltyEntry } from '@/lib/golf/penalties';
 import type { GolfHoleScore } from '@/types/group-posts';
 import type { HoleData } from '@/types/golf';
 import { MediaEditor } from '@/components/media-editor';
-import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { uploadPostMedia } from '@/lib/media/upload';
 import type { EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
-import FaIcon from '@/components/FaIcon';
-import { faCamera } from '@/lib/icons/fa/camera';
-import { faCheck } from '@/lib/icons/fa/check';
-import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
-import { faChevronRight } from '@/lib/icons/fa/chevron-right';
-import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
-import { faFloppyDisk } from '@/lib/icons/fa/floppy-disk';
-import { faMapLocationDot } from '@/lib/icons/fa/map-location-dot';
-import { faPlus } from '@/lib/icons/fa/plus';
-import { faSpinner } from '@/lib/icons/fa/spinner';
-import { faVideo } from '@/lib/icons/fa/video';
-import { faXmark } from '@/lib/icons/fa/xmark';
 
 const HOLE_MEDIA_EDITOR_CONFIG: EditorConfig = {
   aspectRatios: ['free', '1:1', '4:5', '9:16', '16:9'],
@@ -65,15 +47,8 @@ export interface ScoreEntryPlayer {
   isSelf: boolean;
 }
 
-// Wheel ranges. Strokes matches what the API accepts (1-15,
-// scorecards/[id]/scores route) — the old button grid started at 2, so a
-// hole-in-one could not be entered at all.
-const STROKES_MIN = 1;
-const STROKES_MAX = 15;
-const PUTTS_MIN = 0;
-const PUTTS_MAX = 10;
-/** Two putts is the ordinary hole; see the DEFAULTS note by the wheels. */
-const PUTTS_DEFAULT = 2;
+// The most penalties one hole can carry — validatePenalties' own cap.
+const PENALTIES_MAX = 20;
 
 interface ScoreEntryModalProps {
   groupPostId: string;
@@ -115,6 +90,7 @@ interface ScoreEntryModalProps {
     fairway_hit?: boolean;
     green_in_regulation?: boolean;
     penalties?: string[] | null;
+    penalty_strokes?: number[] | null;
   }>) => Promise<void>;
   // LIVE mode: when provided, each hole is persisted as you advance (rather
   // than all-at-once via onSave), so co-players watching the round see your
@@ -126,6 +102,7 @@ interface ScoreEntryModalProps {
     fairway_hit?: boolean;
     green_in_regulation?: boolean;
     penalties?: string[] | null;
+    penalty_strokes?: number[] | null;
   }) => Promise<void>;
   onClose: () => void;
   /** Renders a map button in the header that closes the scorer (same
@@ -149,8 +126,10 @@ interface ScoreEntryModalProps {
   holeElevation?: HoleElevation | null;
   /** The map's live GPS fix, published up — the scorer never prompts. */
   fix?: [number, number] | null;
-  /** Everyone's hole scores, for "Sam 5 · Alex 4" on this hole. */
+  /** Everyone's hole scores, for "Sam 5 · Alex 4" on this hole and a tab's score to par. */
   group?: GroupPlayer[];
+  /** The course's position, for the map preview of a hole without a line. */
+  courseAt?: [number, number] | null;
 }
 
 export default function ScoreEntryModal({
@@ -179,6 +158,7 @@ export default function ScoreEntryModal({
   holeElevation = null,
   fix = null,
   group,
+  courseAt = null,
 }: ScoreEntryModalProps) {
   const isLive = !!onSaveHole;
   // Mounted only while open — lock background scroll for the whole lifetime
@@ -200,6 +180,7 @@ export default function ScoreEntryModal({
         fairway_hit: existing?.fairway_hit ?? null,
         green_in_regulation: existing?.green_in_regulation ?? null,
         penalties: existing?.penalties ?? null,
+        penalty_strokes: existing?.penalty_strokes ?? null,
         // Real course par when the round carries hole_data; par-4 fallback
         // otherwise. Keyed by HOLE NUMBER (not position — back-9 rounds
         // start at 10).
@@ -236,15 +217,9 @@ export default function ScoreEntryModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // PEN-flow fix: opened from a penalty badge, bring the Penalties block into
-  // view immediately — it sits four sections down and the flow felt backwards
-  // landing on Strokes. focusSection is stable for a mount, so this runs once.
-  const penaltiesSectionRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (focusSection === 'penalties') {
-      penaltiesSectionRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
-    }
-  }, [focusSection]);
+  // Opened from a penalty badge: the penalty entry is already in place of the
+  // action row (X3 — there is no always-visible penalty form to scroll to).
+  const [penaltyOpen, setPenaltyOpen] = useState(focusSection === 'penalties');
 
   // Per-hole persistence state, keyed by POSITION. Holes present in
   // existingScores start "saved"; any local edit marks a hole dirty until it
@@ -258,10 +233,10 @@ export default function ScoreEntryModal({
   const [holeData, setHoleData] = useState<HoleData[]>(initialSession.holes);
 
   const currentHoleData = holeData[currentHole - 1];
-  // Where the strokes wheel rests while nothing is entered. Par falls back to 4
-  // when the round carries no course hole data (scoring.ts holePar), so on such
-  // a round every hole rests on 4.
-  const restingStrokes = currentHoleData?.par ?? 4;
+  // What the card SHOWS for this hole: its own values, else par and 2 putts
+  // (A3 — score-card.ts). Par falls back to 4 when the round carries no
+  // course hole data (scoring.ts holePar).
+  const shown = shownScore(currentHoleData);
 
   // Best-effort flush of the current dirty hole when the page is being left
   // (navigate away, tab switch, tab kill where the browser cooperates).
@@ -297,7 +272,10 @@ export default function ScoreEntryModal({
               putts: hole.putts ?? undefined,
               fairway_hit: hole.fairway_hit ?? undefined,
               green_in_regulation: hole.green_in_regulation ?? undefined,
-              penalties: hole.penalties?.length ? hole.penalties : undefined,
+              // Named even when empty: an absent key leaves the stored penalties alone,
+              // so removing the last one never reached the server (fixed Nov 25 2026).
+              penalties: hole.penalties ?? [],
+              penalty_strokes: hole.penalties?.length ? hole.penalty_strokes ?? null : null,
             }],
           }),
         }).catch(() => { /* page is going away — nothing to do */ });
@@ -343,6 +321,7 @@ export default function ScoreEntryModal({
           fairway_hit: h.fairway_hit ?? null,
           green_in_regulation: h.green_in_regulation ?? null,
           penalties: h.penalties ?? null,
+          penalty_strokes: h.penalty_strokes ?? null,
         };
       }
     }
@@ -350,50 +329,36 @@ export default function ScoreEntryModal({
     return next[currentHole - 1] ?? null;
   };
 
-  const updateCurrentHole = (field: keyof HoleData, value: number | boolean | string[] | null) => {
-    patchCurrentHole({ [field]: value } as Partial<HoleData>);
+  // ── A4: when a hole is RECORDED ────────────────────────────────────────────
+  // A change of strokes or putts, or a tap on either number, writes BOTH
+  // numbers at once (score-card.ts) — the hole has strokes from that moment,
+  // which is the one meaning of "recorded" everywhere in golf. Putts follow
+  // the strokes down when they would exceed them (the scores API refuses
+  // putts > strokes: a hole in one with the resting 2 putts could not save).
+  const handleStrokes = (strokes: number) => { patchCurrentHole(withStrokes(currentHoleData, strokes)); };
+  const handlePutts = (putts: number) => { patchCurrentHole(withPutts(currentHoleData, putts)); };
+  const handleConfirm = () => { patchCurrentHole(confirmedScore(currentHoleData)); };
+  // FIR / GIR start off on every hole (null) and are on or off — never a
+  // third state. Neither records a hole by itself.
+  const toggleStat = (field: 'fairway_hit' | 'green_in_regulation') => {
+    patchCurrentHole({ [field]: currentHoleData[field] === true ? false : true } as Partial<HoleData>);
   };
 
-  // Which holes the user has actually TOUCHED a wheel on. A wheel resting at
-  // par/2 is a suggestion, not an answer — this set is what turns it into one,
-  // and nothing else marks a hole as being scored.
-  const [wheelTouched, setWheelTouched] = useState<Set<number>>(new Set());
-  const markWheelTouched = () => {
-    setWheelTouched(prev => (prev.has(currentHole) ? prev : new Set(prev).add(currentHole)));
+  // ── Penalties: a TYPE and its STROKES each (migration 320) ────────────────
+  // One row per penalty, in the order added; they belong to this hole and
+  // this player. Descriptive: the strokes on the dial are the golfer's total
+  // and are never changed here. A penalty alone does not record a hole.
+  const penalties = penaltyEntries(currentHoleData.penalties, currentHoleData.penalty_strokes);
+  const writePenalties = (entries: PenaltyEntry[]) => {
+    const cols = penaltyColumns(entries);
+    patchCurrentHole({ penalties: cols.penalties.length > 0 ? cols.penalties : null, penalty_strokes: cols.penalty_strokes });
   };
-
-  const handleStrokeClick = (strokes: number) => {
-    markWheelTouched();
-    updateCurrentHole('strokes', strokes);
+  const handleAddPenalty = (entry: PenaltyEntry) => {
+    writePenalties([...penalties, entry].slice(0, PENALTIES_MAX));
+    setPenaltyOpen(false);
   };
-
-  const handlePuttClick = (putts: number) => {
-    markWheelTouched();
-    updateCurrentHole('putts', putts);
-  };
-
-  // Penalty entry: pick a type + how many times it happened; Add appends that
-  // many occurrences (the storage model is one array element per occurrence —
-  // see src/lib/golf/penalties.ts). The × on a row removes ALL occurrences of
-  // that type. Capped at 20 per hole, matching validatePenalties server-side.
-  const [penaltyType, setPenaltyType] = useState('');
-  const [penaltyCount, setPenaltyCount] = useState(1);
-
-  const handleAddPenalty = () => {
-    if (!isPenaltyType(penaltyType)) return;
-    const count = Math.min(9, Math.max(1, Math.floor(penaltyCount) || 1));
-    const next = [
-      ...(currentHoleData.penalties ?? []),
-      ...Array.from({ length: count }, () => penaltyType),
-    ].slice(0, 20);
-    updateCurrentHole('penalties', next);
-    setPenaltyType('');
-    setPenaltyCount(1);
-  };
-
-  const handleRemovePenalty = (type: string) => {
-    const remaining = (currentHoleData.penalties ?? []).filter(p => p !== type);
-    updateCurrentHole('penalties', remaining.length > 0 ? remaining : null);
+  const handleRemovePenalty = (index: number) => {
+    writePenalties(penalties.filter((_, i) => i !== index));
   };
 
   // Live mode: persist a single hole (if it has a score and is dirty).
@@ -415,7 +380,8 @@ export default function ScoreEntryModal({
         putts: hole.putts ?? undefined,
         fairway_hit: hole.fairway_hit ?? undefined,
         green_in_regulation: hole.green_in_regulation ?? undefined,
-        penalties: hole.penalties?.length ? hole.penalties : undefined,
+        penalties: hole.penalties ?? [],
+        penalty_strokes: hole.penalties?.length ? hole.penalty_strokes ?? null : null,
       });
       setSavedHoles(prev => new Set(prev).add(holeNum));
       setDirtyHoles(prev => { const n = new Set(prev); n.delete(holeNum); return n; });
@@ -430,41 +396,23 @@ export default function ScoreEntryModal({
     }
   };
 
-  // ── DEFAULTS: when a resting wheel becomes a recorded score ────────────────
-  // TWO conditions, both required:
-  //   1. the user TOUCHED a wheel on this hole, and
-  //   2. they moved on from it (Next, or an explicit finish) — the confirmation.
-  //
-  // Touching neither wheel records nothing at all, however you leave the hole.
-  // That keeps "holes actually played" honest: a partial round is scored
-  // against the pars of the holes actually played, and downstream a
-  // golf_hole_scores ROW EXISTING is what "played" means (holes_completed is a
-  // raw COUNT(*) in a DB trigger). Auto-recording an untouched hole would also
-  // let a round reach `completed` — which round-status makes terminal — purely
-  // by paging through it.
-  //
-  // Once a wheel IS touched the hole is being scored, so the OTHER wheel is
-  // filled from its resting position at confirmation: set strokes and leave
-  // putts alone and you get the 2 putts the wheel was showing you.
-  //
-  // Note updateCurrentHole marks a hole dirty regardless of whether the value
-  // changed, which is what we want — a genuine par must be written explicitly
-  // or it would never be marked dirty and never saved.
-  const commitRestingScores = (): HoleData | null => {
-    if (!wheelTouched.has(currentHole)) return null;
+  // ── Next records what is shown (A4) ───────────────────────────────────────
+  // Next — and the last hole's finish — saves whatever strokes and putts are
+  // showing, the defaults included: a par with two putts needs no input.
+  // Leaving a hole any OTHER way (Previous, a jump key, the map, the X, a
+  // player tab) records nothing new: a hole that was only looked at has no
+  // strokes, so it counts in no total, gets no check mark, and cannot carry a
+  // round to `completed` just by being paged through (a golf_hole_scores row
+  // EXISTING is what "played" means downstream).
+  const commitShown = (): HoleData | null => {
     const hole = holeData[currentHole - 1];
     if (!hole) return null;
-    const patch: Partial<HoleData> = {};
-    if (hole.strokes === null) patch.strokes = restingStrokes;
-    if (hole.putts === null) patch.putts = PUTTS_DEFAULT;
-    if (Object.keys(patch).length === 0) return null;
-    return patchCurrentHole(patch);
+    if (typeof hole.strokes === 'number' && typeof hole.putts === 'number') return null;
+    return patchCurrentHole(confirmedScore(hole));
   };
 
   const handleNext = async () => {
-    // No "enter a stroke count" guard: an untouched hole is a SKIPPED hole, not
-    // an error. It simply records nothing and you move on.
-    const committed = commitRestingScores();
+    const committed = commitShown();
     if (isLive && !(await persistHole(currentHole, committed))) return; // save before advancing
     if (currentHole < holesPlayed) {
       setCurrentHole(prev => prev + 1);
@@ -498,7 +446,7 @@ export default function ScoreEntryModal({
   // hole is recorded at its resting par/2. The header X means "get me out of
   // here" and must record nothing.
   const handleDone = async (commitCurrent: boolean) => {
-    const committed = commitCurrent ? commitRestingScores() : null;
+    const committed = commitCurrent ? commitShown() : null;
     setSaving(true);
     const ok = await persistHole(currentHole, committed);
     setSaving(false);
@@ -529,17 +477,13 @@ export default function ScoreEntryModal({
     if (!onSwitchPlayer || nextParticipantId === participantId) return;
     const holeOnScreen = holeNumberAtPosition(startingHoleNumber, currentHole);
     if (isLive) {
-      const committedLive = commitRestingScores();
-      if (!(await persistHole(currentHole, committedLive))) return;
+      // A tab is not Next: it saves what is recorded and records nothing new.
+      if (!(await persistHole(currentHole))) return;
     } else {
       // Batch mode (composer grid): the parent only receives scores through
       // onSave, and the switch remounts the modal — flush everything entered
       // first, with the same resting-wheel commit rules as Save Scores.
-      const committed = commitRestingScores();
-      const effective = committed
-        ? holeData.map((h, idx) => (idx === currentHole - 1 ? committed : h))
-        : holeData;
-      const scores = collectCompletedScores(effective);
+      const scores = collectCompletedScores(holeData);
       if (scores.length > 0) {
         setSaving(true);
         setError(null);
@@ -558,7 +502,6 @@ export default function ScoreEntryModal({
   };
 
   // Hole photos/videos (live rounds only): upload → attach to this hole.
-  const mediaInputRef = useRef<HTMLInputElement>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [mediaCountByHole, setMediaCountByHole] = useState<Record<number, number>>({});
   const canAttachMedia = isLive && !!groupPostId && !!uploaderId;
@@ -577,7 +520,6 @@ export default function ScoreEntryModal({
     });
     if (rejected.length > 0) {
       setError(rejected[0].message);
-      if (mediaInputRef.current) mediaInputRef.current.value = '';
       return;
     }
     setError(null);
@@ -635,7 +577,6 @@ export default function ScoreEntryModal({
       setError(e instanceof Error ? e.message : 'Failed to add media');
     } finally {
       setUploadingMedia(false);
-      if (mediaInputRef.current) mediaInputRef.current.value = '';
     }
   };
 
@@ -665,11 +606,7 @@ export default function ScoreEntryModal({
     profile: holeElevation?.holes.find(h => h.hole === headerHoleNumber) ?? null,
     cardYards: courseHoleData?.find(h => h.hole === headerHoleNumber)?.yardage ?? null,
   });
-  const headerRunning = runningToPar(holeData.map(h => ({ strokes: h.strokes, par: h.par })));
   const headerGroup = groupScoresForHole(group, headerHoleNumber, participantId);
-  const headerThumb = headerLine
-    ? holeDiagramWithPoint({ hole: headerHoleNumber, par: currentHoleData.par, line: headerLine }, fix, 100, 10)
-    : null;
   // The Map pill's path and the thumbnail's are ONE: save first (a failed
   // flush keeps the scorer open instead of stranding it over the map), close,
   // then hand the page the hole the player is on.
@@ -698,7 +635,8 @@ export default function ScoreEntryModal({
         putts: h.putts ?? undefined,
         fairway_hit: h.fairway_hit ?? undefined,
         green_in_regulation: h.green_in_regulation ?? undefined,
-        penalties: h.penalties?.length ? h.penalties : undefined,
+        penalties: h.penalties ?? [],
+        penalty_strokes: h.penalties?.length ? h.penalty_strokes ?? null : null,
       }));
 
   const handleSave = async () => {
@@ -707,7 +645,7 @@ export default function ScoreEntryModal({
     // the returned array rather than `holeData` — the state update has not
     // landed yet, so the freshly committed hole would otherwise be dropped by
     // the strokes !== null filter below.
-    const committed = commitRestingScores();
+    const committed = commitShown();
     const effective = committed
       ? holeData.map((h, idx) => (idx === currentHole - 1 ? committed : h))
       : holeData;
@@ -735,495 +673,156 @@ export default function ScoreEntryModal({
     }
   };
 
-  // Calculate totals
-  const totalStrokes = holeData.reduce((sum, h) => sum + (h.strokes || 0), 0);
-  const totalPutts = holeData.reduce((sum, h) => sum + (h.putts || 0), 0);
-  const holesCompleted = holeData.filter(h => h.strokes !== null).length;
+  // ── What the card draws ────────────────────────────────────────────────────
+  const totals = cardTotals(holeData);
+  const recorded = new Set(holeData.filter(h => typeof h.strokes === 'number' && h.hole_number != null).map(h => h.hole_number as number));
+  // A colour per player, by their place in the round (player-colour.ts); a
+  // card with no tabs wears the first.
+  const activeIndex = players ? Math.max(0, players.findIndex(p => p.participantId === participantId)) : 0;
+  const activeColour = playerColour(activeIndex);
+  const showTabs = !!players && players.length > 1 && !!onSwitchPlayer;
+  const tabs: PlayerTab[] = showTabs
+    ? players.map((p, i) => {
+        // The open card's own number is the one on screen; the others' come
+        // from the round's scores.
+        const theirs = p.participantId === participantId
+          ? totals.toPar
+          : cardTotals((group?.find(g => g.participantId === p.participantId)?.holeScores ?? []).map(h => ({ strokes: h.strokes, putts: null, par: holePar(h.hole_number, courseHoleData) }))).toPar;
+        return { participantId: p.participantId, name: p.isSelf ? 'You' : p.name.split(' ')[0] || p.name, fullName: p.name, avatarUrl: p.avatarUrl, colour: playerColour(i), toPar: theirs };
+      })
+    : [];
+  const nextNumber = nextHoleNumber(currentHole, holesPlayed, startingHoleNumber);
+  const lastLabel = !isLive ? 'Save Scores' : roundStatus === 'completed' ? 'Done' : 'Finish round';
+  const busy = saving || savingHole !== null;
+  const status = savingHole !== null || saving ? 'Saving…' : isLive && savedHoles.has(currentHole) && !dirtyHoles.has(currentHole) ? 'Saved' : null;
 
   return (
     // z-[60] — the house convention for overlays that stack above a z-50
-    // modal (ConfirmModal, TagPeopleModal): this opens over CreatePostModal
-    // from the composer path. MediaEditor inside stays above at z-[65].
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-surface-raised rounded-lg shadow-2xl max-w-md w-full max-h-modal overflow-hidden flex flex-col">
-        {/* Header — color signals WHOSE card is open: green for your own,
-            amber when entering for someone else (unmissable identity) */}
-        <div className={`${enteringForOther ? 'bg-amber-600' : 'bg-green-600'} text-white p-4`}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 min-w-0">
-              {activePlayer && (
-                activePlayer.avatarUrl ? (
-                  <Image
-                    src={activePlayer.avatarUrl}
-                    alt=""
-                    width={28}
-                    height={28}
-                    className="w-7 h-7 rounded-full object-cover border-2 border-white/60 flex-shrink-0"
-                    unoptimized={!isOptimizableImageSrc(activePlayer.avatarUrl)}
-                  />
-                ) : (
-                  <span className="w-7 h-7 rounded-full bg-white/25 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                    {activePlayer.name.charAt(0)}
-                  </span>
-                )
-              )}
-              {/* min-w-0 on the h2 itself — the row's min-w-0 doesn't reach
-                  it, so "Entering for <long name>" refused to shrink and
-                  squeezed the LIVE badge. */}
-              <h2 className="text-xl font-black truncate min-w-0">
-                {activePlayer
-                  ? activePlayer.isSelf ? 'Your Scores' : `Entering for ${activePlayer.name}`
-                  : playerName ? `Entering for ${playerName}` : 'Enter Scores'}
-              </h2>
-              {isLive && (roundStatus === 'completed' ? (
-                <span data-scorer-status="final" className="inline-flex shrink-0 items-center bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
-                  Final
-                </span>
-              ) : (
-                <span data-scorer-status="live" className="inline-flex shrink-0 items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse"></span>
-                  LIVE
-                </span>
-              ))}
-            </div>
-            <div className="flex items-center shrink-0">
-              <button
-                onClick={isLive ? () => handleDone(false) : onClose}
-                className="text-white hover:text-white/80 text-xl font-bold min-w-[44px] min-h-[44px] -my-2 -mr-2 flex items-center justify-center"
-                aria-label="Close"
-              >
-                <FaIcon icon={faXmark} />
-              </button>
-            </div>
-          </div>
-          <div className="text-sm font-semibold flex items-center gap-2">
-            <span>Hole {currentHole} of {holesPlayed}</span>
-            {isLive && savingHole === currentHole && (
-              <span className="text-xs font-normal opacity-90"><FaIcon icon={faSpinner} spin className="mr-1" />Saving…</span>
-            )}
-            {isLive && savingHole !== currentHole && savedHoles.has(currentHole) && !dirtyHoles.has(currentHole) && (
-              <span className="text-xs font-normal opacity-90"><FaIcon icon={faCheck} className="mr-1" />Saved</span>
-            )}
-            {/* The way to the GPS map, said in a word (Oct 2026): it was a bare
-                icon beside the X. The live page's Scorecard tab is the way
-                back — one tap each way. */}
-            {onShowMap && (
-              <button
-                type="button"
-                onClick={goToMap}
-                className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/30 px-3 min-h-[44px] -my-2 text-sm font-bold text-white transition-colors"
-                aria-label="Open course map"
-                data-scorer-map=""
-              >
-                <FaIcon icon={faMapLocationDot} />
-                Map
-              </button>
-            )}
-          </div>
+    // modal (ConfirmModal, TagPeopleModal). MediaEditor inside stays above at
+    // z-[65]. The mechanical dialect (Tom's live-round spec, Nov 25 2026): a
+    // full screen on a phone, a centred dialog from 640 px, two columns from
+    // 900 px. The top line, the tabs and the footer stay put; the middle
+    // scrolls only when it does not fit.
+    <div className="ea-mech ea-mech-overlay fixed inset-0 z-[60] flex items-stretch justify-center sm:items-center sm:p-4" data-score-card="">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="score-card-title"
+        className="ea-mech-dialog ea-mech-scorecard flex w-full flex-col sm:py-5"
+      >
+        {/* C1 — the top line */}
+        <div className="flex h-11 shrink-0 items-center gap-2.5 px-4 pt-[env(safe-area-inset-top)] sm:px-5 sm:pt-0 box-content sm:box-border">
+          <h2 id="score-card-title" className="text-[17px] font-bold text-[color:var(--mech-text)]">Scores</h2>
+          {isLive && <RoundBadge status={roundStatus === 'completed' ? 'final' : 'live'} />}
+          {enteringForOther && !showTabs && (
+            <span className="ea-mech-micro min-w-0 truncate" data-scorer-for="">for {activePlayer?.name ?? playerName}</span>
+          )}
+          <span className="ea-mech-micro ml-auto shrink-0" aria-live="polite" data-scorer-save-state="">{status}</span>
+          <button
+            type="button"
+            onClick={() => (isLive ? handleDone(false) : onClose())}
+            disabled={saving}
+            aria-label="Close"
+            className="ea-mech-close inline-flex shrink-0 items-center justify-center disabled:opacity-50"
+          >
+            <CloseIcon size={16} />
+          </button>
         </div>
 
-        {/* Player switcher (creator view) — tap a chip to enter that
-            player's scores; the current hole saves first */}
-        {players && players.length > 1 && onSwitchPlayer && (
-          // shrink-0 on the ROW as well as the chips and avatars.
-          //
-          // The row is a flex item of the max-h-modal panel, and `overflow-x-auto`
-          // computes overflow-y to `auto` too — so (a) its automatic minimum size
-          // resolves to 0 instead of its content height, letting it be squashed,
-          // and (b) being a scrollport it then CLIPS the chips rather than
-          // overflowing them. Measured before this class: the row collapsed to
-          // 40px at 1280x800 (losing exactly its py-2) and to 24px at 740x420,
-          // slicing the 40px pills — "the border is too high and it cuts off the
-          // names". SharedRoundFullCard already wraps its own scrolling tab strip
-          // in a shrink-0 parent for this reason; this row merged both roles and
-          // was missed.
-          <div className="shrink-0 bg-surface-muted border-b border-border px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
-            {players.map(p => {
-              const active = p.participantId === participantId;
-              return (
-                <button
-                  key={p.participantId}
-                  onClick={() => handleSwitchPlayer(p.participantId)}
-                  disabled={savingHole !== null}
-                  data-scorer-player={p.participantId}
-                  aria-pressed={active}
-                  className={`flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 min-h-[44px] rounded-full text-xs font-bold whitespace-nowrap transition-all border-2 disabled:opacity-60 ${
-                    active
-                      ? 'bg-green-600 text-white border-green-700 shadow'
-                      : 'bg-surface text-secondary border-border-strong hover:border-green-400 active:border-green-400'
-                  }`}
-                >
-                  {p.avatarUrl ? (
-                    <Image
-                      src={p.avatarUrl}
-                      alt=""
-                      width={20}
-                      height={20}
-                      className="w-5 h-5 shrink-0 rounded-full object-cover"
-                      unoptimized={!isOptimizableImageSrc(p.avatarUrl)}
-                    />
-                  ) : (
-                    <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center text-[10px] ${active ? 'bg-white/25' : 'bg-surface-sunken'}`}>
-                      {p.name.charAt(0)}
-                    </span>
-                  )}
-                  {p.isSelf ? 'You' : p.name.split(' ')[0]}
-                  <span className={active ? 'opacity-80' : 'text-faint'}>· {p.holesCompleted}</span>
-                </button>
-              );
-            })}
+        {/* C2 — the player tabs: the whole card follows the selected player */}
+        {showTabs && (
+          <div className="shrink-0 px-4 pb-1 pt-1.5 sm:px-5">
+            <PlayerTabs tabs={tabs} selectedId={participantId} onSelect={id => { void handleSwitchPlayer(id); }} disabled={busy} />
           </div>
         )}
 
-        {/* Progress Bar */}
-        <div className="bg-surface-sunken h-2">
-          <div
-            className="bg-green-600 h-full transition-all duration-300"
-            style={{ width: `${(holesCompleted / holesPlayed) * 100}%` }}
-          />
-        </div>
+        <div className="ea-mech-scroll min-h-0 flex-1 overflow-y-auto px-4 py-2.5 sm:px-5" data-scorer-body="">
+          <div className="ea-mech-scorecard-grid">
+            <div className="flex min-w-0 flex-col gap-2.5">
+              <HolePlate
+                holeNumber={headerHoleNumber}
+                facts={headerFacts}
+                tees={headerTees}
+                teeInPlay={teeInPlay}
+                live={headerLive}
+                courseName={courseName}
+                line={headerLine}
+                courseAt={courseAt}
+                onOpenMap={onShowMap ? goToMap : undefined}
+              />
+              {headerGroup.length > 0 && (
+                <p className="text-xs text-[color:var(--mech-text-soft)]" data-hole-group="">
+                  {headerGroup.map((g, i) => (
+                    <span key={g.label}>{i > 0 ? ' · ' : ''}{g.label} <span className="ea-mech-readout">{g.strokes}</span></span>
+                  ))}
+                </p>
+              )}
 
-        {/* Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
-          {/* The hole in front of you (PR E): par · HCP · the tee's yards
-              (other tees one tap away), to-green + plays-like, the running
-              score and the group's scores, the thumbnail → the map. */}
-          <HoleHeader
-            holeNumber={headerHoleNumber}
-            facts={headerFacts}
-            tees={headerTees}
-            live={headerLive}
-            running={headerRunning}
-            runningLabel={activePlayer ? (activePlayer.isSelf ? 'You' : activePlayer.name.split(' ')[0]) : 'You'}
-            group={headerGroup}
-            thumb={headerThumb}
-            onOpenMap={onShowMap ? goToMap : undefined}
-          />
-          {courseName && <p className="-mt-2 mb-4 text-xs text-tertiary truncate">{courseName}</p>}
-
-          {/* Strokes + Putts, side by side. Each wheel RESTS on the common
-              answer — this hole's par, and two putts — so a routine hole is
-              zero interaction and only a different result needs a flick.
-
-              The resting position is NOT a value. currentHoleData.strokes
-              stays null until the user scrolls a wheel or advances past the
-              hole (see DEFAULTS below), because `strokes === null` is the only
-              thing separating "played" from "not played" anywhere in this app:
-              it gates the autosave, persistHole, the batch submit filter, the
-              resume position and the progress bar — and downstream a
-              golf_hole_scores ROW EXISTING is what "hole played" means, with
-              holes_completed a raw COUNT(*) in a DB trigger. Writing a default
-              in here would flip rounds to `completed` (terminal — they cannot
-              be reopened) and mirror invented even-par rounds into permanent
-              history and handicap data. */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <NumberWheel
-              label="Strokes"
-              min={STROKES_MIN}
-              max={STROKES_MAX}
-              value={currentHoleData?.strokes ?? null}
-              defaultValue={restingStrokes}
-              onChange={handleStrokeClick}
-              tone="green"
-            />
-            <NumberWheel
-              label="Putts"
-              min={PUTTS_MIN}
-              max={PUTTS_MAX}
-              value={currentHoleData?.putts ?? null}
-              defaultValue={PUTTS_DEFAULT}
-              onChange={handlePuttClick}
-              tone="brand"
-            />
-          </div>
-
-          {/* Optional Stats */}
-          <div className="border-t border-border pt-4 mb-4">
-            <div className="text-xs font-bold text-secondary mb-2">Optional Stats</div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => updateCurrentHole('fairway_hit', !currentHoleData.fairway_hit)}
-                className={`flex-1 py-2 px-3 min-h-[44px] rounded-lg text-sm font-semibold transition-colors ${
-                  currentHoleData.fairway_hit
-                    ? 'bg-green-600 text-white'
-                    : 'bg-surface-sunken text-secondary hover:bg-border active:bg-border'
-                }`}
-              >
-                <FaIcon icon={faCheck} className="mr-1" />
-                FIR
-              </button>
-              <button
-                onClick={() => updateCurrentHole('green_in_regulation', !currentHoleData.green_in_regulation)}
-                className={`flex-1 py-2 px-3 min-h-[44px] rounded-lg text-sm font-semibold transition-colors ${
-                  currentHoleData.green_in_regulation
-                    ? 'bg-green-600 text-white'
-                    : 'bg-surface-sunken text-secondary hover:bg-border active:bg-border'
-                }`}
-              >
-                <FaIcon icon={faCheck} className="mr-1" />
-                GIR
-              </button>
+              {/* C4 – C6 — the scoring cluster: dial, putts, lamps */}
+              <div className="flex items-center gap-2.5 max-[389px]:gap-2" data-scoring-cluster="">
+                <div className="min-w-0 max-w-[190px] flex-1">
+                  <StrokesDial strokes={shown.strokes} par={currentHoleData.par} onChange={handleStrokes} onConfirm={handleConfirm} disabled={busy} />
+                </div>
+                <PuttsCapsule putts={shown.putts} max={maxPutts(currentHoleData)} onChange={handlePutts} onConfirm={handleConfirm} disabled={busy} />
+                <div className="flex shrink-0 flex-col gap-4">
+                  <StatLamp label="FIR" caption="Fairway" on={currentHoleData.fairway_hit === true} onToggle={() => toggleStat('fairway_hit')} disabled={busy} />
+                  <StatLamp label="GIR" caption="Green" on={currentHoleData.green_in_regulation === true} onToggle={() => toggleStat('green_in_regulation')} disabled={busy} />
+                </div>
+              </div>
             </div>
 
-            {/* Penalties — type + count entry; rows below aggregate per type */}
-            <div className="mt-4" ref={penaltiesSectionRef}>
-              <label className={GOLF_LABEL} htmlFor="penalty-type-select">Penalties</label>
-              {/* flex-wrap + basis-full wrapper: at ~311px of body the select
-                  landed at ~161px with a forced 16px font (iOS zoom guard) —
-                  "Out of bounds" truncated. Phones give it the full row. */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="basis-full sm:basis-0 sm:flex-1 min-w-0">
-                  <select
-                    id="penalty-type-select"
-                    value={penaltyType}
-                    onChange={e => setPenaltyType(e.target.value)}
-                    className={GOLF_SELECT}
-                  >
-                    <option value="">Add penalty…</option>
-                    {PENALTY_TYPES.map(type => (
-                      <option key={type} value={type}>{PENALTY_LABELS[type]}</option>
-                    ))}
-                  </select>
-                </div>
-                {/* w-16 wrapper (not on the input): GOLF_INPUT_COMPACT carries
-                    w-full, and utility precedence comes from stylesheet order,
-                    so a sibling w-16 on the input can't reliably win. */}
-                <div className="w-16 shrink-0">
-                  <input
-                    type="number"
-                    min={1}
-                    max={9}
-                    value={penaltyCount}
-                    onChange={e => setPenaltyCount(e.target.value ? Number(e.target.value) : 1)}
-                    // Mid-body input in a dvh-clamped panel: the iOS keyboard
-                    // shrinks the panel and can cover the field — recenter it.
-                    onFocus={e => e.currentTarget.scrollIntoView({ block: 'center' })}
-                    className={GOLF_INPUT_COMPACT}
-                    aria-label="How many times"
-                  />
-                </div>
-                <button
-                  onClick={handleAddPenalty}
-                  disabled={!isPenaltyType(penaltyType)}
-                  className="shrink-0 py-2 px-3 min-h-[44px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border active:bg-border transition-colors disabled:opacity-50"
-                >
-                  <FaIcon icon={faPlus} className="mr-1" />
-                  Add
-                </button>
-              </div>
-              {(currentHoleData.penalties?.length ?? 0) > 0 && (
-                <div className="mt-2 space-y-1.5">
-                  {aggregatePenalties(currentHoleData.penalties).map(({ type, count }) => (
-                    <div
-                      key={type}
-                      className="flex items-center justify-between bg-surface-sunken rounded-lg px-3 py-1.5 text-sm text-primary"
-                    >
-                      <span>
-                        {PENALTY_LABELS[type]}
-                        {count > 1 && <span className="text-tertiary font-semibold"> ×{count}</span>}
-                      </span>
-                      <button
-                        onClick={() => handleRemovePenalty(type)}
-                        className="-my-1.5 -mr-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-tertiary hover:text-primary"
-                        aria-label={`Remove ${PENALTY_LABELS[type]} penalties`}
-                      >
-                        <FaIcon icon={faXmark} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+            <div className="flex min-w-0 flex-col gap-2.5">
+              {/* C7 — the action row; X3: the penalty entry takes its place */}
+              {penaltyOpen ? (
+                <PenaltyEntryRow onAdd={handleAddPenalty} onCancel={() => setPenaltyOpen(false)} full={penalties.length >= PENALTIES_MAX} />
+              ) : (
+                <ActionRow
+                  penaltyStrokes={totalPenaltyStrokes(currentHoleData.penalties, currentHoleData.penalty_strokes)}
+                  onPenalty={() => setPenaltyOpen(true)}
+                  onMedia={handleMediaSelect}
+                  mediaEnabled={canAttachMedia}
+                  mediaBusy={uploadingMedia}
+                  mediaCount={mediaCountByHole[headerHoleNumber] ?? 0}
+                />
+              )}
+
+              <TotalsStrip totals={totals} holesPlayed={holesPlayed} />
+
+              <HoleKeys
+                rows={holeKeyRows(holesPlayed, startingHoleNumber)}
+                current={headerHoleNumber}
+                recorded={recorded}
+                colour={activeColour}
+                onJump={n => { void handleJumpToHole(n - startingHoleNumber + 1); }}
+                disabled={busy}
+              />
+
+              <PenaltyStack entries={penalties} onRemove={handleRemovePenalty} disabled={busy} />
+
+              {uploadingMedia && <p className="ea-mech-micro" role="status">Adding to hole {headerHoleNumber}…</p>}
+              {error && (
+                <p className="rounded-xl px-3 py-2 text-[13px] text-[color:var(--mech-text)]" style={{ backgroundColor: 'var(--mech-danger-fill)', boxShadow: 'inset 0 0 0 1px var(--mech-danger-ring)' }} role="alert" data-scorer-error="">
+                  {error}
+                </p>
               )}
             </div>
           </div>
-
-          {/* Hole photo/video (live rounds). Capture-everywhere round: the
-              highest-value capture surface in the app — live, on-course,
-              one hole at a time. */}
-          {canAttachMedia && (
-            <div className="mb-4">
-              <input
-                ref={mediaInputRef}
-                type="file"
-                accept="image/*,video/*"
-                className="hidden"
-                onChange={e => handleMediaSelect(e.target.files?.[0])}
-              />
-              <p className="mb-1.5 text-xs font-semibold text-secondary">
-                Hole {currentHoleData.hole_number} media
-                {(mediaCountByHole[currentHoleData.hole_number ?? -1] ?? 0) > 0 && (
-                  <span className="ml-2 text-green-700 dark:text-green-300 font-bold">
-                    <FaIcon icon={faCheck} className="mr-1" />
-                    {mediaCountByHole[currentHoleData.hole_number ?? -1]}
-                  </span>
-                )}
-              </p>
-              <CaptureInputs onFiles={files => handleMediaSelect(files[0])} allowVideo>
-                {({ openPhoto, openVideo }) => (
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={openPhoto}
-                      disabled={uploadingMedia}
-                      className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
-                    >
-                      <FaIcon icon={faCamera} className="mr-1.5" />
-                      Take photo
-                    </button>
-                    <button
-                      onClick={openVideo}
-                      disabled={uploadingMedia}
-                      className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
-                    >
-                      <FaIcon icon={faVideo} className="mr-1.5" />
-                      Record video
-                    </button>
-                    <button
-                      onClick={() => mediaInputRef.current?.click()}
-                      disabled={uploadingMedia}
-                      className="py-2.5 px-2 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-60"
-                    >
-                      {uploadingMedia ? (
-                        <><FaIcon icon={faSpinner} spin className="mr-1.5" />Uploading…</>
-                      ) : (
-                        <><FaIcon icon={faCloudArrowUp} className="mr-1.5" />Library</>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </CaptureInputs>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm mb-4">
-              {error}
-            </div>
-          )}
-
-          {/* Current Totals */}
-          <div className="bg-surface-muted rounded-lg p-4 mb-4">
-            <div className="grid grid-cols-4 gap-3 text-center">
-              <div>
-                <div className="text-xs text-tertiary mb-1">Holes</div>
-                <div className="text-xl font-black text-primary">{holesCompleted}/{holesPlayed}</div>
-              </div>
-              <div>
-                <div className="text-xs text-tertiary mb-1">To par</div>
-                <div className={`text-xl font-black ${toParColorClass(headerRunning?.toPar ?? null)}`} data-scorer-to-par="">{toParLabel(headerRunning?.toPar ?? null)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-tertiary mb-1">Strokes</div>
-                <div className="text-xl font-black text-primary">{totalStrokes}</div>
-              </div>
-              <div>
-                <div className="text-xs text-tertiary mb-1">Putts</div>
-                <div className="text-xl font-black text-primary">{totalPutts}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Hole Navigation Grid */}
-          <div>
-            <div className="text-xs font-bold text-secondary mb-2">Jump to Hole:</div>
-            <div className="grid grid-cols-6 sm:grid-cols-9 gap-1">
-              {Array.from({ length: holesPlayed }, (_, i) => i + 1).map(holeNum => {
-                const hole = holeData[holeNum - 1];
-                const hasScore = hole.strokes !== null;
-                const isCurrent = holeNum === currentHole;
-                const isSaved = isLive && savedHoles.has(holeNum) && !dirtyHoles.has(holeNum);
-
-                return (
-                  <button
-                    key={holeNum}
-                    onClick={() => handleJumpToHole(holeNum)}
-                    disabled={savingHole !== null}
-                    className={`relative py-2 px-1 min-h-[44px] rounded text-xs font-bold transition-colors disabled:opacity-60 ${
-                      isCurrent
-                        ? 'bg-green-600 text-white ring-2 ring-green-800'
-                        : hasScore
-                        ? 'bg-violet-100 text-violet-900 hover:bg-violet-200 active:bg-violet-200 dark:bg-violet-950/60 dark:text-violet-200 dark:hover:bg-violet-900/60 dark:active:bg-violet-900/60'
-                        : 'bg-surface-sunken text-tertiary hover:bg-border active:bg-border'
-                    }`}
-                    title={isSaved ? 'Saved' : undefined}
-                  >
-                    {hole.hole_number}
-                    {isSaved && !isCurrent && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
-                        <FaIcon icon={faCheck} className="text-white" style={{ fontSize: '7px' }} />
-                      </span>
-                    )}
-                    {/* Penalty count — top-LEFT corner (the saved check owns
-                        the right one) */}
-                    {totalPenalties(hole.penalties) > 0 && (
-                      <span className="absolute -top-1 -left-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold">
-                        {totalPenalties(hole.penalties)}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
-        {/* Footer Navigation. safe-bottom: this is the primary live-scoring
-            control, used one-handed on a course — without it Previous/Next/
-            Done sit under the iOS home indicator. */}
-        <div className="bg-surface-sunken border-t border-border-strong p-4 safe-bottom">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              onClick={handlePrevious}
-              disabled={currentHole === 1 || savingHole !== null}
-              className="flex-1 bg-surface-sunken hover:bg-border disabled:opacity-50 disabled:cursor-not-allowed text-secondary font-bold py-3 px-4 rounded-lg transition-colors"
-            >
-              <FaIcon icon={faChevronLeft} className="mr-2" />
-              Previous
-            </button>
-
-            {currentHole < holesPlayed ? (
-              <button
-                onClick={handleNext}
-                disabled={savingHole !== null}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-3 px-4 rounded-lg transition-colors"
-              >
-                {savingHole === currentHole ? (
-                  <><FaIcon icon={faSpinner} spin className="mr-2" />Saving…</>
-                ) : (
-                  <>Next<FaIcon icon={faChevronRight} className="ml-2" /></>
-                )}
-              </button>
-            ) : isLive ? (
-              <button
-                onClick={() => handleDone(true)}
-                disabled={saving || savingHole !== null}
-                className="flex-1 bg-brand hover:bg-brand-hover disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
-              >
-                {saving || savingHole !== null ? (
-                  <><FaIcon icon={faSpinner} spin className="mr-2" />Saving…</>
-                ) : (
-                  <><FaIcon icon={faCheck} className="mr-2" />Done</>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 bg-brand hover:bg-brand-hover disabled:bg-violet-400 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
-              >
-                {saving ? (
-                  <>
-                    <FaIcon icon={faSpinner} spin className="mr-2" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <FaIcon icon={faFloppyDisk} className="mr-2" />
-                    Save Scores
-                  </>
-                )}
-              </button>
-            )}
-          </div>
+        {/* C9 — the footer */}
+        <div className="shrink-0 px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2.5 sm:px-5 sm:pb-0">
+          <ScoreFooter
+            onPrevious={() => { void handlePrevious(); }}
+            onNext={() => {
+              if (nextNumber !== null) void handleNext();
+              else if (isLive) void handleDone(true);
+              else void handleSave();
+            }}
+            nextLabel={nextNumber !== null ? `Hole ${nextNumber}` : lastLabel}
+            first={currentHole === 1}
+            busy={busy}
+            busyLabel="Saving…"
+          />
         </div>
       </div>
 
@@ -1233,10 +832,7 @@ export default function ScoreEntryModal({
           assets={holeEditorAssets}
           config={HOLE_MEDIA_EDITOR_CONFIG}
           onDone={handleHoleMediaDone}
-          onCancel={() => {
-            setHoleEditorAssets(null);
-            if (mediaInputRef.current) mediaInputRef.current.value = '';
-          }}
+          onCancel={() => setHoleEditorAssets(null)}
         />
       )}
     </div>

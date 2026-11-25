@@ -856,6 +856,8 @@ export default function LiveRoundPage() {
               isSelf: p.participant.profile_id === viewerId,
               holeScores: (p.scores.hole_scores ?? []).map(h => ({ hole_number: h.hole_number, strokes: h.strokes ?? null })),
             }))}
+          // The map preview of a hole without a line looks at the course.
+          courseAt={mapAvailable && courseInfo ? [courseInfo.lat as number, courseInfo.lng as number] : null}
           // The scorer's hole goes with it: the map opens where the player is.
           onShowMap={mapAvailable ? (hole: number) => { setViewedHole(hole); setScorerHole(hole); setTab('map'); } : undefined}
           players={

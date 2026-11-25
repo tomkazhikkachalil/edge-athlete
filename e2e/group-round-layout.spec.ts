@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { test, expect, type Page } from './helpers/test';
 import { cleanup } from './helpers/cleanup';
+import { expectScorerOnHole, strokesDial, typeStrokes } from './helpers/score-card';
 import { fitsViewportWidth } from './helpers/layout';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, scoreHoles, startRound } from './helpers/sport-events';
@@ -181,7 +182,7 @@ test('the scorer fits a 375 px phone, with a very long name among the players @m
 
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(`/live/${id}`);
-    await expect(page.getByText('Hole 1 of 9')).toBeVisible({ timeout: 30_000 });
+    await expectScorerOnHole(page, 1, 30_000);
     const chipA = `[data-scorer-player="${rowOf(userA.id)}"]`;
     const chipB = `[data-scorer-player="${rowOf(userB.id)}"]`;
     await expect(page.locator(chipA)).toBeVisible();
@@ -195,16 +196,14 @@ test('the scorer fits a 375 px phone, with a very long name among the players @m
     await page.locator(chipB).scrollIntoViewIfNeeded();
     await insideScreen(page, chipB, 'the long-named chip');
     await page.locator(chipB).click();
-    await expect(page.locator(chipB)).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
-    await expect(page.getByText('Hole 1 of 9')).toBeVisible();
+    await expect(page.locator(chipB)).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+    await expectScorerOnHole(page, 1);
     // The strokes control is usable: a typed digit lands, and it is on screen.
-    const strokes = page.getByRole('spinbutton', { name: 'Strokes' });
+    const strokes = strokesDial(page);
     const box = (await strokes.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(375.5);
-    await strokes.focus();
-    await strokes.press('5');
-    await expect(strokes).toHaveAttribute('aria-valuenow', '5');
+    await typeStrokes(page, '5');
     expect(await fitsViewportWidth(page), 'still no sideways scroll after switching to the long-named player').toBe(true);
   } finally {
     await cleanup('group-round-layout:scorer', [

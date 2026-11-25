@@ -1,4 +1,5 @@
 import { test, expect, type Browser } from './helpers/test';
+import { expectScorerOnHole, mapPreview } from './helpers/score-card';
 import { adminClient, apiAs, readErrorBody } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
 
@@ -77,8 +78,8 @@ test('gps: an unmapped course still browses hole by hole, and the map never jump
 
     const page = await ctx.newPage();
     await page.goto(`/live/${roundId}`);
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 30_000 });
-    await page.getByRole('button', { name: 'Open course map' }).click();
+    await expectScorerOnHole(page, 1, 30_000);
+    await mapPreview(page).click();
 
     // The stepper exists without a single line.
     await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
@@ -177,7 +178,7 @@ test('gps: a greens-only course reads "Nearest green" distances, never a hole li
 
     const page = await ctx.newPage();
     await page.goto(`/live/${roundId}`);
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 30_000 });
+    await expectScorerOnHole(page, 1, 30_000);
     // The scorer's row C already reads the nearest green from the shared fix.
     const rowC = page.locator('[data-hole-plays-like]');
     await expect(rowC).toHaveAttribute('data-hole-plays-like', 'nearest', { timeout: 20_000 });
@@ -185,7 +186,7 @@ test('gps: a greens-only course reads "Nearest green" distances, never a hole li
     const c = Number((/C (\d+)/.exec((await rowC.textContent()) ?? '') ?? [])[1]);
     expect(Math.abs(c - expectedCentre)).toBeLessThanOrEqual(3);
 
-    await page.getByRole('button', { name: 'Open course map' }).click();
+    await mapPreview(page).click();
     await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
     await expect(page.locator('[data-hole-greens-only]')).toHaveCount(1);
     await expect(page.locator('[data-hole-unmapped]')).toHaveCount(0);
