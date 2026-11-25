@@ -1,5 +1,26 @@
 # Development Log
 
+## November 25, 2026 (01:12) — The golf round flow, part 2: six steps for a live round, quick add, the slide to go live
+
+**Why.** Tom's doc "golf round flow, part 2 (steps 3 to 6)": finish the flow after the course step in the mechanical dialect, and change what it does. His words on the mode: "make this flow focused on playing a live round, not an already played round"; the already-played process "will be built out differently in the coming updates".
+
+**What changed in behaviour (#1625, `78d23ff2`, zero DDL).**
+- The Scores step and Preview are gone; nothing in this flow enters a score. This reverses Oct 31 2026 (Scores on every round). A draft saved while the step existed comes back with its holes blank.
+- **"Already played" is hidden** (`ALREADY_PLAYED_OFFERED = false`). My plan said such a round could take its scores on the draft review. The test for it showed that was wrong: a finished round created without scores draws no scorecard and no "Add Scores" door. I told Tom; he chose to hide the mode until its rebuild. The mode's code stays, unreachable.
+- Six steps outdoor, five indoor.
+- Quick add on the Players step. No table records "people I played with"; `GET /api/golf/partners/recent` derives them from `group_post_participants`, minus blocked pairs and profiles the caller may not view.
+- Partner rows show the handicap index when there is one.
+- Go Live is a slide: 85 % of the travel locks and starts the round once; a tap or an early release starts nothing; Enter, Space and a screen reader's activation work on the key.
+- Tom's wording: "Sunny · 11 °C · 5 to 10 mph", "Light (5 to 10 mph)", "Use course forecast" with a selected state.
+
+**The look.** Format tiles, panel dropdowns, a recessed temperature slot beside a °F | °C switch, the partner panel, the Start plate, a one-line draft banner, a 480 px dialog. Tag People takes the dialect for golf only (`variant="mech"`), my call at Tom's invitation; the general composer keeps its dialog.
+
+**Departures from the doc, told to Tom.** Weather options are plain words (a native list holds no icons); a light twin exists beside the dark theme; one code PR instead of four; `MultiPlayerScorecardGrid` is kept, unrendered, for the rebuild.
+
+**Proof.** `npm run verify` exit 0 (6,965 tests); audit 0; guardrails, blocklists, `check:schema` and `check:schema:prod` green. e2e against the build on staging: desktop 28, mobile 11, webkit-mobile 7, android 7 (the mobile run's one failure is the profile Training-tab test that already fails on main). Production on `78d23ff2`; probe: desktop 17 passed and 1 flaky (the Create sheet's info walk, passed on retry, not touched here), mobile 8 of 8, webkit-mobile 5 passed and 3 stopped at "Vercel Security Checkpoint, Code 21" (the host's bot wall, read from each page snapshot; not the app).
+
+**Owed.** Tom's look on a real phone, the slide above all: only an emulated pointer has driven it. Spec: `docs/specs/golf-round-setup.md`, last section.
+
 ## November 24, 2026 (08:10) — Ottawa courses that found no scorecard: our matching rules refused GolfCourseAPI's answer
 
 **Why.** Tom, after GolfCourseAPI's notice of new rating fields: "the cards in Ottawa are broken again, I can't find courses that work… we're using two golf APIs, so I feel it's something we're doing wrong." He was right. (The new front / back nine ratings are parked: production holds no nine-hole round.)
