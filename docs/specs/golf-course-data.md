@@ -77,7 +77,10 @@ frame (null outside the box) — the thumbnail path, no Leaflet. The round's
 `hole_data` is typed with `handicap?` everywhere it is spelled and the
 composer's `deriveCourseHoles` carries it (the route always accepted it).
 The map's ONE `watchPosition` (`CourseMapInner`) PUBLISHES every fix and
-the stop through `onFix` — the scorer never prompts for location. **PR E —
+the stop through `onFix` — the scorer never prompts for location. **(Nov 25
+2026: the header below was replaced by the hole plate of the new scoring
+card — `golf-live-round.md`. The data rules here stand; the rows, the SVG
+thumbnail, the Map pill and the "Tee → green" words do not.)** **PR E —
 the hole header** (`src/components/golf/HoleHeader.tsx`, mounted in
 `ScoreEntryModal` in place of the old "Hole N · course · Par P · Y yds"
 line): row A the big "Hole N" (the e2e idiom `/^Hole N\b/` stays strict —
