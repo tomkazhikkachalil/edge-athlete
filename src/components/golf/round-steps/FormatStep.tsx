@@ -48,10 +48,11 @@ export default function FormatStep({ value, onChange }: FormatStepProps) {
             aria-pressed={value === option}
             data-format={option}
             {...(value === option ? { 'data-selected': '' } : {})}
-            className="ea-mech-tile ea-mech-press flex h-[76px] min-w-0 flex-col items-start justify-between pt-[11px] pl-3 pb-2.5 pr-2.5 text-left"
+            className="ea-mech-tile ea-mech-press flex h-[76px] min-w-0 flex-col items-start justify-between pt-[11px] pl-[12px] pb-[10px] pr-[10px] max-[359px]:pl-[8px] max-[359px]:pr-[6px] max-[359px]:pb-[8px] text-left"
           >
             <FaIcon icon={icon} className="ea-mech-icon text-[22px]" />
-            <span className="w-full truncate text-[13px] font-semibold leading-4 text-[color:var(--mech-text)]">{label}</span>
+            {/* Under 360 px a two-word name takes a second line instead of an ellipsis. */}
+            <span className="w-full truncate text-[13px] font-semibold leading-[16px] text-[color:var(--mech-text)] max-[359px]:whitespace-normal max-[359px]:[overflow-wrap:anywhere] max-[359px]:line-clamp-2" data-format-name="">{label}</span>
           </button>
         ))}
       </div>

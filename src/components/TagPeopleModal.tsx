@@ -173,7 +173,7 @@ export default function TagPeopleModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="tag-people-title"
-          className="flex max-h-modal w-full max-w-[400px] flex-col gap-3 rounded-[20px] p-4"
+          className="flex max-h-modal w-full min-w-0 max-w-[400px] flex-col gap-3 rounded-[20px] p-4"
           style={{ backgroundColor: 'var(--mech-panel)', border: '1px solid var(--mech-hairline)', boxShadow: 'var(--mech-dialog-depth)' }}
         >
           <div className="flex h-11 shrink-0 items-center justify-between">
@@ -199,9 +199,9 @@ export default function TagPeopleModal({
 
           {/* Capped: many selections must not starve the results below. */}
           {count > 0 && (
-            <ul className="flex max-h-[88px] shrink-0 flex-wrap gap-2 overflow-y-auto overscroll-contain py-0.5" data-tag-people-selected="">
+            <ul className="ea-mech-scroll flex max-h-[88px] min-w-0 shrink-0 flex-wrap gap-2 overflow-y-auto overflow-x-hidden overscroll-contain py-0.5" data-tag-people-selected="">
               {selectedProfiles.map(profile => (
-                <li key={profile.id}>
+                <li key={profile.id} className="min-w-0 max-w-full">
                   <button
                     type="button"
                     onClick={() => toggleProfile(profile)}
@@ -219,7 +219,7 @@ export default function TagPeopleModal({
           )}
 
           {/* The dialog's only scroll area. */}
-          <div className="min-h-[136px] flex-1 overflow-y-auto overscroll-contain" data-tag-people-results="">
+          <div className="ea-mech-scroll min-h-[136px] flex-1 overflow-y-auto overscroll-contain" data-tag-people-results="">
             {loading && (
               <div className="flex h-[136px] items-center justify-center">
                 <FaIcon icon={faSpinner} spin className="text-2xl text-[color:var(--mech-chevron)]" />

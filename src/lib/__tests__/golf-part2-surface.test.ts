@@ -133,3 +133,38 @@ describe('Already played is hidden (Nov 25 2026)', () => {
     expect(composer).toMatch(/return \{ \.\.\.details, alreadyPlayed: false, date: localDayKey\(new Date\(\)\) \};/);
   });
 });
+
+// Every screen size, every browser (Tom, Nov 25 2026). The measuring is
+// e2e/golf-fit.spec.ts; these pin the rules it led to.
+describe('fits any screen, on any engine', () => {
+  const slide = code('src/components/mech/SlideToConfirm.tsx');
+  it('the slide takes the pointer on the whole TRACK, and follows the distance dragged', () => {
+    // The handlers and touch-action sit on the track, before the key's markup.
+    const track = slide.slice(slide.indexOf('data-slide-track=""'), slide.indexOf('<button'));
+    expect(track).toMatch(/style=\{\{ touchAction: 'none' \}\}/);
+    expect(track).toMatch(/onPointerDown=/);
+    expect(track).toMatch(/e\.currentTarget\.setPointerCapture\(e\.pointerId\)/);
+    expect(slide).toMatch(/slideOffset\(e\.clientX - d\.startX, d\.travel\)/);
+    // The key itself keeps only the click no pointer made.
+    expect(slide.slice(slide.indexOf('<button'))).not.toMatch(/onPointerDown/);
+  });
+  it('a sideways drag in the dialog is not the browser\'s back swipe; scrolling parts wear the thin bar', () => {
+    const css = code('src/app/globals.css');
+    expect(css).toMatch(/\.ea-mech-dialog \{ overscroll-behavior-x: contain; \}/);
+    expect(css).toMatch(/\.ea-mech-scroll \{ scrollbar-width: thin;/);
+    expect(css).toMatch(/\.ea-mech-scroll::-webkit-scrollbar \{/);
+    expect(code('src/components/StepFlow.tsx')).toMatch(/ea-mech-scroll px-4 sm:px-5 py-2\.5/);
+    expect(code('src/components/golf/round-steps/PlayersStep.tsx')).toMatch(/data-scroll-x=""/);
+  });
+  it('under 360 px a tile\'s name takes a second line, never an ellipsis; a picture\'s ring is in px like the picture', () => {
+    for (const rel of ['src/components/SportSelector.tsx', 'src/components/golf/round-steps/FormatStep.tsx']) {
+      expect(code(rel)).toMatch(/max-\[359px\]:whitespace-normal max-\[359px\]:\[overflow-wrap:anywhere\]/);
+      expect(code(rel)).toMatch(/max-\[359px\]:line-clamp-2/);
+    }
+    const players = code('src/components/golf/round-steps/PlayersStep.tsx');
+    expect(players).toMatch(/h-\[48px\] w-\[48px\]/);
+    expect(players).toMatch(/h-\[36px\] w-\[36px\]/);
+    // A long name's chip stays inside the Tag People dialog.
+    expect(code('src/components/TagPeopleModal.tsx')).toMatch(/<li key=\{profile\.id\} className="min-w-0 max-w-full">/);
+  });
+});

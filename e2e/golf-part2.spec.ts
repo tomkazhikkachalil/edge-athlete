@@ -169,8 +169,22 @@ for (const tag of ['', ' @mobile']) {
       page.on('request', req => {
         if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/group-posts') started.push(req.url());
       });
-      // A tap on the key is not a slide.
+      // A tap on the key is not a slide — nor is a tap anywhere on the track,
+      // its far end included (the key follows the distance dragged; it never
+      // jumps to the finger).
       await slideKey(flow).click();
+      await expect(track).toHaveAttribute('data-slide-state', 'rest');
+      await page.mouse.click(t.x + t.width - 12, t.y + t.height / 2);
+      await page.mouse.click(t.x + t.width / 2, t.y + t.height / 2);
+      await expect(track).toHaveAttribute('data-slide-state', 'rest');
+      // The drag may start on the track, away from the screen's edge: the
+      // key moves by the distance dragged.
+      await page.mouse.move(t.x + t.width * 0.45, t.y + t.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(t.x + t.width * 0.45 + 60, t.y + t.height / 2, { steps: 6 });
+      await expect(track).toHaveAttribute('data-slide-state', 'dragging');
+      expect(Math.round((await slideKey(flow).boundingBox())!.x - k.x)).toBe(60);
+      await page.mouse.up();
       await expect(track).toHaveAttribute('data-slide-state', 'rest');
       // Half way and let go: the key returns, nothing starts.
       await dragSlide(page, flow, 0.5);

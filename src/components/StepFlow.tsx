@@ -22,7 +22,8 @@ import type { ReactNode } from 'react';
  * share one 44 px row, the dots become equal segments (one per step), Back
  * is 92 × 48 and Next 132 × 48, and `footerCenter` sits between them. Every
  * hook and every rule above is unchanged; the default variant renders as
- * before.
+ * before. Under 360 px Back is 72 and Next at least 96 wide, so Back, Skip
+ * and Next share a 320 px phone's row even with enlarged text (Nov 25 2026).
  *
  * Nov 24 2026 (golf part 2): on the last step a mech caller may hand over
  * its own finish control (`finishControl` — the slide to go live). It takes
@@ -86,13 +87,13 @@ export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFin
   const ownFinish = mech && last && !!finishControl;
 
   const backClass = mech
-    ? ownFinish ? 'ea-mech-back h-14 w-[72px] shrink-0 !rounded-2xl' : 'ea-mech-back min-h-[44px] h-12 w-[92px] shrink-0'
+    ? ownFinish ? 'ea-mech-back h-14 w-[72px] shrink-0 !rounded-2xl' : 'ea-mech-back min-h-[44px] h-12 w-[92px] max-[359px]:w-[72px] shrink-0'
     : 'ea-interactive min-h-[44px] rounded-lg border border-border-strong px-4 text-sm font-medium text-secondary disabled:opacity-50';
   const skipClass = mech
     ? 'ea-mech-btn min-h-[44px] h-12 rounded-[14px] px-3 text-[15px] font-medium text-[color:var(--mech-text-soft)] disabled:opacity-50'
     : 'ea-interactive min-h-[44px] rounded-lg px-3 text-sm font-medium text-secondary disabled:opacity-50';
   const nextClass = mech
-    ? 'ea-mech-next min-h-[44px] h-12 min-w-[132px] shrink-0 px-4'
+    ? 'ea-mech-next min-h-[44px] h-12 min-w-[132px] max-[359px]:min-w-[96px] shrink-0 px-4'
     : 'ea-cta min-h-[44px] rounded-lg px-5 text-base font-semibold text-white disabled:opacity-50';
   const finishClass = mech
     ? nextClass
@@ -145,7 +146,7 @@ export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFin
         </div>
       )}
 
-      <div className={`flex-1 min-h-0 overflow-y-auto ${mech ? 'px-4 sm:px-5 py-2.5' : 'px-4 py-2'}`} data-step-body="">
+      <div className={`flex-1 min-h-0 overflow-y-auto ${mech ? 'ea-mech-scroll px-4 sm:px-5 py-2.5' : 'px-4 py-2'}`} data-step-body="">
         {children}
       </div>
 

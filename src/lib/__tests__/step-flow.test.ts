@@ -61,8 +61,9 @@ describe('StepFlow — variant="mech"', () => {
   it('one segment per step in the progress tokens; Back 92 × 48, Next at least 132 × 48', () => {
     expect(src).toContain("className=\"h-1.5 flex-1 rounded-[2px] transition-colors\"");
     for (const token of ['--mech-progress-current', '--mech-progress-done', '--mech-progress-empty']) expect(src).toContain(token);
-    expect(src).toContain("'ea-mech-back min-h-[44px] h-12 w-[92px] shrink-0'");
-    expect(src).toContain("'ea-mech-next min-h-[44px] h-12 min-w-[132px] shrink-0 px-4'");
+    // …and under 360 px they narrow (72 / at least 96) so the row holds on a 320 px phone.
+    expect(src).toContain("'ea-mech-back min-h-[44px] h-12 w-[92px] max-[359px]:w-[72px] shrink-0'");
+    expect(src).toContain("'ea-mech-next min-h-[44px] h-12 min-w-[132px] max-[359px]:min-w-[96px] shrink-0 px-4'");
   });
   it('only the golf round asks for it; the composer wears the scope only while golf is the post type', () => {
     expect(read('src/components/golf/GolfComposerSection.tsx')).toContain('variant="mech"');

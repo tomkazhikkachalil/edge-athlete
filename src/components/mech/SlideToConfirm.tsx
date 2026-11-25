@@ -10,8 +10,14 @@ import { slideLocks, slideOffset, slideTrailWidth, slideTravel } from '@/lib/gol
  * letting go earlier springs it back and nothing happens — an action that
  * cannot be taken back by a stray tap asks for a deliberate gesture.
  *
- *  - Pointer events with capture on the key (mouse, touch and pen alike);
+ *  - Pointer events with capture on the TRACK (mouse, touch and pen alike);
  *    `touch-action: none` there, so the page does not scroll under a drag.
+ *    The drag may start anywhere on the track, not only on the key (Nov 25
+ *    2026): the key rests 20 px from the screen's left edge, where Android
+ *    and iOS start their own "swipe back" gesture, and a page cannot switch
+ *    that off — so a thumb never HAS to start there. The key follows the
+ *    DISTANCE dragged (never jumps to the finger), so a tap anywhere on the
+ *    track is still nothing: only a real slide of 85 % of the travel locks.
  *  - Released at or past 85 % of the travel (`slideLocks`): the key locks at
  *    the end, shows a check, the label becomes `doneLabel`, `onConfirm`
  *    fires ONCE.
@@ -81,6 +87,32 @@ export default function SlideToConfirm({ label, doneLabel, ariaLabel, onConfirm,
       className={`ea-mech-recess relative h-14 overflow-hidden rounded-2xl ${disabled ? 'opacity-50' : ''} ${className}`}
       data-slide-track=""
       data-slide-state={state}
+      style={{ touchAction: 'none' }}
+      onPointerDown={e => {
+        if (off || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = { startX: e.clientX, travel: travelNow() };
+        setDragging(true);
+      }}
+      onPointerMove={e => {
+        const d = drag.current;
+        if (!d) return;
+        setOffset(slideOffset(e.clientX - d.startX, d.travel));
+      }}
+      onPointerUp={e => {
+        const d = drag.current;
+        if (!d) return;
+        drag.current = null;
+        setDragging(false);
+        const at = slideOffset(e.clientX - d.startX, d.travel);
+        if (slideLocks(at, d.travel)) lock(d.travel);
+        else setOffset(0);
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+        setDragging(false);
+        setOffset(0);
+      }}
     >
       <span
         aria-hidden="true"
@@ -110,32 +142,6 @@ export default function SlideToConfirm({ label, doneLabel, ariaLabel, onConfirm,
         style={{
           transform: `translateX(${offset}px)`,
           transition: dragging ? 'none' : `transform 260ms ${SPRING}`,
-          touchAction: 'none',
-        }}
-        onPointerDown={e => {
-          if (off || (e.pointerType === 'mouse' && e.button !== 0)) return;
-          e.currentTarget.setPointerCapture(e.pointerId);
-          drag.current = { startX: e.clientX, travel: travelNow() };
-          setDragging(true);
-        }}
-        onPointerMove={e => {
-          const d = drag.current;
-          if (!d) return;
-          setOffset(slideOffset(e.clientX - d.startX, d.travel));
-        }}
-        onPointerUp={e => {
-          const d = drag.current;
-          if (!d) return;
-          drag.current = null;
-          setDragging(false);
-          const at = slideOffset(e.clientX - d.startX, d.travel);
-          if (slideLocks(at, d.travel)) lock(d.travel);
-          else setOffset(0);
-        }}
-        onPointerCancel={() => {
-          drag.current = null;
-          setDragging(false);
-          setOffset(0);
         }}
         onClick={e => {
           // detail 0: the keyboard or assistive tech made this click. A

@@ -1470,6 +1470,18 @@ html:has(.org-scope[data-theme="dark"]) body {
 }
 .ea-mech-select > select:focus-visible { outline: none; }
 
+/* Every screen, every browser (Nov 25 2026).
+ * A sideways drag inside the dialog (the slide to go live, the quick add
+ * row) must not become the browser's own back / forward swipe. */
+.ea-mech-dialog { overscroll-behavior-x: contain; }
+/* A scrolling row or list: a thin bar in the palette where a browser always
+ * draws one (Firefox, Windows) — never the grey system bar across a dark
+ * panel. Phones keep their overlay bars. */
+.ea-mech-scroll { scrollbar-width: thin; scrollbar-color: var(--mech-tick) transparent; }
+.ea-mech-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.ea-mech-scroll::-webkit-scrollbar-thumb { background-color: var(--mech-tick); border-radius: 9999px; }
+.ea-mech-scroll::-webkit-scrollbar-track { background: transparent; }
+
 /* Slide to go live: the red key. Its depth is the spec's own. */
 .ea-mech-slide-key {
   background-color: var(--mech-go-live);

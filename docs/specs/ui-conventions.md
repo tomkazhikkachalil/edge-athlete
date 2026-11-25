@@ -176,6 +176,22 @@ A second accent of the house language, for the sport picker and the golf round: 
 
 ---
 
+
+**Every screen size, every engine (Tom, Nov 25 2026: "fits any mobile screen size and could also be expanded to larger screens… work in every web browser… not Apple and Chrome focused").** A mech screen is proven on a ladder, on every engine, in the PR that builds it:
+
+- **The ladder** (`FIT_LADDER` in `e2e/golf-fit.spec.ts`): 320×568, 344×882, 360×640, 360×800, 375×667, 390×844, 412×915, 430×932, 667×375 and 844×390 (a phone on its side), 600×960, 768×1024, 820×1180, 1024×768, 1280×800, 1440×900, 1920×1080, 2560×1440, plus enlarged text (root font 125 % and 150 % at 390, 125 % at 320).
+- **The engines:** the spec sets the viewport itself, so each project brings its engine to every size: `desktop` / `mobile` (Chromium), `webkit-mobile` (WebKit), `firefox-mobile` (Gecko), `android` (the Pixel profile), `brave-android`. One project at a time.
+- **What is measured on each screen:** the page and the dialog do not scroll or poke out sideways; the footer is on screen, its controls apart, each ≥ 44 px, no label cut; keys, tiles and dropdowns ≥ 44 px tall; a sport, a format and a key's label is never an ellipsis or a clipped line (a person's or a course's name may be); a picture fills its ring.
+- **Rules it led to:**
+  - A fixed pixel width needs a narrow form under 360 px: Back 92 → 72, Next min 132 → 96 (`StepFlow`), tile padding 12 / 10 → 8 / 6.
+  - Under 360 px a tile's name takes a second line (`max-[359px]:line-clamp-2`), never an ellipsis.
+  - A box that holds a pixel-sized picture is sized in pixels too (`h-[36px]`, not `h-9`): `rem` grows with the reader's text size and the picture does not.
+  - A row that scrolls sideways says so (`data-scroll-x`) and, like every scrolling list, wears `.ea-mech-scroll` (a thin bar in the palette where a browser always draws one: Firefox, Windows).
+  - `.ea-mech-dialog` sets `overscroll-behavior-x: contain`: a sideways drag inside it is not the browser's back swipe.
+  - A drag control takes the pointer on its whole track and follows the DISTANCE dragged (`SlideToConfirm`): the thumb never has to start at the screen's edge, where Android and iOS begin their own back gesture, and a tap anywhere stays a tap.
+- **The limit, said plainly:** Playwright's three engines and its phone profiles are not a real Samsung, Pixel or iPhone. Samsung Internet, Firefox for Android and Safari on a device can differ, and the system's edge swipe cannot be emulated. A look on real devices stays owed after the ladder passes.
+- **Known gap outside the dialect (reported to Tom, Nov 25 2026, not fixed):** the built stylesheet relies on CSS cascade layers (Tailwind v4), which need iOS 15.4+, Firefox 97+, Chrome 99+ and Samsung Internet 18+. `browserslist` states iOS 15 and Samsung 16; `check:syntax` checks JavaScript only.
+
 ## The Create menu (Create menu redesign, Oct 13 2026; six doors on one screen, Nov 20 2026; tile grid with info, Nov 23 2026; zero DDL)
 
 Tom's spec: ONE Create menu — the header button, the phone drawer's "Create" row, and therefore the feed and the profile (the header is on both) all open `src/components/CreateSheet.tsx`, the house `LargerWindow` (its `bare` option: the sheet draws its own header). The same six doors in this order on ONE screen (Tom, Nov 20 2026) — there is no second step: from Oct 13 to Nov 20 2026 Workout and Activity sat behind a "Record Activity" row (`data-create-record-activity`, `data-create-step="record"`, `data-create-back` — all three hooks are gone). `videos-ui.test.ts` and `create-options.test.ts` pin the order at the source, `e2e/header-create.spec.ts` in the DOM.
