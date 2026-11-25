@@ -113,8 +113,8 @@ test('header Create shows Post, Sport session, Gym workout, Live activity, Event
   // pre-selected; the course field is step 2.
   const flow = page.locator('[data-step-flow="golf-round"]');
   await expect(flow).toBeVisible({ timeout: 15_000 });
-  await expect(flow.locator('[data-step-header]')).toHaveText(/Step 1 of 7 · Round type/);
-  await expect(page.getByText('Playing now')).toBeVisible();
+  await expect(flow.locator('[data-step-header]')).toHaveText(/Step 1 of 6 · Round type/);
+  await expect(page.getByRole('button', { name: 'Outdoor' })).toBeVisible();
   await flow.locator('[data-step-next]').click();
   await expect(page.getByPlaceholder(/search courses/i)).toBeVisible({ timeout: 15_000 });
 });

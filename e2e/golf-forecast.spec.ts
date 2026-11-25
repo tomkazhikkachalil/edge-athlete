@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator } from './helpers/test';
 import { adminClient, apiAs } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
+import { goLive } from './helpers/go-live';
 import { purgeGolfRound, purgePost } from './helpers/results';
 import { startWeatherMock, type WeatherMock } from './helpers/weather-mock';
 
@@ -9,12 +10,11 @@ import { startWeatherMock, type WeatherMock } from './helpers/weather-mock';
 // clear input for it, offered for a LIVE round only, stamped on the round.
 // Pinned here on the round-as-steps flow:
 //   - the Conditions step of a Playing-now round at a catalog course offers
-//     "Use the forecast at the course"; one tap fills weather / temperature /
+//     "Use course forecast"; one tap fills weather / temperature /
 //     wind from the stand-in provider (12.2 °C, partly cloudy, 20 km/h), the
 //     line under the grid credits Open-Meteo, the finish summary says
-//     "Forecast at tee-off", and Go Live stamps the round's scorecard row;
+//     "Tee off forecast", and Go Live stamps the round's scorecard row;
 //   - the server asked the provider ONCE, for the course's 2-decimal cell;
-//   - an already-played round never sees the button;
 //   - the field follows the device unit: 54 with (°F), 12 with (°C) — the
 //     stored value stays Fahrenheit; a second ask is a memo hit, no call.
 // The provider is a local stand-in (weather-mock.ts) the test server is
@@ -70,14 +70,14 @@ async function purgeRound(admin: ReturnType<typeof adminClient>, groupPostId: st
 /** Walk a fresh Playing-now round to the Conditions step at the seeded course. */
 async function toConditions(page: Page, name: string): Promise<Locator> {
   const flow = await openGolf(page);
-  await next(flow, /Step 2 of 7 · Course/);
+  await next(flow, /Step 2 of 6 · Course/);
   await pickCourse(page, name);
-  await next(flow, /Step 3 of 7 · Game format/);
-  await next(flow, /Step 4 of 7 · Conditions/);
+  await next(flow, /Step 3 of 6 · Game format/);
+  await next(flow, /Step 4 of 6 · Conditions/);
   return flow;
 }
 
-test('a live round at a catalog course takes the forecast: filled, credited, stamped; once per cell; never for an already-played round; °F or °C by the device unit @mobile', async ({ page }) => {
+test('a live round at a catalog course takes the forecast: filled, credited, stamped; once per cell; °F or °C by the device unit @mobile', async ({ page }) => {
   test.setTimeout(240_000);
   page.setDefaultTimeout(20_000); // a missing element fails with its name, never a silent hang
   await page.setViewportSize({ width: 375, height: 812 });
@@ -101,15 +101,21 @@ test('a live round at a catalog course takes the forecast: filled, credited, sta
     // Imperial on this device: the field says °F and the forecast lands as 54.
     await chooseUnit(page, 'mi');
     let flow = await toConditions(page, name);
-    await expect(page.locator('label[for="golf-temperature"]')).toHaveText('Temperature (°F)');
+    await expect(page.locator('#golf-temperature')).toHaveAttribute('data-golf-temperature-unit', '°F');
     const button = page.locator('[data-golf-forecast]');
     await expect(button).toBeVisible();
+    // The key's words (Nov 24 2026), and no selected ring before it is used.
+    await expect(button).toHaveText('Use course forecast');
+    await expect(button).not.toHaveAttribute('data-applied', '');
     await button.click();
     await expect(page.locator('#golf-weather')).toHaveValue('partly-cloudy', { timeout: 15_000 });
     await expect(page.locator('#golf-temperature')).toHaveValue('54');
     await expect(page.locator('#golf-wind')).toHaveValue('moderate');
     const note = page.locator('[data-golf-forecast-note]');
-    await expect(note).toContainText('Forecast at tee-off');
+    await expect(note).toContainText('Tee off forecast');
+    // Applied: the key wears its ring while the fields hold the forecast.
+    await expect(button).toHaveAttribute('data-applied', '');
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
     await expect(note).toContainText('Partly cloudy');
     await expect(note).toContainText('54 °F');
     await expect(note).toContainText('12 mph');
@@ -122,16 +128,13 @@ test('a live round at a catalog course takes the forecast: filled, credited, sta
     expect(mock.calls[0]).toContain('current=temperature_2m');
 
     // The finish summary says so, and Go Live stamps the round.
-    await next(flow, /Step 5 of 7 · Players/);
-    await next(flow, /Step 6 of 7 · Scores/);
-    await next(flow, /Step 7 of 7 · Start/);
-    // ONE line on the last step (Oct 29 2026): "Partly cloudy, 54°F, 10–20 mph" —
-    // "Forecast at tee-off" stays on the step's note, the card and the round page.
-    await expect(flow.locator('[data-round-summary-row="conditions"]')).toHaveText(/Partly cloudy, 54°F, 10–20 mph/);
-    await expect(flow.locator('[data-round-summary-row="conditions"]')).not.toContainText('Forecast at tee-off');
-    const finish = flow.locator('[data-step-finish]');
-    await expect(finish).toHaveText(/Go Live/);
-    await finish.click();
+    await next(flow, /Step 5 of 6 · Players/);
+    await next(flow, /Step 6 of 6 · Start/);
+    // ONE line on the last step (Oct 29 + Nov 24 2026): "Partly cloudy · 54 °F
+    // · 10 to 20 mph" — the forecast's own line stays on the step's note.
+    await expect(flow.locator('[data-round-summary-row="conditions"]')).toHaveText(/Partly cloudy · 54 °F · 10 to 20 mph/);
+    await expect(flow.locator('[data-round-summary-row="conditions"]')).not.toContainText(/forecast/i);
+    await goLive(flow);
     await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
     groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
     expect(groupPostId).not.toBe('');
@@ -170,21 +173,11 @@ test('a live round at a catalog course takes the forecast: filled, credited, sta
     await purgeRound(admin, groupPostId);
     groupPostId = '';
 
-    // An already-played round never sees the button.
-    flow = await openGolf(page);
-    await page.getByRole('button', { name: 'Already played' }).click();
-    await next(flow, /Step 2 of 7 · Course/);
-    await pickCourse(page, name);
-    await next(flow, /Step 3 of 7 · Game format/);
-    await next(flow, /Step 4 of 7 · Conditions/);
-    await expect(page.locator('[data-round-step="conditions"]')).toBeVisible();
-    await expect(page.locator('[data-golf-forecast]')).toHaveCount(0);
-
     // Metric on this device: the field says °C, the same forecast reads 12,
     // and the second ask is a memo hit — the provider heard nothing new.
     await chooseUnit(page, 'km');
     flow = await toConditions(page, name);
-    await expect(page.locator('label[for="golf-temperature"]')).toHaveText('Temperature (°C)');
+    await expect(page.locator('#golf-temperature')).toHaveAttribute('data-golf-temperature-unit', '°C');
     await page.locator('[data-golf-forecast]').click();
     await expect(page.locator('#golf-temperature')).toHaveValue('12', { timeout: 15_000 });
     await expect(page.locator('[data-golf-forecast-note]')).toContainText('12 °C');

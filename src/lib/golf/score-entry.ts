@@ -291,3 +291,14 @@ export function hasAnyEnteredScore(
 ): boolean {
   return players.some(p => p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0));
 }
+
+/**
+ * The same players with every hole blank (Nov 24 2026). The composer no
+ * longer has a Scores step, so a draft saved while it had one must not carry
+ * strokes nobody can see or change into the round it creates.
+ */
+export function withoutEnteredScores<P extends { hole_scores: ReadonlyArray<{ hole_number: number }> }>(
+  players: ReadonlyArray<P>
+): P[] {
+  return players.map(p => ({ ...p, hole_scores: p.hole_scores.map(h => ({ hole_number: h.hole_number })) }));
+}

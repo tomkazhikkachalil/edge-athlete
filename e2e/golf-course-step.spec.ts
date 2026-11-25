@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator } from './helpers/test';
 import { adminClient, apiAs } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
+import { goLive } from './helpers/go-live';
 
 // The golf round's course step in the mechanical dialect (Tom's visual spec,
 // Nov 23 2026): the SEARCH (a slot, the Near me key, the lists) swaps in
@@ -145,14 +146,12 @@ for (const tag of ['', ' @mobile']) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 
       // ── The round saves what the screen showed ────────────────────────────
-      await flow.locator('[data-step-next]').click();
-      await flow.locator('[data-step-next]').click();
-      await flow.locator('[data-step-next]').click();
-      await flow.locator('[data-step-next]').click();
-      await flow.locator('[data-step-next]').click();
-      await expect(flow).toHaveAttribute('data-step', 'finish');
+      for (const step of ['format', 'conditions', 'players', 'finish']) {
+        await flow.locator('[data-step-next]').click();
+        await expect(flow).toHaveAttribute('data-step', step);
+      }
       await expect(flow.locator('[data-round-summary-row="tee"]')).toContainText('Red (F) · 5,400 yds · 71.9 / 124');
-      await flow.locator('[data-step-finish]').click();
+      await goLive(flow);
       await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
       groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
       expect(groupPostId).not.toBe('');
@@ -216,7 +215,7 @@ test('the course step, indoor: no tee table, the course still shown', async ({ p
   const flow = page.locator('[data-step-flow="golf-round"]');
   await expect(flow).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Indoor' }).click();
-  await expect(flow.locator('[data-step-header]')).toHaveText(/Step 1 of 6 · Round type/);
+  await expect(flow.locator('[data-step-header]')).toHaveText(/Step 1 of 5 · Round type/);
   await flow.locator('[data-step-next]').click();
   await page.getByPlaceholder(/search courses/i).fill(`QA Indoor Bay ${Date.now()}`);
   await page.locator('[data-course-add-manually]').click();

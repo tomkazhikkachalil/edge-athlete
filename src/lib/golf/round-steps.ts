@@ -3,16 +3,20 @@
 // behaviour stays, only the way through them changes. The step LIST depends
 // on the first step's answers (the org wizard's `stepsFor` idea):
 //   • Indoor drops Conditions (the form hid them for indoor already).
-//   • Every round has Scores (the grid + the hole-by-hole Quick entry,
-//     skippable). Already played finishes on "Create" — the round lands on
-//     the draft review; Playing now finishes on "Start" — Go Live.
+//   • No round enters scores here (Nov 24 2026, Tom: the flow is about
+//     starting a live round; the already-played process is rebuilt later).
+//     A live round is scored on its live page; an already-played round is
+//     created without scores and takes them from its scorecard on the draft
+//     review. This reverses Oct 31 2026 (Scores on every round).
+//   • Already played finishes on "Create" — the round lands on the draft
+//     review; Playing now finishes on "Start" — Go Live.
 // Playing now + Outdoor are the defaults (Tom, Oct 28: keep today's), the
 // date is locked to today while Playing now (the old past-date → Already
 // played flip is retired), and only the course step can refuse Next:
 // course + date were the ONLY required fields of the form and still are.
 // StepFlow draws the frame; this module decides the list and the refusals.
 
-export type RoundStepId = 'type' | 'course' | 'format' | 'conditions' | 'players' | 'scores' | 'finish';
+export type RoundStepId = 'type' | 'course' | 'format' | 'conditions' | 'players' | 'finish';
 
 export interface RoundStep {
   id: RoundStepId;
@@ -24,6 +28,22 @@ export interface RoundStep {
 export interface RoundStepAnswers {
   alreadyPlayed: boolean;
   indoor: boolean;
+}
+
+// ── "Already played" is not offered (Nov 25 2026, Tom) ──────────────────────
+// With the Scores step gone, a round logged as already played would be
+// created with no scores and no door to add them (a finished round without
+// scores draws no scorecard). Tom: hide it until the already-played process
+// is rebuilt. Step 1 then asks only Outdoor / Indoor and every round started
+// here is live. The mode's rules and paths below stay, unreachable, for the
+// rebuild: turning this on brings the switch back — it does NOT bring score
+// entry back.
+export const ALREADY_PLAYED_OFFERED = false;
+
+/** The mode a round may be in: an already-played answer (a draft saved
+ *  before the option was hidden) is a live round while it is not offered. */
+export function offeredAlreadyPlayed(alreadyPlayed: boolean | undefined, offered: boolean = ALREADY_PLAYED_OFFERED): boolean {
+  return offered && alreadyPlayed === true;
 }
 
 /** The first step's defaults — today's form opened the same way. */
@@ -40,15 +60,13 @@ export function stepsForRound(a: RoundStepAnswers): RoundStep[] {
   ];
   if (!a.indoor) steps.push({ id: 'conditions', label: 'Conditions', skippable: true });
   steps.push({ id: 'players', label: 'Players', skippable: true });
-  // Oct 31 2026 (Tom): the score grid is back for Playing now too, skippable.
-  steps.push({ id: 'scores', label: 'Scores', skippable: true });
   steps.push({ id: 'finish', label: a.alreadyPlayed ? 'Create' : 'Start' });
   return steps;
 }
 
 /** Where a step sits in the list; 0 (the first step) when the list no longer
- *  holds it — a restored draft on Scores after switching to Playing now
- *  starts over rather than rendering a step that does not exist. */
+ *  holds it — a draft saved on a step that has since left the list (the
+ *  retired Scores step) starts over rather than rendering nothing. */
 export function roundStepIndex(steps: RoundStep[], id: RoundStepId | string | undefined): number {
   const i = steps.findIndex(s => s.id === id);
   return i < 0 ? 0 : i;
@@ -94,27 +112,43 @@ export function roundBusyLabel(alreadyPlayed: boolean): string {
 // outdoor round sees them, and asks that code, tests and later specs keep
 // the numbering. This is that list: `stepsForRound(DEFAULT_ROUND_ANSWERS)`
 // in order — Step 1 Round type · 2 Course · 3 Game format · 4 Conditions ·
-// 5 Players · 6 Scores · 7 Start. `round-steps.test.ts` pins the two agree.
-export const LIVE_OUTDOOR_STEPS: readonly RoundStepId[] = ['type', 'course', 'format', 'conditions', 'players', 'scores', 'finish'];
+// 5 Players · 6 Start (Nov 24 2026: six again, the Scores step is gone).
+// `round-steps.test.ts` pins the two agree.
+export const LIVE_OUTDOOR_STEPS: readonly RoundStepId[] = ['type', 'course', 'format', 'conditions', 'players', 'finish'];
 
 /** The step's number on the live + outdoor path (1-based); 0 when it is not on it. */
 export function liveOutdoorStepNumber(id: RoundStepId): number {
   return LIVE_OUTDOOR_STEPS.indexOf(id) + 1;
 }
 
-// ── The conditions as one line (step 6, Oct 29 2026) ────────────────────────
-// Tom: shorten the summary to `Cloudy, 7°C, 5–10 mph` and drop "Forecasted
-// at tee-off" from it (the Conditions step's note, the round card and the
-// round page keep theirs). The weather word without its emoji, the
-// temperature in the viewer's unit written tight, the wind band as its mph
-// range — the select's own ranges, an en dash.
+// ── The conditions as one line (step 6) ─────────────────────────────────────
+// Tom, Oct 29 2026: ONE line, without "Forecasted at tee-off" (the
+// Conditions step's note, the round card and the round page keep theirs).
+// Tom, Nov 24 2026 ("design wording everywhere"): `Sunny · 11 °C · 5 to 10
+// mph` — the weather word, the temperature in the viewer's unit with its
+// space, the wind band as its mph range written "5 to 10". The Wind
+// dropdown's options read the same ranges (`windOptionLabel`).
 
 export const WIND_RANGE: Readonly<Record<string, string>> = {
-  calm: '0–5 mph',
-  light: '5–10 mph',
-  moderate: '10–20 mph',
+  calm: '0 to 5 mph',
+  light: '5 to 10 mph',
+  moderate: '10 to 20 mph',
   strong: '20+ mph',
 };
+
+const WIND_WORD: Readonly<Record<string, string>> = {
+  calm: 'Calm',
+  light: 'Light',
+  moderate: 'Moderate',
+  strong: 'Strong',
+};
+
+/** The Wind dropdown's option: "Light (5 to 10 mph)"; null for an unknown band. */
+export function windOptionLabel(value: string): string | null {
+  const word = WIND_WORD[value];
+  const range = WIND_RANGE[value];
+  return word && range ? `${word} (${range})` : null;
+}
 
 export function windRange(value: string): string | null {
   return WIND_RANGE[value] ?? null;
@@ -132,10 +166,10 @@ export function weatherWord(value: string): string | null {
   return WEATHER_WORD[value] ?? null;
 }
 
-/** "7°C" / "45°F" — the summary's tight spelling (the house `formatQuantity`
- *  keeps "7 °C" everywhere else). */
-export function tightTemperature(value: number, unit: '°C' | '°F'): string {
-  return `${Math.round(value)}${unit}`;
+/** "7 °C" / "45 °F" — a whole number, a space, the unit (the house
+ *  `formatQuantity` spelling). */
+export function summaryTemperature(value: number, unit: '°C' | '°F'): string {
+  return `${Math.round(value)} ${unit}`;
 }
 
 /** The one line, from the three stored fields (the temperature already in
@@ -143,18 +177,18 @@ export function tightTemperature(value: number, unit: '°C' | '°F'): string {
 export function conditionsLine(input: { weather: string; temperature: number | null; unit: '°C' | '°F'; wind: string }): string | null {
   const parts = [
     weatherWord(input.weather),
-    input.temperature !== null && Number.isFinite(input.temperature) ? tightTemperature(input.temperature, input.unit) : null,
+    input.temperature !== null && Number.isFinite(input.temperature) ? summaryTemperature(input.temperature, input.unit) : null,
     windRange(input.wind),
   ].filter((p): p is string => !!p);
-  return parts.length > 0 ? parts.join(', ') : null;
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 // ── The dialog's width on a desktop (the mechanical dialect, Nov 23 2026) ──
-// Tom's visual spec: the round type and the course SEARCH sit in a 480 px
-// dialog; once a course is SHOWN (picked from the catalog, or a typed name
-// added by hand) the dialog widens to 760 px (two columns), and every later
-// step keeps that width (a scorecard needs it). A phone is full screen
-// either way — this only names the frame.
+// Tom's visual specs: every step sits in a 480 px dialog, except the course
+// step once a course is SHOWN (picked from the catalog, or a typed name
+// added by hand): its two columns take 760 px. A phone is full screen either
+// way — this only names the frame. (Nov 24 2026: the later steps came back
+// to 480 px; they were wide only while a score grid lived among them.)
 //
 // 'full' (920 px) is the course step with the course's SCORECARD open: an
 // eighteen with its tee rows is wider than 760 px, and a wide table on a
@@ -163,7 +197,6 @@ export function conditionsLine(input: { weather: string; temperature: number | n
 export type RoundFrame = 'narrow' | 'wide' | 'full';
 
 export function roundFrame(stepId: RoundStepId, courseShown: boolean, scorecardOpen = false): RoundFrame {
-  if (stepId === 'type') return 'narrow';
-  if (stepId === 'course') return courseShown ? (scorecardOpen ? 'full' : 'wide') : 'narrow';
-  return 'wide';
+  if (stepId === 'course' && courseShown) return scorecardOpen ? 'full' : 'wide';
+  return 'narrow';
 }

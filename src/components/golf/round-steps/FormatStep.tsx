@@ -1,6 +1,5 @@
 'use client';
 
-import { GOLF_LABEL } from '@/components/golf/golf-form-styles';
 import FaIcon from '@/components/FaIcon';
 import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
 import { faPeopleArrows } from '@/lib/icons/fa/people-arrows';
@@ -20,9 +19,14 @@ export function gameFormatLabel(value: GolfGameFormat): string {
 }
 
 /**
- * Step 3 of the golf round: the game format, unchanged from the one-page
- * form — the three options and their two help lines, on a screen of their own.
- * The pressed option is purple (Oct 29 2026: the one selected colour).
+ * Step 3 of the golf round: the game format.
+ *
+ * The look (Tom's part 2 spec, Nov 24 2026 — the mechanical dialect): one
+ * tile per format in a three-column grid on every width, so a fourth format
+ * flows onto a second row without a layout change. The icon sits top left,
+ * the name bottom left; exactly one tile is the pressed one (`aria-pressed`,
+ * as the three buttons were). The two help lines under the grid are gone
+ * (his rule for these steps: no helper sentences).
  */
 interface FormatStepProps {
   value: GolfGameFormat;
@@ -32,37 +36,25 @@ interface FormatStepProps {
 export default function FormatStep({ value, onChange }: FormatStepProps) {
   return (
     <div data-round-step="format">
-      <label className={GOLF_LABEL}>Game Format</label>
-      {/* Stacks on phones — three ~100px columns wrap the two-word labels
-          badly at 360px */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+      <div className="flex items-center h-7 mb-2">
+        <span className="ea-mech-micro" id="golf-format-label">Game format</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby="golf-format-label" data-format-grid="">
         {GAME_FORMAT_OPTIONS.map(({ value: option, label, icon }) => (
           <button
             key={option}
             type="button"
             onClick={() => onChange(option)}
             aria-pressed={value === option}
-            className={`px-3 py-3 min-h-[44px] rounded-lg font-semibold text-sm transition-all ${
-              value === option
-                ? 'bg-brand text-white'
-                : 'bg-surface text-secondary border-2 border-border-strong hover:border-violet-300 dark:hover:border-violet-700'
-            }`}
+            data-format={option}
+            {...(value === option ? { 'data-selected': '' } : {})}
+            className="ea-mech-tile ea-mech-press flex h-[76px] min-w-0 flex-col items-start justify-between pt-[11px] pl-3 pb-2.5 pr-2.5 text-left"
           >
-            <FaIcon icon={icon} className="mr-1.5" />
-            {label}
+            <FaIcon icon={icon} className="ea-mech-icon text-[22px]" />
+            <span className="w-full truncate text-[13px] font-semibold leading-4 text-[color:var(--mech-text)]">{label}</span>
           </button>
         ))}
       </div>
-      {value === 'stableford' && (
-        <p className="mt-2 text-xs text-tertiary">
-          Points per hole — eagle 4, birdie 3, par 2, bogey 1. Highest points wins.
-        </p>
-      )}
-      {value === 'match' && (
-        <p className="mt-2 text-xs text-tertiary">
-          Head-to-head holes won — best with exactly 2 players. Scores are still recorded per hole.
-        </p>
-      )}
     </div>
   );
 }

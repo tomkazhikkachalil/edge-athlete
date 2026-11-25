@@ -19,7 +19,7 @@ describe('StepFlow — the shared step shell', () => {
     expect(src).not.toMatch(/\.ea-[a-z-]+\s*\{/);
   });
   it('the last step shows the caller\'s finish button, never Next; Back is disabled on the first step', () => {
-    expect(src).toMatch(/\{last \? \(\s*<button[^>]*onClick=\{onFinish\}/);
+    expect(src).toMatch(/\{ownFinish \? null : last \? \(\s*<button[^>]*onClick=\{onFinish\}/);
     expect(src).toMatch(/disabled=\{busy \|\| index === 0\}/);
   });
 });

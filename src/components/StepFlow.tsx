@@ -23,6 +23,12 @@ import type { ReactNode } from 'react';
  * is 92 × 48 and Next 132 × 48, and `footerCenter` sits between them. Every
  * hook and every rule above is unchanged; the default variant renders as
  * before.
+ *
+ * Nov 24 2026 (golf part 2): on the last step a mech caller may hand over
+ * its own finish control (`finishControl` — the slide to go live). It takes
+ * the place of the finish button and fills the row; Back narrows to 72 × 56
+ * beside it, and a refusal is said on a line above the row. The control
+ * carries `data-step-finish` itself and calls the caller's own finish.
  */
 export interface StepFlowStep {
   id: string;
@@ -54,6 +60,8 @@ interface StepFlowProps {
   lead?: ReactNode;
   /** mech only: a small line between Back and Next (a credit). */
   footerCenter?: ReactNode;
+  /** mech only, last step: the caller's own finish control, in place of the finish button. */
+  finishControl?: ReactNode;
   children: ReactNode;
   className?: string;
 }
@@ -69,15 +77,16 @@ function segmentColour(i: number, index: number): string {
   return i < index ? 'var(--mech-progress-done)' : 'var(--mech-progress-empty)';
 }
 
-export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFinish, busy = false, busyLabel = 'Saving…', canAdvance = true, refusal, finishTone = 'brand', variant = 'default', lead, footerCenter, children, className = '' }: StepFlowProps) {
+export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFinish, busy = false, busyLabel = 'Saving…', canAdvance = true, refusal, finishTone = 'brand', variant = 'default', lead, footerCenter, finishControl, children, className = '' }: StepFlowProps) {
   const step = steps[index] ?? steps[0];
   const last = index >= steps.length - 1;
   const back = () => onIndex(Math.max(0, index - 1));
   const next = () => onIndex(Math.min(steps.length - 1, index + 1));
   const mech = variant === 'mech';
+  const ownFinish = mech && last && !!finishControl;
 
   const backClass = mech
-    ? 'ea-mech-back min-h-[44px] h-12 w-[92px] shrink-0'
+    ? ownFinish ? 'ea-mech-back h-14 w-[72px] shrink-0 !rounded-2xl' : 'ea-mech-back min-h-[44px] h-12 w-[92px] shrink-0'
     : 'ea-interactive min-h-[44px] rounded-lg border border-border-strong px-4 text-sm font-medium text-secondary disabled:opacity-50';
   const skipClass = mech
     ? 'ea-mech-btn min-h-[44px] h-12 rounded-[14px] px-3 text-[15px] font-medium text-[color:var(--mech-text-soft)] disabled:opacity-50'
@@ -142,10 +151,13 @@ export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFin
 
       <div
         className={mech
-          ? 'sticky bottom-0 flex items-center gap-2 px-4 sm:px-5 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-0 shrink-0 bg-[color:var(--mech-surface)]'
+          ? `sticky bottom-0 flex items-center gap-2 px-4 sm:px-5 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-0 shrink-0 bg-[color:var(--mech-surface)] ${ownFinish ? 'flex-wrap' : ''}`
           : 'sticky bottom-0 flex items-center gap-2 border-t border-border bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]'}
         data-step-footer=""
       >
+        {ownFinish && !canAdvance && refusal ? (
+          <p className="basis-full text-center text-xs text-[color:var(--mech-text-soft)]" data-step-refusal="" aria-live="polite">{refusal}</p>
+        ) : null}
         <button
           type="button"
           onClick={back}
@@ -162,11 +174,15 @@ export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFin
         )}
         {/* The reason Next is grey, in the space between the buttons; a
             calm line, not a red error before anything was tried. */}
+        {ownFinish ? (
+          <div className="min-w-0 flex-1">{finishControl}</div>
+        ) : (
         <span className={`flex-1 min-w-0 text-xs ${mech ? 'text-center text-[color:var(--mech-text-soft)]' : 'text-secondary'}`} data-step-refusal={!canAdvance && refusal ? '' : undefined} aria-live="polite">
           {!canAdvance && refusal ? refusal : null}
           {mech && (canAdvance || !refusal) ? footerCenter : null}
         </span>
-        {last ? (
+        )}
+        {ownFinish ? null : last ? (
           <button type="button" onClick={onFinish} disabled={busy || !canAdvance} className={finishClass} data-tone={mech ? finishTone : undefined} data-step-finish="">
             {busy ? busyLabel : finishLabel}
           </button>

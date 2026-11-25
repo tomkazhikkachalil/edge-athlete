@@ -33,12 +33,11 @@ export interface SportComposerExtraProps {
   seed?: SportComposerValue;
   /** The golf round as steps (Oct 28 2026): the section draws the step frame
    *  and its footer in place of the composer's, so the composer hands it the
-   *  submit (`onFinish` = handleSubmit), the preview, the in-flight state and
+   *  submit (`onFinish` = handleSubmit), the in-flight state and
    *  the line the busy finish shows (the upload progress, else the mode's
    *  own); `finishSlot` is the composer's caption + media block, rendered by
    *  the section on its last step for an already-played round. */
   onFinish?: () => void;
-  onPreview?: () => void;
   busy?: boolean;
   busyLabel?: string;
   finishSlot?: ReactNode;

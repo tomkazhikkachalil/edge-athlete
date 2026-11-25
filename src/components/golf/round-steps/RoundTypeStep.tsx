@@ -29,6 +29,10 @@ interface RoundTypeStepProps {
   indoor: boolean;
   onAlreadyPlayed: (alreadyPlayed: boolean) => void;
   onIndoor: (indoor: boolean) => void;
+  /** The WHEN question is asked (round-steps.ts ALREADY_PLAYED_OFFERED).
+   *  While it is not, the step asks only Outdoor / Indoor and the round is
+   *  live (Nov 25 2026, Tom: hidden until the already-played rebuild). */
+  offerAlreadyPlayed?: boolean;
   /** Whose round it is — the athlete a guardian composes for, else the person. */
   forName?: string | null;
 }
@@ -62,7 +66,7 @@ const WHERE_OPTIONS = [
   { value: 'indoor' as Where, label: 'Indoor', icon: () => <FaIcon icon={faWarehouse} className="text-[18px]" /> },
 ] as const;
 
-export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, onIndoor, forName }: RoundTypeStepProps) {
+export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, onIndoor, forName, offerAlreadyPlayed = true }: RoundTypeStepProps) {
   const [infoOpen, setInfoOpen] = useState(false);
   const whenId = useId();
 
@@ -72,6 +76,7 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
         <p className="mb-2.5 text-[13px] text-[color:var(--mech-text-soft)]">For {forName}</p>
       )}
 
+      {offerAlreadyPlayed && (
       <div>
         <div className="flex items-center justify-between h-7 mb-2">
           <span className="ea-mech-micro">When is this round?</span>
@@ -102,8 +107,9 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
           />
         )}
       </div>
+      )}
 
-      <div className="mt-[18px]">
+      <div className={offerAlreadyPlayed ? 'mt-[18px]' : ''}>
         <div className="flex items-center h-7 mb-2">
           <span className="ea-mech-micro">Round type</span>
         </div>

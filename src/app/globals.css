@@ -1187,6 +1187,11 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-gold-track: rgb(217 154 0 / 0.28);
   --mech-knob: #ffffff;
   --mech-live: #e5354a;
+  --mech-live-glow: rgb(229 53 74 / 0.45);
+  --mech-go-live: #d63f45;
+  --mech-go-live-trail: rgb(214 63 69 / 0.22);
+  --mech-avatar-ring: rgb(20 16 40 / 0.14);
+  --mech-check-ring: #b9b5c4;
   --mech-close: #e6e3ec;
   --mech-close-icon: #4a4656;
   --mech-overlay: rgb(20 16 40 / 0.45);
@@ -1251,6 +1256,10 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-gold-track: rgb(245 179 1 / 0.28);
   --mech-knob: #8f8b9a;
   --mech-live: #ff4d5e;
+  --mech-live-glow: rgb(255 77 94 / 0.7);
+  --mech-go-live-trail: rgb(214 63 69 / 0.3);
+  --mech-avatar-ring: rgb(255 255 255 / 0.18);
+  --mech-check-ring: #4a4753;
   --mech-close: #26252d;
   --mech-close-icon: #c9c6d1;
   --mech-overlay: rgb(5 4 8 / 0.72);
@@ -1341,6 +1350,10 @@ html:has(.org-scope[data-theme="dark"]) body {
   outline-offset: 2px;
 }
 .ea-mech-slot-input:focus-visible { outline: none; }
+/* A number in a slot is typed, not stepped: no spinner arrows. */
+.ea-mech-slot-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.ea-mech-slot-input[type="number"]::-webkit-outer-spin-button,
+.ea-mech-slot-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* A key in a switch track: flat until it is the pressed one. */
 .ea-mech-key {
@@ -1445,9 +1458,54 @@ html:has(.org-scope[data-theme="dark"]) body {
 .ea-mech-btn:not(:disabled):active { transform: scale(0.97); }
 .ea-mech-btn { transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease); }
 
+/* Part 2 (Nov 24 2026): a single-button tile presses by itself; the
+ * forecast key wears the selected border once it has been applied. */
+.ea-mech-press:not(:disabled):active { transform: scale(0.97); }
+.ea-mech-forecast[data-applied] {
+  box-shadow: inset 0 0 0 1.5px var(--mech-selected-border), var(--mech-panel-depth);
+}
+.ea-mech-select:focus-within {
+  outline: 2px solid var(--mech-accent-light);
+  outline-offset: 2px;
+}
+.ea-mech-select > select:focus-visible { outline: none; }
+
+/* Slide to go live: the red key. Its depth is the spec's own. */
+.ea-mech-slide-key {
+  background-color: var(--mech-go-live);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.3), 0 2px 6px rgb(0 0 0 / 0.6);
+  cursor: grab;
+}
+.ea-mech-slide-key:active { cursor: grabbing; }
+/* A partner row added while the step is open. */
+.ea-mech-partner[data-enter] { animation: ea-mech-partner-in 320ms cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+@keyframes ea-mech-partner-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+/* Tag People: a selected person's chip, a result row's check. */
+.ea-mech-chip {
+  background-color: var(--mech-selected-fill);
+  box-shadow: inset 0 0 0 1.5px var(--mech-selected-border);
+  color: var(--mech-text);
+  transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease);
+}
+.ea-mech-chip:active { transform: scale(0.97); }
+.ea-mech-check {
+  box-shadow: inset 0 0 0 1.5px var(--mech-check-ring);
+  color: transparent;
+}
+.ea-mech-check[data-on] {
+  background-color: var(--mech-accent);
+  box-shadow: none;
+  color: #ffffff;
+}
+
 /* A mouse gets a sign before the press; a phone never keeps a hover. */
 @media (hover: hover) {
   .ea-mech-close:hover,
+  .ea-mech-chip:hover,
+  .ea-mech-slide-key:hover,
   .ea-mech-btn:not(:disabled):hover,
   .ea-mech-back:not(:disabled):hover,
   .ea-mech-next:not(:disabled):hover,

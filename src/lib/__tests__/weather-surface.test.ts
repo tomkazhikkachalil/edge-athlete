@@ -61,7 +61,10 @@ describe('the Conditions step and the composer', () => {
   it('credits the source with a safe link and names the button', () => {
     expect(step).toMatch(/WEATHER_ATTRIBUTION\.text/);
     expect(step).toMatch(/rel="noopener noreferrer"/);
-    expect(step).toMatch(/Use the forecast at the course/);
+    expect(step).toMatch(/Use course forecast/);
+    // The applied state is the round's own fact, not a second flag.
+    expect(step).toMatch(/data-applied/);
+    expect(composer).toMatch(/applied: sharedRoundDetails\.conditionsSource === 'forecast'/);
     expect(step).toMatch(/data-golf-forecast=""/);
   });
 

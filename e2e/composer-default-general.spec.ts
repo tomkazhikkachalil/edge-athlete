@@ -23,7 +23,7 @@ test('a golfer\'s new post starts General: "Create a post", no golf fields', asy
     await selector.getByRole('button', { name: /golf/i }).first().click();
     // The golf round's steps (Oct 28 2026) open on Round type.
     await expect(page.locator('[data-step-flow="golf-round"]')).toBeVisible();
-    await expect(page.getByText('Playing now')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Outdoor' })).toBeVisible();
   } finally {
     await api.put('/api/profile', { data: { profileData: { sport: null } } });
     await api.dispose();
