@@ -1417,7 +1417,8 @@ html:has(.org-scope[data-theme="dark"]) body {
     color 160ms var(--ea-ease),
     transform 120ms var(--ea-ease);
 }
-.ea-mech-key[aria-pressed="true"] {
+.ea-mech-key[aria-pressed="true"],
+.ea-mech-key[aria-selected="true"] {
   background-color: var(--mech-key);
   color: var(--mech-text);
   box-shadow: var(--mech-key-depth);
@@ -1652,6 +1653,39 @@ html:has(.org-scope[data-theme="dark"]) body {
   backdrop-filter: blur(8px);
 }
 
+/* ── The live map's furniture (Tom's live-round spec, D3; Nov 25 2026) ──────
+ * Where each floating part sits over the map, in ONE place: the plate top
+ * left, the control capsule top right, the zoom keys under the plate, the
+ * notes and pills between them, the target and info above the bottom bar,
+ * the bar above the credit strip. Every offset is in px (the keys are too):
+ * a part that grew with the reader's text size would walk onto its
+ * neighbour. These are this screen's layout, not shared interaction
+ * classes, so they do set position and size. */
+.live-map-plate { position: absolute; left: 12px; right: 76px; top: 12px; }
+.live-map-controls { position: absolute; right: 12px; top: 12px; }
+.live-map-capsule { display: flex; flex-direction: column; gap: 6px; padding: 4px; border-radius: 26px; }
+.live-map-zoom { position: absolute; left: 12px; top: 92px; }
+.live-map-notes { position: absolute; left: 76px; right: 76px; top: 92px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+/* On a phone it stops short of the control capsule (76 px), which on a short
+ * screen reaches down to where this starts. */
+.live-map-footer { position: absolute; left: 12px; right: 76px; bottom: 104px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.live-map-bar { position: absolute; left: 12px; right: 12px; bottom: 38px; display: flex; align-items: center; gap: 10px; }
+@media (min-width: 640px) {
+  .live-map-plate { right: auto; width: 340px; }
+  .live-map-footer,
+  .live-map-bar { left: 50%; right: auto; width: 440px; transform: translateX(-50%); }
+}
+/* A phone on its side: the map is about 250 px tall, less than the control
+ * capsule. The capsules lie down, the pills go under the controls, and the
+ * target and info sit beside the zoom keys — nothing stacked on the bar. */
+@media (max-height: 480px) {
+  .live-map-capsule { flex-direction: row; }
+  .live-map-notes { left: auto; right: 12px; top: 68px; max-width: 252px; }
+  /* Ends before the bar (300 px, 12 px in) starts. */
+  .live-map-footer { left: 126px; right: auto; top: 92px; bottom: auto; width: auto; max-width: calc(100vw - 452px); transform: none; align-items: flex-start; }
+  .live-map-bar { left: auto; right: 12px; width: 300px; transform: none; bottom: 28px; }
+}
+
 /* A mouse gets a sign before the press; a phone never keeps a hover. */
 @media (hover: hover) {
   .ea-mech-close:hover,
@@ -1666,7 +1700,7 @@ html:has(.org-scope[data-theme="dark"]) body {
   .ea-mech-next:not(:disabled):hover,
   .ea-mech-tile:not([data-off]):not([data-selected]):hover,
   .ea-mech-row:not([data-selected]):hover { filter: var(--mech-hover); }
-  .ea-mech-key:not([aria-pressed="true"]):hover { color: var(--mech-text); }
+  .ea-mech-key:not([aria-pressed="true"]):not([aria-selected="true"]):hover { color: var(--mech-text); }
 }
 
 /* Respect reduced-motion preference — disables animations for users

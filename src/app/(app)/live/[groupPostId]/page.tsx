@@ -15,7 +15,7 @@ import { useSharedRound } from '@/hooks/useSharedRound';
 import { resolveRoundEntry } from '@/lib/golf/round-viewer';
 import { roundHoleNumbers, startingHoleNumber, stepRoundHole } from '@/lib/golf/holes';
 import { geometryForRound, pickerRows, readLoopPicks, writeLoopPicks, type LoopPicks } from '@/lib/golf/hole-loops';
-import { isActiveParticipant } from '@/lib/golf/round-status';
+import { isActiveParticipant, isRoundLive } from '@/lib/golf/round-status';
 import { COPY } from '@/lib/copy';
 import { publishProgress } from '@/lib/sessions/progress-store';
 import { holeHeaderFacts, liveLine, type TeeSheetSource, chipDistanceLines } from '@/lib/golf/hole-detail';
@@ -38,10 +38,10 @@ import { formatDisplayName } from '@/lib/formatters';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 import LiveCheers from '@/components/play/LiveCheers';
 import FaIcon from '@/components/FaIcon';
-import { faBackwardStep } from '@/lib/icons/fa/backward-step';
 import { faChevronLeft } from '@/lib/icons/fa/chevron-left';
-import { faChevronRight } from '@/lib/icons/fa/chevron-right';
-import { faPen } from '@/lib/icons/fa/pen';
+import { RoundBadge } from '@/components/golf/scoring/ScoreControls';
+import { ChevronLeftIcon, ChevronRightIcon, InfoIcon, PencilIcon, SkipStartIcon } from '@/components/golf/scoring/icons';
+import { formatRise } from '@/lib/golf/elevation';
 
 /**
  * /live/[groupPostId] — a live round as a PLACE.
@@ -70,6 +70,8 @@ export default function LiveRoundPage() {
   const [scoringHole, setScoringHole] = useState<number | null>(null);
   // Full-view switcher (owner UX call): Scorecard and Map each own the panel.
   const [tab, setTab] = useState<'score' | 'map'>('score');
+  // The map's info panel (the two hints, behind the info key).
+  const [mapInfoOpen, setMapInfoOpen] = useState(false);
   // Per-hole OSM geometry (lazy: first Map open). undefined = not asked yet,
   // null = asked, no unambiguous coverage (chip-only fallback).
   // The hole detail (`?holes=1`, PR E): the geometry the map draws, the
@@ -455,7 +457,16 @@ export default function LiveRoundPage() {
           });
           // M2: ONE distance line — the live one with a fix (never the card's
           // yards beside a GPS plays-like), the card's otherwise.
-          return { par: facts.par, parEstimated: facts.parEstimated === true, hcp: facts.hcp, lines: chipDistanceLines(facts, live) };
+          return {
+            par: facts.par,
+            parEstimated: facts.parEstimated === true,
+            hcp: facts.hcp,
+            lines: chipDistanceLines(facts, live),
+            // The plate's readouts (Nov 25 2026): the numbers behind those lines.
+            yards: facts.yards,
+            approx: facts.approx === true,
+            live,
+          };
         })()
       : null;
   const stepHole = (dir: 1 | -1) => {
@@ -467,47 +478,50 @@ export default function LiveRoundPage() {
   return (
     <div className="flex flex-col bg-canvas" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px) - var(--ea-dock-h, 0px))' }}>
       <AppHeader />
-      {/* Compact strip: back link + view switcher. The old page stacked the
-          map under the scoring card — cramped on a phone mid-round; each
-          view now gets the full panel. */}
-      <div className="w-full max-w-2xl mx-auto px-4 pt-3 pb-2 flex items-center justify-between gap-3">
-        <Link
-          href={scorecard.sport_event ? `/events/${scorecard.sport_event.id}?tab=${scorecard.sport_event.match ? 'matches' : 'leaderboard'}` : '/live'}
-          className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
-          data-live-back=""
-        >
-          <FaIcon icon={faChevronLeft} className="text-xs shrink-0" />
-          <span className="min-w-0 truncate">{scorecard.sport_event ? scorecard.sport_event.name : 'Live Now'}</span>
-        </Link>
-        {mapAvailable && (
-          <div role="tablist" aria-label="Round views" className="flex shrink-0 items-center gap-2">
-            {([['score', 'Scorecard'], ['map', 'Map']] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => {
-                  // Scorecard, for someone who is scoring, IS score entry —
-                  // from the map and from the leaderboard alike. (An event's
-                  // group card is already inline on this tab.)
-                  if (id === 'score' && entry.mode === 'score' && !groupCard && !scoringParticipantId) {
-                    void backToScoring(entry.participantId, reopenHole(scorerHole, startHole, holesPlayedN));
-                    return;
-                  }
-                  setTab(id);
-                }}
-                className={`shrink-0 min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
-                  tab === id
-                    ? 'bg-brand text-white border-brand'
-                    : 'bg-surface text-secondary border-border-strong hover:bg-surface-sunken'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
+      {/* The top bar (Tom's live-round spec, Nov 25 2026 — D1): Back, the
+          LIVE badge (red, as everywhere), and Scorecard | Map as a key
+          switch. Both views get the full panel under it. */}
+      <div className="ea-mech shrink-0" style={{ backgroundColor: 'var(--mech-surface)', borderBottom: '1px solid var(--mech-divider)' }} data-live-bar="">
+        <div className="mx-auto flex h-[60px] w-full max-w-2xl items-center gap-2 px-2 sm:px-4">
+          <Link
+            href={scorecard.sport_event ? `/events/${scorecard.sport_event.id}?tab=${scorecard.sport_event.match ? 'matches' : 'leaderboard'}` : '/live'}
+            className="ea-mech-btn inline-flex h-11 min-w-[44px] shrink items-center gap-1 rounded-xl text-sm font-semibold text-[color:var(--mech-text)]"
+            aria-label={scorecard.sport_event ? `Back to ${scorecard.sport_event.name}` : 'Back to Live Now'}
+            data-live-back=""
+          >
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center"><ChevronLeftIcon size={22} /></span>
+            {/* The name is shown from 640 px; the chevron is the button on a phone. */}
+            <span className="min-w-0 truncate max-sm:sr-only">{scorecard.sport_event ? scorecard.sport_event.name : 'Live Now'}</span>
+          </Link>
+          {scorecard.group_post.status === 'completed'
+            ? <RoundBadge status="final" scope="live" />
+            : isRoundLive(scorecard.group_post) ? <RoundBadge status="live" scope="live" /> : null}
+          {mapAvailable && (
+            <div role="tablist" aria-label="Round views" className="ea-mech-recess ml-auto inline-flex shrink-0 gap-0 rounded-xl p-[3px]">
+              {([['score', 'Scorecard', 'w-[92px]'], ['map', 'Map', 'w-[64px]']] as const).map(([id, label, width]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === id}
+                  onClick={() => {
+                    // Scorecard, for someone who is scoring, IS score entry —
+                    // from the map and from the leaderboard alike. (An event's
+                    // group card is already inline on this tab.)
+                    if (id === 'score' && entry.mode === 'score' && !groupCard && !scoringParticipantId) {
+                      void backToScoring(entry.participantId, reopenHole(scorerHole, startHole, holesPlayedN));
+                      return;
+                    }
+                    setTab(id);
+                  }}
+                  className={`ea-mech-key inline-flex h-11 items-center justify-center rounded-[9px] text-[13px] font-semibold ${width}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Both views stay MOUNTED as absolute siblings; the inactive one is
@@ -623,7 +637,7 @@ export default function LiveRoundPage() {
           OVER the z-50 scorer modal (phone report: "Score hole 1 does
           nothing" — it opened behind the map). Isolation contains them all. */}
       {mapAvailable && courseInfo && (
-        <div className={`absolute inset-0 isolate z-0 ${tab === 'map' ? '' : 'invisible pointer-events-none'}`}>
+        <div className={`ea-mech absolute inset-0 isolate z-0 ${tab === 'map' ? '' : 'invisible pointer-events-none'}`} data-live-map="">
           <CourseMap
             lat={courseInfo.lat!}
             lng={courseInfo.lng!}
@@ -641,160 +655,165 @@ export default function LiveRoundPage() {
             onHoleTap={h => setViewedHole(h)}
             fitNonce={fitNonce}
             elevation={holeDetail?.elevation ?? null}
-            // The "Score hole N" CTA below sits at bottom-6, centered; on a
-            // phone it spans the map's bottom-left captions. Lift them above
-            // it (48 px CTA + 8 px gap) whenever the CTA can render.
-            captionInset={displayHole != null && entry.mode === 'score' ? 56 : 0}
-          />
-          {/* Current-hole chip (M1): ALWAYS a stepper for a participant — ‹ ›
-              walk the round's holes, tapping a tee label jumps, and the map
-              fits each hole that has a line; a hole without one says so and
-              the map stays where it is. */}
-          {displayHole != null ? (
-            <div className="absolute left-14 top-3 z-[500] flex items-center rounded-lg border border-border bg-surface/90 shadow-sm">
-              <button
-                type="button"
-                aria-label="Previous hole"
-                onClick={() => stepHole(-1)}
-                className="min-h-[44px] min-w-[36px] flex items-center justify-center text-secondary ea-interactive rounded-l-lg"
-              >
-                <FaIcon icon={faChevronLeft} className="text-xs" />
-              </button>
-              {/* Yards were `hidden sm:inline` — invisible on the one device
-                  that matters, the phone on the tee. Below sm they wrap onto
-                  a second line so the chip's WIDTH doesn't grow into the
-                  control stack on the right at 320–375 px. */}
-              <div className="px-1 text-sm font-bold text-primary" aria-live="polite">
-                <span className="whitespace-nowrap">
-                  Hole {displayHole}
-                  {displayHoleDetail?.par != null && (
-                    <span className="font-medium text-secondary" data-live-par-estimated={displayHoleDetail.parEstimated ? '' : undefined}> · Par {displayHoleDetail.par}{displayHoleDetail.parEstimated ? ' (est.)' : ''}</span>
-                  )}
-                  {displayHoleDetail?.hcp != null && (
-                    <span className="hidden font-medium text-secondary sm:inline"> · HCP {displayHoleDetail.hcp}</span>
-                  )}
-                </span>
-                {/* The course's map data has no line for this hole: say so,
-                    or the map just sits on the course pin looking broken. */}
-                {/* PR 3: greens-only is its own state — the rangefinder
-                    still answers "nearest green"; nothing at all is the
-                    honest "Not mapped yet". */}
-                {effectiveGeo?.derived === 'features' && displayGeoHole && (
-                  <span className="block whitespace-nowrap text-[10px] font-medium text-tertiary" data-hole-derived="">
-                    {COPY.GOLF_HOLE.DERIVED_NOTE}
-                  </span>
-                )}
-                {awaitingPick ? (
-                  <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-pick-nine="">
-                    {COPY.GOLF_HOLE.PICK_NINE}
-                  </span>
-                ) : greensOnly ? (
-                  <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-greens-only="">
-                    {COPY.GOLF_HOLE.GREENS_ONLY}
-                  </span>
-                ) : !displayGeoHole && !displayGreenRing ? (
-                  <span className="block whitespace-nowrap text-xs font-medium text-secondary" data-hole-unmapped="">
-                    {COPY.GOLF_HOLE.NOT_MAPPED}
-                  </span>
-                ) : null}
-                {displayHoleDetail?.lines.distance && (
-                  <span
-                    className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm"
-                    data-chip-to-green={displayHoleDetail.lines.source ?? undefined}
-                    data-green-fcb={displayHoleDetail.lines.fcb ? '' : undefined}
-                  >
-                    <span className="hidden sm:inline"> · </span>
-                    {displayHoleDetail.lines.distance}
-                  </span>
-                )}
-                {/* PR F / M2: what it plays like, with the rise — its own line
-                    below sm (the chip's width must not grow into the control
-                    column at 320–375 px), inline from sm up. */}
-                {displayHoleDetail?.lines.playsLike && (
-                  <span
-                    className="block whitespace-nowrap text-xs font-medium text-secondary sm:inline sm:text-sm"
-                    data-chip-plays-like=""
-                    data-plays-like-delta={displayHoleDetail.lines.riseYds ?? undefined}
-                  >
-                    <span className="hidden sm:inline"> · </span>
-                    {displayHoleDetail.lines.playsLike}
-                  </span>
-                )}
+            onTargetHelp={() => setMapInfoOpen(true)}
+            // What the map knows about this hole (drawn from tees and greens ·
+            // pick a nine · greens only · not mapped), then the nine picker —
+            // drawn by the map in its column under the hole plate. The
+            // course's map data has no line for this hole: say so, or the map
+            // just sits on the course pin looking broken.
+            // The info panel (A11): the two hints, behind the info key.
+            overlayFooter={mapInfoOpen ? (
+              <div id="live-map-info" className="ea-mech-glass flex w-full flex-col gap-1.5 rounded-[14px] px-3.5 py-3 text-xs text-[color:var(--mech-text)]" data-map-info="">
+                <p>Tap the map to set a target.</p>
+                {roundOpen && <p>Your position stays on your device. It is never uploaded.</p>}
               </div>
-              <button
-                type="button"
-                aria-label="Next hole"
-                onClick={() => stepHole(1)}
-                className="min-h-[44px] min-w-[36px] flex items-center justify-center text-secondary ea-interactive rounded-r-lg"
-              >
-                <FaIcon icon={faChevronRight} className="text-xs" />
-              </button>
-            </div>
-          ) : null}
-          {/* PR 4: the nine picker — a club whose loops carry no labels is
-              drawn only after a pick (or an unmistakable GPS match). Letters,
-              never guessed names. Wraps under the chip, clear of the control
-              column at 320 px. */}
-          {loopRows.length > 0 && (
-            <div className="absolute left-14 top-16 z-[500] flex max-w-[calc(100%-14rem)] flex-col gap-1" data-loop-picker="">
-              {loopRows.map(row => (
-                <div key={row.key} className="flex flex-wrap items-center gap-1 rounded-lg border border-border bg-surface/90 px-2 py-1 shadow-sm">
-                  <span className="text-xs font-medium text-secondary">
-                    {loopRows.length > 1 ? (row.key === 'front' ? COPY.GOLF_HOLE.FRONT_NINE : COPY.GOLF_HOLE.BACK_NINE) : COPY.GOLF_HOLE.WHICH_NINE}
-                  </span>
-                  {row.labels.map(label => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => pickLoopFor(row.key, label)}
-                      aria-pressed={loopPicks[row.key] === label}
-                      aria-label={COPY.GOLF_HOLE.NINE(label)}
-                      data-loop-pick={`${row.key}:${label}`}
-                      className={`min-h-[36px] min-w-[36px] rounded-md px-2 text-sm font-bold ea-interactive ${loopPicks[row.key] === label ? 'bg-brand text-white' : 'bg-surface-muted text-primary'}`}
-                    >
-                      {label}
-                    </button>
+            ) : null}
+            overlayNotes={
+              <>
+              {displayHole != null && effectiveGeo?.derived === 'features' && displayGeoHole && (
+                <span className="ea-mech-glass ea-mech-micro rounded-lg px-2 py-1" data-hole-derived="">{COPY.GOLF_HOLE.DERIVED_NOTE}</span>
+              )}
+              {displayHole != null && (awaitingPick ? (
+                <span className="ea-mech-glass rounded-lg px-2 py-1 text-xs font-medium text-[color:var(--mech-text)]" data-hole-pick-nine="">{COPY.GOLF_HOLE.PICK_NINE}</span>
+              ) : greensOnly ? (
+                <span className="ea-mech-glass rounded-lg px-2 py-1 text-xs font-medium text-[color:var(--mech-text)]" data-hole-greens-only="">{COPY.GOLF_HOLE.GREENS_ONLY}</span>
+              ) : !displayGeoHole && !displayGreenRing ? (
+                <span className="ea-mech-glass rounded-lg px-2 py-1 text-xs font-medium text-[color:var(--mech-text)]" data-hole-unmapped="">{COPY.GOLF_HOLE.NOT_MAPPED}</span>
+              ) : null)}
+              {/* PR 4: the nine picker — a club whose loops carry no labels is
+                  drawn only after a pick (or an unmistakable GPS match). Letters,
+                  never guessed names. */}
+              {loopRows.length > 0 && (
+                <div className="flex flex-col gap-1" data-loop-picker="">
+                  {loopRows.map(row => (
+                    <div key={row.key} className="ea-mech-glass flex flex-wrap items-center gap-1 rounded-xl px-2 py-1">
+                      <span className="text-xs font-medium text-[color:var(--mech-text-soft)]">
+                        {loopRows.length > 1 ? (row.key === 'front' ? COPY.GOLF_HOLE.FRONT_NINE : COPY.GOLF_HOLE.BACK_NINE) : COPY.GOLF_HOLE.WHICH_NINE}
+                      </span>
+                      {row.labels.map(label => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => pickLoopFor(row.key, label)}
+                          aria-pressed={loopPicks[row.key] === label}
+                          aria-label={COPY.GOLF_HOLE.NINE(label)}
+                          data-loop-pick={`${row.key}:${label}`}
+                          className="ea-mech-round inline-flex h-[44px] w-[44px] items-center justify-center text-sm font-bold"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   ))}
                 </div>
-              ))}
+              )}
+              </>
+            }
+          />
+          {/* The hole plate (D3): ALWAYS a stepper for a participant — ‹ ›
+              walk the round's holes, tapping a tee marker jumps, and the map
+              fits each hole that has a line; a hole without one says so and
+              the map stays where it is. On a phone it stops 76 px from the
+              right edge (the control capsule); 340 px wide from 640 px. */}
+          {displayHole != null ? (
+            <div className="live-map-plate z-[500]" data-map-hole-plate="">
+              <div className="ea-mech-glass flex h-[68px] items-center rounded-2xl">
+                <button type="button" aria-label="Previous hole" onClick={() => stepHole(-1)} className="ea-mech-btn inline-flex h-[44px] w-[40px] shrink-0 items-center justify-center text-[color:var(--mech-text)] max-[359px]:w-[32px]">
+                  <ChevronLeftIcon size={20} />
+                </button>
+                <div className="flex min-w-0 flex-1 items-center gap-[12px] overflow-hidden max-[359px]:gap-[8px]" aria-live="polite">
+                  <div className="flex shrink-0 flex-col">
+                    {/* "Hole N" stays ONE string for a reader (and the specs' idiom); the drawing is the label over the number. */}
+                    <span className="sr-only">Hole {displayHole}</span>
+                    <span className="ea-mech-micro" aria-hidden="true">Hole</span>
+                    <span className="ea-mech-readout text-[26px] leading-[28px]" aria-hidden="true" data-map-hole-number="">{displayHole}</span>
+                  </div>
+                  {displayHoleDetail?.par != null && (
+                    <div className="flex shrink-0 flex-col" data-live-par-estimated={displayHoleDetail.parEstimated ? '' : undefined}>
+                      <span className="sr-only">Par {displayHoleDetail.par}{displayHoleDetail.parEstimated ? ' (est.)' : ''}</span>
+                      <span className="ea-mech-micro whitespace-nowrap" aria-hidden="true">{displayHoleDetail.parEstimated ? 'Par est.' : 'Par'}</span>
+                      <span className="ea-mech-readout text-[15px] leading-5" aria-hidden="true">{displayHoleDetail.par}</span>
+                    </div>
+                  )}
+                  {/* ONE distance (M2): from the fix when there is one — never the
+                      card's yards beside a GPS plays-like — the card's otherwise. */}
+                  {displayHoleDetail?.lines.distance && (
+                    <div className="flex min-w-0 flex-col" data-chip-to-green={displayHoleDetail.lines.source ?? undefined} data-green-fcb={displayHoleDetail.lines.fcb ? '' : undefined}>
+                      <span className="sr-only">{displayHoleDetail.lines.distance}</span>
+                      {/* "Yds" either way: with a fix it is the yards to the green (the words are in the line above for a reader). */}
+                      <span className="ea-mech-micro" aria-hidden="true">Yds</span>
+                      <span className="ea-mech-readout truncate text-[15px] leading-5" aria-hidden="true">
+                        {displayHoleDetail.lines.source === 'gps' ? displayHoleDetail.live.toGreen : `${displayHoleDetail.approx ? '≈' : ''}${displayHoleDetail.yards ?? ''}`}
+                      </span>
+                    </div>
+                  )}
+                  {/* What it plays like, with the rise (PR F / M2). */}
+                  {displayHoleDetail?.lines.playsLike && (
+                    <div className="flex min-w-0 flex-col" data-chip-plays-like="" data-plays-like-delta={displayHoleDetail.lines.riseYds ?? undefined}>
+                      <span className="sr-only">{displayHoleDetail.lines.playsLike}</span>
+                      <span className="ea-mech-micro" aria-hidden="true">Plays</span>
+                      <span className="ea-mech-readout truncate text-[15px] leading-5" aria-hidden="true">
+                        {displayHoleDetail.live.playsLike}
+                        {formatRise(displayHoleDetail.live.riseYds) && (
+                          <span className="ml-1 text-[11px] font-medium max-[359px]:hidden" style={{ color: 'var(--mech-accent-light)' }}>{formatRise(displayHoleDetail.live.riseYds)!.replace(/ yd$/, '').replace(' ', '')}</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <button type="button" aria-label="Next hole" onClick={() => stepHole(1)} className="ea-mech-btn inline-flex h-[44px] w-[40px] shrink-0 items-center justify-center text-[color:var(--mech-text)] max-[359px]:w-[32px]">
+                  <ChevronRightIcon size={20} />
+                </button>
+              </div>
             </div>
-          )}
-          {/* M1: "Take me to the first hole" — the round's starting hole, the
-              map fitted to it (fitNonce re-fits even when the chip is already
-              there, so a drag away is one tap back). Sits above the map's
-              bottom-left captions (≈48 px) and the CTA's inset. Its text is
-              never "Hole N" (the chip's strict e2e idiom). */}
-          {displayHole != null && (
+          ) : null}
+          {/* The bottom bar (D3): First hole · Score hole N · Info — above
+              the credit strip. "First hole" takes the round's starting hole
+              and fits the map to it (fitNonce re-fits even when the plate is
+              already there, so a drag away is one tap back). */}
+          <div className="live-map-bar z-[500]" data-map-bar="">
+            {displayHole != null && (
+              <button
+                type="button"
+                onClick={() => {
+                  setViewedHole(startHole);
+                  setFitNonce(n => n + 1);
+                }}
+                aria-label={COPY.GOLF_HOLE.FIRST_HOLE_LABEL(startHole)}
+                title={firstHoleMapped ? undefined : COPY.GOLF_HOLE.FIRST_HOLE_UNMAPPED(startHole)}
+                data-map-first-hole=""
+                className="ea-mech-glass ea-mech-btn inline-flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full text-[color:var(--mech-text)]"
+              >
+                <SkipStartIcon size={20} />
+              </button>
+            )}
+            {displayHole != null && entry.mode === 'score' ? (
+              <button
+                type="button"
+                onClick={() => openScorer(entry.participantId, displayHole)}
+                className="ea-mech-go inline-flex h-[56px] min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap px-4"
+                style={{ boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 0.45), 0 4px 14px rgb(0 0 0 / 0.55)' }}
+                data-map-score=""
+              >
+                <PencilIcon size={18} />
+                Score hole {displayHole}
+              </button>
+            ) : (
+              <span className="flex-1" />
+            )}
             <button
               type="button"
-              onClick={() => {
-                setViewedHole(startHole);
-                setFitNonce(n => n + 1);
-              }}
-              aria-label={COPY.GOLF_HOLE.FIRST_HOLE_LABEL(startHole)}
-              title={firstHoleMapped ? undefined : COPY.GOLF_HOLE.FIRST_HOLE_UNMAPPED(startHole)}
-              data-map-first-hole=""
-              className="absolute left-3 z-[500] inline-flex min-h-[40px] items-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive"
-              style={{ bottom: 24 + (entry.mode === 'score' ? 56 : 0) + 52 }}
+              onClick={() => setMapInfoOpen(o => !o)}
+              aria-label="About the map"
+              aria-expanded={mapInfoOpen}
+              aria-controls="live-map-info"
+              data-map-info-key=""
+              className="ea-mech-glass ea-mech-btn inline-flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full"
+              style={mapInfoOpen ? { backgroundColor: 'var(--mech-accent)', color: '#ffffff' } : { color: 'var(--mech-text)' }}
             >
-              <FaIcon icon={faBackwardStep} />
-              {COPY.GOLF_HOLE.FIRST_HOLE}
+              <InfoIcon size={20} />
             </button>
-          )}
-          {displayHole != null && entry.mode === 'score' && (
-            <button
-              type="button"
-              onClick={() => openScorer(entry.participantId, displayHole)}
-              // whitespace-nowrap is load-bearing: an absolutely positioned box
-              // at left-1/2 shrink-wraps to the space between the viewport's
-              // midpoint and its right edge (160 px at 320), so without it the
-              // label wrapped to "Score hole / 1" on phones.
-              className="absolute bottom-6 left-1/2 z-[500] -translate-x-1/2 inline-flex min-h-[48px] items-center gap-2 whitespace-nowrap rounded-full bg-brand px-6 py-3 font-bold text-white shadow-lg hover:bg-brand-hover transition-colors"
-            >
-              <FaIcon icon={faPen} />
-              Score hole {displayHole}
-            </button>
-          )}
+          </div>
         </div>
       )}
       </div>

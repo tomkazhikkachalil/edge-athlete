@@ -163,7 +163,7 @@ test('rangefinder: a phone walks hole 1 tee → green with a live fix', async ({
     const track = page.getByRole('button', { name: /Stop tracking|Track my position/ });
     // Permission already granted → tracking starts silently, no prompt.
     await expect(track).toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
-    const playerMarker = page.locator('.leaflet-marker-icon:has(div[style*="2563eb"])');
+    const playerMarker = page.locator('.leaflet-marker-icon:has([data-player-dot])');
     await expect(playerMarker).toHaveCount(1);
 
     const greenPill = page.locator('[data-rangefinder-pill]');
@@ -294,7 +294,7 @@ test('rangefinder: a transient TIMEOUT keeps tracking; PERMISSION_DENIED stops i
       const track = page.getByRole('button', { name: /Stop tracking|Track my position/ });
       if (expectTracking) {
         await expect(track).toHaveAttribute('aria-pressed', 'true', { timeout: 10_000 });
-        await expect(page.locator('.leaflet-marker-icon:has(div[style*="2563eb"])')).toHaveCount(1, {
+        await expect(page.locator('.leaflet-marker-icon:has([data-player-dot])')).toHaveCount(1, {
           timeout: 5_000,
         });
         await expect(page.getByText(/permission was denied/)).toHaveCount(0);
