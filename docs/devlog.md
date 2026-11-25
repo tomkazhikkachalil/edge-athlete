@@ -1,5 +1,26 @@
 # Development Log
 
+## November 25, 2026 (04:20) — The live golf round: a new scoring card and map view (built, waiting on migration 320 in production)
+
+**Why.** Tom: "we're now making a pretty big change", his doc "live golf round, scoring card and map view". Three decisions from him: each penalty stores its own strokes; the tee control stays a viewer; "Finish round" saves and closes.
+
+**What, in three PRs (none merged yet).**
+- **#1630, migration 320:** `golf_hole_scores.penalty_strokes smallint[]`, aligned with `penalties`; the scores API validates and stores it; one writer keeps the pair together. Applied on staging. **Production waits on Tom's SQL step, then the merge.**
+- **#1631, the scoring card:** a strokes dial (0 to double par, par at the top), a putts capsule, FIR / GIR lamps, a penalty entry that takes the action row's place and a stack of penalty rows, check marks on recorded holes, a still crop of the real map as the way to the map, player tabs with a colour each. A hole opens on par and 2 putts; Next records what is shown; a change records at once; a hole only looked at is not recorded. Gone: the green banner, the Map pill, Library, the wheels, the section labels, "Tee → green".
+- **#1632, the map view:** a top bar (Back, the red LIVE badge, Scorecard | Map), a glass hole plate, a control capsule and a zoom capsule, a bottom bar with the info key, a credit strip, restyled marks. Nothing the map does changed.
+
+**Found on the way.**
+- Removing every penalty from a saved hole never reached the server (the key was dropped from the request). Fixed: every save names `penalties`.
+- A hole in one with the resting 2 putts could not save (putts > strokes). Fixed: putts follow the strokes down.
+- Penalty strokes are not, and were never, added to the score. Unchanged.
+- Golf had no per-player colour. The palette is new.
+- The size ladder caught two map faults a 390 px check missed: keys sized in `rem` grew into their neighbours with enlarged text, and a phone on its side has a map shorter than the control capsule.
+- I overwrote `e2e/helpers/fit.ts` (an unrelated helper) while extracting the ladder; the type check caught it, it was restored from git, and the ladder lives in `fit-ladder.ts`.
+
+**Proof (staging, against the build).** `npm run verify` exit 0, 7,051 tests; audit 0; guardrails, blocklists, `check:schema` green on staging; `check:schema:prod` reports 320 not yet run, as expected. Browser tests: the card and the map each pass their behaviour spec and the size ladder (320 → 2560 px, landscape, enlarged text) on `desktop`, `mobile`, `webkit-mobile`, `firefox-mobile`, `android` and `brave-android`; the final live-round sweep: desktop 24, mobile 16. **No production proof yet.**
+
+**Owed.** Tom runs 320 on production, then the PRs merge in order (#1630, #1631, #1632, this one), then the production probe and its line here. His look on real phones: the dial drag and the map keys first. Spec: `docs/specs/golf-live-round.md`.
+
 ## November 25, 2026 (02:22) — The golf round flow on every screen size and every engine
 
 **Why.** Tom, after part 2: "we need this to be dynamic so fits any mobile screen size and could also be expanded to larger screens… all the changes made need to work in every web browser. I don't want to run into the issue of being apple and chrome focused. Android users and with different OS's will be using the application." I had proven the new screens at 375, 390, 412 and 1280 px on Chromium, WebKit and the Pixel profile only; the repo's Firefox and Brave projects had not been run on them.
