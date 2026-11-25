@@ -1,11 +1,11 @@
 # Development Log
 
-## November 25, 2026 (04:20) — The live golf round: a new scoring card and map view (built, waiting on migration 320 in production)
+## November 25, 2026 (04:20) — The live golf round: a new scoring card and map view (live on production)
 
 **Why.** Tom: "we're now making a pretty big change", his doc "live golf round, scoring card and map view". Three decisions from him: each penalty stores its own strokes; the tee control stays a viewer; "Finish round" saves and closes.
 
-**What, in three PRs (none merged yet).**
-- **#1630, migration 320:** `golf_hole_scores.penalty_strokes smallint[]`, aligned with `penalties`; the scores API validates and stores it; one writer keeps the pair together. Applied on staging. **Production waits on Tom's SQL step, then the merge.**
+**What, in three PRs (all merged Nov 25).**
+- **#1630, migration 320:** `golf_hole_scores.penalty_strokes smallint[]`, aligned with `penalties`; the scores API validates and stores it; one writer keeps the pair together. Applied on staging. Tom ran it on production Nov 25 (`320 APPLIED | 1 | 1 | 320`), then the merge.
 - **#1631, the scoring card:** a strokes dial (0 to double par, par at the top), a putts capsule, FIR / GIR lamps, a penalty entry that takes the action row's place and a stack of penalty rows, check marks on recorded holes, a still crop of the real map as the way to the map, player tabs with a colour each. A hole opens on par and 2 putts; Next records what is shown; a change records at once; a hole only looked at is not recorded. Gone: the green banner, the Map pill, Library, the wheels, the section labels, "Tee → green".
 - **#1632, the map view:** a top bar (Back, the red LIVE badge, Scorecard | Map), a glass hole plate, a control capsule and a zoom capsule, a bottom bar with the info key, a credit strip, restyled marks. Nothing the map does changed.
 
@@ -19,7 +19,9 @@
 
 **Proof (staging, against the build).** `npm run verify` exit 0, 7,051 tests; audit 0; guardrails, blocklists, `check:schema` green on staging; `check:schema:prod` reports 320 not yet run, as expected. Browser tests: the card and the map each pass their behaviour spec and the size ladder (320 → 2560 px, landscape, enlarged text) on `desktop`, `mobile`, `webkit-mobile`, `firefox-mobile`, `android` and `brave-android`; the final live-round sweep: desktop 24, mobile 16. **No production proof yet.**
 
-**Owed.** Tom runs 320 on production, then the PRs merge in order (#1630, #1631, #1632, this one), then the production probe and its line here. His look on real phones: the dial drag and the map keys first. Spec: `docs/specs/golf-live-round.md`.
+**Proof (production, Nov 25 2026, 08:00 EST).** `check:schema:prod` ledger OK at 320. `/api/health` on `045ed413` (#1630 `07f69175`, #1631 `1a2c221c`, #1632 `045ed413`). Probe, one project at a time: desktop 7 passed + 1 passed on its retry (the map test: a zoom-in tap right after a zoom-out did not register once), mobile 4 / 4, webkit-mobile 4 / 4, none stopped at the Vercel checkpoint.
+
+**Owed.** Tom's look on real phones: the dial drag and the map keys first. The baseline regenerated at 320. Spec: `docs/specs/golf-live-round.md`.
 ## November 25, 2026 (02:33) — The real browser floor, noted (no code change)
 
 **Why.** The every-size round found that the built stylesheet relies on CSS cascade layers (Tailwind v4), which need iOS / Safari 15.4, Chrome 99, Firefox 97 and Samsung Internet 18, while `browserslist` and CLAUDE.md state iOS 15 and Samsung 16. I put the choice to Tom: record the real floor, or change the build. Tom: "let's make the note, and not change the code and run as is."
