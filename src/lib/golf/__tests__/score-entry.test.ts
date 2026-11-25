@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   firstUnscoredHole,
   hasAnyEnteredScore,
+  withoutEnteredScores,
   resizePlayerScores,
   parseDraft,
   mergeDraftIntoHoles,
@@ -314,5 +315,22 @@ describe('reopenHole', () => {
   it('never answers a fraction or a non-number', () => {
     expect(reopenHole(2.5, 1, 18)).toBeNull();
     expect(reopenHole(Number.NaN, 1, 18)).toBeNull();
+  });
+});
+
+describe('withoutEnteredScores — a draft from the retired Scores step carries no strokes', () => {
+  it('keeps every player and hole number, drops what was entered, and does not touch the input', () => {
+    const saved = [
+      { participant_id: 'a', hole_scores: [{ hole_number: 1, strokes: 5, putts: 2 }, { hole_number: 2 }] },
+      { participant_id: 'b', hole_scores: [{ hole_number: 1, strokes: 4 }] },
+    ];
+    const blank = withoutEnteredScores(saved);
+    expect(blank).toEqual([
+      { participant_id: 'a', hole_scores: [{ hole_number: 1 }, { hole_number: 2 }] },
+      { participant_id: 'b', hole_scores: [{ hole_number: 1 }] },
+    ]);
+    expect(hasAnyEnteredScore(blank)).toBe(false);
+    expect(saved[0].hole_scores[0]).toEqual({ hole_number: 1, strokes: 5, putts: 2 });
+    expect(withoutEnteredScores([])).toEqual([]);
   });
 });

@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { afterCreatePath } from '@/lib/golf/round-route';
 import { refreshDrafts } from '@/hooks/useDrafts';
-import { calcPlayerTotals } from '@/lib/golf/scoring';
 import { useToast } from '@/components/Toast';
 import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
 import VideoFrame from '@/components/media/VideoFrame';
@@ -18,15 +17,12 @@ import type { QueueItem } from '@/lib/media/upload-queue';
 import MediaTile from '@/components/media/MediaTile';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
-import { type PlayerScoreData } from '@/components/golf/MultiPlayerScorecardGrid';
-import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
 import { defaultGolfComposerValue, type GolfComposerValue } from '@/components/golf/GolfComposerSection';
 import { submitSharedRound } from '@/components/golf/shared-round-submit';
 import { SPORT_COMPOSER_EXTRAS, type SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import StatLineForm, { emptyStatLine, statLineHasContent } from '@/components/StatLineForm';
 import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
-import type { CompleteGolfScorecard, ParticipantRole } from '@/types/group-posts';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -55,7 +51,6 @@ import { faClockRotateLeft } from '@/lib/icons/fa/clock-rotate-left';
 import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
 import { faCommentRegular } from '@/lib/icons/fa/comment-regular';
 import { faEye } from '@/lib/icons/fa/eye';
-import { faGolfBallTee } from '@/lib/icons/fa/golf-ball-tee';
 import { faHeartRegular } from '@/lib/icons/fa/heart-regular';
 import { faPaperPlane } from '@/lib/icons/fa/paper-plane';
 import { faPen } from '@/lib/icons/fa/pen';
@@ -147,20 +142,6 @@ interface ProfileData {
   avatar_url?: string | null;
 }
 
-interface SharedRoundDetails {
-  alreadyPlayed?: boolean;
-  courseName: string;
-  date: string;
-  holesPlayed: number;
-  roundTypeIndoorOutdoor: 'outdoor' | 'indoor';
-  teeColor: string;
-  weather: string;
-  temperature: string;
-  wind: string;
-}
-
-type PlayerScore = PlayerScoreData;
-
 interface TagOption {
   value: string;
   label: string;
@@ -176,12 +157,6 @@ interface PostPreviewProps {
   /** The posting account's visibility — who will see it (audience.ts). */
   accountVisibility: string | null;
   taggedPeople?: {id: string; name: string}[];
-  holeParSource?: { hole: number; par: number }[] | null;
-  // Round data (one flow — every golf round previews as the shared scorecard)
-  sharedRoundDetails?: SharedRoundDetails;
-  sharedRoundParticipants?: {id: string; name: string; avatar_url?: string}[];
-  playerScores?: PlayerScore[];
-  userId?: string;
   onClose: () => void;
   onPost: () => void;
 }
@@ -1303,8 +1278,52 @@ export default function CreatePostModal({
             body scrolls and its footer stays at the bottom. */}
         <div className={isGolf ? 'flex-1 min-h-0 flex flex-col overflow-y-auto' : 'flex-1 overflow-y-auto p-4 sm:p-6'}>
           {/* Crash-recovery draft notice — restore is a choice, never automatic */}
-          {availableDraft && caption.trim() === '' && (
-            <div className={`mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2 ${isGolf ? 'mx-4 sm:mx-5 mt-2 shrink-0' : ''}`}>
+          {availableDraft && caption.trim() === '' && (() => {
+            const restoreDraft = () => {
+              setCaption(availableDraft.caption);
+              setHashtags(availableDraft.hashtags);
+              setSelectedTags(availableDraft.tags);
+              setVisibility(availableDraft.visibility);
+              if (availableDraft.postType !== postType) {
+                setPostType(availableDraft.postType as SportKey | 'general');
+              }
+              if (availableDraft.golf) {
+                // Remount the slot with the seed; the section reports
+                // the seeded value up on mount (G1).
+                setGolfSeed(availableDraft.golf);
+                setSportSectionResetKey(k => k + 1);
+              }
+              if (availableDraft.mediaCount) void restoreStashedMedia();
+              setAvailableDraft(null);
+            };
+            const dismissDraft = () => {
+              clearComposerDraft();
+              clearComposerStash();
+              setAvailableDraft(null);
+            };
+            // A golf round's frame (the mechanical dialect, Nov 24 2026): ONE
+            // line — the icon, "Unfinished post", Restore as a text button,
+            // Dismiss as an icon. Same two handlers as the general banner.
+            if (isGolf) {
+              return (
+                <div
+                  className="mx-4 sm:mx-5 mt-1 flex h-11 shrink-0 items-center rounded-xl pl-3"
+                  style={{ backgroundColor: 'var(--mech-selected-fill)', boxShadow: 'inset 0 0 0 1px var(--mech-selected-border)' }}
+                  data-draft-banner=""
+                >
+                  <FaIcon icon={faClockRotateLeft} className="ea-mech-icon text-[16px]" />
+                  <p className="ml-2 min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--mech-text)]">Unfinished post</p>
+                  <button type="button" onClick={restoreDraft} className="ea-mech-btn h-11 shrink-0 px-2 text-[13px] font-semibold text-[color:var(--mech-accent-light)]" data-draft-restore="">
+                    Restore
+                  </button>
+                  <button type="button" onClick={dismissDraft} aria-label="Dismiss the unfinished post" className="ea-mech-btn inline-flex h-11 w-11 shrink-0 items-center justify-center text-[14px] text-[color:var(--mech-text-soft)]" data-draft-dismiss="">
+                    <FaIcon icon={faXmark} />
+                  </button>
+                </div>
+              );
+            }
+            return (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2" data-draft-banner="">
               <FaIcon icon={faClockRotateLeft} className="text-brand-fg" />
               <p className="text-sm text-violet-900 dark:text-violet-200 flex-1 min-w-40">
                 You have an unfinished post{availableDraft.caption ? ` — “${availableDraft.caption.slice(0, 40)}${availableDraft.caption.length > 40 ? '…' : ''}”` : ''}
@@ -1312,40 +1331,21 @@ export default function CreatePostModal({
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setCaption(availableDraft.caption);
-                  setHashtags(availableDraft.hashtags);
-                  setSelectedTags(availableDraft.tags);
-                  setVisibility(availableDraft.visibility);
-                  if (availableDraft.postType !== postType) {
-                    setPostType(availableDraft.postType as SportKey | 'general');
-                  }
-                  if (availableDraft.golf) {
-                    // Remount the slot with the seed; the section reports
-                    // the seeded value up on mount (G1).
-                    setGolfSeed(availableDraft.golf);
-                    setSportSectionResetKey(k => k + 1);
-                  }
-                  if (availableDraft.mediaCount) void restoreStashedMedia();
-                  setAvailableDraft(null);
-                }}
+                onClick={restoreDraft}
                 className="min-h-[44px] px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
               >
                 Restore
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  clearComposerDraft();
-                  clearComposerStash();
-                  setAvailableDraft(null);
-                }}
+                onClick={dismissDraft}
                 className="min-h-[44px] px-3 rounded-full text-sm font-medium text-secondary hover:bg-surface-sunken"
               >
                 Dismiss
               </button>
             </div>
-          )}
+            );
+          })()}
 
           {/* Media + caption: in place for a general or stat-line post; a golf
               round's steps render them on the last step of an already-played
@@ -1440,7 +1440,6 @@ export default function CreatePostModal({
               onCaptionGenerated={setCaption}
               seed={sportKey === 'golf' ? golfSeed : undefined}
               onFinish={() => { void handleSubmit(); }}
-              onPreview={() => setShowPreview(true)}
               busy={isSubmitting}
               busyLabel={uploadingLine(mediaFiles.map(f => uploads.itemFor(f.id)?.progress)) ?? undefined}
               finishSlot={postFields}
@@ -1685,7 +1684,6 @@ export default function CreatePostModal({
       {/* Preview Modal */}
       {showPreview && (
         <PostPreview
-          holeParSource={golfValue.holeParSource}
           postType={postType}
           caption={caption}
           tags={selectedTags}
@@ -1693,10 +1691,6 @@ export default function CreatePostModal({
           mediaFiles={mediaFiles}
           accountVisibility={(activeProfile ?? profile)?.visibility ?? null}
           taggedPeople={taggedProfilesData}
-          sharedRoundDetails={golfValue.sharedRoundDetails}
-          sharedRoundParticipants={golfValue.sharedRoundParticipantsData}
-          playerScores={golfValue.playerScores}
-          userId={userId}
           onClose={() => setShowPreview(false)}
           onPost={() => {
             setShowPreview(false);
@@ -1744,133 +1738,6 @@ export default function CreatePostModal({
   );
 }
 
-// Helper function to transform form data into CompleteGolfScorecard format for preview
-function transformToScorecardPreview(
-  sharedRoundDetails: SharedRoundDetails,
-  sharedRoundParticipants: {id: string; name: string; avatar_url?: string}[],
-  playerScores: PlayerScore[],
-  userId: string,
-  holeParSource: { hole: number; par: number }[] | null = null
-): CompleteGolfScorecard {
-  // Create mock group_post
-  const mockGroupPost = {
-    id: 'preview-' + Date.now(),
-    creator_id: userId,
-    type: 'golf_round' as const,
-    title: `Round at ${sharedRoundDetails.courseName}`,
-    description: null,
-    date: sharedRoundDetails.date,
-    location: sharedRoundDetails.courseName,
-    visibility: 'public' as const,
-    // Oct 31 2026: an already-played preview is not LIVE.
-    status: (sharedRoundDetails.alreadyPlayed ? 'completed' : 'pending') as 'completed' | 'pending',
-    post_id: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-
-  // Create golf_data
-  const golfData = {
-    id: 'preview-golf-' + Date.now(),
-    group_post_id: mockGroupPost.id,
-    course_name: sharedRoundDetails.courseName,
-    course_id: null,
-    round_type: sharedRoundDetails.roundTypeIndoorOutdoor,
-    holes_played: sharedRoundDetails.holesPlayed,
-    tee_color: sharedRoundDetails.teeColor || null,
-    slope_rating: null,
-    course_rating: null,
-    weather_conditions: sharedRoundDetails.weather || null,
-    temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : null,
-    wind_speed: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-
-  // Transform participants with scores
-  // Oct 31 2026: the creator is on the card too. The list holds partners only,
-  // so a solo preview showed no players and no scores at all.
-  const creatorRow = playerScores.find(ps => ps.participant_id === userId);
-  const previewPlayers = creatorRow && !sharedRoundParticipants.some(p => p.id === userId)
-    ? [{ id: userId, name: creatorRow.profile?.full_name ?? 'You', avatar_url: creatorRow.profile?.avatar_url ?? undefined }, ...sharedRoundParticipants]
-    : sharedRoundParticipants;
-  const participants = previewPlayers.map(participant => {
-    // Find matching player scores
-    const playerScore = playerScores.find(ps => ps.participant_id === participant.id);
-
-    // Calculate total score and holes completed from hole scores
-    let totalScore: number | null = null;
-    let holesCompleted = 0;
-    let toPar: number | null = null;
-
-    if (playerScore && playerScore.hole_scores) {
-      // Shared domain math — uses REAL course hole pars when available
-      // (the old inline version assumed par 4 for every hole)
-      const totals = calcPlayerTotals(playerScore.hole_scores, holeParSource);
-      if (totals.played > 0) {
-        totalScore = totals.total;
-        holesCompleted = totals.played;
-        toPar = totals.toPar;
-      }
-    }
-
-    const isCreator = participant.id === userId;
-
-    return {
-      participant: {
-        id: 'preview-participant-' + participant.id,
-        group_post_id: mockGroupPost.id,
-        profile_id: participant.id,
-        status: 'confirmed' as const,
-        role: (isCreator ? 'creator' : 'participant') as ParticipantRole,
-        attested_at: new Date().toISOString(),
-        data_contributed: totalScore !== null,
-        last_contribution: totalScore !== null ? new Date().toISOString() : null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        profile: {
-          id: participant.id,
-          full_name: participant.name,
-          first_name: participant.name.split(' ')[0] || null,
-          middle_name: null,
-          last_name: participant.name.split(' ').slice(1).join(' ') || null,
-          avatar_url: participant.avatar_url || null,
-          sport: null,
-          school: null
-        }
-      },
-      scores: {
-        id: 'preview-scores-' + participant.id,
-        participant_id: 'preview-participant-' + participant.id,
-        entered_by: userId,
-        scores_confirmed: false,
-        total_score: totalScore,
-        to_par: toPar,
-        holes_completed: holesCompleted,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        hole_scores: playerScore?.hole_scores?.map((h, idx) => ({
-          id: 'preview-hole-' + participant.id + '-' + idx,
-          golf_participant_id: 'preview-scores-' + participant.id,
-          hole_number: h.hole_number,
-          strokes: h.strokes || 0,
-          putts: h.putts || null,
-          fairway_hit: h.fairway_hit || null,
-          green_in_regulation: h.green_in_regulation || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })) || []
-      }
-    };
-  });
-
-  return {
-    group_post: mockGroupPost,
-    golf_data: golfData,
-    participants
-  };
-}
-
 // Post Preview Component
 function PostPreview({
   postType,
@@ -1880,11 +1747,6 @@ function PostPreview({
   mediaFiles,
   accountVisibility,
   taggedPeople = [],
-  sharedRoundDetails,
-  sharedRoundParticipants = [],
-  playerScores = [],
-  userId = '',
-  holeParSource = null,
   onClose,
   onPost
 }: PostPreviewProps) {
@@ -2001,33 +1863,6 @@ function PostPreview({
                 </div>
               )}
 
-              {/* Golf Scorecard Summary — one flow: every round previews as
-                  the shared scorecard (the individual golfData branch retired
-                  with the flow unification). */}
-              {postType === 'golf' && sharedRoundDetails && (
-                <div className="mb-4 p-4 bg-green-50 dark:bg-green-950/40 rounded-lg border border-green-200 dark:border-green-800">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FaIcon icon={faGolfBallTee} className="text-green-600 dark:text-green-400" />
-                    <span className="font-semibold text-green-800 dark:text-green-200">
-                      Golf Round
-                    </span>
-                  </div>
-                  <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
-                    <div className="relative">
-                      <SharedRoundQuickView
-                        scorecard={transformToScorecardPreview(
-                          sharedRoundDetails,
-                          sharedRoundParticipants,
-                          playerScores,
-                          userId,
-                          holeParSource
-                        )}
-                        currentUserId={userId}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
 
             </div>
 

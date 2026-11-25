@@ -106,6 +106,8 @@ export const RATE_LIMITS = {
   'favourite-sports': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // The sport picker's LAST tag (Nov 23 2026): one small read each time the picker opens.
   'last-sport': { max: 240, windowSeconds: 3600, keyBy: 'user' },
+  // The golf Players step's QUICK ADD row (Nov 24 2026): one read each time the step opens.
+  'recent-partners': { max: 240, windowSeconds: 3600, keyBy: 'user' },
   // The unit system (293): a Metric / Imperial or °F / °C tap — cheap and reversible, the favourites' shape.
   units: { max: 120, windowSeconds: 3600, keyBy: 'user' },
   'comment-create': { max: 60, windowSeconds: 600, keyBy: 'user' },

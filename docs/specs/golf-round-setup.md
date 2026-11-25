@@ -14,14 +14,12 @@
 
 | Mode | Steps |
 | --- | --- |
-| Playing now · Outdoor (the defaults) | Round type · Course · Game format · Conditions · Players · Scores · **Start** (Go Live) — 7 |
-| Playing now · Indoor | Round type · Course · Game format · Players · Scores · Start — 6 |
-| Already played · Outdoor | Round type · Course · Game format · Conditions · Players · Scores · **Create** (Create Post) — 7 |
-| Already played · Indoor | Round type · Course · Game format · Players · Scores · Create — 6 |
+| Outdoor (the default) | Round type · Course · Game format · Conditions · Players · **Start** (slide to go live) — 6 |
+| Indoor | Round type · Course · Game format · Players · Start — 5 |
 
-(Corrected Nov 24 2026: **Scores is a step of every round** since Oct 31 2026, see below; this table, decision 4 and the "already played only" notes still described the Oct 28 list.)
+(**Nov 24–25 2026, Tom's part 2 spec, see the last section:** no round has a Scores step, reversing Oct 31 2026; "Already played" is not offered until its process is rebuilt, so every round started here is live. Decision 4 and the Scores / Preview notes below describe the flow as it was.)
 
-The step is held by ID (`GolfComposerValue.stepId`, riding the crash draft so a restore lands where it was); an id the new list lacks starts over at step 1 (`roundStepIndex`). Conditions, Players and Scores are skippable — nothing on them was ever required. **Only the course step (and the finish) refuses Next**, for the two fields the form always required: a course (`REFUSAL_COURSE`) and, for an already-played round, the date (`REFUSAL_DATE`). Weather, temperature and wind carried asterisks on the form but were never enforced; the asterisks are gone.
+The step is held by ID (`GolfComposerValue.stepId`, riding the crash draft so a restore lands where it was); an id the new list lacks starts over at step 1 (`roundStepIndex`). Conditions and Players are skippable — nothing on them was ever required. **Only the course step (and the finish) refuses Next**, for the two fields the form always required: a course (`REFUSAL_COURSE`) and, for an already-played round, the date (`REFUSAL_DATE`). Weather, temperature and wind carried asterisks on the form but were never enforced; the asterisks are gone.
 
 **Tom's four decisions (Oct 28 2026):**
 1. **Step 1 keeps today's defaults** — Playing now + Outdoor pre-selected, Next available at once (the spec's "nothing pre-selected" was dropped).
@@ -91,3 +89,29 @@ Tom's spec restyles four screens — **Select sport**, **Round type** (step 1), 
 
 **Pinned by:** `dial.test.ts`, `tees.test.ts` (sides, row labels, dots, `ratingEntryNeeded`), `recent-courses.test.ts`, `round-steps.test.ts` (`roundFrame`), `favourite-sports.test.ts` (`lastUsedSport`, `enteringFavourites`), `step-flow.test.ts` (the variant, the widths, the height cap), `sport-picker-rows.test.ts`, `golf-course-step.test.ts` (the wiring: the tee handler, the options, the slots, the one Near me door, Change); e2e `golf-course-step.spec.ts` (desktop + phone: the search's sizes, no match, the pick, Men | Women, a women's tee on the dials **and in the saved round** (tee, rating, slope), the scorecard fitting the desktop dialog, Recent after the round, a typed course's slots, indoor), `golf-quick-entry.spec.ts` (every walk, through the new controls), `composer-near-me.spec.ts`, `dropdown-visibility.spec.ts`, `sport-favourites.spec.ts`, `header-create.spec.ts`.
 
+## Part 2: steps 3 to 6, live rounds only (Nov 24–25 2026, Tom's part 2 spec; zero DDL)
+
+Tom's doc "golf round flow, part 2" finishes the flow in the mechanical dialect and changes six behaviours. His words on the mode: "make this flow focused on playing a live round, not an already played round"; the already-played process "will be built out differently in the coming updates".
+
+**What changed in behaviour**
+
+- **No Scores step, no score entry anywhere in this flow** (reverses Oct 31 2026). A live round is scored on `/live/[id]`. `playerScores` still seeds the creator and partner rows; a draft saved while the step existed comes back with its holes blank (`withoutEnteredScores`). `MultiPlayerScorecardGrid` has no renderer now; it is kept for the already-played rebuild, not deleted.
+- **"Already played" is hidden** (`ALREADY_PLAYED_OFFERED = false` in `round-steps.ts`; Tom, Nov 25 2026). Why: a finished round created without scores draws no scorecard and has no door to add them (`SportPostBody` needs a highlight), so removing the Scores step would have left that mode producing empty posts. Step 1 asks only Outdoor / Indoor; a restored draft in that mode comes back live, dated today (`offeredDetails`). The mode's rules, the date field and the Create Post finish stay in the code, unreachable. Turning the flag on brings the switch back; it does **not** bring score entry back.
+- **No Preview.** The Start step is the preview. `PostPreview` remains for the general composer; its golf branch is gone.
+- **The step count follows the list:** "Step n / 6" outdoor, "/ 5" indoor, a 6 or 5 segment bar.
+- **Go Live is a slide** (`src/components/mech/SlideToConfirm.tsx`, numbers in `src/lib/golf/slide.ts`). Pointer events with capture on the key, `touch-action: none`; a release at or past 85 % of the travel locks and calls the same `onFinish` once; earlier, the key springs back and nothing fires. A pointer's click on the key is ignored (the drag decides); a click no pointer made (Enter, Space, a screen reader's activation; `detail === 0`) goes live. If the submit ends without leaving the screen, the key returns to the start. `StepFlow` takes it as `finishControl` (mech, last step): Back narrows to 72 × 56 and a refusal is said on a line above the row. The control carries `data-step-finish`. In e2e use `e2e/helpers/go-live.ts` (`goLive` = keyboard, `dragSlide` = the gesture).
+- **Quick add** (Players step): the people of the account's latest golf rounds. No table records them; `GET /api/golf/partners/recent` derives them from `group_post_participants` (the account's 20 newest participations → golf rounds → the other participants, newest shared round first, each once, ≤ 8: `recentPartnerIds`), minus blocked pairs, minus profiles the caller may not view; `private, no-store`, limiter bucket `recent-partners`. Asked once when the step opens, and only when the account composes for itself (not a guardian for a managed athlete). A tap adds through the same handler Tag People uses and takes the person off the row (`quickAddOffered`); removing brings them back.
+- **Handicap on partner rows:** the existing `/api/golf/handicaps` read now also runs on the Players step. No handicap, nothing drawn.
+- **Wording (Tom: "design wording everywhere"):** the summary reads `Sunny · 11 °C · 5 to 10 mph` (`conditionsLine`), the Wind options `Light (5 to 10 mph)` (`windOptionLabel`), the Weather options are plain words, the forecast key "Use course forecast", its note "Tee off forecast · …". Stored values are unchanged.
+
+**The look**
+
+- Steps 3 to 6 sit on the surface (no card around a step) in the 480 px dialog; the course step alone widens (`roundFrame`).
+- **Game format:** tiles in a three-column grid on every width, built from `GAME_FORMAT_OPTIONS`, so a fourth format flows to a second row. No help lines.
+- **Conditions:** the forecast key wears the selected ring while `conditionsSource === 'forecast'` (an edit already hands the fields back and clears it); native selects drawn as panels with a line icon and an up/down chevron; the temperature in a recessed slot beside a °F | °C `KeySwitch`.
+- **Players:** `round-steps/PlayersStep.tsx`: info button, quick add row (pictures only, `aria-label="Add {name}"`), the partner panel (picture, name, HCP, remove), the "Add others" key.
+- **Tag People:** `TagPeopleModal` takes `variant="mech"` (golf passes it). Same search, selection and submit; the general composer's dialog is unchanged until that screen takes the dialect.
+- **Start:** `round-steps/StartStep.tsx`: the lamp, the title that the info sentence replaces in place, the rows (hooks unchanged: `data-round-summary-row="course|round-type|format|tee|conditions|players"`), numbers in the mono face, INDEX per player.
+- **The unfinished-post banner** is one line while golf is the post type (same Restore / Dismiss handlers).
+
+**Pinned by:** `round-steps.test.ts` (lists, numbering, wording, frame, the flag), `recent-partners.test.ts`, `slide.test.ts`, `score-entry.test.ts` (`withoutEnteredScores`), `golf-part2-surface.test.ts` (the surface and the route), `step-flow.test.ts`, `weather-surface.test.ts`; e2e `golf-part2.spec.ts` (quick add, the dialog, a tap and a half slide start nothing, a full slide starts the round once with its partner; Enter on the key), `golf-quick-entry.spec.ts`, `golf-forecast.spec.ts`, `golf-course-step.spec.ts`.

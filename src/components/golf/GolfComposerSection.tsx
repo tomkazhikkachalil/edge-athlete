@@ -21,18 +21,18 @@
 // toggle, so switching golf → general → golf must keep the scorecard.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import SectionInfo, { InfoButton, InfoPanel, useInfoDisclosure } from '@/components/SectionInfo';
+import SectionInfo from '@/components/SectionInfo';
 import { requestPosition, POSITION_DENIED, type DeviceFix } from '@/lib/geo/request-position';
 import { formatKm, nearbyOffer, NEAR_RADIUS_KM } from '@/lib/golf/near-me';
 import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import { useAuth } from '@/lib/auth';
-import { hasAnyEnteredScore, resizePlayerScores } from '@/lib/golf/score-entry';
+import { hasAnyEnteredScore, resizePlayerScores, withoutEnteredScores } from '@/lib/golf/score-entry';
 import { localDayKey } from '@/lib/calendar/grid';
 import { courseTeeOptions, teeLabel, FALLBACK_TEES, hasBothTeeSides, isWomensTee, splitTeeSides, ratingEntryNeeded } from '@/lib/golf/tees';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
-import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
+import type { PlayerScoreData } from '@/components/golf/MultiPlayerScorecardGrid';
 import type { GolfCourse } from '@/types/golf';
 import { deriveCourseHoles as deriveCourseHolesPure } from '@/lib/golf/holes';
 import { isMapSheet } from '@/lib/golf/map-sheet';
@@ -59,9 +59,10 @@ import { golfConditionOf, golfTempF, golfWindBandOf, wmoLabel } from '@/lib/weat
 import type { WeatherStatus } from '@/hooks/useWeather';
 import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { fromInput, QUANTITY_UNITS, toDisplay } from '@/lib/activities/units';
-import { AvatarImage } from '@/components/OptimizedImage';
-import { getInitials } from '@/lib/formatters';
-import { handicapSuffix } from '@/lib/golf/handicaps';
+import { quickAddOffered, type QuickAddPerson } from '@/lib/golf/recent-partners';
+import PlayersStep from '@/components/golf/round-steps/PlayersStep';
+import StartStep, { type StartRow } from '@/components/golf/round-steps/StartStep';
+import SlideToConfirm from '@/components/mech/SlideToConfirm';
 import {
   FIRST_ROUND_STEP,
   conditionsLine,
@@ -73,22 +74,17 @@ import {
   roundFrame,
   stepsForRound,
   type RoundStepId,
+  ALREADY_PLAYED_OFFERED,
+  offeredAlreadyPlayed,
 } from '@/lib/golf/round-steps';
 import FaIcon from '@/components/FaIcon';
-import { faBolt } from '@/lib/icons/fa/bolt';
-import { faEye } from '@/lib/icons/fa/eye';
-import { faFlagCheckered } from '@/lib/icons/fa/flag-checkered';
 import { faGlobe } from '@/lib/icons/fa/globe';
-import { faListOl } from '@/lib/icons/fa/list-ol';
 import { faLocationCrosshairs } from '@/lib/icons/fa/location-crosshairs';
 import { faLocationDot } from '@/lib/icons/fa/location-dot';
 import { faMagnifyingGlass } from '@/lib/icons/fa/magnifying-glass';
 import { faPaperPlane } from '@/lib/icons/fa/paper-plane';
 import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
 import { faSpinner } from '@/lib/icons/fa/spinner';
-import { faUserPlus } from '@/lib/icons/fa/user-plus';
-import { faXmark } from '@/lib/icons/fa/xmark';
-import { faCircleDot } from '@/lib/icons/fa/circle-dot';
 
 /** Full shared-round form state. CreatePostModal's preview only reads the
  *  display fields, but gameFormat/alreadyPlayed drive submission and the
@@ -263,13 +259,20 @@ function CourseRow({ course, showKm, divided, onPick }: { course: GolfCourse; sh
   );
 }
 
+/** A restored draft's details in a mode this flow still offers: a draft saved
+ *  as "already played" before the option was hidden (Nov 25 2026) comes back
+ *  as a live round, dated today like every live round. */
+function offeredDetails(details: GolfSharedRoundDetails | undefined): GolfSharedRoundDetails | undefined {
+  if (!details || !details.alreadyPlayed || offeredAlreadyPlayed(details.alreadyPlayed)) return details;
+  return { ...details, alreadyPlayed: false, date: localDayKey(new Date()) };
+}
+
 export default function GolfComposerSection({
   userId,
   active,
   onChange,
   seed,
   onFinish,
-  onPreview,
   busy = false,
   busyLabel,
   finishSlot,
@@ -279,7 +282,6 @@ export default function GolfComposerSection({
   // activeProfile first, so a guardian composing AS a managed athlete seeds
   // that athlete's row rather than their own.
   const { profile, activeProfile } = useAuth();
-  const [scoreInfoRef, scoreInfo] = useInfoDisclosure('Score Entry');
   const displayProfile = activeProfile ?? profile;
 
   // Round data. `seed` (crash-draft restore) wins over the blank defaults —
@@ -292,7 +294,7 @@ export default function GolfComposerSection({
     () => seed?.sharedRoundParticipantsData ?? []
   );
   const [showParticipantModal, setShowParticipantModal] = useState(false);
-  const [sharedRoundDetails, setSharedRoundDetails] = useState<GolfSharedRoundDetails>(() => seed?.sharedRoundDetails ?? {
+  const [sharedRoundDetails, setSharedRoundDetails] = useState<GolfSharedRoundDetails>(() => offeredDetails(seed?.sharedRoundDetails) ?? {
     courseName: '',
     date: localDayKey(new Date()), // today, VIEWER-local (not UTC)
     holesPlayed: 18,
@@ -384,10 +386,10 @@ export default function GolfComposerSection({
   );
 
   // Shared round score entry
-  const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>(() => seed?.playerScores ?? []);
-  // Counter prop for the grid's hole-by-hole stepper — each bump opens it
-  // (resume mode) for the first player. See the Score Entry header button.
-  const [quickEntryRequest, setQuickEntryRequest] = useState(0);
+  // The rows the round is created with. Nothing here enters a score any
+  // more (Nov 24 2026: the Scores step is gone), so a draft saved while it
+  // existed comes back with its holes blank.
+  const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>(() => withoutEnteredScores(seed?.playerScores ?? []));
 
   // Search for golf courses (for shared rounds). Debounced + abortable: it is
   // called straight out of the input's onChange, so undebounced it fired one
@@ -743,25 +745,6 @@ export default function GolfComposerSection({
     }
   }
 
-  // Handle score change for a specific player and hole
-  const handlePlayerScoreChange = useCallback((playerId: string, holeNum: number, data: Partial<PlayerHoleScore>) => {
-    setPlayerScores(prevScores =>
-      prevScores.map(playerScore => {
-        if (playerScore.participant_id === playerId) {
-          return {
-            ...playerScore,
-            hole_scores: playerScore.hole_scores.map(holeScore =>
-              holeScore.hole_number === holeNum
-                ? { ...holeScore, ...data }
-                : holeScore
-            )
-          };
-        }
-        return playerScore;
-      })
-    );
-  }, []);
-
   // ── The creator's own row ───────────────────────────────────────────────────
   // Score Entry used to be gated on having PLAYING PARTNERS, so on the default
   // "Playing now" path — where you are the only player — it never appeared at
@@ -901,6 +884,8 @@ export default function GolfComposerSection({
   // ids not yet asked, when the finish step opens; a miss or a failure
   // simply shows no suffix. The cache lives for the section's life.
   const [handicaps, setHandicaps] = useState<Record<string, string | null>>({});
+  const [recentPartners, setRecentPartners] = useState<QuickAddPerson[]>([]);
+  const partnersAskedRef = useRef(false);
   const handicapsAskedRef = useRef<Set<string>>(new Set());
   const [handicapsWanted, setHandicapsWanted] = useState<string[]>([]);
   useEffect(() => {
@@ -956,6 +941,28 @@ export default function GolfComposerSection({
     };
   }, [active, currentStep.id]);
 
+  // QUICK ADD (Nov 24 2026): the people from the account's latest rounds,
+  // asked once when the Players step opens. The account's OWN rounds only —
+  // a guardian composing for a managed athlete is not offered the
+  // guardian's partners. A convenience: "Add others" works without it.
+  const composingAsSelf = !activeProfile || activeProfile.id === profile?.id;
+  useEffect(() => {
+    if (!active || currentStep.id !== 'players' || !composingAsSelf || partnersAskedRef.current) return;
+    partnersAskedRef.current = true;
+    let cancelled = false;
+    fetch('/api/golf/partners/recent', { credentials: 'include' })
+      .then(res => (res.ok ? res.json() : null))
+      .then((body: { partners?: QuickAddPerson[] } | null) => {
+        if (!cancelled && Array.isArray(body?.partners)) setRecentPartners(body.partners);
+      })
+      .catch(() => { /* the row stays absent */ });
+    return () => {
+      cancelled = true;
+      // StrictMode's second mount must ask again (the first was cancelled).
+      partnersAskedRef.current = false;
+    };
+  }, [active, currentStep.id, composingAsSelf]);
+
   // The composer's dialog follows the step (480 → 760 px on a desktop).
   const frame = roundFrame(currentStep.id, courseShown, coursePanel === 'scorecard');
   useEffect(() => {
@@ -986,7 +993,9 @@ export default function GolfComposerSection({
     }));
   };
 
-  const wantedIds = (currentStep.id === 'finish' && active ? [userId, ...sharedRoundParticipants] : []).filter((id): id is string => !!id);
+  // Both steps that show a handicap ask (Nov 24 2026: the Players step's
+  // rows carry it too); an id is asked once for the section's life.
+  const wantedIds = ((currentStep.id === 'finish' || currentStep.id === 'players') && active ? [userId, ...sharedRoundParticipants] : []).filter((id): id is string => !!id);
   if (wantedIds.join(',') !== handicapsWanted.join(',')) setHandicapsWanted(wantedIds);
 
   const courseFacts = selectedCourse ? courseSummary(selectedCourse) : { holeCount: sharedRoundDetails.holesPlayed, par: null, tees: [] };
@@ -1093,17 +1102,20 @@ export default function GolfComposerSection({
   const teeInPlay = sharedRoundDetails.teeColor
     ? teeInPlayTotal ? teeChoiceLabel(teeInPlayTotal) : teeLabel(sharedRoundDetails.teeColor)
     : null;
-  const summaryRows: { label: string; value: string | null }[] = [
-    { label: 'Course', value: sharedRoundDetails.courseName.trim() || null },
-    ...(sharedRoundDetails.alreadyPlayed ? [{ label: 'Date', value: sharedRoundDetails.date || null }] : []),
-    { label: 'Round type', value: indoor ? 'Indoor' : 'Outdoor' },
-    { label: 'Format', value: gameFormatLabel(sharedRoundDetails.gameFormat) },
-    ...(!indoor ? [{ label: 'Tee', value: teeInPlay }] : []),
-    // ONE line (Oct 29 2026, Tom): "Cloudy, 7°C, 5–10 mph" — the temperature
-    // in the viewer's unit; "Forecast at tee-off" lives on the step's note,
-    // the round card and the round page, not here.
+  // `key` is the row's hook (data-round-summary-row) and never changes with
+  // the label: "Round" was "Round type" until the part 2 spec (Nov 24 2026).
+  const summaryRows: StartRow[] = [
+    { key: 'course', label: 'Course', value: sharedRoundDetails.courseName.trim() || null },
+    ...(sharedRoundDetails.alreadyPlayed ? [{ key: 'date', label: 'Date', value: sharedRoundDetails.date || null }] : []),
+    { key: 'round-type', label: 'Round', value: indoor ? 'Indoor' : 'Outdoor' },
+    { key: 'format', label: 'Format', value: gameFormatLabel(sharedRoundDetails.gameFormat) },
+    ...(!indoor ? [{ key: 'tee', label: 'Tee', value: teeInPlay }] : []),
+    // ONE line (Tom, Oct 29 + Nov 24 2026): "Sunny · 11 °C · 5 to 10 mph" —
+    // the temperature in the viewer's unit; "Forecast at tee-off" lives on
+    // the step's note, the round card and the round page, not here.
     ...(!indoor
       ? [{
+          key: 'conditions',
           label: 'Conditions',
           value: conditionsLine({
             weather: sharedRoundDetails.weather,
@@ -1151,6 +1163,19 @@ export default function GolfComposerSection({
           busyLabel={busyLabel ?? roundBusyLabel(sharedRoundDetails.alreadyPlayed)}
           canAdvance={refusal === null}
           refusal={refusal ?? undefined}
+          // Go Live is a slide, not a tap (Nov 24 2026): the last step of a
+          // LIVE round hands the frame its own finish control. An
+          // already-played round keeps the Create Post button.
+          finishControl={!sharedRoundDetails.alreadyPlayed ? (
+            <SlideToConfirm
+              label={roundFinishLabel(false)}
+              doneLabel="Live"
+              ariaLabel="Slide to go live"
+              onConfirm={() => onFinish?.()}
+              disabled={refusal !== null}
+              busy={busy}
+            />
+          ) : undefined}
           // The mechanical dialect (Nov 23 2026): the composer wears the
           // `.ea-mech` scope while golf is the post type and hands over its
           // sport row; the frame fills the dialog, so the footer sits at
@@ -1166,6 +1191,7 @@ export default function GolfComposerSection({
           {currentStep.id === 'type' && (
             <RoundTypeStep
               alreadyPlayed={sharedRoundDetails.alreadyPlayed}
+              offerAlreadyPlayed={ALREADY_PLAYED_OFFERED}
               indoor={indoor}
               onAlreadyPlayed={setAlreadyPlayed}
               onIndoor={setIndoor}
@@ -1605,16 +1631,13 @@ export default function GolfComposerSection({
           )}
 
           {currentStep.id === 'format' && (
-            <div className={GOLF_SECTION_CARD}>
-              <FormatStep
-                value={sharedRoundDetails.gameFormat}
-                onChange={gameFormat => setSharedRoundDetails(prev => ({ ...prev, gameFormat }))}
-              />
-            </div>
+            <FormatStep
+              value={sharedRoundDetails.gameFormat}
+              onChange={gameFormat => setSharedRoundDetails(prev => ({ ...prev, gameFormat }))}
+            />
           )}
 
           {currentStep.id === 'conditions' && (
-            <div className={GOLF_SECTION_CARD}>
               <ConditionsStep
                 value={{ weather: sharedRoundDetails.weather, temperature: sharedRoundDetails.temperature, wind: sharedRoundDetails.wind }}
                 onChange={patch => {
@@ -1626,198 +1649,35 @@ export default function GolfComposerSection({
                 onUnit={next => { void setUnitSys(next); }}
                 forecast={
                   !sharedRoundDetails.alreadyPlayed && selectedCourse?.lat != null && selectedCourse?.lng != null
-                    ? { status: forecastStatus, onUse: () => { void fillFromForecast(); }, filled: forecastFilled }
+                    ? { status: forecastStatus, onUse: () => { void fillFromForecast(); }, filled: forecastFilled, applied: sharedRoundDetails.conditionsSource === 'forecast' }
                     : undefined
                 }
               />
-            </div>
           )}
 
           {currentStep.id === 'players' && (
-            <div data-round-step="players">
-          <div className={GOLF_SECTION_CARD}>
-            <SectionInfo
-              as="h3"
-              heading={sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing Partners'}
-              headingClassName="text-lg font-semibold text-primary flex items-center"
-              className="mb-4"
-            >
-              <p>
-                {sharedRoundDetails.alreadyPlayed
-                  ? 'You’re on the scorecard already — add playing partners if you weren’t alone.'
-                  : 'Playing solo — just hit Go Live. Add partners any time if someone joins you.'}
-              </p>
-            </SectionInfo>
-            <div>
-              {/* flex-wrap: the label is long and dynamic — at ~279px of
-                  card width it must wrap rather than squeeze the button. */}
-              <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
-                <div className="flex items-center gap-2">
-                  {/* The old "+ Add Myself" button (already-played only) is
-                      gone: the creator's row is always seeded and the
-                      server always inserts the creator — it only implied
-                      partners were required. */}
-                  <button
-                    type="button"
-                    onClick={() => setShowParticipantModal(true)}
-                    className="ea-cta flex min-h-[44px] items-center gap-2 px-4 text-sm text-white rounded-lg font-semibold"
-                    data-round-add-players=""
-                  >
-                    <FaIcon icon={faUserPlus} />
-                    Add Others
-                  </button>
-                </div>
-              </div>
-
-              {/* The added players, one row each (Oct 29 2026): the picture
-                  the search showed, the name, Remove — on the house light
-                  purple. */}
-              {sharedRoundParticipantsData.length > 0 ? (
-                <ul className="space-y-2" data-round-partners="">
-                  {sharedRoundParticipantsData.map(participant => (
-                    <li
-                      key={participant.id}
-                      data-round-partner={participant.id}
-                      className="flex items-center gap-3 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2 text-sm"
-                    >
-                      <AvatarImage src={participant.avatar_url} alt="" size={32} fallbackInitials={getInitials(participant.name)} />
-                      <span className="flex-1 min-w-0 truncate font-medium text-primary">{participant.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeParticipant(participant.id)}
-                        className="ea-icon-btn text-secondary hover:text-primary"
-                        aria-label={`Remove ${participant.name}`}
-                      >
-                        <FaIcon icon={faXmark} className="text-xs" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </div>
-            </div>
-          )}
-
-          {/* Scores — the already-played round's one-pass entry: the grid and
-              the hole-by-hole Quick entry, as the one-page form had them. A
-              live round has no scores step; they are entered on the live page. */}
-          {currentStep.id === 'scores' && (
-            <div data-round-step="scores">
-          <div ref={scoreInfoRef} className={GOLF_SECTION_CARD}>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <div className="flex items-center gap-1">
-                <h3 className="text-lg font-semibold text-primary flex items-center">
-                  <FaIcon icon={faListOl} className="mr-2 text-green-600 dark:text-green-400" />
-                  Score Entry
-                </h3>
-                <InfoButton d={scoreInfo} />
-              </div>
-              {/* One-tap path into the hole-by-hole stepper (ScoreEntryModal
-                  in batch mode) — the phone-first alternative to the full
-                  grid. The seam (quickEntryRequest) existed in the grid all
-                  along; this is its first headline entry point: before this,
-                  the stepper was reachable only through the per-cell
-                  penalties badge. */}
-              {/* grow + justify-center: when the flex-wrap header wraps
-                  (font scaling, 320px), the button becomes a full-width
-                  centered CTA instead of a stray left-aligned link. */}
-              <button
-                type="button"
-                onClick={() => setQuickEntryRequest(n => n + 1)}
-                disabled={playerScores.length === 0}
-                className="ea-interactive inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap grow sm:grow-0 rounded-lg border border-border-strong px-3 py-2 text-sm font-semibold text-primary disabled:opacity-50"
-              >
-                <FaIcon icon={faBolt} className="text-amber-500" />
-                Quick entry
-              </button>
-            </div>
-            <InfoPanel d={scoreInfo} className="mb-4">
-              {sharedRoundDetails.alreadyPlayed ? 'Enter the finished round below — the post publishes once, complete. Quick entry walks it hole by hole.' : 'Enter scores now or skip — you can keep scoring hole by hole once the round is live.'}
-            </InfoPanel>
-
-            {/* Multi-player scorecard grid */}
-            <div>
-              <MultiPlayerScorecardGrid
-                  players={playerScores}
-                  holes={sharedRoundDetails.holesPlayed}
-                  startingHoleNumber={startingHoleNum}
-                  courseName={sharedRoundDetails.courseName || undefined}
-                  editable={true}
-                  showDetailedStats={false}
-                  quickEntryRequest={quickEntryRequest}
-                  onScoreChange={handlePlayerScoreChange}
-                  holeData={
-                    // Use course data if available, otherwise manual entry
-                    courseHoleData.length > 0
-                      ? courseHoleData
-                      : manualParEntry.length > 0 || manualYardageEntry.length > 0
-                      ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({
-                          hole: startingHoleNum + i,
-                          par: manualParEntry[i] || 4,
-                          yardage: manualYardageEntry[i] || undefined
-                        }))
-                      : undefined
-                  }
-                />
-            </div>
-          </div>
-            </div>
+            <PlayersStep
+              alreadyPlayed={sharedRoundDetails.alreadyPlayed}
+              partners={sharedRoundParticipantsData}
+              handicaps={handicaps}
+              quickAdd={quickAddOffered(recentPartners, sharedRoundParticipants)}
+              onQuickAdd={person => handleParticipantSelection([person.id], [{ id: person.id, name: person.name, avatar_url: person.avatar_url }])}
+              onRemove={removeParticipant}
+              onAddOthers={() => setShowParticipantModal(true)}
+            />
           )}
 
           {currentStep.id === 'finish' && (
-            <div className="space-y-6" data-round-step="finish">
-              <div className={GOLF_SECTION_CARD}>
-                <h3 className="text-lg font-semibold text-primary mb-3 flex items-center">
-                  <FaIcon icon={sharedRoundDetails.alreadyPlayed ? faFlagCheckered : faCircleDot} className={`mr-2 ${sharedRoundDetails.alreadyPlayed ? 'text-green-600 dark:text-green-400' : 'text-red-600'}`} />
-                  {sharedRoundDetails.alreadyPlayed ? 'Your round' : 'Ready to go live'}
-                </h3>
-                <dl className="divide-y divide-border-subtle" data-round-summary="">
-                  {summaryRows.map(row => (
-                    <div key={row.label} className="flex items-baseline justify-between gap-3 py-2 text-sm" data-round-summary-row={row.label.toLowerCase().replace(/\s+/g, '-')}>
-                      <dt className="text-secondary">{row.label}</dt>
-                      <dd className={`text-right ${row.value ? 'font-semibold text-primary' : 'text-faint'}`}>{row.value ?? 'Not set'}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <div className="border-t border-border-subtle pt-2 text-sm" data-round-summary-row="players">
-                  <p className="text-secondary mb-1.5">Players</p>
-                  <ul className="space-y-1.5">
-                    {roundPlayers.map(p => (
-                      <li key={p.id} data-round-player={p.id} className="flex items-center gap-2">
-                        <AvatarImage src={p.avatar_url} alt="" size={32} fallbackInitials={getInitials(p.name)} />
-                        <span className="font-semibold text-primary truncate">
-                          {p.name}
-                          {handicaps[p.id] ? <span className="font-normal text-secondary">{handicapSuffix(handicaps[p.id])}</span> : null}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <p className="mt-3 text-sm text-tertiary">
-                  {sharedRoundDetails.alreadyPlayed
-                    ? 'Create Post saves the round and opens it for review — you post it from there.'
-                    : 'Go Live opens the round — score hole by hole as you play; add partners any time.'}
-                </p>
-              </div>
-
+            <StartStep
+              alreadyPlayed={sharedRoundDetails.alreadyPlayed}
+              rows={summaryRows}
+              players={roundPlayers}
+              handicaps={handicaps}
+            >
               {/* The story: caption + media belong to an already-played
                   round's post (a live round tells its story at the finish). */}
-              {sharedRoundDetails.alreadyPlayed && finishSlot}
-
-              {onPreview && (
-                <button
-                  type="button"
-                  onClick={onPreview}
-                  disabled={refusal !== null}
-                  className="ea-interactive inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-border-strong px-4 py-2 text-sm font-semibold text-primary disabled:opacity-50"
-                  data-round-preview=""
-                >
-                  <FaIcon icon={faEye} />
-                  Preview
-                </button>
-              )}
-            </div>
+              {sharedRoundDetails.alreadyPlayed ? finishSlot : null}
+            </StartStep>
           )}
         </StepFlow>
       )}
@@ -1831,6 +1691,7 @@ export default function GolfComposerSection({
         existingTags={sharedRoundParticipants}
         onSelectionComplete={handleParticipantSelection}
         selectionMode={true}
+        variant="mech"
       />
     </>
   );
