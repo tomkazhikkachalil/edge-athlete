@@ -211,12 +211,15 @@ function SportTile({ section, sport, isFavourite, canFavourite, isLast, entering
         onPointerUp={release}
         onPointerLeave={release}
         onPointerCancel={release}
-        className={`absolute inset-0 w-full rounded-[14px] pt-[11px] pl-3 pr-2.5 pb-2.5 flex flex-col items-start justify-between text-left ${
+        className={`absolute inset-0 w-full rounded-[14px] pt-[11px] pl-[12px] pr-[10px] pb-[10px] max-[359px]:pl-[8px] max-[359px]:pr-[6px] max-[359px]:pb-[8px] flex flex-col items-start justify-between text-left ${
           isDisabled ? 'cursor-not-allowed' : ''
         }`}
       >
         <FaIcon icon={sportIcon(sport.sport_key)} aria-hidden="true" className="ea-mech-icon text-[22px]" />
-        <span id={nameId} className="block w-full truncate text-[13px] leading-[18px] font-semibold text-[color:var(--mech-text)]">
+        <span
+          id={nameId}
+          // Under 360 px a long name takes a second line instead of an ellipsis.
+          className="block w-full truncate text-[13px] leading-[18px] font-semibold text-[color:var(--mech-text)] max-[359px]:whitespace-normal max-[359px]:[overflow-wrap:anywhere] max-[359px]:leading-[16px] max-[359px]:line-clamp-2" data-sport-name="">
           {sport.display_name}
         </span>
       </button>

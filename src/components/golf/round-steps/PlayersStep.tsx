@@ -75,7 +75,7 @@ export default function PlayersStep({ alreadyPlayed, partners, handicaps, quickA
           <p className="ea-mech-micro mb-2">Quick add</p>
           {/* -mx / px: the row scrolls sideways to the screen's edge, and the
               badges (2 px outside each picture) are not clipped. */}
-          <ul className="-mx-4 flex gap-3.5 overflow-x-auto px-4 py-1 sm:-mx-5 sm:px-5">
+          <ul className="ea-mech-scroll -mx-4 flex gap-3.5 overflow-x-auto px-4 py-1 sm:-mx-5 sm:px-5" data-scroll-x="">
             {quickAdd.map(person => (
               <li key={person.id} className="shrink-0">
                 <button
@@ -83,7 +83,7 @@ export default function PlayersStep({ alreadyPlayed, partners, handicaps, quickA
                   onClick={() => onQuickAdd(person)}
                   aria-label={`Add ${person.name}`}
                   data-round-quick-add-person={person.id}
-                  className="ea-mech-btn ea-mech-press relative block h-12 w-12 rounded-full"
+                  className="ea-mech-btn ea-mech-press relative block h-[48px] w-[48px] rounded-full"
                 >
                   <AvatarImage src={person.avatar_url} alt="" size={48} fallbackInitials={getInitials(person.name)} />
                   <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full" style={{ boxShadow: RING }} />
@@ -110,10 +110,10 @@ export default function PlayersStep({ alreadyPlayed, partners, handicaps, quickA
                 key={partner.id}
                 data-round-partner={partner.id}
                 {...(present.has(partner.id) ? {} : { 'data-enter': '' })}
-                className="ea-mech-partner flex h-14 items-center gap-3 pl-3"
+                className="ea-mech-partner flex min-h-14 items-center gap-3 pl-3"
                 style={i > 0 ? { borderTop: '1px solid var(--mech-divider)' } : undefined}
               >
-                <span className="relative block h-9 w-9 shrink-0 rounded-full">
+                <span className="relative block h-[36px] w-[36px] shrink-0 rounded-full">
                   <AvatarImage src={partner.avatar_url} alt="" size={36} fallbackInitials={getInitials(partner.name)} />
                   <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full" style={{ boxShadow: RING }} />
                 </span>

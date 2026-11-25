@@ -115,3 +115,5 @@ Tom's doc "golf round flow, part 2" finishes the flow in the mechanical dialect 
 - **The unfinished-post banner** is one line while golf is the post type (same Restore / Dismiss handlers).
 
 **Pinned by:** `round-steps.test.ts` (lists, numbering, wording, frame, the flag), `recent-partners.test.ts`, `slide.test.ts`, `score-entry.test.ts` (`withoutEnteredScores`), `golf-part2-surface.test.ts` (the surface and the route), `step-flow.test.ts`, `weather-surface.test.ts`; e2e `golf-part2.spec.ts` (quick add, the dialog, a tap and a half slide start nothing, a full slide starts the round once with its partner; Enter on the key), `golf-quick-entry.spec.ts`, `golf-forecast.spec.ts`, `golf-course-step.spec.ts`.
+
+**Every screen size, every engine (Nov 25 2026):** the flow is measured on the size ladder and on all six browser projects by `e2e/golf-fit.spec.ts`; the rules are in `ui-conventions.md`, "The mechanical dialect". The slide's drag may start anywhere on its track (it follows the distance dragged), so a tap on the track, its far end included, starts nothing.
