@@ -558,7 +558,7 @@ test('a course with map lines and NO pars: the card is shown with estimated pars
     expect(stored.every(h => h.parEstimated === true)).toBe(true);
     // Nov 19 2026: the saved round keeps saying so. The scorer's hole header…
     // (the page's own hole chip says it too, behind the open scorer)
-    await expect(page.locator(':text("Par 4 (est.)"):visible').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-score-card] [data-hole-readout="par"]')).toHaveText(/par est\.\s*4/i, { timeout: 30_000 });
     await expect(page.locator('[data-live-par-estimated]')).toHaveCount(1);
     // …and, once the card is in, the posted scorecard's par row.
     const me = body.scorecard.group_post.creator_id as string;

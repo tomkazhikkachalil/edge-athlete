@@ -42,7 +42,8 @@ describe('a long name is cut or wrapped, never pushed off a phone', () => {
     expect(src).toContain("'grid grid-cols-1 gap-3 sm:grid-cols-2'");
   });
   it('the event name in the three back links is cut, and its neighbours keep their size', () => {
-    expect(read('app/(app)/live/[groupPostId]/page.tsx')).toContain('<span className="min-w-0 truncate">{scorecard.sport_event ? scorecard.sport_event.name : \'Live Now\'}</span>');
+    // The live page's bar (Nov 25 2026): still cut, and shown from 640 px (the chevron is the button on a phone).
+    expect(read('app/(app)/live/[groupPostId]/page.tsx')).toContain('<span className="min-w-0 truncate max-sm:sr-only">{scorecard.sport_event ? scorecard.sport_event.name : \'Live Now\'}</span>');
     expect(read('components/golf/GroupScoreCard.tsx')).toContain('<span className="min-w-0 truncate">{event.name}</span>');
     expect(read('components/sport-events/EventLiveScreen.tsx')).toContain('<span className="min-w-0 truncate">{view?.event.name ?? \'Event\'}</span>');
   });
@@ -69,8 +70,9 @@ describe('leftovers, Nov 19: the scorer badge and the round detail page', () => 
     // Nov 25 2026: the badge is the card's RoundBadge (red LIVE, grey Final).
     expect(src).toContain("{isLive && <RoundBadge status={roundStatus === 'completed' ? 'final' : 'live'} />}");
     const controls = read('components/golf/scoring/ScoreControls.tsx');
-    expect(controls).toContain('data-scorer-status="final"');
-    expect(controls).toContain('data-scorer-status="live"');
+    // The hook is the badge's scope + its status: data-scorer-status="live" | "final".
+    expect(controls).toContain("const hook = { [`data-${scope}-status`]: status };");
+    expect(controls).toContain("scope = 'scorer'");
     // The flag that drives saving is not the badge's.
     expect(src).toContain('const isLive = !!onSaveHole;');
     for (const caller of ['app/(app)/live/[groupPostId]/page.tsx', 'components/PostCard.tsx']) {

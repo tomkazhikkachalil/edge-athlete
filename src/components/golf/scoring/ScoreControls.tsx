@@ -10,10 +10,12 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, MinusIcon, PlusIcon } fro
 // draws a value its caller holds and reports a tap. All inside `.ea-mech`.
 
 /** C1 — the LIVE badge (red, as everywhere in the app), or FINAL once the round is. */
-export function RoundBadge({ status }: { status: 'live' | 'final' }) {
+/** `scope` names the hook: the scoring card's (`data-scorer-status`) or the live page's (`data-live-status`). */
+export function RoundBadge({ status, scope = 'scorer' }: { status: 'live' | 'final'; scope?: 'scorer' | 'live' }) {
+  const hook = { [`data-${scope}-status`]: status };
   if (status === 'final') {
     return (
-      <span className="ea-mech-micro inline-flex h-6 items-center rounded-xl px-[9px]" style={{ backgroundColor: 'var(--mech-tile)', boxShadow: 'inset 0 0 0 1px var(--mech-hairline)' }} data-scorer-status="final">
+      <span className="ea-mech-micro inline-flex h-6 items-center rounded-xl px-[9px]" style={{ backgroundColor: 'var(--mech-tile)', boxShadow: 'inset 0 0 0 1px var(--mech-hairline)' }} {...hook}>
         Final
       </span>
     );
@@ -22,7 +24,7 @@ export function RoundBadge({ status }: { status: 'live' | 'final' }) {
     <span
       className="inline-flex h-6 items-center gap-1.5 rounded-xl px-[9px]"
       style={{ backgroundColor: 'var(--mech-live-fill)', boxShadow: 'inset 0 0 0 1px var(--mech-live-ring)' }}
-      data-scorer-status="live"
+      {...hook}
     >
       <span aria-hidden="true" className="inline-block h-[7px] w-[7px] rounded-full motion-safe:animate-pulse" style={{ backgroundColor: 'var(--mech-live)', boxShadow: '0 0 8px var(--mech-live)' }} />
       <span className="ea-mech-micro" style={{ color: 'var(--mech-live-text)' }}>Live</span>

@@ -27,7 +27,9 @@ export default function CourseMap(props: {
   focusHole?: number | null;
   onHoleTap?: (hole: number) => void;
   onFix?: (fix: [number, number] | null) => void;
-  captionInset?: number;
+  onTargetHelp?: () => void;
+  overlayNotes?: React.ReactNode;
+  overlayFooter?: React.ReactNode;
   fitNonce?: number;
   elevation?: import('@/lib/golf/elevation').HoleElevation | null;
 }) {

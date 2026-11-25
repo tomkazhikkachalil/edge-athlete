@@ -29,13 +29,12 @@ import { followDefault, shouldPan } from '@/lib/golf/map-follow';
 import { COPY } from '@/lib/copy';
 import FaIcon from '@/components/FaIcon';
 import { faBullseye } from '@/lib/icons/fa/bullseye';
-import { faCrosshairs } from '@/lib/icons/fa/crosshairs';
 import { faFlag } from '@/lib/icons/fa/flag';
 import { faLocationCrosshairs } from '@/lib/icons/fa/location-crosshairs';
 import { faMap } from '@/lib/icons/fa/map';
-import { faPersonWalking } from '@/lib/icons/fa/person-walking';
 import { faSatellite } from '@/lib/icons/fa/satellite';
 import { faXmark } from '@/lib/icons/fa/xmark';
+import { CloseIcon, FollowIcon, LayersIcon, LocateIcon, MinusIcon, PlusIcon, RecenterIcon, TargetIcon } from '@/components/golf/scoring/icons';
 
 export interface CourseMapInnerProps {
   lat: number;
@@ -67,10 +66,14 @@ export interface CourseMapInnerProps {
   /** PR D: the ONE position watcher lives here — every fix (and the stop,
    *  as null) is PUBLISHED so the page can hand it to the scorer. */
   onFix?: (fix: [number, number] | null) => void;
-  /** Extra px above the default bottom-6 for the overlay captions — the
-   *  parent knows what it floats over the map's bottom edge (the live
-   *  page's centered "Score hole N" CTA), this component doesn't. */
-  captionInset?: number;
+  /** Overlay mode: the Set target key was tapped with no target set — the
+   *  caller shows how a target is set (the info panel). */
+  onTargetHelp?: () => void;
+  /** Overlay mode: the caller's notes about the hole (not mapped, pick a
+   *  nine…), drawn first in the column under the hole plate. */
+  overlayNotes?: React.ReactNode;
+  /** Overlay mode: the caller's panel above the bottom bar (the info hints). */
+  overlayFooter?: React.ReactNode;
   /** M1: bump to re-fit the view to the focused hole even when the hole
    *  has not changed (the page's "first hole" control after a drag). */
   fitNonce?: number;
@@ -94,9 +97,11 @@ const courseIcon = () =>
 const playerIcon = () =>
   L.divIcon({
     className: '',
-    html: '<div style="width:14px;height:14px;border-radius:50%;background:#2563eb;border:3px solid white;box-shadow:0 0 0 2px rgba(37,99,235,.35)"></div>',
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    // The live-round spec (Nov 25 2026, D4): a 13 px dot in the position
+    // colour with a 2 px white stroke, in a soft 30 px halo.
+    html: '<div data-player-dot="" style="width:30px;height:30px;border-radius:50%;background:rgba(77,163,255,.28);display:flex;align-items:center;justify-content:center"><div style="width:13px;height:13px;border-radius:50%;background:#4da3ff;border:2px solid #ffffff;box-sizing:content-box;box-shadow:0 1px 3px rgba(0,0,0,.5)"></div></div>',
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
   });
 
 // The player-placed target: an orange ring inside a 44px transparent hit
@@ -119,13 +124,18 @@ const FLAG_H = 36;
 // The live page's control column over the map's top-right corner: four 40px
 // buttons (layer, track, Follow me, Re-center), then the distance pill
 // (~170px wide), from 12px in. gps-hole-flag.spec measures the flag clear of it.
-const CONTROL_COLUMN_W = 190;
-const CONTROL_COLUMN_H = 312;
+const CONTROL_COLUMN_W = 76;
+const CONTROL_COLUMN_H = 280;
+
+// A round key over the map (the live-round spec, section B): 44 px, the raised grey; accent while on.
+// Sized in px, like every offset around it: `rem` grows with the reader's text
+// size, and keys that grow walk into the plate and the pills beside them.
+const ROUND_KEY = 'ea-mech-round inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center disabled:opacity-40';
 
 const flagIcon = () =>
   L.divIcon({
     className: '',
-    html: '<svg data-green-flag="" width="30" height="36" viewBox="0 0 30 36" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))"><path d="M5 34V3" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/><path d="M5 34V3" stroke="#1f2937" stroke-width="2" stroke-linecap="round"/><path d="M6 3.5 26 10 6 16.5Z" fill="#dc2626" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+    html: '<svg data-green-flag="" width="30" height="36" viewBox="0 0 30 36" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))"><path d="M5 34V3" stroke="#141318" stroke-width="5" stroke-linecap="round" opacity=".55"/><path d="M5 34V3" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/><path d="M6 3.5 26 10 6 16.5Z" fill="#e5333b" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/></svg>',
     iconSize: [30, FLAG_H],
     iconAnchor: [5, 34],
   });
@@ -145,7 +155,9 @@ export default function CourseMapInner({
   focusHole = null,
   onHoleTap,
   onFix,
-  captionInset = 0,
+  onTargetHelp,
+  overlayNotes,
+  overlayFooter,
   fitNonce = 0,
   elevation = null,
 }: CourseMapInnerProps) {
@@ -193,7 +205,12 @@ export default function CourseMapInner({
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { scrollWheelZoom: fill }).setView([lat, lng], fill ? 16 : 15);
+    // Overlay mode (the live page) draws its own zoom keys and its own credit
+    // strip; the card map keeps Leaflet's.
+    const map = L.map(containerRef.current, {
+      scrollWheelZoom: fill,
+      ...(overlayControls ? { zoomControl: false, attributionControl: false } : {}),
+    }).setView([lat, lng], fill ? 16 : 15);
     const t = layer === 'satellite' ? SATELLITE : OSM;
     tileRef.current = L.tileLayer(t.url, { maxZoom: t.maxZoom, attribution: t.attribution }).addTo(map);
     L.marker([lat, lng], { icon: courseIcon() }).addTo(map).bindPopup(courseName);
@@ -256,9 +273,10 @@ export default function CourseMapInner({
     const label = (hole: number, at: [number, number]) => {
       const icon = L.divIcon({
         className: '',
-        html: `<div style="width:22px;height:22px;border-radius:50%;background:rgba(17,24,39,.82);color:#fff;font:700 11px/22px system-ui;text-align:center;border:1.5px solid rgba(255,255,255,.9);box-shadow:0 1px 3px rgba(0,0,0,.5)">${hole}</div>`,
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
+        // D4: a 26 px disc, the surface colour, a 2 px white stroke, the number in the mono face.
+        html: `<div data-tee-marker="${hole}" style="width:26px;height:26px;box-sizing:border-box;border-radius:50%;background:#141318;color:#fff;font:700 12px/22px var(--font-mono-ea),ui-monospace,SFMono-Regular,Menlo,monospace;text-align:center;border:2px solid #ffffff;box-shadow:0 1px 3px rgba(0,0,0,.5)">${hole}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
       });
       const marker = L.marker(at, { icon, keyboard: false });
       marker.on('click', () => onHoleTapRef.current?.(hole));
@@ -309,7 +327,8 @@ export default function CourseMapInner({
     const fitPts: [number, number][] = h ? [...h.line, greenAt] : [...ringOnly!, greenAt];
     group.addLayer(
       L.circleMarker(greenAt, {
-        radius: 6,
+        // The small ring at the flag's base (white, 2 px).
+        radius: 5,
         color: '#ffffff',
         weight: 2,
         fillColor: '#16a34a',
@@ -334,13 +353,18 @@ export default function CourseMapInner({
       // bottom, and a hole that runs straight up the screen put its green —
       // and now its flag — underneath the chip (found by gps-hole-flag.spec).
       const bounds = L.latLngBounds(fitPts);
+      // Overlay mode (Nov 25 2026): the hole plate (to 80 px) and, under it,
+      // the "yds to green" pill (to ~142 px) sit over the top; the zoom keys
+      // down the left; the bottom bar and the credit strip over the bottom
+      // (to 94 px up). The flag stands 34 px above its point.
       const fit = (rightPad: number) =>
-        map.fitBounds(bounds, { paddingTopLeft: [50, 116], paddingBottomRight: [rightPad, 104], maxZoom: 18, animate: false });
+        map.fitBounds(bounds, overlayControls
+          ? { paddingTopLeft: [76, 180], paddingBottomRight: [rightPad, 116], maxZoom: 18, animate: false }
+          : { paddingTopLeft: [50, 116], paddingBottomRight: [rightPad, 104], maxZoom: 18, animate: false });
       fit(50);
-      // The control column (layers, tracking, re-center, then the "yds to
-      // green" pill) hangs down the map's top-right corner. A green that
-      // lands under it loses its flag behind the very pill that names it —
-      // so that hole is fitted again with the column's width kept clear.
+      // The control capsule hangs down the map's top-right corner. A green
+      // that lands under it loses its flag behind the keys — so that hole is
+      // fitted again with the capsule's width kept clear.
       if (overlayControls) {
         const green = map.latLngToContainerPoint(greenAt);
         const underColumn = green.x > map.getSize().x - CONTROL_COLUMN_W && green.y - FLAG_H < CONTROL_COLUMN_H;
@@ -431,7 +455,7 @@ export default function CourseMapInner({
           accuracyRef.current = L.circle(ll, {
             radius: pos.coords.accuracy,
             weight: 1,
-            color: '#2563eb',
+            color: '#4da3ff',
             fillOpacity: 0.08,
           }).addTo(map);
         } else {
@@ -539,8 +563,9 @@ export default function CourseMapInner({
     const vertices: [number, number][] =
       activeTarget && targetOrigin ? [targetOrigin, activeTarget, green] : [...focusedLine, green];
     const group = L.layerGroup();
-    group.addLayer(L.polyline(vertices, { color: '#ffffff', weight: 6, opacity: 0.85 }));
-    group.addLayer(L.polyline(vertices, { color: '#7c3aed', weight: 3, opacity: 0.95 }));
+    // D4: a 6 px white line with the route colour on top, round caps and joins.
+    group.addLayer(L.polyline(vertices, { color: '#ffffff', weight: 6, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }));
+    group.addLayer(L.polyline(vertices, { color: '#8b5cf6', weight: 3.5, opacity: 1, lineCap: 'round', lineJoin: 'round' }));
     group.addTo(map);
     targetLinesRef.current = group;
     if (!activeTarget) {
@@ -649,22 +674,6 @@ export default function CourseMapInner({
   // undecided (no fix yet) · on · paused (a drag or a hole fit — Re-center
   // resumes) · off.
   const followState = follow == null ? 'undecided' : !follow ? 'off' : followPaused || !panAllowed ? 'paused' : 'on';
-  const followButton = enableTracking && tracking && (
-    <button
-      type="button"
-      onClick={toggleFollow}
-      aria-label={follow === true ? COPY.GOLF_HOLE.FOLLOW_ON : COPY.GOLF_HOLE.FOLLOW_OFF}
-      aria-pressed={follow === true}
-      data-map-follow={followState}
-      className={`inline-flex min-h-[40px] shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface/90 ${controlPad} py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive ${
-        compact && follow === true ? 'max-sm:bg-brand max-sm:text-white' : ''
-      }`}
-    >
-      <FaIcon icon={faPersonWalking} />
-      <span className={labelClass}>{COPY.GOLF_HOLE.FOLLOW_ME}</span>
-    </button>
-  );
-
   const layerButton = (
     <button
       type="button"
@@ -687,64 +696,140 @@ export default function CourseMapInner({
         <>
           {/* Leaflet panes sit at z-index ≤ 400 inside the container —
               z-[500] floats these above tiles/markers but below the app's
-              modals. */}
-          <div className="absolute right-3 top-3 z-[500] flex flex-col items-end gap-2">
-            {layerButton}
-            {trackButton}
-            {followButton}
-            {(followPaused || focusActive || follow === false) && tracking && (
+              modals. The live-round spec (Nov 25 2026, D3): one glass capsule
+              of round keys top right, a zoom capsule under the hole plate;
+              the distance and target pills hang under the capsule as before. */}
+          <div className="live-map-controls z-[500]">
+            <div className="ea-mech-glass live-map-capsule" data-map-controls="">
               <button
                 type="button"
-                onClick={recenter}
-                aria-label="Re-center on my position"
-                className={`inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg border border-border bg-surface/90 ${controlPad} py-1.5 text-sm font-medium text-brand-fg shadow-sm ea-interactive`}
+                onClick={() => setLayer(l => (l === 'satellite' ? 'osm' : 'satellite'))}
+                aria-label={layer === 'satellite' ? 'Switch to map view' : 'Switch to satellite view'}
+                data-map-key="layers"
+                className={ROUND_KEY}
               >
-                <FaIcon icon={faCrosshairs} />
-                <span className={labelClass}>Re-center</span>
+                <LayersIcon size={20} />
               </button>
-            )}
+              {enableTracking && (
+                <button
+                  type="button"
+                  onClick={() => (tracking ? stopTracking() : startTracking())}
+                  aria-label={tracking ? 'Stop tracking' : 'Track my position'}
+                  aria-pressed={tracking}
+                  data-map-key="position"
+                  className={ROUND_KEY}
+                >
+                  <LocateIcon size={20} />
+                </button>
+              )}
+              {/* Follow: only while tracking (nothing to follow otherwise).
+                  `data-map-follow` is the truth for the e2e: undecided · on ·
+                  paused (a drag or a hole fit — Re-center resumes) · off. */}
+              {enableTracking && tracking && (
+                <button
+                  type="button"
+                  onClick={toggleFollow}
+                  aria-label={follow === true ? COPY.GOLF_HOLE.FOLLOW_ON : COPY.GOLF_HOLE.FOLLOW_OFF}
+                  aria-pressed={follow === true}
+                  data-map-follow={followState}
+                  data-map-key="follow"
+                  className={ROUND_KEY}
+                >
+                  <FollowIcon size={20} />
+                </button>
+              )}
+              {(followPaused || focusActive || follow === false) && tracking && (
+                <button type="button" onClick={recenter} aria-label="Re-center on my position" data-map-key="recenter" className={ROUND_KEY}>
+                  <RecenterIcon size={20} />
+                </button>
+              )}
+              {/* Set target: the key SHOWS whether a target is set. A target is
+                  still set by a tap on the map; this key clears one, or says how. */}
+              <button
+                type="button"
+                onClick={() => (activeTarget ? setTarget(null) : onTargetHelp?.())}
+                disabled={!focusedLine}
+                aria-label={activeTarget ? 'Clear target' : 'Set a target'}
+                aria-pressed={!!activeTarget}
+                data-map-key="target"
+                className={ROUND_KEY}
+              >
+                <TargetIcon size={20} />
+              </button>
+            </div>
+          </div>
+          {/* Zoom: the same glass capsule, under the hole plate. */}
+          <div className="ea-mech-glass live-map-capsule live-map-zoom z-[500]" data-map-zoom="">
+            <button type="button" onClick={() => mapRef.current?.zoomIn()} aria-label="Zoom in" data-map-key="zoom-in" className={ROUND_KEY}>
+              <PlusIcon size={20} />
+            </button>
+            <button type="button" onClick={() => mapRef.current?.zoomOut()} aria-label="Zoom out" data-map-key="zoom-out" className={ROUND_KEY}>
+              <MinusIcon size={20} />
+            </button>
+          </div>
+          {/* Under the hole plate, between the zoom keys and the control
+              capsule: what the caller says about this hole (not mapped, pick
+              a nine…), then the distance to the green, the target, a location
+              error. One column, so nothing here can sit on anything else —
+              at 320 px and on a short screen alike. */}
+          <div className="live-map-notes pointer-events-none z-[500] [&>*]:pointer-events-auto" data-map-notes="">
+            {overlayNotes}
             {tracking && (pillLive?.kind === 'gps' || pillLive?.kind === 'nearest') && pillLines?.distance && (
               <p
                 aria-live="polite"
                 data-rangefinder-pill=""
                 data-green-fcb={pillLines.fcb ? '' : undefined}
-                className="inline-flex min-h-[40px] flex-col items-start justify-center rounded-lg border border-border bg-surface/90 px-3 py-1.5 text-sm font-bold text-primary shadow-sm"
+                className="ea-mech-glass inline-flex min-h-[40px] max-w-full flex-col items-start justify-center rounded-[14px] px-3 py-1.5 text-sm font-bold text-[color:var(--mech-text)]"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <FaIcon icon={faFlag} className="text-green-600" />
+                  <FaIcon icon={faFlag} className="text-[color:var(--mech-good)]" />
                   {greenLabel(pillLive)}
                 </span>
                 {playsLikeShort(pillLive) && (
-                  <span className="text-xs font-semibold text-secondary" data-plays-like-delta={pillLines.riseYds ?? undefined}>
+                  <span className="text-xs font-semibold text-[color:var(--mech-text-soft)]" data-plays-like-delta={pillLines.riseYds ?? undefined}>
                     {COPY.GOLF_HOLE.PLAYS_LIKE_WORD} {playsLikeShort(pillLive)}
                   </span>
                 )}
               </p>
             )}
-            {targetPill}
+            {geoError && (
+              <p className="ea-mech-glass max-w-full rounded-[14px] px-3 py-2 text-xs text-[color:var(--mech-text)]" role="status" data-map-geo-error="">
+                {geoError}
+              </p>
+            )}
           </div>
-          {geoError && (
-            <p className="absolute inset-x-3 top-3 z-[500] mr-40 rounded-lg bg-surface/90 px-3 py-2 text-xs text-tertiary shadow-sm">
-              {geoError}
-            </p>
-          )}
-          {(enableTracking || targetHint) && (
-            <div
-              className="absolute left-3 z-[500] flex flex-col items-start gap-1"
-              style={{ bottom: 24 + captionInset }}
-            >
-              {targetHint && (
-                <p className="rounded bg-surface/80 px-2 py-1 text-[10px] text-faint">
-                  Tap the map to set a target
-                </p>
-              )}
-              {enableTracking && (
-                <p className="rounded bg-surface/80 px-2 py-1 text-[10px] text-faint">
-                  Your position stays on your device — never uploaded.
-                </p>
-              )}
-            </div>
-          )}
+          {/* Above the bottom bar: the target's distances (set by a tap on the
+              map, AFTER the hole was fitted — up here it would sit on the
+              flag), then the caller's panel (the info hints). */}
+          <div className="live-map-footer pointer-events-none z-[500] [&>*]:pointer-events-auto" data-map-footer="">
+            {overlayFooter}
+            {targetYds && (
+              <div aria-live="polite" className="ea-mech-glass inline-flex min-h-[40px] max-w-full items-center gap-1.5 rounded-[14px] py-1 pl-3 pr-1 text-sm font-bold text-[color:var(--mech-text)]" data-target-pill="">
+                <TargetIcon size={16} className="shrink-0 text-[color:var(--mech-danger)]" />
+                <span>
+                  {!playerFix && <span className="font-medium text-[color:var(--mech-text-soft)]">from tee: </span>}
+                  {targetYds.toTarget} to target · {targetYds.targetToGreen} to green
+                </span>
+                <button type="button" onClick={() => setTarget(null)} aria-label="Clear target" className="ea-mech-btn inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center text-[color:var(--mech-text-soft)]" data-target-clear="">
+                  <CloseIcon size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+          {/* The credit: a strip across the very bottom carrying every credit
+              and link the tile providers require (they are a licence
+              condition, not chrome). The text is the tile layer's own. */}
+          <p
+            // One line; on a phone it scrolls sideways so the WHOLE credit can be read — never cut with an ellipsis.
+            className="absolute inset-x-0 bottom-0 z-[500] flex h-6 items-center gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap px-3 text-[10px] leading-6 text-[#c9c6d1] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_a]:underline"
+            data-scroll-x=""
+            style={{ backgroundColor: 'rgb(11 10 13 / 0.78)' }}
+            data-map-credit={layer}
+          >
+            <span className="shrink-0" dangerouslySetInnerHTML={{ __html: (layer === 'satellite' ? SATELLITE : OSM).attribution }} />
+            {layer === 'satellite' && <span className="shrink-0">· hole lines © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a></span>}
+            <span className="ml-auto shrink-0 pl-3"><a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer">Leaflet</a></span>
+          </p>
         </>
       ) : (
         <>

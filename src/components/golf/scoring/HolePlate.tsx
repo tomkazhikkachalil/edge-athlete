@@ -69,7 +69,8 @@ export default function HolePlate({ holeNumber, facts, tees, teeInPlay, live, co
 
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
           <div className="flex flex-wrap items-end gap-x-3 gap-y-1" data-hole-facts="">
-            {facts.par != null && <Readout label="Par" value={`${facts.par}${facts.parEstimated ? '*' : ''}`} hook="par" />}
+            {/* An estimated par says so, in words (Tom, Nov 18 2026: estimated pars are marked wherever they show). */}
+            {facts.par != null && <Readout label={facts.parEstimated ? 'Par est.' : 'Par'} value={String(facts.par)} hook="par" />}
             {facts.hcp != null && <Readout label="Hcp" value={String(facts.hcp)} hook="hcp" />}
             {facts.yards != null && <Readout label="Yds" value={`${facts.approx ? '≈' : ''}${facts.yards}`} hook="yds" />}
             {facts.teeLabel && (
