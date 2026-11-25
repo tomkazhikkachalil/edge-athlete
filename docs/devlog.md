@@ -1,5 +1,22 @@
 # Development Log
 
+## November 25, 2026 (02:22) — The golf round flow on every screen size and every engine
+
+**Why.** Tom, after part 2: "we need this to be dynamic so fits any mobile screen size and could also be expanded to larger screens… all the changes made need to work in every web browser. I don't want to run into the issue of being apple and chrome focused. Android users and with different OS's will be using the application." I had proven the new screens at 375, 390, 412 and 1280 px on Chromium, WebKit and the Pixel profile only; the repo's Firefox and Brave projects had not been run on them.
+
+**Measured first** (`e2e/golf-fit.spec.ts`): the flow is walked once and every screen (Select sport, Round type, Course search, Course selected, Game format, Conditions, Players, Tag People, Start) is taken through 21 sizes: 320×568 up to 2560×1440, two phones on their side, three tablets, and enlarged text. The spec sets the size itself, so each project's engine meets every size.
+
+**What it found, and the fix (#1627, `9fd5e26a`, zero DDL, no behaviour change).**
+- 320 px: "Stroke Play" cut by 2 px; with enlarged text, sport and format names cut and Next pushed off the row. Under 360 px a tile's name now takes a second line, tile padding narrows, Back is 72 and Next at least 96 wide.
+- Tag People at 320 px: a long name's chip ran out of the dialog. It now stays inside.
+- Enlarged text: a picture's ring grew and its picture did not. The ring is sized in px like the picture.
+- Not found by measuring, fixed from reading: palette-coloured thin scroll bars where a browser always draws one (Firefox, Windows); `overscroll-behavior-x: contain` on the dialog; the slide to go live takes the pointer on its whole track and follows the distance dragged, so a thumb need not start at the screen's edge where Android and iOS begin their back gesture. A tap anywhere on the track still starts nothing.
+- A fault in my own measuring, corrected: Firefox reports a scroll size for inline boxes that Chromium does not; the first Firefox run listed 40 false failures.
+
+**Proof.** `npm run verify` exit 0 before the last three unit tests were added; CI's verify, smoke and guardrails green on the PR. The ladder passes on `desktop`, `mobile`, `webkit-mobile`, `firefox-mobile`, `android`, `brave-android` against the build on staging. The five golf specs ran on `firefox-mobile` and `brave-android` for the first time: 8 passed on each; desktop 24, mobile 11. Production on `9fd5e26a`; probe (the ladder + `golf-part2`): desktop 4, mobile 2, firefox-mobile 2, android 2, none failed.
+
+**Limits and what stays open.** Emulated engines and phone profiles are not real devices: Samsung Internet, Firefox for Android and Safari on a phone can differ, and the system's edge swipe cannot be emulated. Tom's look on a real Android phone and an iPhone is owed, the slide first. Reported to Tom, not changed: the built stylesheet relies on CSS cascade layers (Tailwind v4: iOS 15.4+, Firefox 97+, Chrome 99+, Samsung Internet 18+) while `browserslist` states iOS 15 and Samsung 16, and `check:syntax` checks JavaScript only. The rule is in `docs/specs/ui-conventions.md`, "The mechanical dialect".
+
 ## November 25, 2026 (01:12) — The golf round flow, part 2: six steps for a live round, quick add, the slide to go live
 
 **Why.** Tom's doc "golf round flow, part 2 (steps 3 to 6)": finish the flow after the course step in the mechanical dialect, and change what it does. His words on the mode: "make this flow focused on playing a live round, not an already played round"; the already-played process "will be built out differently in the coming updates".
