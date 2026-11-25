@@ -1083,3 +1083,8 @@ A hole whose tees disagree on par is decided by logic and confirmed by other sou
 ## A club website that did not answer is asked again after a week (migration 319, Nov 20 2026)
 
 318 waits 90 days before a carded course's website is visited again, whatever the visit came to. Production's first four visits: three sites did not answer (`unreachable`), one of them read by the same reader from another machine an hour earlier. "Did not answer" is not an answer about the card, so `golf_site_evidence_due` now also returns a course whose last outcome is `unreachable` or `not_kept` once 7 days have passed; every real answer keeps the 90 days. Only that function changes: no table, column or job, and no code depends on it. Expected result row on both databases: `319 APPLIED | 1 | true | false | 319`.
+
+## Each penalty on a hole keeps its own stroke value (migration 320, Nov 25 2026)
+
+Tom's live-round spec draws every penalty as a row with its strokes ("Lost ball +2") and a badge of the hole's total. `golf_hole_scores.penalties` (078) is a `TEXT[]` of types, one element per occurrence, with nowhere to keep a stroke value. 320 adds `golf_hole_scores.penalty_strokes smallint[]`, aligned by index with `penalties`; NULL = one stroke each (every earlier row). A CHECK keeps each value in 1..9; there is no length CHECK against `penalties` (a save on the course is never refused over a pairing rule): the one writer (`hole-writes.ts` `holeRow`) sets the two together, and a reader that meets a mismatch reads one stroke each (`penalties.ts` `penaltyEntries`). Penalty strokes stay descriptive: never added to `strokes`, no total changes. `golf_holes` keeps types only. **Run on both databases BEFORE the code deploys** (the app writes and selects the column).
+

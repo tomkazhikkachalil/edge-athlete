@@ -73,3 +73,24 @@ describe('holeRow — penalties ride only when named', () => {
     expect(holeRow('gp1', { hole_number: 1, strokes: 4, putts: 2, fairway_hit: true, green_in_regulation: false, penalties: ['water'] })).toMatchObject({ putts: 2, fairway_hit: true, green_in_regulation: false, penalties: ['water'] });
   });
 });
+
+// Migration 320 (Nov 25 2026): the stroke values travel WITH the types.
+describe('holeRow — penalty_strokes always rides with penalties', () => {
+  it('a write that does not name penalties names no stroke values either', () => {
+    const row = holeRow('gp1', { hole_number: 1, strokes: 4 });
+    expect(row).not.toHaveProperty('penalties');
+    expect(row).not.toHaveProperty('penalty_strokes');
+  });
+  it('named types with their strokes: both are written', () => {
+    expect(holeRow('gp1', { hole_number: 1, strokes: 6, penalties: ['water', 'lost_ball'], penalty_strokes: [1, 2] })).toMatchObject({ penalties: ['water', 'lost_ball'], penalty_strokes: [1, 2] });
+  });
+  it('named types WITHOUT strokes (an older client, the group card): the stored strokes are reset to "one each", never left stale', () => {
+    const row = holeRow('gp1', { hole_number: 1, strokes: 6, penalties: ['drop'] });
+    expect(row.penalties).toEqual(['drop']);
+    expect(row).toHaveProperty('penalty_strokes', null);
+  });
+  it('clearing the penalties clears their strokes, even if some were sent', () => {
+    expect(holeRow('gp1', { hole_number: 1, strokes: 4, penalties: [], penalty_strokes: [2] })).toMatchObject({ penalties: [], penalty_strokes: null });
+    expect(holeRow('gp1', { hole_number: 1, strokes: 4, penalties: null })).toMatchObject({ penalties: null, penalty_strokes: null });
+  });
+});

@@ -22,7 +22,7 @@ import { holeRow, planHoleWrites, type HoleConflict, type HoleCurrent, type Hole
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = SupabaseClient<any, 'public', any>;
 
-const CURRENT_SELECT = 'hole_number, strokes, putts, fairway_hit, green_in_regulation, penalties, version';
+const CURRENT_SELECT = 'hole_number, strokes, putts, fairway_hit, green_in_regulation, penalties, penalty_strokes, version';
 
 export async function readCurrentHoles(db: Db, golfParticipantId: string, holeNumbers?: ReadonlyArray<number>): Promise<Map<number, HoleCurrent>> {
   let q = db.from('golf_hole_scores').select(CURRENT_SELECT).eq('golf_participant_id', golfParticipantId);
@@ -31,7 +31,7 @@ export async function readCurrentHoles(db: Db, golfParticipantId: string, holeNu
   if (error) throw error;
   const out = new Map<number, HoleCurrent>();
   for (const r of (data ?? []) as Array<HoleCurrent & { hole_number: number }>) {
-    out.set(r.hole_number, { version: r.version, strokes: r.strokes, putts: r.putts, fairway_hit: r.fairway_hit, green_in_regulation: r.green_in_regulation, penalties: r.penalties });
+    out.set(r.hole_number, { version: r.version, strokes: r.strokes, putts: r.putts, fairway_hit: r.fairway_hit, green_in_regulation: r.green_in_regulation, penalties: r.penalties, penalty_strokes: r.penalty_strokes ?? null });
   }
   return out;
 }

@@ -223,6 +223,8 @@ export interface GolfHoleScore {
   green_in_regulation: boolean | null;
   /** One element per occurrence — vocabulary in src/lib/golf/penalties.ts (migration 078). */
   penalties?: string[] | null;
+  /** 320 — the stroke value of each penalty, aligned by index with `penalties`; null / absent = one each. */
+  penalty_strokes?: number[] | null;
   /** 209 — the per-hole compare-and-set; a client sends it back as expected_version. Absent on pre-209 payloads. */
   version?: number;
   created_at: string;
@@ -293,6 +295,7 @@ export interface AddGolfScoresRequest {
     fairway_hit?: boolean;
     green_in_regulation?: boolean;
     penalties?: string[] | null;
+    penalty_strokes?: number[] | null;
   }>;
   entered_by?: string;
 }
