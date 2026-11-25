@@ -27,6 +27,8 @@ export interface HoleCurrent {
   fairway_hit: boolean | null;
   green_in_regulation: boolean | null;
   penalties: string[] | null;
+  /** 320 — the stroke value of each penalty, aligned with `penalties`; null = one each. */
+  penalty_strokes?: number[] | null;
 }
 
 export interface HoleWrite {
@@ -37,6 +39,8 @@ export interface HoleWrite {
   green_in_regulation?: boolean | null;
   /** Absent = leave the stored penalties alone; `[]` clears them. */
   penalties?: string[] | null;
+  /** 320 — rides only WITH `penalties` (aligned by index); absent or null = one stroke each. */
+  penalty_strokes?: number[] | null;
   /** The version the client last saw for this hole; absent = unchecked. */
   expected_version?: number;
 }
@@ -94,7 +98,9 @@ export function planHoleWrites(scores: ReadonlyArray<HoleWrite>, currentByHole: 
   return plan;
 }
 
-/** The row for an upsert / update: the five scored fields, `penalties` only when the write names it. */
+/** The row for an upsert / update: the five scored fields, `penalties` only when the write names it —
+ *  and `penalty_strokes` ALWAYS with it (320): a write that replaces the types replaces their stroke
+ *  values too (the given ones, else NULL = one each), so the two arrays cannot drift apart. */
 export function holeRow(golfParticipantId: string, s: HoleWrite): Record<string, unknown> {
   const row: Record<string, unknown> = {
     golf_participant_id: golfParticipantId,
@@ -104,6 +110,9 @@ export function holeRow(golfParticipantId: string, s: HoleWrite): Record<string,
     fairway_hit: s.fairway_hit ?? null,
     green_in_regulation: s.green_in_regulation ?? null,
   };
-  if (s.penalties !== undefined) row.penalties = s.penalties;
+  if (s.penalties !== undefined) {
+    row.penalties = s.penalties;
+    row.penalty_strokes = s.penalties && s.penalties.length > 0 ? s.penalty_strokes ?? null : null;
+  }
   return row;
 }

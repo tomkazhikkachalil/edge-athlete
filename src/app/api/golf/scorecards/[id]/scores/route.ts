@@ -4,7 +4,7 @@ import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notifications';
 import { parseExpectedVersion, type HoleWrite } from '@/lib/golf/hole-writes';
 import { writeHoleScores } from '@/lib/golf/hole-scores-server';
-import { validatePenalties } from '@/lib/golf/penalties';
+import { validatePenalties, validatePenaltyStrokes } from '@/lib/golf/penalties';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { holeNumberInRange } from '@/lib/sport-events/scoring-authz';
@@ -17,7 +17,7 @@ import { reportRouteError } from '@/lib/observability/report';
  * [id] is the participant_id from group_post_participants table
  * Body:
  *   - scores: Array of { hole_number, strokes, putts?, fairway_hit?,
- *     green_in_regulation?, penalties?, expected_version? }
+ *     green_in_regulation?, penalties?, penalty_strokes?, expected_version? }
  *   - entered_by is always the session user (never body-supplied)
  *
  * Conflicts (phase 2b, mig 209): a score that carries `expected_version`
@@ -29,7 +29,9 @@ import { reportRouteError } from '@/lib/observability/report';
  * (last writer wins — old clients). `expected_updated_at` (the card-stamp
  * guard this replaced) is accepted and ignored for one release.
  * Penalties ride only when the body names them: an absent key leaves the
- * stored penalties alone, `[]` / null clears them.
+ * stored penalties alone, `[]` / null clears them. `penalty_strokes` (320)
+ * rides only WITH `penalties`, one whole number 1–9 per penalty; absent =
+ * one stroke each. Descriptive: never added to `strokes`.
  */
 export async function POST(
   request: NextRequest,
@@ -145,16 +147,26 @@ export async function POST(
     // dropped on this path (the bulk creator path sanitizes instead). A
     // score WITHOUT the key leaves the stored penalties alone (209).
     const penaltiesByIndex: Array<string[] | null | undefined> = [];
-    for (const score of scores as Array<{ penalties?: unknown }>) {
+    const penaltyStrokesByIndex: Array<number[] | null> = [];
+    for (const score of scores as Array<{ penalties?: unknown; penalty_strokes?: unknown }>) {
+      const namesStrokes = Object.prototype.hasOwnProperty.call(score, 'penalty_strokes') && score.penalty_strokes !== null && score.penalty_strokes !== undefined;
       if (!Object.prototype.hasOwnProperty.call(score, 'penalties')) {
+        // The stroke values belong to the types: never one without the other.
+        if (namesStrokes) return NextResponse.json({ error: 'penalty_strokes must come with penalties' }, { status: 400 });
         penaltiesByIndex.push(undefined);
+        penaltyStrokesByIndex.push(null);
         continue;
       }
       const validated = validatePenalties(score.penalties);
       if (validated !== null && !Array.isArray(validated)) {
         return NextResponse.json({ error: validated.error }, { status: 400 });
       }
+      const strokes = validatePenaltyStrokes(score.penalty_strokes, validated?.length ?? 0);
+      if (strokes !== null && !Array.isArray(strokes)) {
+        return NextResponse.json({ error: strokes.error }, { status: 400 });
+      }
       penaltiesByIndex.push(validated);
+      penaltyStrokesByIndex.push(strokes);
     }
     const expectedByIndex: Array<number | undefined> = [];
     for (const score of scores as Array<{ hole_number: number; expected_version?: unknown }>) {
@@ -195,7 +207,10 @@ export async function POST(
         fairway_hit: fairway_hit ?? null,
         green_in_regulation: green_in_regulation ?? null,
       };
-      if (penaltiesByIndex[index] !== undefined) write.penalties = penaltiesByIndex[index];
+      if (penaltiesByIndex[index] !== undefined) {
+        write.penalties = penaltiesByIndex[index];
+        write.penalty_strokes = penaltyStrokesByIndex[index];
+      }
       if (expectedByIndex[index] !== undefined) write.expected_version = expectedByIndex[index];
       return write;
     });
@@ -223,6 +238,7 @@ export async function POST(
           fairway_hit,
           green_in_regulation,
           penalties,
+          penalty_strokes,
           version
         )
       `)
@@ -348,6 +364,7 @@ export async function GET(
           fairway_hit,
           green_in_regulation,
           penalties,
+          penalty_strokes,
           version,
           created_at
         )

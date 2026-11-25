@@ -90,3 +90,68 @@ export function formatPenaltySummary(penalties: string[] | null | undefined): st
     .map(({ type, count }) => (count > 1 ? `${PENALTY_SHORT_LABELS[type]} ×${count}` : PENALTY_SHORT_LABELS[type]))
     .join(' · ');
 }
+
+// ── Stroke values (migration 320, Nov 25 2026) ───────────────────────────────
+// Each penalty keeps its own stroke value in a second array aligned by index
+// with the types: penalty_strokes[i] belongs to penalties[i]. NULL / absent =
+// one stroke each (every row written before 320, every writer that names only
+// the types). DESCRIPTIVE, like the types: the golfer enters TOTAL strokes,
+// so a penalty's strokes are never added to the score.
+
+export const PENALTY_STROKES_MIN = 1;
+export const PENALTY_STROKES_MAX = 9;
+export const PENALTY_STROKES_DEFAULT = 1;
+
+/**
+ * STRICT, for the scores API: the stroke values that go with `count`
+ * penalties. null / undefined → null (one stroke each). An array must hold
+ * exactly `count` whole numbers 1..9; anything else is an error string.
+ */
+export function validatePenaltyStrokes(value: unknown, count: number): number[] | null | { error: string } {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value)) return { error: 'penalty_strokes must be an array' };
+  if (count === 0) return value.length === 0 ? null : { error: 'penalty_strokes without penalties' };
+  if (value.length !== count) return { error: `penalty_strokes must name ${count} value${count === 1 ? '' : 's'}, one per penalty` };
+  for (const entry of value) {
+    if (typeof entry !== 'number' || !Number.isInteger(entry) || entry < PENALTY_STROKES_MIN || entry > PENALTY_STROKES_MAX) {
+      return { error: `Invalid penalty strokes: ${String(entry)}. Must be between ${PENALTY_STROKES_MIN} and ${PENALTY_STROKES_MAX}.` };
+    }
+  }
+  return value.every(v => v === PENALTY_STROKES_DEFAULT) ? null : [...value];
+}
+
+export interface PenaltyEntry {
+  type: PenaltyType;
+  strokes: number;
+}
+
+/** The hole's penalties as rows, in the order they were added. A stroke
+ *  array that is absent, shorter, or holds a bad value reads as one stroke
+ *  for that penalty — a mismatch never hides a penalty. Unknown types drop
+ *  (and keep the pairing of the ones that stay). */
+export function penaltyEntries(penalties: readonly string[] | null | undefined, strokes: readonly number[] | null | undefined): PenaltyEntry[] {
+  if (!penalties) return [];
+  const aligned = Array.isArray(strokes) && strokes.length === penalties.length ? strokes : null;
+  const out: PenaltyEntry[] = [];
+  penalties.forEach((type, i) => {
+    if (!isPenaltyType(type)) return;
+    const s = aligned?.[i];
+    out.push({ type, strokes: typeof s === 'number' && Number.isInteger(s) && s >= PENALTY_STROKES_MIN && s <= PENALTY_STROKES_MAX ? s : PENALTY_STROKES_DEFAULT });
+  });
+  return out;
+}
+
+/** The two stored arrays for a list of rows: types, and strokes (null when
+ *  every penalty is one stroke — the column's "one each" spelling). */
+export function penaltyColumns(entries: readonly PenaltyEntry[]): { penalties: string[]; penalty_strokes: number[] | null } {
+  const strokes = entries.map(e => e.strokes);
+  return {
+    penalties: entries.map(e => e.type),
+    penalty_strokes: strokes.every(s => s === PENALTY_STROKES_DEFAULT) ? null : strokes,
+  };
+}
+
+/** The hole's penalty strokes, summed — the Penalty button's badge. */
+export function totalPenaltyStrokes(penalties: readonly string[] | null | undefined, strokes: readonly number[] | null | undefined): number {
+  return penaltyEntries(penalties, strokes).reduce((sum, e) => sum + e.strokes, 0);
+}
