@@ -20,6 +20,13 @@
 **Proof (staging, against the build).** `npm run verify` exit 0, 7,051 tests; audit 0; guardrails, blocklists, `check:schema` green on staging; `check:schema:prod` reports 320 not yet run, as expected. Browser tests: the card and the map each pass their behaviour spec and the size ladder (320 → 2560 px, landscape, enlarged text) on `desktop`, `mobile`, `webkit-mobile`, `firefox-mobile`, `android` and `brave-android`; the final live-round sweep: desktop 24, mobile 16. **No production proof yet.**
 
 **Owed.** Tom runs 320 on production, then the PRs merge in order (#1630, #1631, #1632, this one), then the production probe and its line here. His look on real phones: the dial drag and the map keys first. Spec: `docs/specs/golf-live-round.md`.
+## November 25, 2026 (02:33) — The real browser floor, noted (no code change)
+
+**Why.** The every-size round found that the built stylesheet relies on CSS cascade layers (Tailwind v4), which need iOS / Safari 15.4, Chrome 99, Firefox 97 and Samsung Internet 18, while `browserslist` and CLAUDE.md state iOS 15 and Samsung 16. I put the choice to Tom: record the real floor, or change the build. Tom: "let's make the note, and not change the code and run as is."
+
+**What.** One paragraph in `docs/specs/ui-conventions.md` ("The mechanical dialect", the real browser floor). `browserslist`, CLAUDE.md and the build are untouched. Not tested on an iOS 15.0 to 15.3 or Samsung Internet 16 / 17 browser; the expectation of an unstyled app there comes from the feature's support tables.
+
+**Proof.** Docs only.
 
 ## November 25, 2026 (02:22) — The golf round flow on every screen size and every engine
 
