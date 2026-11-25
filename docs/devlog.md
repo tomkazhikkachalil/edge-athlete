@@ -1,5 +1,13 @@
 # Development Log
 
+## November 25, 2026 (02:33) — The real browser floor, noted (no code change)
+
+**Why.** The every-size round found that the built stylesheet relies on CSS cascade layers (Tailwind v4), which need iOS / Safari 15.4, Chrome 99, Firefox 97 and Samsung Internet 18, while `browserslist` and CLAUDE.md state iOS 15 and Samsung 16. I put the choice to Tom: record the real floor, or change the build. Tom: "let's make the note, and not change the code and run as is."
+
+**What.** One paragraph in `docs/specs/ui-conventions.md` ("The mechanical dialect", the real browser floor). `browserslist`, CLAUDE.md and the build are untouched. Not tested on an iOS 15.0 to 15.3 or Samsung Internet 16 / 17 browser; the expectation of an unstyled app there comes from the feature's support tables.
+
+**Proof.** Docs only.
+
 ## November 25, 2026 (02:22) — The golf round flow on every screen size and every engine
 
 **Why.** Tom, after part 2: "we need this to be dynamic so fits any mobile screen size and could also be expanded to larger screens… all the changes made need to work in every web browser. I don't want to run into the issue of being apple and chrome focused. Android users and with different OS's will be using the application." I had proven the new screens at 375, 390, 412 and 1280 px on Chromium, WebKit and the Pixel profile only; the repo's Firefox and Brave projects had not been run on them.
