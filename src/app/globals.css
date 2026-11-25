@@ -1187,6 +1187,33 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-gold-track: rgb(217 154 0 / 0.28);
   --mech-knob: #ffffff;
   --mech-live: #e5354a;
+  /* The live round (Tom's live-round spec, Nov 25 2026): what a score means. */
+  --mech-good: #15803d;          /* par or better, in regulation, recorded, forward */
+  --mech-great: #b45309;         /* eagle or better, 0 or 1 putt */
+  --mech-warn: #a16207;          /* double bogey */
+  --mech-danger: #c2410c;        /* 3 putts, penalties */
+  --mech-bad: #dc2626;           /* triple or worse, 4+ putts, the penalty count */
+  --mech-media: #2563eb;         /* photo and video */
+  --mech-live-text: #c81e3a;
+  --mech-on-good: #ffffff;       /* text on a good-coloured fill */
+  --mech-on-danger: #ffffff;
+  --mech-route: #7c3aed;         /* the line of play */
+  --mech-position: #2563eb;      /* the player on the map */
+  --mech-good-glow: rgb(21 128 61 / 0.35);
+  --mech-live-fill: rgb(229 53 74 / 0.10);
+  --mech-live-ring: rgb(229 53 74 / 0.45);
+  --mech-danger-fill: rgb(194 65 12 / 0.10);
+  --mech-danger-ring: rgb(194 65 12 / 0.40);
+  --mech-media-ring: rgb(37 99 235 / 0.35);
+  --mech-recorded: #ebe8f1;      /* a recorded hole's jump key */
+  --mech-lamp-ring: #b9b5c4;
+  --mech-round-depth: inset 0 1px 0 rgb(255 255 255 / 1), 0 2px 5px rgb(20 16 40 / 0.22);
+  --mech-good-depth: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 2px 8px rgb(20 16 40 / 0.25);
+  --mech-glass: rgb(255 255 255 / 0.9);
+  --mech-glass-ring: rgb(20 16 40 / 0.12);
+  --mech-glass-depth: 0 6px 20px rgb(20 16 40 / 0.22), inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --mech-dial-tick: #9c98a8;
+  --mech-dial-hand: #17151c;
   --mech-live-glow: rgb(229 53 74 / 0.45);
   --mech-go-live: #d63f45;
   --mech-go-live-trail: rgb(214 63 69 / 0.22);
@@ -1256,6 +1283,32 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-gold-track: rgb(245 179 1 / 0.28);
   --mech-knob: #8f8b9a;
   --mech-live: #ff4d5e;
+  --mech-good: #3ecf6e;
+  --mech-great: #f5a300;
+  --mech-warn: #ffe14d;
+  --mech-danger: #ff7a3d;
+  --mech-bad: #ff3b4e;
+  --mech-media: #6fb1ff;
+  --mech-live-text: #ff7a85;
+  --mech-on-good: #06210f;
+  --mech-on-danger: #2a0e00;
+  --mech-route: #8b5cf6;
+  --mech-position: #4da3ff;
+  --mech-good-glow: rgb(62 207 110 / 0.55);
+  --mech-live-fill: rgb(255 77 94 / 0.14);
+  --mech-live-ring: rgb(255 77 94 / 0.5);
+  --mech-danger-fill: rgb(255 122 61 / 0.12);
+  --mech-danger-ring: rgb(255 122 61 / 0.4);
+  --mech-media-ring: rgb(111 177 255 / 0.33);
+  --mech-recorded: #2a2831;
+  --mech-lamp-ring: #4a4753;
+  --mech-round-depth: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 2px 5px rgb(0 0 0 / 0.6);
+  --mech-good-depth: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 2px 8px rgb(0 0 0 / 0.5);
+  --mech-glass: rgb(20 19 24 / 0.88);
+  --mech-glass-ring: rgb(255 255 255 / 0.1);
+  --mech-glass-depth: 0 6px 20px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --mech-dial-tick: #6e6a79;
+  --mech-dial-hand: #ffffff;
   --mech-live-glow: rgb(255 77 94 / 0.7);
   --mech-go-live-trail: rgb(214 63 69 / 0.3);
   --mech-avatar-ring: rgb(255 255 255 / 0.18);
@@ -1513,9 +1566,99 @@ html:has(.org-scope[data-theme="dark"]) body {
   color: #ffffff;
 }
 
+/* ── The live round (Tom's live-round spec, Nov 25 2026) ───────────────────── */
+/* The scoring card: a full screen on a phone; a 430 px dialog from 640 px;
+ * 800 px in two columns from 900 px (the left one a fixed 358). The widths
+ * live here because a custom class takes no breakpoint prefix, and two
+ * arbitrary breakpoints on one element do not sort reliably. */
+.ea-mech-scorecard-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@media (min-width: 640px) {
+  .ea-mech-scorecard { max-width: 430px; }
+}
+@media (min-width: 900px) {
+  .ea-mech-scorecard { max-width: 800px; }
+  .ea-mech-scorecard-grid { grid-template-columns: 358px minmax(0, 1fr); gap: 20px; }
+}
+/* A round key: the grey raised circle (dial and putts keys, map keys). */
+.ea-mech-round {
+  border-radius: 9999px;
+  background-color: var(--mech-key);
+  color: var(--mech-text);
+  box-shadow: var(--mech-round-depth);
+  transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease), background-color 160ms var(--ea-ease);
+}
+.ea-mech-round:not(:disabled):active { transform: scale(0.97); }
+.ea-mech-round:disabled { opacity: 0.4; }
+.ea-mech-round[aria-pressed="true"],
+.ea-mech-round[data-on] { background-color: var(--mech-accent); color: #ffffff; }
+/* FIR / GIR: dark when off, green when on. */
+.ea-mech-lamp {
+  border-radius: 9999px;
+  background-color: var(--mech-tile);
+  color: var(--mech-text-soft);
+  box-shadow: inset 0 0 0 1.5px var(--mech-lamp-ring);
+  transition: background-color 180ms var(--ea-ease), box-shadow 180ms var(--ea-ease), color 180ms var(--ea-ease), transform 120ms var(--ea-ease);
+}
+.ea-mech-lamp[aria-pressed="true"] {
+  background-color: var(--mech-good);
+  color: var(--mech-on-good);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 0 16px var(--mech-good-glow);
+}
+.ea-mech-lamp:active { transform: scale(0.97); }
+/* The forward button (Next, "Score hole N"). */
+.ea-mech-go {
+  border-radius: 28px;
+  background-color: var(--mech-good);
+  color: var(--mech-on-good);
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: var(--mech-good-depth);
+  transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease), opacity 160ms var(--ea-ease);
+}
+.ea-mech-go:not(:disabled):active { transform: scale(0.97); }
+.ea-mech-go:disabled { opacity: 0.5; }
+/* A jump key in the hole grid. */
+.ea-mech-holekey {
+  position: relative;
+  border-radius: 8px;
+  background-color: var(--mech-tile);
+  color: var(--mech-text-soft);
+  box-shadow: inset 0 0 0 1px var(--mech-divider);
+  transition: transform 120ms var(--ea-ease), box-shadow 160ms var(--ea-ease), filter 120ms var(--ea-ease);
+}
+.ea-mech-holekey[data-recorded] { background-color: var(--mech-recorded); color: var(--mech-text); }
+.ea-mech-holekey[aria-current="true"] { color: var(--mech-text); }
+.ea-mech-holekey:active { transform: scale(0.97); }
+/* A penalty row, new at the foot of the stack. */
+.ea-mech-penalty {
+  background-color: var(--mech-danger-fill);
+  box-shadow: inset 0 0 0 1px var(--mech-danger-ring);
+  animation: ea-mech-penalty-in 280ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+@keyframes ea-mech-penalty-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+/* The dial's moving parts. */
+.ea-mech-dial-arc { transition: stroke 200ms var(--ea-ease); }
+.ea-mech-dial-hand { transition: transform 160ms cubic-bezier(0.3, 1.4, 0.5, 1); transform-box: view-box; transform-origin: 95px 95px; }
+[data-dial-dragging] .ea-mech-dial-hand { transition: none; }
+/* Floating panels over the map. */
+.ea-mech-glass {
+  background-color: var(--mech-glass);
+  border: 1px solid var(--mech-glass-ring);
+  box-shadow: var(--mech-glass-depth);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
 /* A mouse gets a sign before the press; a phone never keeps a hover. */
 @media (hover: hover) {
   .ea-mech-close:hover,
+  .ea-mech-round:not(:disabled):hover,
+  .ea-mech-lamp:hover,
+  .ea-mech-go:not(:disabled):hover,
+  .ea-mech-holekey:hover,
   .ea-mech-chip:hover,
   .ea-mech-slide-key:hover,
   .ea-mech-btn:not(:disabled):hover,

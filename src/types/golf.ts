@@ -19,6 +19,8 @@ export interface HoleData {
   green_in_regulation?: boolean | null; // Used in database records
   /** One element per occurrence — vocabulary in src/lib/golf/penalties.ts (migration 078). */
   penalties?: string[] | null;
+  /** The stroke value of each penalty, aligned by index with `penalties` (migration 320); null = one each. */
+  penalty_strokes?: number[] | null;
   notes?: string;
 }
 

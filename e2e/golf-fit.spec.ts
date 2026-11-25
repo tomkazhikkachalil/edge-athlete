@@ -2,6 +2,7 @@ import { test, expect, type Page, type Locator } from './helpers/test';
 import { adminClient, apiAs, createQaUser, deleteQaUser, readErrorBody, type QaUser } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
 import { dragSlide, slideKey } from './helpers/go-live';
+import { walkLadder } from './helpers/fit-ladder';
 
 // Every screen size, every engine (Tom, Nov 25 2026: "dynamic so it fits any
 // mobile screen size and could also be expanded to larger screens… work in
@@ -12,21 +13,6 @@ import { dragSlide, slideKey } from './helpers/go-live';
 // label is cut. The spec sets the size itself, so whichever engine a project
 // brings (Chromium, WebKit, Gecko, the Android and Brave profiles) meets
 // every size, phone and desktop alike.
-
-interface Size { w: number; h: number; font?: number }
-export const FIT_LADDER: readonly Size[] = [
-  { w: 320, h: 568 }, // the smallest phones still in use
-  { w: 344, h: 882 }, // a folded phone's cover screen
-  { w: 360, h: 640 }, { w: 360, h: 800 }, // the common Android width
-  { w: 375, h: 667 }, { w: 390, h: 844 }, { w: 412, h: 915 }, { w: 430, h: 932 },
-  { w: 667, h: 375 }, { w: 844, h: 390 }, // a phone on its side
-  { w: 600, h: 960 }, { w: 768, h: 1024 }, { w: 820, h: 1180 }, // small and full tablets
-  { w: 1024, h: 768 }, { w: 1280, h: 800 }, { w: 1440, h: 900 }, { w: 1920, h: 1080 }, { w: 2560, h: 1440 },
-  // Enlarged text (the phone's font size setting, a zoomed browser).
-  { w: 390, h: 844, font: 125 }, { w: 390, h: 844, font: 150 }, { w: 320, h: 568, font: 125 },
-];
-
-const SHOT_SIZES = new Set(['320x568x0', '360x640x0', '667x375x0', '768x1024x0', '1920x1080x0', '390x844x150', '320x568x125']);
 
 /** Measured in the page: every way this screen fails to fit, in words. */
 async function problems(page: Page, scopeSelector: string): Promise<string[]> {
@@ -104,24 +90,7 @@ async function problems(page: Page, scopeSelector: string): Promise<string[]> {
 
 /** Take one screen through the ladder; collect every failure with its size. */
 async function fits(page: Page, screen: string, scopeSelector: string, found: string[]) {
-  for (const size of FIT_LADDER) {
-    await page.setViewportSize({ width: size.w, height: size.h });
-    await page.evaluate(font => { document.documentElement.style.fontSize = font ? `${font}%` : ''; }, size.font ?? 0);
-    // Two frames: the layout after the resize, not the one before it.
-    await page.evaluate(() => new Promise<void>(done => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
-    // FIT_SHOTS=<dir>: photograph the screen at the sizes worth a look.
-    if (process.env.FIT_SHOTS && SHOT_SIZES.has(`${size.w}x${size.h}x${size.font ?? 0}`)) {
-      for (const theme of ['dark', 'light']) {
-        await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
-        await page.screenshot({ path: `${process.env.FIT_SHOTS}/${screen.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${size.w}x${size.h}${size.font ? `-text${size.font}` : ''}-${theme}.png` });
-      }
-    }
-    for (const p of await problems(page, scopeSelector)) {
-      found.push(`${screen} @ ${size.w}×${size.h}${size.font ? ` text ${size.font}%` : ''}: ${p}`);
-    }
-  }
-  await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
-  await page.setViewportSize({ width: 390, height: 844 });
+  await walkLadder(page, screen, found, () => problems(page, scopeSelector));
 }
 
 const FRAME = '[data-composer-frame]';

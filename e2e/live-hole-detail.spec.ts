@@ -1,6 +1,7 @@
 import { test, expect, type Browser } from './helpers/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 import { cleanup } from './helpers/cleanup';
+import { expectScorerOnHole, nextHole, strokesDial } from './helpers/score-card';
 import { fitsViewportWidth } from './helpers/layout';
 
 // Hole-detail program PR E (Oct 2026): the scorer's hole header — par, HCP
@@ -87,21 +88,24 @@ test('live hole detail: the header facts, plays-like from the shared fix, the te
 
     const page = await ctx.newPage();
     await page.goto(`/live/${roundId}`);
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 30_000 });
+    await expectScorerOnHole(page, 1, 30_000);
 
     // Row B: the facts for hole 1 on the white tee.
     const facts = page.locator('[data-hole-facts]');
-    await expect(facts).toContainText('Par 4');
-    await expect(facts).toContainText(`HCP ${hcp1}`);
-    await expect(facts).toContainText('388 yds');
-    await expect(facts).toContainText('White');
+    await expect(facts.locator('[data-hole-readout="par"]')).toContainText('4');
+    await expect(facts.locator('[data-hole-readout="hcp"]')).toContainText(String(hcp1));
+    await expect(facts.locator('[data-hole-readout="yds"]')).toContainText('388');
+    await expect(facts.locator('[data-hole-tee-toggle]')).toContainText('White');
+    // R6: the "Tee → green" words are gone from the card.
+    await expect(page.locator('[data-score-card]')).not.toContainText('Tee →');
 
     // Row C: from the map's fix (the tee), the distance to the green and the
     // plays-like, 7 yards longer — the fix reached the scorer through the page.
     const live = page.locator('[data-hole-plays-like]');
     await expect(live).toHaveAttribute('data-hole-plays-like', 'gps', { timeout: 20_000 });
     const text = (await live.textContent()) ?? '';
-    const m = /(\d+) yds to green · plays like ≈(\d+) \(↑ (\d+) yd\)/.exec(text);
+    // "375 yds to green · plays like 382 +7" (the rise is the difference).
+    const m = /(\d+) yds to green · plays like (\d+) \+(\d+)/.exec(text);
     expect(m, text).not.toBeNull();
     const toGreen = Number(m![1]);
     const playsLike = Number(m![2]);
@@ -142,23 +146,20 @@ test('live hole detail: the header facts, plays-like from the shared fix, the te
     await expect(page.locator('[aria-label="Previous hole"]').locator('..')).not.toContainText('388 yds');
     await expect(page.locator('[data-chip-plays-like]')).toHaveAttribute('data-plays-like-delta', '4');
     await page.getByRole('tab', { name: 'Scorecard' }).click();
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 15_000 });
+    await expectScorerOnHole(page, 1, 15_000);
 
     // Bravo scores hole 2; Alpha saves hole 1 (par) and moves on: row D says
     // "You E thru 1 · Edge 5" (the switcher's first-name rule).
     const scoredB = await apiB.post(`/api/golf/scorecards/${rowB}/scores`, { data: { scores: [{ hole_number: 2, strokes: 5 }] } });
     expect(scoredB.status(), await readErrorBody(scoredB)).toBe(201);
-    // Typing a digit on the wheel commits it (the quick-entry contract): par.
-    const strokes = page.getByRole('spinbutton', { name: 'Strokes' });
-    await strokes.focus();
-    await strokes.press('4');
-    await expect(strokes).toHaveAttribute('aria-valuenow', '4');
-    await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await expect(page.getByText('Hole 2 media')).toBeVisible({ timeout: 15_000 });
+    // The hole opens on par with 2 putts (A3): Next alone records it (A4).
+    await expect(strokesDial(page)).toHaveAttribute('aria-valuenow', '4');
+    await nextHole(page).click();
+    await expectScorerOnHole(page, 2, 15_000);
+    // The others' scores on this hole; the card's own running score is the totals strip.
     const group = page.locator('[data-hole-group]');
-    await expect(group).toContainText('You', { timeout: 20_000 });
-    await expect(group).toContainText('thru 1');
-    await expect(group).toContainText(/Edge\s+5/);
+    await expect(group).toContainText(/Edge\s*5/, { timeout: 20_000 });
+    await expect(page.locator('[data-scorer-total="thru"]')).toHaveText('1/18');
     await expect(page.locator('[data-scorer-to-par]')).toHaveText('E');
 
     // 320 px: nothing overflows with the header in place.

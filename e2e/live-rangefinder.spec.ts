@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext } from './helpers/test';
+import { expectScorerOnHole, mapPreview } from './helpers/score-card';
 import { apiAs, readErrorBody } from './helpers/qa-user';
 
 /**
@@ -136,7 +137,7 @@ async function openMap(ctx: BrowserContext, errors: string[]) {
   await page.goto(`/live/${groupPostId}`);
   // The scorer auto-opens for a scoreable round; its "Open course map" action
   // closes it and switches to the Map tab in one tap.
-  await page.getByRole('button', { name: 'Open course map' }).click({ timeout: 20_000 });
+  await mapPreview(page).click({ timeout: 20_000 });
   await page.locator('[aria-label="Previous hole"]').waitFor({ timeout: 30_000 });
   return page;
 }
@@ -224,8 +225,8 @@ test('rangefinder: a phone walks hole 1 tee → green with a live fix', async ({
     // Oct 2026 the Scorecard tab brings a scoring player straight back to
     // score entry, and its labelled Map button is the way back.
     await page.getByRole('tab', { name: 'Scorecard' }).click();
-    await expect(page.getByText('Hole 1 media')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('button', { name: 'Open course map' }).click();
+    await expectScorerOnHole(page, 1, 15_000);
+    await mapPreview(page).click();
     await expect(targetPill).toBeVisible({ timeout: 5_000 });
 
     // Couch peek from downtown Ottawa: the to-green pill hides (1500-yd
@@ -307,11 +308,10 @@ test('rangefinder: a transient TIMEOUT keeps tracking; PERMISSION_DENIED stops i
   }
 });
 
-// Capture-everywhere round: the live scorer's per-hole media block offers
-// native capture (Take photo / Record video) beside the Library picker.
-// Capture itself can't run headless — the camera is outside the browser;
-// this pins that the affordances exist on a live hole.
-test('scorer: per-hole capture row exists on a live round', async ({ browser }) => {
+// The live scorer's action row offers Photo and Video on a live hole. The
+// separate Library button is gone (Nov 25 2026): each opens the phone's own
+// chooser (camera or library), so neither input forces the camera.
+test('scorer: Photo and Video exist on a live round, and neither forces the camera', async ({ browser }) => {
   test.skip(!groupPostId, 'fixture unavailable');
   const ctx = await browser.newContext({
     storageState: 'e2e/.auth/state.json',
@@ -322,10 +322,16 @@ test('scorer: per-hole capture row exists on a live round', async ({ browser }) 
     await page.goto(`/live/${groupPostId}`);
     // The scorer auto-opens for a scoreable round; the media block sits under
     // the current hole.
-    await expect(page.getByText(/Hole \d+ media/)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole('button', { name: 'Take photo' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Record video' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Library', exact: true })).toBeVisible();
+    const card = page.locator('[data-score-card]');
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await expect(card.getByRole('button', { name: 'Photo', exact: true })).toBeEnabled();
+    await expect(card.getByRole('button', { name: 'Video', exact: true })).toBeEnabled();
+    await expect(card.getByRole('button', { name: 'Library', exact: true })).toHaveCount(0);
+    await expect(card.locator('[data-scorer-photo-input]')).toHaveAttribute('accept', 'image/*');
+    await expect(card.locator('[data-scorer-video-input]')).toHaveAttribute('accept', 'video/*');
+    for (const input of ['[data-scorer-photo-input]', '[data-scorer-video-input]']) {
+      expect(await card.locator(input).getAttribute('capture')).toBeNull();
+    }
   } finally {
     await ctx.close();
   }
