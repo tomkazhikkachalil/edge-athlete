@@ -1,5 +1,32 @@
 # Development Log
 
+## November 26, 2026 (02:56) — The General post composer: one page, a slide that posts, Save draft; attach activity and location built, waiting on migration 321
+
+**Why.** Tom's spec `general-post-spec.md` (Nov 26): the screen after Create → Post rebuilt in the mechanical look on one page, with three features added (attach a logged activity with a stat plate on the card, one location, Save draft). His decisions the same night: the "Post to feed" switch leaves the General post (it always goes to the feed and the profile); a saved draft stays on this device with no expiry; the picker lists every finished activity except hidden and Only me ones.
+
+**What, part 1 (#1639, zero DDL, merged `6a5f2e29`, production on it).**
+- One page for every post type but golf: Media (three capture keys, a thumbnail strip with a COVER tag, a ring while uploading, a red retry, Crop / Adjust / Filter / Cover on a selected thumbnail), caption and hashtags in one panel, Tag people (the golf flow's dialog), the eye key (the real feed card as the preview), the slide that posts.
+- Closing a General post with work in it: Save draft / Discard / Keep editing. The saved draft is the crash-recovery record marked kept; its media's bytes stay in the device stash.
+- Removed: the feed switch on a General post, the category chips (the server never saved them, nothing read them), the media and hashtag counts, the helper lines, Cancel / Preview / Create Post, the mock preview with its own Post button.
+- Fixed on the way: people tagged in a second visit to the dialog used to REPLACE the earlier ones; they join them now.
+
+**What, part 2 (#1640, migration 321, open; NOT merged).**
+- `posts` gets four attachment references (one per kind, at most one set), `location_label`, `location_place_id`. The plate is read from the source on every read; a source hidden or deleted later has no plate, the post stays.
+- The composer's Attach activity row and picker, the Location row and search; the stat plate on the feed card and in the preview; the location beside the time.
+- 321 is on staging. Production is Tom's step in the SQL editor; then #1640 merges by hand and the baseline is rebuilt.
+
+**My readings (not Tom's words).** A light twin (the spec said dark only; the dialect has both since Nov 23). A sport's stat-line post gets the same page and KEEPS its feed switch and the two-way discard confirm. A video's edit keys are Edit and Cover (the editor has no Adjust or Filter for video). The thumbnail's remove key keeps the spec's 28 px touch area. The preview card shows no action row and no owner menu (the post does not exist yet). The public profile bundle (280) was left alone: its teaser grid shows media tiles only. Headline numbers as the spec suggested; a workout shows no "New PB" flag (bests are derived, not stored on the session).
+
+**Found by the size ladder and fixed in the same PRs.** The edit keys' words were cut at 320 px and at enlarged text (the icon now sits over the word); the suggestion key was 36 px tall on a desktop (a 44 px target around it now); the dialog animated its width across the two-column breakpoint; the location dialog left a phone held sideways (667 × 375). Found by the attach walk: a post with only an attached activity enabled the slide but was still refused by the older "needs a caption or media" check.
+
+**Proof.**
+- `npm run verify` exit 0 on both branches (7,073 tests on #1639; 7,094 on #1640), guardrails, blocklists, audit 0; `check:schema` green with 321 on staging.
+- Staging, against the build, one project at a time: `general-composer.spec.ts` + `post-attach.spec.ts` 4 / 4 on desktop, mobile, webkit-mobile, firefox-mobile, android, brave-android (the ladder: 21 sizes, both dialogs, the preview, the save-draft dialog; the plate at 320 / 390 / 768 / 1440).
+- Every existing spec that opens the composer (capture, upload, editor, video poster, crop, HEIC, offline draft, audience, feed post, header Create, sport picker, golf steps): desktop and mobile green. Still failing, on main before this work and not fixed: `composer-default-general` "profile tabs: Training inside the viewport" at 390 px.
+- **Production on `6a5f2e29`** (part 1): the page, the slide's gesture, save draft, the audience rule and a feed post on desktop 4 / 4; the page, save draft, upload and capture on mobile 6 / 6.
+
+**Owed.** Tom: run 321 on production, then #1640 merges and is probed; a look on real phones (the slide first, then Save draft across a real app close). Not built: the "New PB" flag on a strength plate; a draft on the account (his choice was the device).
+
 ## November 25, 2026 (22:45) — Maintenance after the Select Sport change: every gate green, nothing found in the app
 
 **Why.** Tom: "run the full project maintenance checklist." The earlier pass today ran before #1636 (one home per sport); this one covers main as it stands (`50392864`; code = `c3c24cb2`, which production serves).
