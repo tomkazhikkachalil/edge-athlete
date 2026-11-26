@@ -102,8 +102,8 @@ describe('Tag People — the mech dialog is opt-in', () => {
     expect(tag).toMatch(/variant = 'default',/);
     expect(tag).toMatch(/if \(variant === 'mech'\) \{/);
     expect(composer).toMatch(/selectionMode=\{true\}\s*variant="mech"/);
-    // The general composer's dialog is not switched.
-    expect(modal).not.toMatch(/<TagPeopleModal[^>]*variant=/);
+    // The general composer took the dialect on Nov 26 2026: the same dialog.
+    expect(modal).toMatch(/variant="mech"\s*selectionMode=\{true\}/);
   });
   it('says the three states in the spec\'s words', () => {
     expect(tag).toMatch(/'No one found' : 'Type to search for people'/);
@@ -117,10 +117,11 @@ describe('the frame — no card around a step, the banner in one line', () => {
     const after = composer.slice(composer.indexOf("currentStep.id === 'format'"));
     expect(after).not.toMatch(/GOLF_SECTION_CARD/);
   });
-  it('the golf banner keeps the same two handlers as the general one', () => {
-    expect(modal).toMatch(/onClick=\{restoreDraft\}[^]*onClick=\{restoreDraft\}/);
-    expect(modal).toMatch(/onClick=\{dismissDraft\}[^]*onClick=\{dismissDraft\}/);
-    expect(modal).toMatch(/>Unfinished post</);
+  it('ONE banner for every post type (Nov 26 2026): the same two handlers, a saved draft named as one', () => {
+    expect(modal.match(/data-draft-banner=/g)).toHaveLength(1);
+    expect(modal).toMatch(/onClick=\{\(\) => restoreDraft\(availableDraft\)\}/);
+    expect(modal).toMatch(/onClick=\{dismissDraft\}/);
+    expect(modal).toMatch(/availableDraft\.kept \? 'Saved draft' : 'Unfinished post'/);
   });
 });
 

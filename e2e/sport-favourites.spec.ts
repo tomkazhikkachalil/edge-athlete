@@ -143,7 +143,7 @@ for (const tag of ['', ' @mobile']) {
       await picker.getByRole('button', { name: /golf/i }).click();
       await expect(page.locator('[data-step-flow="golf-round"]')).toBeVisible();
       await page.locator('[data-post-type-clear]').click();
-      await expect(page.getByText('General Post', { exact: true })).toBeVisible();
+      await expect(page.getByText('General post', { exact: true })).toBeVisible();
       await expect(page.locator('[data-step-flow="golf-round"]')).toHaveCount(0);
     } finally {
       await api.patch('/api/settings/favourite-sports', CLEAR);

@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { thumbs } from './helpers/composer';
 import path from 'path';
 
 // Every-phone round PR 6 (Oct 9 2026): a HEIC photo — what a Samsung with
@@ -28,7 +29,7 @@ test('a HEIC photo opens in the editor and attaches; the decoder is fetched only
 
   await page.goto('/feed');
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   const atStart = await bigChunks(page);
 
   // A PNG from the library: editor-first as always, and NO decoder chunk.
@@ -36,7 +37,7 @@ test('a HEIC photo opens in the editor and attaches; the decoder is fetched only
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(1);
+  await expect(thumbs(page)).toHaveCount(1);
   expect(await bigChunks(page), 'a PNG must never fetch the HEIC decoder').toBe(atStart);
 
   // The HEIC: the editor opens with a frame (no "was skipped"), Done attaches a tile.
@@ -53,7 +54,7 @@ test('a HEIC photo opens in the editor and attaches; the decoder is fetched only
   await page.getByRole('button', { name: 'Done', exact: true }).click({ timeout: 60_000 });
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 60_000 });
   await expect(page.locator('[role="status"]').filter({ hasText: 'was skipped' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(2, { timeout: 20_000 });
+  await expect(thumbs(page)).toHaveCount(2, { timeout: 20_000 });
 
   // Chromium cannot decode HEIC itself, so the fallback — and its chunk — ran.
   if (browserName === 'chromium') {

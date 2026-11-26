@@ -65,14 +65,17 @@ describe('StepFlow — variant="mech"', () => {
     expect(src).toContain("'ea-mech-back min-h-[44px] h-12 w-[92px] max-[359px]:w-[72px] shrink-0'");
     expect(src).toContain("'ea-mech-next min-h-[44px] h-12 min-w-[132px] max-[359px]:min-w-[96px] shrink-0 px-4'");
   });
-  it('only the golf round asks for it; the composer wears the scope only while golf is the post type', () => {
+  it('only the golf round asks for the step frame; the composer wears the scope for every post type (Nov 26 2026)', () => {
     expect(read('src/components/golf/GolfComposerSection.tsx')).toContain('variant="mech"');
     for (const other of ['src/components/SportSetupFlow.tsx', 'src/components/videos/NewVideoFlow.tsx']) {
       expect(read(other), other).not.toContain('variant="mech"');
     }
     const composer = read('src/components/CreatePostModal.tsx');
     expect(composer).toContain("const isGolf = postType === 'golf';");
-    expect(composer).toMatch(/isGolf\s*\? 'ea-mech ea-mech-overlay fixed inset-0/);
+    expect(composer).toContain('<div className="ea-mech ea-mech-overlay fixed inset-0 flex items-stretch sm:items-center justify-center z-50 sm:p-4">');
+    // A golf round's width follows its step; the one-page composer's lives in its own class.
+    expect(composer).toContain("${GOLF_FRAME_WIDTH[golfFrame]}` : 'ea-mech-compose'}");
+    expect(read('src/app/globals.css')).toMatch(/@media \(min-width: 900px\) \{\s*\.ea-mech-compose \{ max-width: 820px; \}/);
     for (const width of ["narrow: 'sm:max-w-[480px]'", "wide: 'sm:max-w-[760px]'", "full: 'sm:max-w-[920px]'"]) expect(composer).toContain(width);
     // A custom class takes no breakpoint prefix: the cap lives in the dialog class.
     expect(composer).not.toContain('sm:max-h-modal');

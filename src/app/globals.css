@@ -1217,6 +1217,26 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-live-glow: rgb(229 53 74 / 0.45);
   --mech-go-live: #d63f45;
   --mech-go-live-trail: rgb(214 63 69 / 0.22);
+  /* The General post composer (Nov 26 2026): the capture keys' tints, the
+   * post slide, the thumbnail veils, the suggestion chips. */
+  --mech-video: #be185d;
+  --mech-video-fill: rgb(190 24 93 / 0.1);
+  --mech-video-ring: rgb(190 24 93 / 0.32);
+  --mech-upload: #0f766e;
+  --mech-upload-fill: rgb(15 118 110 / 0.1);
+  --mech-upload-ring: rgb(15 118 110 / 0.32);
+  --mech-media-fill: rgb(37 99 235 / 0.1);
+  --mech-post-trail: rgb(109 58 240 / 0.2);
+  --mech-posted: #1f9d4c;
+  --mech-posted-trail: rgb(31 157 76 / 0.22);
+  --mech-veil: rgb(255 255 255 / 0.62);
+  --mech-bad-veil: rgb(220 38 38 / 0.42);
+  --mech-selected-glow: rgb(109 58 240 / 0.3);
+  --mech-gold-fill: rgb(180 83 9 / 0.08);
+  --mech-gold-dash: rgb(180 83 9 / 0.55);
+  --mech-gold-text: #92400e;
+  --mech-cover-tag: rgb(0 0 0 / 0.62);
+  --mech-drop: rgb(0 0 0 / 0.14);
   --mech-avatar-ring: rgb(20 16 40 / 0.14);
   --mech-check-ring: #b9b5c4;
   --mech-close: #e6e3ec;
@@ -1311,6 +1331,24 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-dial-hand: #ffffff;
   --mech-live-glow: rgb(255 77 94 / 0.7);
   --mech-go-live-trail: rgb(214 63 69 / 0.3);
+  --mech-video: #f472b6;
+  --mech-video-fill: rgb(244 114 182 / 0.15);
+  --mech-video-ring: rgb(244 114 182 / 0.28);
+  --mech-upload: #2dd4bf;
+  --mech-upload-fill: rgb(45 212 191 / 0.15);
+  --mech-upload-ring: rgb(45 212 191 / 0.28);
+  --mech-media-fill: rgb(111 177 255 / 0.15);
+  --mech-post-trail: rgb(109 58 240 / 0.3);
+  --mech-posted: #2fb45c;
+  --mech-posted-trail: rgb(47 180 92 / 0.3);
+  --mech-veil: rgb(11 10 13 / 0.62);
+  --mech-bad-veil: rgb(255 59 78 / 0.38);
+  --mech-selected-glow: rgb(155 123 255 / 0.35);
+  --mech-gold-fill: rgb(245 179 1 / 0.08);
+  --mech-gold-dash: rgb(245 179 1 / 0.55);
+  --mech-gold-text: #ffd466;
+  --mech-cover-tag: rgb(0 0 0 / 0.62);
+  --mech-drop: rgb(0 0 0 / 0.7);
   --mech-avatar-ring: rgb(255 255 255 / 0.18);
   --mech-check-ring: #4a4753;
   --mech-close: #26252d;
@@ -1536,6 +1574,67 @@ html:has(.org-scope[data-theme="dark"]) body {
   cursor: grab;
 }
 .ea-mech-slide-key:active { cursor: grabbing; }
+/* Slide to post: the accent key; green once the post is up. */
+.ea-mech-slide-key[data-tone="post"] { background-color: var(--mech-accent); }
+.ea-mech-slide-key[data-tone="post"][data-done] { background-color: var(--mech-posted); }
+
+/* ── The General post composer (Tom's spec, Nov 26 2026) ───────────────────── */
+/* One page: a full screen on a phone, a 480 px dialog from 640 px, 820 px in
+ * two equal columns from 900 px (media and caption left, details right) with
+ * the footer 386 px wide at the right. The widths live here because a custom
+ * class takes no breakpoint prefix. */
+.ea-mech-compose-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
+.ea-mech-compose-col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; min-width: 0; }
+@media (min-width: 640px) {
+  .ea-mech-compose { max-width: 480px; }
+}
+@media (min-width: 900px) {
+  .ea-mech-compose { max-width: 820px; }
+  .ea-mech-compose-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+  .ea-mech-compose-foot { max-width: 386px; margin-left: auto; }
+}
+/* A capture key: the key colour, a drop edge, a ring in its own tint. */
+.ea-mech-tintkey {
+  background-color: var(--mech-key);
+  color: var(--mech-text);
+  box-shadow: inset 0 0 0 1px var(--tint-ring, var(--mech-hairline)), inset 0 1px 0 rgb(255 255 255 / 0.1), 0 2px 0 var(--mech-drop);
+  transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease);
+}
+.ea-mech-tintkey:active { transform: scale(0.97); }
+/* A flat key of the composer (edit keys, the suggestion key, the round plus). */
+.ea-mech-flatkey {
+  background-color: var(--mech-key);
+  color: var(--mech-text);
+  box-shadow: inset 0 0 0 1px var(--mech-outline-off), inset 0 1px 0 rgb(255 255 255 / 0.1);
+  transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease);
+}
+.ea-mech-flatkey:active { transform: scale(0.97); }
+.ea-mech-flatkey[aria-pressed="true"], .ea-mech-flatkey[aria-expanded="true"] { background-color: var(--mech-accent); color: #ffffff; }
+/* A media thumbnail: scales in when added; a ring and a glow when selected. */
+.ea-mech-thumb { animation: ea-mech-thumb-in 260ms cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+@keyframes ea-mech-thumb-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+.ea-mech-thumb-ring[data-selected] { box-shadow: inset 0 0 0 2px var(--mech-selected-border), 0 0 0 2px var(--mech-selected-glow); }
+.ea-mech-thumb-ring[data-failed] { box-shadow: inset 0 0 0 1.5px var(--mech-bad); }
+/* A hashtag suggestion: dashed gold. */
+.ea-mech-suggest {
+  border: 1px dashed var(--mech-gold-dash);
+  background-color: var(--mech-gold-fill);
+  color: var(--mech-gold-text);
+  transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease);
+}
+.ea-mech-suggest:active { transform: scale(0.97); }
+/* The outline keys of a choice dialog and the footer's preview key. */
+.ea-mech-outline-key {
+  background-color: transparent;
+  color: var(--mech-text);
+  box-shadow: inset 0 0 0 1px var(--mech-outline);
+  transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease);
+}
+.ea-mech-outline-key:active { transform: scale(0.97); }
+.ea-mech-outline-key[data-tone="danger"] { color: var(--mech-live-text); box-shadow: inset 0 0 0 1px var(--mech-live-ring); }
 /* A partner row added while the step is open. */
 .ea-mech-partner[data-enter] { animation: ea-mech-partner-in 320ms cubic-bezier(0.3, 1.4, 0.5, 1) both; }
 @keyframes ea-mech-partner-in {
@@ -1688,6 +1787,10 @@ html:has(.org-scope[data-theme="dark"]) body {
   .ea-mech-holekey:hover,
   .ea-mech-chip:hover,
   .ea-mech-slide-key:hover,
+  .ea-mech-tintkey:not(:disabled):hover,
+  .ea-mech-flatkey:not(:disabled):hover,
+  .ea-mech-suggest:not(:disabled):hover,
+  .ea-mech-outline-key:not(:disabled):hover,
   .ea-mech-btn:not(:disabled):hover,
   .ea-mech-back:not(:disabled):hover,
   .ea-mech-next:not(:disabled):hover,

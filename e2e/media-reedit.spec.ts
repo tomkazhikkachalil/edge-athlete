@@ -1,4 +1,5 @@
 import path from 'path';
+import { slidePost } from './helpers/composer';
 import { test, expect } from './helpers/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
 
@@ -19,7 +20,7 @@ test('media re-edit after publish: new render, original preserved on the same ro
 
   await page.goto('/feed');
   await page.getByRole('button', { name: /create a post/i }).click();
-  const composer = page.getByPlaceholder('Share your thoughts...');
+  const composer = page.getByPlaceholder('Share your thoughts');
   await expect(composer).toBeVisible();
 
   // Publish with an EDITED image (ratio chip = real edit → original kept).
@@ -29,7 +30,7 @@ test('media re-edit after publish: new render, original preserved on the same ro
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });
   await composer.fill(marker);
-  await page.getByRole('button', { name: 'Create Post', exact: true }).click();
+  await slidePost(page);
   await expect(composer).toBeHidden({ timeout: 30_000 });
   await expect(page.getByText(marker).first()).toBeVisible({ timeout: 30_000 });
 

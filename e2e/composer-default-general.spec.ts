@@ -13,11 +13,11 @@ test('a golfer\'s new post starts General: "Create a post", no golf fields', asy
     const prompt = page.getByRole('button', { name: 'Create a post', exact: true });
     await expect(prompt).toBeVisible({ timeout: 30_000 });
     await prompt.click();
-    await expect(page.getByText('General Post', { exact: true })).toBeVisible();
-    await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+    await expect(page.getByText('General post', { exact: true })).toBeVisible();
+    await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
     await expect(page.locator('[data-step-flow="golf-round"]')).toHaveCount(0);
     // The sport picker is still one tap away (functionality unchanged).
-    await page.getByText('General Post', { exact: true }).click();
+    await page.getByText('General post', { exact: true }).click();
     const selector = page.locator('div[class*="z-[60]"]');
     await selector.getByPlaceholder('Search sports').fill('golf');
     await selector.getByRole('button', { name: /golf/i }).first().click();
@@ -60,6 +60,6 @@ test('Create → Sport opens the sport picker; closing it leaves a General post'
   // Oct 27 2026: the picker offers no "General Post" — General is what a post already is.
   await expect(selector.getByText('General Post')).toHaveCount(0);
   await selector.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(page.getByText('General Post', { exact: true })).toBeVisible();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByText('General post', { exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
 });

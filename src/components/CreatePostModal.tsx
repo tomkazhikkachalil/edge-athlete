@@ -1,20 +1,19 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, type ComponentType } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { afterCreatePath } from '@/lib/golf/round-route';
 import { refreshDrafts } from '@/hooks/useDrafts';
 import { useToast } from '@/components/Toast';
-import { getTagOptions, getHashtagSuggestions } from '@/lib/sports/post-tags';
-import VideoFrame from '@/components/media/VideoFrame';
+import { getHashtagSuggestions } from '@/lib/sports/post-tags';
 import { MAX_DEVICE_POSTER_ATTEMPTS, planPosterRetry, POSTER_GRAB_DEADLINE_MS, POSTER_RETRY_DEADLINE_MS, posterTimeFor, type PosterFailure } from '@/lib/media/poster-plan';
 import { useMediaUploadQueue } from '@/components/media/useMediaUploadQueue';
 import { grabBlurInto } from '@/components/media/grab-poster';
 import { UploadError } from '@/lib/media/upload';
 import type { QueueItem } from '@/lib/media/upload-queue';
-import MediaTile from '@/components/media/MediaTile';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import SportSelector from '@/components/SportSelector';
 import { defaultGolfComposerValue, type GolfComposerValue } from '@/components/golf/GolfComposerSection';
@@ -26,12 +25,13 @@ import { getStatSchema, type StatLineData } from '@/lib/sports/stat-schemas';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import ConfirmModal from '@/components/ConfirmModal';
+import ChoiceDialog from '@/components/mech/ChoiceDialog';
+import SlideToConfirm from '@/components/mech/SlideToConfirm';
 import { COPY } from '@/lib/copy';
 import { MediaEditor, warmEditorChunk } from '@/components/media-editor';
-import CaptureInputs from '@/components/media/CaptureInputs';
 import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
-import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
+import { loadComposerDraft, saveComposerDraft, clearComposerDraft, isEmptyComposerDraft, orderByDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { attachOriginalInBackground } from '@/lib/media/upload';
 import { prepareImageForUpload } from '@/lib/media/post-time-resize';
 import { planPickAttach, usableDuration } from '@/lib/media/capture-attach';
@@ -41,29 +41,23 @@ import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/me
 import { MAX_UPLOAD_BYTES } from '@/lib/media/upload-rules';
 import FeedToggle from '@/components/posts/FeedToggle';
 import { readFeedDefault } from '@/lib/posts/feed-memory';
-import { POST_VISIBILITY, isPrivateAccount } from '@/lib/posts/audience';
+import { POST_VISIBILITY } from '@/lib/posts/audience';
+import { canPost, isEmptyPost, slideWords, withHashtag } from '@/lib/posts/composer-rules';
+import { moveToCover } from '@/lib/media/cover';
+import MediaSection, { type ComposerMediaItem, type ComposerUpload, type MediaEditTool } from '@/components/composer/MediaSection';
+import CaptionPanel from '@/components/composer/CaptionPanel';
+import { DetailsPanel, TagPeopleRow, type TaggedPerson } from '@/components/composer/DetailsPanel';
+import { EyeIcon } from '@/components/composer/icons';
+import { PencilIcon } from '@/components/golf/scoring/icons';
+import type { PostCardPost } from '@/components/PostCard';
 import FaIcon from '@/components/FaIcon';
-import { faCamera } from '@/lib/icons/fa/camera';
-import { faCheck } from '@/lib/icons/fa/check';
-import { faChevronRight } from '@/lib/icons/fa/chevron-right';
-import { faCircleInfo } from '@/lib/icons/fa/circle-info';
 import { faClockRotateLeft } from '@/lib/icons/fa/clock-rotate-left';
-import { faCloudArrowUp } from '@/lib/icons/fa/cloud-arrow-up';
-import { faCommentRegular } from '@/lib/icons/fa/comment-regular';
-import { faEye } from '@/lib/icons/fa/eye';
-import { faHeartRegular } from '@/lib/icons/fa/heart-regular';
-import { faPaperPlane } from '@/lib/icons/fa/paper-plane';
-import { faPen } from '@/lib/icons/fa/pen';
-import { faRotateRight } from '@/lib/icons/fa/rotate-right';
-import { faShare } from '@/lib/icons/fa/share';
-import { faShieldHalved } from '@/lib/icons/fa/shield-halved';
-import { faSpinner } from '@/lib/icons/fa/spinner';
-import { faUser } from '@/lib/icons/fa/user';
-import { faUserTag } from '@/lib/icons/fa/user-tag';
-import { faVideo } from '@/lib/icons/fa/video';
 import { faXmark } from '@/lib/icons/fa/xmark';
-import { faPenToSquare } from '@/lib/icons/fa/pen-to-square';
 import { sportIcon } from '@/lib/sports/sport-icons';
+
+// The preview draws the real feed card: loaded on the first tap of the eye
+// key, never with the composer.
+const PreviewOverlay = dynamic(() => import('@/components/composer/PreviewOverlay'), { ssr: false });
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -114,13 +108,6 @@ interface MediaFile {
 /** The composer's session in the device media stash (the upload queue owns it). */
 const COMPOSER_STASH = 'composer';
 
-/** A video tile's VideoFrame state from its queue item (none yet = pending). */
-function frameStateOf(item: QueueItem | undefined): 'ready' | 'pending' | 'failed' | 'processing' {
-  if (!item) return 'pending';
-  if (item.status === 'stored') return 'ready';
-  return item.status;
-}
-
 function revokePreviews(files: readonly MediaFile[]): void {
   for (const f of files) {
     if (f.preview) URL.revokeObjectURL(f.preview);
@@ -142,29 +129,8 @@ interface ProfileData {
   avatar_url?: string | null;
 }
 
-interface TagOption {
-  value: string;
-  label: string;
-  color: string;
-}
-
-interface PostPreviewProps {
-  postType: SportKey | 'general';
-  caption: string;
-  tags: string[];
-  hashtags: string[];
-  mediaFiles: MediaFile[];
-  /** The posting account's visibility — who will see it (audience.ts). */
-  accountVisibility: string | null;
-  taggedPeople?: {id: string; name: string}[];
-  onClose: () => void;
-  onPost: () => void;
-}
-
-// No longer needed - using SportSelector instead
-
-// Tag chips + hashtag suggestions are registry-driven — see
-// src/lib/sports/post-tags.ts (per-sport lists live on SportDefinition).
+// Hashtag suggestions are registry-driven — see src/lib/sports/post-tags.ts
+// (per-sport lists live on SportDefinition).
 
 // Sport composer slot entries, resolved once at module scope so the section
 // components are identity-stable across renders (a new array per render would
@@ -195,7 +161,6 @@ export default function CreatePostModal({
   const router = useRouter();
   const { activeProfile, profile } = useAuth();
   const captionRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   // Native-camera capture lives in the shared <CaptureInputs> (capture-
   // everywhere round); it feeds the same validate→editor pipeline.
 
@@ -207,9 +172,11 @@ export default function CreatePostModal({
   // above only ever sees the FIRST defaultSportKey. Re-apply it on each open
   // transition (ref-guarded so a prop change mid-composition can't clobber
   // what the user picked).
-  // Post to feed (269): a switch, not an audience; remembered per kind on this device.
+  // Post to feed (269): a switch, not an audience; remembered per kind on this
+  // device. A GENERAL post has no switch (Tom, Nov 26 2026): it always goes to
+  // the feed and the profile. A sport's stat-line post keeps the switch.
   const feedKind = defaultPostCategory === 'training' ? 'workout' : 'sport';
-  const [onFeed, setOnFeed] = useState(() => readFeedDefault(feedKind));
+  const [feedSwitch, setFeedSwitch] = useState(() => readFeedDefault(feedKind));
   const wasOpenRef = useRef(false);
   // Crash-recovery draft (dummy-proofing round): offered back as a notice on
   // open, never silently applied. Deliberate exits (discard confirm, post)
@@ -223,7 +190,7 @@ export default function CreatePostModal({
       setPostType(defaultSportKey);
       setShowSportSelector(Boolean(openSportPicker));
       setAvailableDraft(loadComposerDraft());
-      setOnFeed(readFeedDefault(defaultPostCategory === 'training' ? 'workout' : 'sport'));
+      setFeedSwitch(readFeedDefault(defaultPostCategory === 'training' ? 'workout' : 'sport'));
     }
     wasOpenRef.current = isOpen;
   }, [isOpen, defaultSportKey, openSportPicker, defaultPostCategory]);
@@ -232,15 +199,17 @@ export default function CreatePostModal({
   const [statLineData, setStatLineData] = useState<StatLineData | null>(null);
   const isStatLineSport = postType !== 'general' && getStatSchema(postType) !== null;
   const [caption, setCaption] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [hashtags, setHashtags] = useState<string[]>([]);
-  const [showHashtagSuggestions, setShowHashtagSuggestions] = useState(false);
   const [customHashtag, setCustomHashtag] = useState('');
 
-  // Media management
+  // Media management. The selected thumbnail shows its edit keys (A7).
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-  const [draggedOver, setDraggedOver] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
+
+  // Tagging people (the row's faces need the picture, the draft keeps them).
+  const [taggedProfilesData, setTaggedProfilesData] = useState<TaggedPerson[]>([]);
+  const taggedProfiles = useMemo(() => taggedProfilesData.map(p => p.id), [taggedProfilesData]);
+  const [showTagModal, setShowTagModal] = useState(false);
 
   // Golf specific data lives in GolfComposerSection (see the sport slot in
   // the JSX below); the section reports its full value up on every internal
@@ -262,37 +231,47 @@ export default function CreatePostModal({
   // Visibility and submission
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // The post is up: the slide shows "Posted" for a moment, then the composer closes.
+  const [posted, setPosted] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  // A draft the person SAVED and then restored stays a saved draft while they work on it.
+  const [draftKept, setDraftKept] = useState(false);
 
   // Shared media editor session (null = closed). editingExistingId set when
   // re-editing an already-attached asset (result replaces it in place).
   const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
   const [editingExistingId, setEditingExistingId] = useState<string | null>(null);
+  // The tool the editor opens on (the selected thumbnail's Crop / Adjust / Filter key).
+  const [editorTool, setEditorTool] = useState<MediaEditTool | undefined>(undefined);
 
   // Persist the recoverable half of the composer while open (storage write
   // only — media Files and the uncontrolled golf section can't ride
-  // localStorage; see composer-draft.ts).
+  // localStorage; see composer-draft.ts). An OFFERED draft waits for its
+  // decision: a saved one is never overwritten, and an empty composer never
+  // erases the one on offer.
+  const mediaIdsKey = mediaFiles.map(f => f.id).join('|');
+  const draftSnapshot = useMemo<ComposerDraft>(() => {
+    const mediaOrder = mediaIdsKey === '' ? [] : mediaIdsKey.split('|');
+    return {
+      postType,
+      caption,
+      hashtags,
+      visibility,
+      // The golf section rides along only while it holds real work (G1).
+      ...(golfValue.isDirty ? { golf: golfValue } : {}),
+      ...(mediaOrder.length > 0 ? { mediaCount: mediaOrder.length, mediaOrder } : {}),
+      ...(taggedProfilesData.length > 0 ? { people: taggedProfilesData } : {}),
+      ...(draftKept ? { kept: true } : {}),
+    };
+  }, [postType, caption, hashtags, visibility, golfValue, mediaIdsKey, taggedProfilesData, draftKept]);
+  const keptPending = availableDraft?.kept === true;
+  const draftOffered = availableDraft !== null;
   useEffect(() => {
-    if (!isOpen) return;
-    const timer = setTimeout(() => {
-      saveComposerDraft({
-        postType,
-        caption,
-        hashtags,
-        tags: selectedTags,
-        visibility,
-        // The golf section rides along only while it holds real work (G1).
-        ...(golfValue.isDirty ? { golf: golfValue } : {}),
-        ...(mediaFiles.length > 0 ? { mediaCount: mediaFiles.length } : {}),
-      });
-    }, 400);
+    if (!isOpen || keptPending) return;
+    if (draftOffered && isEmptyComposerDraft(draftSnapshot)) return;
+    const timer = setTimeout(() => saveComposerDraft(draftSnapshot), 400);
     return () => clearTimeout(timer);
-  }, [isOpen, postType, caption, hashtags, selectedTags, visibility, golfValue, mediaFiles.length]);
-
-  // Tagging people
-  const [taggedProfiles, setTaggedProfiles] = useState<string[]>([]);
-  const [taggedProfilesData, setTaggedProfilesData] = useState<{id: string; name: string}[]>([]);
-  const [showTagModal, setShowTagModal] = useState(false);
+  }, [isOpen, keptPending, draftOffered, draftSnapshot]);
 
   // Character limits
   const MAX_CAPTION_LENGTH = 500;
@@ -353,8 +332,21 @@ export default function CreatePostModal({
     return queue.holdDevice();
   }, [editorOpen, queue]);
   const clearComposerStash = () => queue.clearStash();
-  const restoreStashedMedia = async () => {
-    const { restored } = await queue.resumeFromStash();
+  // The composer's stashed bytes have no clock (a saved draft has no expiry):
+  // an open that finds NO draft to offer them back with clears what is left.
+  useEffect(() => {
+    if (isOpen && loadComposerDraft() === null) queue.clearStash();
+  }, [isOpen, queue]);
+  const restoreStashedMedia = async (order?: string[]) => {
+    const resumed = await queue.resumeFromStash();
+    // A draft names its own attachments: bytes it does not name belong to
+    // work that was posted or dropped since, and go.
+    const wanted = order && order.length > 0 ? new Set(order) : null;
+    for (const r of resumed.restored) if (wanted && !wanted.has(r.item.localId)) queue.forget(r.item.localId);
+    const restored = orderByDraft(
+      resumed.restored.filter(r => !wanted || wanted.has(r.item.localId)).map(r => ({ ...r, id: r.item.localId })),
+      order
+    );
     if (restored.length === 0) return;
     setMediaFiles(prev => {
       const have = new Set(prev.map(m => m.id));
@@ -376,16 +368,16 @@ export default function CreatePostModal({
   const reset = () => {
     setPostType(defaultSportKey);
     setCaption('');
-    setSelectedTags([]);
     setHashtags([]);
     revokePreviews(mediaFiles);
     setMediaFiles([]);
+    setSelectedMediaId(null);
     setStatLineData(null);
     setVisibility('public');
-    setShowHashtagSuggestions(false);
     setCustomHashtag('');
     setShowPreview(false);
-    setTaggedProfiles([]);
+    setPosted(false);
+    setDraftKept(false);
     setTaggedProfilesData([]);
     setShowTagModal(false);
     // Reset ALL golf state (shared round data, course search, hole data,
@@ -401,11 +393,16 @@ export default function CreatePostModal({
   // requestClose below, which asks before discarding unsaved work.
   const closeAndReset = () => {
     // Explicit exit (confirmed discard or successful post) — the draft's job
-    // is crash recovery, not resurrecting decisions.
-    clearComposerDraft();
-    clearComposerStash();
-    queue.forgetAll();
-    setAvailableDraft(null);
+    // is crash recovery, not resurrecting decisions. A SAVED draft still on
+    // offer (never restored) is not this work: its text and its bytes stay.
+    if (keptPending) {
+      queue.forgetAll();
+    } else {
+      clearComposerDraft();
+      clearComposerStash();
+      queue.forgetAll();
+      setAvailableDraft(null);
+    }
     reset();
     onClose();
   };
@@ -415,7 +412,6 @@ export default function CreatePostModal({
   const isDirty = () =>
     caption.trim() !== '' ||
     mediaFiles.length > 0 ||
-    selectedTags.length > 0 ||
     hashtags.length > 0 ||
     customHashtag.trim() !== '' ||
     taggedProfiles.length > 0 ||
@@ -425,6 +421,18 @@ export default function CreatePostModal({
     golfValue.isDirty;
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, closeAndReset);
+
+  // Save draft (A11; Tom, Nov 26 2026: on this device, no expiry): the same
+  // record the crash recovery writes, marked kept, with the media's bytes left
+  // in the device stash. The composer offers it back when it is next opened.
+  const saveDraftAndClose = () => {
+    cancelDiscard();
+    saveComposerDraft({ ...draftSnapshot, hashtags: withHashtag(hashtags, customHashtag, MAX_HASHTAGS), kept: true });
+    queue.releaseAll();
+    setAvailableDraft(null);
+    reset();
+    onClose();
+  };
 
   // Picked files go through the shared media editor before joining the post.
   // Validation now mirrors the server allowlist AT PICK (HEIC no longer fails
@@ -479,6 +487,7 @@ export default function CreatePostModal({
         ]);
       }
       if (editor.length === 0) return;
+      setEditorTool(undefined);
       setEditingExistingId(null);
       setEditorAssets(editor.map(toAsset));
     }
@@ -612,32 +621,23 @@ export default function CreatePostModal({
     setEditingExistingId(null);
   };
 
-  const openEditorFor = (mediaFile: MediaFile) => {
+  const openEditorFor = (mediaFile: MediaFile, tool?: MediaEditTool) => {
     const source = mediaFile.sourceFile ?? mediaFile.file;
     if (!source) return; // existing remote media (edit flows) has no File
+    setEditorTool(tool);
     setEditingExistingId(mediaFile.id);
     setEditorAssets([{ id: mediaFile.id, file: source, kind: mediaFile.type, recipe: mediaFile.recipe }]);
   };
 
-  // Media drag and drop handlers
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== index) {
-      const newFiles = [...mediaFiles];
-      const draggedFile = newFiles[draggedIndex];
-      newFiles.splice(draggedIndex, 1);
-      newFiles.splice(index, 0, draggedFile);
-      setMediaFiles(newFiles);
-      setDraggedIndex(index);
-    }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
+  // A thumbnail dragged over another (a mouse): it takes that place.
+  const moveMedia = (from: number, to: number) => {
+    setMediaFiles(prev => {
+      if (from < 0 || from >= prev.length || to < 0 || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
   };
 
   // Remove media file
@@ -649,59 +649,32 @@ export default function CreatePostModal({
     }
     if (file?.posterPreviewUrl) URL.revokeObjectURL(file.posterPreviewUrl);
     setMediaFiles(prev => prev.filter(f => f.id !== fileId));
+    setSelectedMediaId(prev => (prev === fileId ? null : prev));
   };
 
-  // Toggle tag selection
-  const toggleTag = (tagValue: string) => {
-    setSelectedTags(prev =>
-      prev.includes(tagValue)
-        ? prev.filter(t => t !== tagValue)
-        : [...prev, tagValue]
-    );
+  // Hashtags: formatted, never twice, never past the limit (composer-rules.ts).
+  const addHashtag = (hashtag: string) => setHashtags(prev => withHashtag(prev, hashtag, MAX_HASHTAGS));
+  const removeHashtag = (hashtag: string) => setHashtags(prev => prev.filter(h => h !== hashtag));
+
+  // The dialog hands back the people picked THIS time (the ones already
+  // tagged are filtered out of its results): they join the row.
+  const handleTagPeopleComplete = (_selectedIds: string[], selectedProfiles?: ProfileData[]) => {
+    if (!selectedProfiles || selectedProfiles.length === 0) return;
+    setTaggedProfilesData(prev => {
+      const have = new Set(prev.map(p => p.id));
+      const fresh = selectedProfiles
+        .filter(p => !have.has(p.id))
+        .map((p): TaggedPerson => ({
+          id: p.id,
+          name: p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : p.full_name || p.first_name || 'Unknown User',
+          avatarUrl: p.avatar_url ?? null,
+        }));
+      return [...prev, ...fresh];
+    });
   };
 
-  // Add hashtag
-  const addHashtag = (hashtag: string) => {
-    const formattedHashtag = hashtag.startsWith('#') ? hashtag : `#${hashtag}`;
-    if (hashtags.length < MAX_HASHTAGS && !hashtags.includes(formattedHashtag)) {
-      setHashtags(prev => [...prev, formattedHashtag]);
-    }
-  };
-
-  // Remove hashtag
-  const removeHashtag = (hashtag: string) => {
-    setHashtags(prev => prev.filter(h => h !== hashtag));
-  };
-
-  // Handle tag people selection
-  const handleTagPeopleComplete = (selectedIds: string[], selectedProfiles?: ProfileData[]) => {
-    setTaggedProfiles(selectedIds);
-
-    // Use the profile data passed from the modal
-    if (selectedProfiles && selectedProfiles.length > 0) {
-      const profilesData = selectedProfiles.map(profile => {
-        const name = profile.first_name && profile.last_name
-          ? `${profile.first_name} ${profile.last_name}`
-          : profile.full_name || 'Unknown User';
-        return { id: profile.id, name };
-      });
-      setTaggedProfilesData(profilesData);
-    }
-  };
-
-  // Remove tagged person
   const removeTaggedPerson = (profileId: string) => {
-    setTaggedProfiles(prev => prev.filter(id => id !== profileId));
     setTaggedProfilesData(prev => prev.filter(p => p.id !== profileId));
-  };
-
-  // Handle custom hashtag input
-  const handleCustomHashtagSubmit = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && customHashtag.trim()) {
-      e.preventDefault();
-      addHashtag(customHashtag.trim());
-      setCustomHashtag('');
-    }
   };
 
   // What a tile's upload produced (video posters PR 2): the queue uploaded
@@ -844,11 +817,13 @@ export default function CreatePostModal({
         if (deferredOriginal) deferredOriginals.push({ index, file: deferredOriginal });
       }
 
+      // A General post always goes to the feed and the profile (Tom, Nov 26
+      // 2026); a sport's stat-line post follows its switch (269).
+      const onFeed = postType === 'general' ? true : feedSwitch;
       // Prepare post data (userId comes from auth)
       const postData = {
         postType,
         caption: caption.trim(),
-        tags: selectedTags,
         hashtags,
         // The account decides who sees it (src/lib/posts/audience.ts); the feed is a switch (269).
         visibility: POST_VISIBILITY,
@@ -915,7 +890,9 @@ export default function CreatePostModal({
         onPostCreated(result.post);
       }
 
-      // Close modal
+      // The slide reads "Posted" for a moment, then the composer closes as it always did.
+      setPosted(true);
+      await new Promise(resolve => setTimeout(resolve, 600));
       closeAndReset();
     } catch (e) {
       console.error('Failed to create post:', e);
@@ -939,267 +916,97 @@ export default function CreatePostModal({
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);
 
+  // Escape asks to close (the one-page composer; a golf round's steps keep
+  // their own keys). A dialog above the composer answers Escape itself.
+  const dialogAbove = confirmOpen || showTagModal || showSportSelector || showPreview || editorAssets !== null;
+  useEffect(() => {
+    if (!isOpen || postType === 'golf' || dialogAbove) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, postType, dialogAbove, requestClose]);
+
   if (!isOpen) return null;
 
-  const currentTags = getTagOptions(postType);
   const currentHashtags = getHashtagSuggestions(postType);
+  const isGolf = postType === 'golf';
+  const isGeneral = postType === 'general';
+  const account = activeProfile ?? profile;
 
-  // A golf round is round SETUP as steps, not a post (Oct 28 2026): the golf
-  // section draws the frame and the Go Live / Create Post finish; the
-  // composer's footer, tags and audience switch stay off while golf is the
-  // post type, and the story (media + caption) is hosted by its last step.
+  // The media block's view of the tiles and of the queue (the one truth for upload state).
+  const mediaItems: ComposerMediaItem[] = mediaFiles.map(file => ({
+    id: file.id,
+    url: file.url,
+    type: file.type,
+    posterUrl: file.posterPreviewUrl,
+    editable: Boolean(file.sourceFile || file.file),
+    tooLong: file.type === 'video' && (file.durationSeconds ?? 0) > MAX_VIDEO_SECONDS,
+    // PR 8: the server read an iPhone's HEVC — the worker converts it after Post.
+    willProcess: file.type === 'video' && uploads.itemFor(file.id)?.codec === 'hevc',
+  }));
+  const uploadOf = (id: string): ComposerUpload => {
+    const item = uploads.itemFor(id);
+    if (!item) return { status: mediaFiles.find(f => f.id === id)?.file ? 'pending' : 'stored', progress: 0 };
+    return { status: item.status, progress: item.progress };
+  };
+  const uploading = mediaFiles.some(f => uploadOf(f.id).status === 'pending');
+  const readiness = {
+    mediaCount: mediaFiles.length,
+    caption,
+    hasActivity: false,
+    hasStats: isStatLineSport && statLineData !== null && statLineHasContent(statLineData),
+    uploading,
+    tooLongVideo: hasTooLongVideo,
+  };
+  const readyToPost = canPost(readiness);
+  const nothingEntered = isEmptyPost(readiness);
 
-  // The post's story — media and caption — as ONE block, so the golf steps
-  // can host it on their last step (Oct 28 2026) while every other post type
-  // keeps it where it was.
-  const postFields = (
-    <>
-      {/* Media Upload. The whole section is an INVISIBLE drop target
-          (dropzone-box retired, Tom Aug 25 — the capture row already
-          names every input path): dragging files over it summons a ring
-          + "Drop to add"; at rest there's no drag furniture at all.
-          Files-only guards keep the preview grid's tile-reorder drags
-          from triggering it. */}
-      <div
-        className={`mb-6 ${
-          draggedOver ? 'ring-2 ring-violet-500 rounded-lg bg-brand-soft p-2 -m-2' : ''
-        }`}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDraggedOver(false);
-          if (e.dataTransfer.files?.length) handleFileUpload(e.dataTransfer.files);
-        }}
-        onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes('Files')) return;
-          e.preventDefault();
-          setDraggedOver(true);
-        }}
-        onDragLeave={(e) => {
-          // Leaving INTO a child also fires dragleave — ignore those.
-          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-          setDraggedOver(false);
-        }}
-      >
-        <label className="block text-sm font-semibold text-secondary mb-3">
-          Media ({mediaFiles.length}/{MAX_MEDIA_FILES})
-        </label>
+  // The app's real limits, behind the Media label's info key (A12, R3).
+  const mediaInfo = [
+    `Up to ${MAX_MEDIA_FILES} photos or videos in a post, ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB each.`,
+    `A video can be ${Math.round(MAX_VIDEO_SECONDS / 60)} minutes long. A longer one can be trimmed in the editor.`,
+    'The first one is the cover. Select a photo to crop, adjust or filter it, or to make it the cover.',
+    // Visible privacy care for minors' media (Family Console Wave 1).
+    ...(activeProfile || profile?.supervision_state === 'supervised' ? ['Location data is removed from photos and videos before upload.'] : []),
+  ];
 
-        {/* Capture row — media is the headline act (Tom, Aug 24): take it
-            NOW at full native-camera quality, or upload. `capture` is a
-            mobile hint; on desktop these open the file picker. */}
-        <CaptureInputs onFiles={files => handleFileUpload(files, 'camera')} allowVideo>
-          {({ openPhoto, openVideo }) => (
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                className="hidden"
-                onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-              />
-              <button
-                type="button"
-                onClick={openPhoto}
-                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-              >
-                <FaIcon icon={faCamera} className="text-lg text-brand-fg" />
-                <span className="text-xs font-semibold">Take photo</span>
-              </button>
-              <button
-                type="button"
-                onClick={openVideo}
-                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-              >
-                <FaIcon icon={faVideo} className="text-lg text-brand-fg" />
-                <span className="text-xs font-semibold">Record video</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
-              >
-                <FaIcon icon={faCloudArrowUp} className="text-lg text-brand-fg" />
-                <span className="text-xs font-semibold">Upload</span>
-              </button>
-            </div>
-          )}
-        </CaptureInputs>
-
-        <p className={`text-xs ${draggedOver ? 'font-semibold text-brand-fg' : 'text-muted'}`}>
-          {draggedOver
-            ? 'Drop to add'
-            : `Up to ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB each — crop, adjust, and filter before posting`}
-        </p>
-
-        {/* Visible privacy care for minors' media (Family Console Wave 1;
-            video joined in Wave 6 — MP4/MOV re-muxed on upload, fail-open
-            like photos, so the plain claim is honest). */}
-        {mediaFiles.length > 0 && (activeProfile || profile?.supervision_state === 'supervised') && (
-          <p className="mt-1 text-xs text-muted">
-            <FaIcon icon={faShieldHalved} className="mr-1" />
-            Location data is removed from photos and videos before upload.
-          </p>
-        )}
-
-        {/* Media preview grid */}
-        {mediaFiles.length > 0 && (
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {mediaFiles.map((file, index) => (
-              <div
-                key={file.id}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-                className={`relative aspect-square bg-surface-sunken rounded-lg overflow-hidden cursor-move ${
-                  draggedIndex === index ? 'opacity-50' : ''
-                }`}
-                data-media-upload={uploads.itemFor(file.id)?.status ?? (file.file ? 'pending' : 'stored')}
-              >
-                {/* Media number badge */}
-                <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                  {index + 1}
-                </div>
-
-                {/* Media content. MediaTile (fill-in-frame), not LazyImage
-                    with pixel dimensions: LazyImage bakes its width/height
-                    into an inline style that beats Tailwind, so a 200px
-                    image was clipped to the top-left corner of the ~114px
-                    grid cell on phones. MediaTile also handles the
-                    isOptimizableImageSrc opt-out for blob: preview URLs. */}
-                {file.type === 'image' ? (
-                  <MediaTile
-                    src={file.url}
-                    kind="image"
-                    alt=""
-                    className="h-full w-full"
-                    sizes="(max-width: 640px) 45vw, (max-width: 768px) 30vw, 200px"
-                  />
-                ) : (
-                  <>
-                    {/* Capture v2: the local file previews itself (metadata
-                        only, muted, inline) until its poster arrives; the
-                        element's own metadata fills width/height/duration
-                        (no probe load). VideoFrame since Oct 13 2026. */}
-                    <VideoFrame
-                      src={file.url}
-                      poster={file.posterPreviewUrl}
-                      state={frameStateOf(uploads.itemFor(file.id))}
-                      progress={uploads.itemFor(file.id)?.progress}
-                      onRetry={() => queue.retry(file.id)}
-                      onLoadedMetadata={e => noteVideoMeta(file.id, e.currentTarget)}
-                      alt=""
-                      className="w-full h-full"
-                    />
-                    {/* PR 8: the server read an iPhone's HEVC — the worker converts it after Post; the tile says so. */}
-                    {uploads.itemFor(file.id)?.codec === 'hevc' && (file.durationSeconds ?? 0) <= MAX_VIDEO_SECONDS && (
-                      <div role="status" data-media-will-process="" className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1">
-                        Will process after posting
-                      </div>
-                    )}
-                    {(file.durationSeconds ?? 0) > MAX_VIDEO_SECONDS && (
-                      <div role="status" className="absolute inset-x-0 bottom-0 bg-amber-500/90 text-black text-[11px] font-semibold px-2 py-1">
-                        Too long — trim in the editor
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* A photo's upload state (a video's is VideoFrame's own):
-                    the bar + the number while its bytes leave the device,
-                    a Retry that keeps the file when they did not. */}
-                {file.type === 'image' && uploads.itemFor(file.id)?.status === 'pending' && (
-                  <div
-                    role="progressbar"
-                    aria-label="Upload progress"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}
-                    className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[11px] font-semibold px-2 py-1"
-                  >
-                    <div className="h-1 bg-white/30 rounded-full overflow-hidden mb-1">
-                      <div className="h-full bg-white rounded-full transition-[width]" style={{ width: `${Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}%` }} />
-                    </div>
-                    {Math.round((uploads.itemFor(file.id)?.progress ?? 0) * 100)}%
-                  </div>
-                )}
-                {file.type === 'image' && uploads.itemFor(file.id)?.status === 'failed' && (
-                  <button
-                    type="button"
-                    onClick={() => queue.retry(file.id)}
-                    className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-red-900/60 px-2 text-center text-xs font-semibold text-white"
-                    aria-label="Retry upload"
-                    data-media-retry=""
-                  >
-                    <FaIcon icon={faRotateRight} />
-                    <span>Upload failed — tap to retry</span>
-                  </button>
-                )}
-
-                {/* Remove button. Padding grows the 24px circle to a 40px
-                    hit area; the visual circle lives on the inner span. */}
-                <button
-                  onClick={() => removeMediaFile(file.id)}
-                  aria-label="Remove media"
-                  className="absolute top-0 right-0 p-2 group"
-                >
-                  <span className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-red-600 transition-colors">
-                    <FaIcon icon={faXmark} className="text-xs" />
-                  </span>
-                </button>
-
-                {/* Edit (re-opens the editor rehydrated with this asset's
-                    recipe) — images AND videos: openEditorFor is
-                    kind-agnostic and VideoStage rehydrates trim/poster. */}
-                {(file.sourceFile || file.file) && (
-                  <button
-                    onClick={() => openEditorFor(file)}
-                    aria-label="Edit media"
-                    className="absolute bottom-0 right-0 p-2 group"
-                  >
-                    <span className="bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center group-hover:bg-black/80 transition-colors">
-                      <FaIcon icon={faPen} className="text-xs" />
-                    </span>
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-      </div>
-
-      {/* Caption */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-semibold text-secondary">
-            Caption
-          </label>
-          <span className={`text-xs ${
-            caption.length > MAX_CAPTION_LENGTH * 0.9 ? 'text-red-600 dark:text-red-400' : 'text-muted'
-          }`}>
-            {caption.length}/{MAX_CAPTION_LENGTH}
-          </span>
-        </div>
-        <textarea
-          ref={captionRef}
-          value={caption}
-          onChange={(e) => setCaption(e.target.value.slice(0, MAX_CAPTION_LENGTH))}
-          placeholder="Share your thoughts..."
-          className="w-full px-4 py-3 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
-          rows={4}
-        />
-      </div>
-    </>
+  const mediaBlock = (
+    <MediaSection
+      items={mediaItems}
+      uploadOf={uploadOf}
+      onFiles={handleFileUpload}
+      selectedId={selectedMediaId}
+      onSelect={setSelectedMediaId}
+      onRemove={removeMediaFile}
+      onRetry={id => queue.retry(id)}
+      onEdit={(id, tool) => {
+        const file = mediaFiles.find(f => f.id === id);
+        if (file) openEditorFor(file, tool);
+      }}
+      onCover={id => setMediaFiles(prev => [...moveToCover(prev, id)])}
+      onMove={moveMedia}
+      onVideoMeta={noteVideoMeta}
+      infoLines={mediaInfo}
+    />
   );
 
-  // The golf round wears the mechanical dialect (Tom's visual spec, Nov 23
-  // 2026): its own palette inside `.ea-mech`, a full screen on a phone and a
-  // centred dialog on a desktop whose width follows the step. Every other
-  // post type keeps the composer as it was.
-  const isGolf = postType === 'golf';
+  // The post's story — media and caption — as ONE block, so the golf steps
+  // can host it on their last step (Oct 28 2026). Every other post type lays
+  // the same two parts out on its one page, the caption with its hashtags.
+  const postFields = (
+    <div className="flex flex-col gap-3">
+      {mediaBlock}
+      <CaptionPanel caption={caption} onCaption={setCaption} maxCaption={MAX_CAPTION_LENGTH} captionRef={captionRef} />
+    </div>
+  );
+
+  // Every post type wears the mechanical dialect (Nov 23 2026 for a golf
+  // round; Tom's General post spec, Nov 26 2026, for the rest): its own
+  // palette inside `.ea-mech`, a full screen on a phone and a centred dialog
+  // on a desktop. A golf round's width follows its step; the one-page
+  // composer's is its own class (`.ea-mech-compose`).
   // The sport row, handed to the golf section's step frame, which draws it
   // beside its step counter: the same two doors — Change (the picker) and
   // Remove sport.
@@ -1229,198 +1036,216 @@ export default function CreatePostModal({
     </div>
   );
 
+  // The preview's post: the real feed card's row, built from what is entered (D3).
+  const previewPost = showPreview
+    ? ({
+        id: 'preview-post',
+        caption: caption.trim() || null,
+        sport_key: isGeneral ? null : postType,
+        stats_data: isStatLineSport && statLineData && statLineHasContent(statLineData) ? statLineData : null,
+        visibility: POST_VISIBILITY,
+        created_at: new Date().toISOString(),
+        likes_count: 0,
+        comments_count: 0,
+        saves_count: 0,
+        status: 'published',
+        post_category: defaultPostCategory ?? null,
+        profile: {
+          id: account?.id ?? userId,
+          first_name: account?.first_name ?? null,
+          last_name: account?.last_name ?? null,
+          full_name: account?.full_name ?? null,
+          avatar_url: account?.avatar_url ?? null,
+          handle: account?.handle ?? null,
+        },
+        media: mediaFiles.map((file, index) => ({
+          id: `preview-media-${index}`,
+          media_url: file.url,
+          media_type: file.type,
+          thumbnail_url: file.posterPreviewUrl ?? null,
+          display_order: index,
+        })),
+        likes: [],
+        hashtags,
+        tagged_profiles: taggedProfilesData.map(person => {
+          const [first, ...rest] = person.name.split(' ');
+          return { id: person.id, first_name: first ?? null, last_name: rest.join(' ') || null, full_name: person.name, avatar_url: person.avatarUrl };
+        }),
+      } as unknown as PostCardPost)
+    : null;
+
+  const restoreDraft = (draft: ComposerDraft) => {
+    setCaption(draft.caption);
+    setHashtags(draft.hashtags);
+    setVisibility(draft.visibility);
+    if (draft.people) setTaggedProfilesData(draft.people);
+    if (draft.postType !== postType) {
+      setPostType(draft.postType as SportKey | 'general');
+    }
+    if (draft.golf) {
+      // Remount the slot with the seed; the section reports
+      // the seeded value up on mount (G1).
+      setGolfSeed(draft.golf);
+      setSportSectionResetKey(k => k + 1);
+    }
+    if (draft.mediaCount) void restoreStashedMedia(draft.mediaOrder);
+    setDraftKept(draft.kept === true);
+    setAvailableDraft(null);
+  };
+  const dismissDraft = () => {
+    clearComposerDraft();
+    // Bytes of work under way stay (their uploads are running); the draft's go when nothing else is attached.
+    if (mediaFiles.length === 0) clearComposerStash();
+    setAvailableDraft(null);
+  };
+
   return (
-    <div className={isGolf
-      ? 'ea-mech ea-mech-overlay fixed inset-0 flex items-stretch sm:items-center justify-center z-50 sm:p-4'
-      : 'fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'}
-    >
-      <ConfirmModal
-        isOpen={confirmOpen}
-        title={COPY.FORMS.DISCARD_TITLE}
-        message={COPY.FORMS.DISCARD_CONFIRM}
-        confirmText={COPY.FORMS.DISCARD_ACTION}
-        cancelText={COPY.FORMS.KEEP_EDITING}
-        onConfirm={confirmDiscard}
-        onCancel={cancelDiscard}
-      />
+    <div className="ea-mech ea-mech-overlay fixed inset-0 flex items-stretch sm:items-center justify-center z-50 sm:p-4">
+      {/* Closing with work in it. A General post offers Save draft (A11, D1);
+          a golf round and a sport's stat line keep the two-way confirm (their
+          entries do not ride the draft). */}
+      {isGeneral ? (
+        <ChoiceDialog
+          isOpen={confirmOpen}
+          hook="save-draft"
+          title="Save draft?"
+          line={keptPending ? 'It is kept on this device and replaces the draft you saved earlier.' : 'It is kept on this device until you post or discard it.'}
+          onDismiss={cancelDiscard}
+          actions={[
+            { label: 'Save draft', tone: 'primary', onClick: saveDraftAndClose, hook: 'save' },
+            { label: 'Discard', tone: 'danger', onClick: confirmDiscard, hook: 'discard' },
+            { label: 'Keep editing', tone: 'text', onClick: cancelDiscard, hook: 'keep' },
+          ]}
+        />
+      ) : (
+        <ConfirmModal
+          isOpen={confirmOpen}
+          title={COPY.FORMS.DISCARD_TITLE}
+          message={COPY.FORMS.DISCARD_CONFIRM}
+          confirmText={COPY.FORMS.DISCARD_ACTION}
+          cancelText={COPY.FORMS.KEEP_EDITING}
+          onConfirm={confirmDiscard}
+          onCancel={cancelDiscard}
+        />
+      )}
       <div
-        className={isGolf
-          ? `ea-mech-dialog w-full flex flex-col sm:py-5 transition-[max-width] duration-[260ms] ${GOLF_FRAME_WIDTH[golfFrame]}`
-          : 'bg-surface-raised rounded-lg shadow-xl max-w-4xl w-full max-h-modal flex flex-col'}
-        data-composer-frame={isGolf ? golfFrame : undefined}
+        className={`ea-mech-dialog w-full flex flex-col sm:py-5 ${isGolf ? `transition-[max-width] duration-[260ms] ${GOLF_FRAME_WIDTH[golfFrame]}` : 'ea-mech-compose'}`}
+        data-composer-frame={isGolf ? golfFrame : 'compose'}
       >
-        {/* Header */}
-        {isGolf ? (
-          <div className="flex items-center justify-between min-h-[44px] shrink-0 px-4 sm:px-5 pt-[calc(0.5rem+env(safe-area-inset-top))] sm:pt-0">
-            <h2 className="ea-mech-title">Create Post</h2>
-            <button
-              onClick={requestClose}
-              className="ea-mech-close inline-flex items-center justify-center"
-              aria-label="Close modal"
-            >
-              <FaIcon icon={faXmark} />
-            </button>
-          </div>
-        ) : (
-        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border">
-          <h2 className="text-2xl font-bold text-primary">Create Post</h2>
+        {/* Header (C1) */}
+        <div className={`flex items-center justify-between min-h-[44px] shrink-0 px-4 pt-[calc(0.5rem+env(safe-area-inset-top))] sm:pt-0 ${isGolf ? 'sm:px-5' : 'sm:px-6'}`}>
+          <h2 className="ea-mech-title">Create Post</h2>
           <button
             onClick={requestClose}
-            className="ea-icon-btn inline-flex items-center justify-center"
+            className="ea-mech-close inline-flex items-center justify-center"
             aria-label="Close modal"
           >
-            <FaIcon icon={faXmark} className="text-muted text-lg" />
+            <FaIcon icon={faXmark} />
           </button>
         </div>
-        )}
 
         {/* Content - Scrollable. For golf the step frame fills it: its own
             body scrolls and its footer stays at the bottom. */}
-        <div className={isGolf ? 'flex-1 min-h-0 flex flex-col overflow-y-auto' : 'flex-1 overflow-y-auto p-4 sm:p-6'}>
-          {/* Crash-recovery draft notice — restore is a choice, never automatic */}
-          {availableDraft && caption.trim() === '' && (() => {
-            const restoreDraft = () => {
-              setCaption(availableDraft.caption);
-              setHashtags(availableDraft.hashtags);
-              setSelectedTags(availableDraft.tags);
-              setVisibility(availableDraft.visibility);
-              if (availableDraft.postType !== postType) {
-                setPostType(availableDraft.postType as SportKey | 'general');
-              }
-              if (availableDraft.golf) {
-                // Remount the slot with the seed; the section reports
-                // the seeded value up on mount (G1).
-                setGolfSeed(availableDraft.golf);
-                setSportSectionResetKey(k => k + 1);
-              }
-              if (availableDraft.mediaCount) void restoreStashedMedia();
-              setAvailableDraft(null);
-            };
-            const dismissDraft = () => {
-              clearComposerDraft();
-              clearComposerStash();
-              setAvailableDraft(null);
-            };
-            // A golf round's frame (the mechanical dialect, Nov 24 2026): ONE
-            // line — the icon, "Unfinished post", Restore as a text button,
-            // Dismiss as an icon. Same two handlers as the general banner.
-            if (isGolf) {
-              return (
-                <div
-                  className="mx-4 sm:mx-5 mt-1 flex h-11 shrink-0 items-center rounded-xl pl-3"
-                  style={{ backgroundColor: 'var(--mech-selected-fill)', boxShadow: 'inset 0 0 0 1px var(--mech-selected-border)' }}
-                  data-draft-banner=""
-                >
-                  <FaIcon icon={faClockRotateLeft} className="ea-mech-icon text-[16px]" />
-                  <p className="ml-2 min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--mech-text)]">Unfinished post</p>
-                  <button type="button" onClick={restoreDraft} className="ea-mech-btn h-11 shrink-0 px-2 text-[13px] font-semibold text-[color:var(--mech-accent-light)]" data-draft-restore="">
-                    Restore
-                  </button>
-                  <button type="button" onClick={dismissDraft} aria-label="Dismiss the unfinished post" className="ea-mech-btn inline-flex h-11 w-11 shrink-0 items-center justify-center text-[14px] text-[color:var(--mech-text-soft)]" data-draft-dismiss="">
-                    <FaIcon icon={faXmark} />
-                  </button>
-                </div>
-              );
-            }
-            return (
-            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2" data-draft-banner="">
-              <FaIcon icon={faClockRotateLeft} className="text-brand-fg" />
-              <p className="text-sm text-violet-900 dark:text-violet-200 flex-1 min-w-40">
-                You have an unfinished post{availableDraft.caption ? ` — “${availableDraft.caption.slice(0, 40)}${availableDraft.caption.length > 40 ? '…' : ''}”` : ''}
-                {availableDraft.mediaCount ? ` (${availableDraft.mediaCount} ${availableDraft.mediaCount === 1 ? 'photo or video' : 'photos or videos'})` : ''}
-              </p>
-              <button
-                type="button"
-                onClick={restoreDraft}
-                className="min-h-[44px] px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
-              >
+        <div className={isGolf ? 'flex-1 min-h-0 flex flex-col overflow-y-auto' : 'ea-mech-scroll flex-1 min-h-0 overflow-y-auto px-4 pb-3 pt-1 sm:px-6'}>
+          {/* A draft on offer — restore is a choice, never automatic. ONE
+              line: the icon, what it is, Restore as a text button, Dismiss as
+              an icon. A SAVED draft stays on offer until it is decided; a
+              crash's leftover steps aside once a caption is typed. */}
+          {availableDraft && (availableDraft.kept || caption.trim() === '') && (
+            <div
+              className={`flex h-11 shrink-0 items-center rounded-xl pl-3 ${isGolf ? 'mx-4 sm:mx-5 mt-1' : 'mb-3'}`}
+              style={{ backgroundColor: 'var(--mech-selected-fill)', boxShadow: 'inset 0 0 0 1px var(--mech-selected-border)' }}
+              data-draft-banner={availableDraft.kept ? 'saved' : ''}
+            >
+              <FaIcon icon={faClockRotateLeft} className="ea-mech-icon text-[16px]" />
+              <p className="ml-2 min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--mech-text)]">{availableDraft.kept ? 'Saved draft' : 'Unfinished post'}</p>
+              <button type="button" onClick={() => restoreDraft(availableDraft)} className="ea-mech-btn h-11 shrink-0 px-2 text-[13px] font-semibold text-[color:var(--mech-accent-light)]" data-draft-restore="">
                 Restore
               </button>
-              <button
-                type="button"
-                onClick={dismissDraft}
-                className="min-h-[44px] px-3 rounded-full text-sm font-medium text-secondary hover:bg-surface-sunken"
-              >
-                Dismiss
+              <button type="button" onClick={dismissDraft} aria-label={availableDraft.kept ? 'Delete the saved draft' : 'Dismiss the unfinished post'} className="ea-mech-btn inline-flex h-11 w-11 shrink-0 items-center justify-center text-[14px] text-[color:var(--mech-text-soft)]" data-draft-dismiss="">
+                <FaIcon icon={faXmark} />
               </button>
             </div>
-            );
-          })()}
-
-          {/* Media + caption: in place for a general or stat-line post; a golf
-              round's steps render them on the last step of an already-played
-              round (finishSlot) — a live round tells its story at the finish. */}
-          {postType !== 'golf' && postFields}
-
-          {/* Sport/Post Type Selection. While a golf round's steps run, the
-              sport row is ONE line drawn by the round's step frame (golfLead
-              above, Oct 29 / Nov 23 2026): the big card took a third of a
-              phone screen above every step; the same two doors stay —
-              Change (the picker) and Remove sport. */}
-          {postType === 'golf' ? null : (
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-secondary mb-3">Post Type</label>
-            <button
-              onClick={() => setShowSportSelector(true)}
-              className="w-full p-4 border-2 border-border-strong rounded-lg text-left hover:border-violet-500 hover:bg-brand-soft transition-all group"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-lg bg-surface-sunken group-hover:bg-violet-100 dark:group-hover:bg-violet-950/60 flex items-center justify-center transition-colors">
-                    <FaIcon
-                      icon={postType === 'general' ? faPenToSquare : sportIcon(postType as SportKey)}
-                      className={`text-xl ${postType === 'general' ? 'text-muted' : 'text-brand-fg'} group-hover:text-brand-fg`}
-                    />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-primary">
-                      {postType === 'general'
-                        ? 'General Post'
-                        : getSportDefinition(postType as SportKey).display_name
-                      }
-                    </div>
-                    <div className="text-sm text-muted">
-                      {postType === 'general'
-                        ? 'Text, photos, and hashtags'
-                        : getSportDefinition(postType as SportKey).primary_action
-                      }
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-brand-fg">
-                  <span className="text-sm font-medium">Change</span>
-                  <FaIcon icon={faChevronRight} />
-                </div>
-              </div>
-            </button>
-            {/* The way back to a General post (Oct 27 2026): the picker no
-                longer offers "General Post", so a chosen sport is cleared
-                HERE — a sibling of the row, never inside it. */}
-            {postType !== 'general' && (
-              <button
-                type="button"
-                data-post-type-clear=""
-                onClick={() => {
-                  setPostType('general');
-                  setStatLineData(null);
-                }}
-                className="ea-interactive mt-2 text-sm text-muted hover:text-primary"
-              >
-                <FaIcon icon={faXmark} className="mr-1" />
-                Remove sport
-              </button>
-            )}
-          </div>
           )}
 
-          {/* Stat-line sport form (ice hockey, volleyball, …) */}
-          {isStatLineSport && (
-            <div className="mb-6">
-              <StatLineForm
-                sportKey={postType as SportKey}
-                value={statLineData ?? emptyStatLine(postType as SportKey)}
-                onChange={setStatLineData}
-              />
+          {/* The one page (C2–C6, C8). A golf round's steps draw their own
+              frame below; its last step hosts the story (finishSlot). */}
+          {!isGolf && (
+            <div className="flex flex-col gap-3">
+              {/* Post type line (C2): the plate, the name, Change — one door to
+                  the picker. A chosen sport is cleared beside it, never inside. */}
+              <div className="flex min-h-[44px] min-w-0 items-center gap-1" data-post-type-line="">
+                <button
+                  type="button"
+                  onClick={() => setShowSportSelector(true)}
+                  className="ea-mech-btn inline-flex min-h-[44px] min-w-0 items-center gap-2.5 rounded-lg text-left"
+                >
+                  <span aria-hidden="true" className="ea-mech-recess inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-[color:var(--mech-accent-light)]">
+                    {isGeneral ? <PencilIcon size={16} /> : <FaIcon icon={sportIcon(postType as SportKey)} className="text-[14px]" />}
+                  </span>
+                  <span className="min-w-0 truncate text-sm font-semibold text-[color:var(--mech-text)]">
+                    {isGeneral ? 'General post' : getSportDefinition(postType as SportKey).display_name}
+                  </span>
+                  <span className="shrink-0 text-[13px] font-medium text-[color:var(--mech-accent-light)]">Change</span>
+                </button>
+                {!isGeneral && (
+                  <button
+                    type="button"
+                    data-post-type-clear=""
+                    aria-label="Remove sport"
+                    onClick={() => {
+                      setPostType('general');
+                      setStatLineData(null);
+                    }}
+                    className="ea-mech-btn inline-flex min-h-[44px] shrink-0 items-center rounded-lg px-2 text-[13px] text-[color:var(--mech-text-soft)]"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+
+              <div className="ea-mech-compose-grid">
+                <div className="ea-mech-compose-col">
+                  {mediaBlock}
+                  <CaptionPanel
+                    caption={caption}
+                    onCaption={setCaption}
+                    maxCaption={MAX_CAPTION_LENGTH}
+                    captionRef={captionRef}
+                    hashtags={{
+                      list: hashtags,
+                      max: MAX_HASHTAGS,
+                      onAdd: addHashtag,
+                      onRemove: removeHashtag,
+                      typed: customHashtag,
+                      onTyped: setCustomHashtag,
+                      suggestions: currentHashtags,
+                    }}
+                  />
+                </div>
+                <div className="ea-mech-compose-col">
+                  {/* Stat-line sport form (ice hockey, volleyball, …) */}
+                  {isStatLineSport && (
+                    <StatLineForm
+                      sportKey={postType as SportKey}
+                      value={statLineData ?? emptyStatLine(postType as SportKey)}
+                      onChange={setStatLineData}
+                    />
+                  )}
+                  <DetailsPanel>
+                    <TagPeopleRow people={taggedProfilesData} onAdd={() => setShowTagModal(true)} onRemove={removeTaggedPerson} />
+                  </DetailsPanel>
+                  {/* Who sees it: the ACCOUNT's call (Oct 9 2026, Tom) — never a
+                      per-post audience. A General post has no switch at all
+                      (Nov 26 2026); a sport's post keeps the feed switch (269):
+                      off, it still stands on the profile. */}
+                  {!isGeneral && (
+                    <div data-composer-audience="">
+                      <FeedToggle on={feedSwitch} onChange={setFeedSwitch} kind={feedKind} place={defaultPostCategory === 'training' ? 'in Training' : undefined} accountVisibility={account?.visibility ?? null} />
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1447,264 +1272,64 @@ export default function CreatePostModal({
               onFrame={sportKey === 'golf' ? setGolfFrame : undefined}
             />
           ))}
+        </div>
 
-          {/* Tags */}
-          <div className={postType === 'golf' ? 'hidden' : 'mb-6'}>
-            <label className="block text-sm font-semibold text-secondary mb-3">Tags</label>
-            <div className="flex flex-wrap gap-2">
-              {currentTags.map(tag => (
-                <button
-                  key={tag.value}
-                  onClick={() => toggleTag(tag.value)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                    selectedTags.includes(tag.value)
-                      ? `bg-${tag.color}-100 text-${tag.color}-800 border-2 border-${tag.color}-300`
-                      : 'bg-surface-sunken text-tertiary border-2 border-border hover:bg-gray-200 dark:hover:bg-stone-800'
-                  }`}
-                >
-                  {selectedTags.includes(tag.value) && (
-                    <FaIcon icon={faCheck} className="mr-1 text-xs" />
-                  )}
-                  {tag.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Hashtags */}
-          <div className={postType === 'golf' ? 'hidden' : 'mb-6'}>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-semibold text-secondary">
-                Hashtags ({hashtags.length}/{MAX_HASHTAGS})
-              </label>
-              <button
-                onClick={() => setShowHashtagSuggestions(!showHashtagSuggestions)}
-                className="relative after:absolute after:content-[''] after:-inset-y-3 after:-inset-x-1 text-sm text-brand-fg hover:text-brand-fg-strong"
-              >
-                {showHashtagSuggestions ? 'Hide' : 'Show'} suggestions
-              </button>
-            </div>
-
-            {/* Selected hashtags */}
-            {hashtags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {hashtags.map(hashtag => (
-                  <span
-                    key={hashtag}
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-200 rounded-full text-sm"
-                  >
-                    {hashtag}
-                    <button
-                      onClick={() => removeHashtag(hashtag)}
-                      aria-label={`Remove ${hashtag}`}
-                      className="ml-0.5 -my-2 -mr-2 p-2 hover:text-violet-900 dark:hover:text-violet-200 inline-flex items-center justify-center"
-                    >
-                      <FaIcon icon={faXmark} className="text-xs" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Custom hashtag input.
-                The input carries min-w-0 because a flex item defaults to
-                min-width:auto and will not shrink below the input's intrinsic
-                width — without it the adjacent Add button was pushed past the
-                modal edge at 320px. */}
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={customHashtag}
-                onChange={(e) => setCustomHashtag(e.target.value)}
-                onKeyDown={handleCustomHashtagSubmit}
-                placeholder="Type a hashtag and press Enter"
-                className="flex-1 min-w-0 px-3 py-2 border border-border-strong rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-                disabled={hashtags.length >= MAX_HASHTAGS}
-              />
-              <button
-                onClick={() => {
-                  if (customHashtag.trim()) {
-                    addHashtag(customHashtag.trim());
-                    setCustomHashtag('');
-                  }
-                }}
-                disabled={!customHashtag.trim() || hashtags.length >= MAX_HASHTAGS}
-                className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover disabled:bg-gray-300 dark:disabled:bg-stone-700 disabled:cursor-not-allowed transition-colors"
-              >
-                Add
-              </button>
-            </div>
-
-            {/* Hashtag suggestions */}
-            {showHashtagSuggestions && (
-              <div className="flex flex-wrap gap-1">
-                {currentHashtags
-                  .filter(tag => !hashtags.includes(tag))
-                  .map(hashtag => (
-                    <button
-                      key={hashtag}
-                      onClick={() => addHashtag(hashtag)}
-                      disabled={hashtags.length >= MAX_HASHTAGS}
-                      className="relative after:absolute after:content-[''] after:-inset-y-2.5 after:inset-x-0 px-2 py-1 text-xs bg-surface-sunken text-secondary rounded-full hover:bg-violet-100 dark:hover:bg-violet-950/60 hover:text-brand-fg-strong disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {hashtag}
-                    </button>
-                  ))
-                }
-              </div>
-            )}
-          </div>
-
-          {/* Tag People */}
-          <div className={postType === 'golf' ? 'hidden' : 'mb-6'}>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-semibold text-secondary">Tag People</label>
-              <button
-                onClick={() => setShowTagModal(true)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm text-brand-fg hover:text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
-              >
-                <FaIcon icon={faUserTag} />
-                {taggedProfiles.length > 0 ? `Tagged (${taggedProfiles.length})` : 'Add Tags'}
-              </button>
-            </div>
-
-            {/* Tagged people chips */}
-            {taggedProfilesData.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {taggedProfilesData.map(profile => (
-                  <span
-                    key={profile.id}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-violet-100 dark:bg-violet-950/60 text-violet-800 dark:text-violet-200 rounded-full text-sm font-medium border border-violet-300 dark:border-violet-700"
-                  >
-                    <FaIcon icon={faUser} className="text-xs" />
-                    {profile.name}
-                    <button
-                      onClick={() => removeTaggedPerson(profile.id)}
-                      aria-label={`Remove ${profile.name}`}
-                      className="ml-1 hover:text-violet-900 dark:hover:text-violet-200"
-                    >
-                      <FaIcon icon={faXmark} className="text-xs" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {taggedProfilesData.length === 0 && (
-              <p className="text-sm text-muted">
-                <FaIcon icon={faCircleInfo} className="mr-1" />
-                Tag people who are in your photos or videos
+        {/* Footer (C7) — a golf round's steps draw their own (StepFlow), so
+            the composer's stays off while golf is the post type. The eye key
+            and the slide: posting is always the slide's (R5). */}
+        {!isGolf && (
+          <div className="shrink-0 px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-2 sm:px-6 sm:pb-1" data-compose-footer="">
+            {/* Why the slide waits, when the reason is a video over the limit:
+                a consequence the person must act on, so it stays in view
+                (Videos program, 296: a full game lives on YouTube and is linked). */}
+            {hasTooLongVideo && (
+              <p className="mb-2 text-[13px] leading-5 text-[color:var(--mech-text-soft)]" data-composer-hint="">
+                Trim the video in the editor, or{' '}
+                <Link href="/videos/new" className="font-semibold text-[color:var(--mech-accent-light)] underline-offset-2 hover:underline" data-full-game-link="">
+                  add the full game as a YouTube video
+                </Link>
               </p>
             )}
+            <div className="ea-mech-compose-foot flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPreview(true)}
+                disabled={nothingEntered}
+                aria-label="Preview"
+                className="ea-mech-outline-key inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] disabled:opacity-[0.45]"
+                data-compose-preview-key=""
+              >
+                <EyeIcon size={20} />
+              </button>
+              <SlideToConfirm
+                tone="post"
+                className="min-w-0 flex-1"
+                label={slideWords({ uploading, posting: false, posted: false })}
+                busyLabel="Posting"
+                doneLabel="Posted"
+                ariaLabel="Slide to post"
+                onConfirm={() => { void handleSubmit(); }}
+                disabled={!readyToPost}
+                busy={isSubmitting}
+                done={posted}
+              />
+            </div>
           </div>
-
-          {/* Who sees it: the ACCOUNT's call (Oct 9 2026, Tom) — never a
-              per-post audience. The one switch is the feed (269): off, the
-              post still stands on the profile. A guardian posting as an
-              athlete sees the athlete's account. */}
-          <div className={postType === 'golf' ? 'hidden' : 'mb-6'} data-composer-audience="">
-            <FeedToggle on={onFeed} onChange={setOnFeed} kind={feedKind} place={defaultPostCategory === 'training' ? 'in Training' : undefined} accountVisibility={(activeProfile ?? profile)?.visibility ?? null} />
-          </div>
-        </div>
-
-        {/* Footer — a golf round's steps draw their own (StepFlow: Back / Next /
-            Go Live or Create Post), so the composer's stays off while golf is
-            the post type.
-            Stacks below `sm`: as a single non-wrapping row, the hint + Cancel +
-            Preview + Create Post overflowed the modal on every phone width and
-            clipped the primary submit button off the right edge (375px: the
-            "Create Post" button ran to 424px in a 375px viewport). */}
-        {postType !== 'golf' && (
-        <div className="flex flex-col gap-3 p-4 border-t border-border bg-surface-muted sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="text-sm text-tertiary">
-            {/* What the disabled Post needs, as a calm hint — not a red
-                error before anything was tried (Oct 9 2026 appearance round). */}
-            {!isValidForSubmission() && (
-              <span className="text-secondary" data-composer-hint="">
-                <FaIcon icon={faCircleInfo} className="mr-1.5 text-brand-fg" />
-                {hasTooLongVideo ? (
-                  // Videos program (296): a game, a tournament, a broadcast is
-                  // longer than a clip — it lives on YouTube and is linked.
-                  <>
-                    Trim the video in the editor, or{' '}
-                    <Link href="/videos/new" className="font-semibold text-brand-fg underline-offset-2 hover:underline" data-full-game-link="">
-                      add the full game as a YouTube video
-                    </Link>
-                  </>
-                ) : (
-                  'Add a caption or media to post'
-                )}
-              </span>
-            )}
-          </div>
-
-          {/* Wraps on phones; each button claims an equal share of the row so
-              three actions still fit at 320px without clipping. */}
-          <div className="flex flex-wrap gap-3 w-full sm:w-auto sm:flex-nowrap">
-            <button
-              onClick={requestClose}
-              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-secondary bg-surface border border-border-strong rounded-lg hover:bg-surface-muted transition-colors"
-            >
-              Cancel
-            </button>
-
-            <button
-              onClick={() => setShowPreview(true)}
-              disabled={!isValidForSubmission()}
-              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-secondary bg-surface-sunken border border-border-strong rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <FaIcon icon={faEye} className="mr-2" />
-              Preview
-            </button>
-
-            <button
-              onClick={() => {
-                handleSubmit();
-              }}
-              disabled={!isValidForSubmission() || isSubmitting}
-              className="flex-1 min-w-[7.5rem] sm:flex-none whitespace-nowrap px-4 sm:px-6 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-brand hover:bg-brand-hover"
-            >
-              {isSubmitting ? (
-                <>
-                  <FaIcon icon={faSpinner} spin className="mr-2" />
-                  {uploadingLine(mediaFiles.map(f => uploads.itemFor(f.id)?.progress)) ?? 'Creating...'}
-                </>
-              ) : (
-                <>
-                  <FaIcon icon={faPaperPlane} className="mr-2" />
-                  Create Post
-                </>
-              )}
-            </button>
-          </div>
-        </div>
         )}
       </div>
 
-      {/* Preview Modal */}
-      {showPreview && (
-        <PostPreview
-          postType={postType}
-          caption={caption}
-          tags={selectedTags}
-          hashtags={hashtags}
-          mediaFiles={mediaFiles}
-          accountVisibility={(activeProfile ?? profile)?.visibility ?? null}
-          taggedPeople={taggedProfilesData}
-          onClose={() => setShowPreview(false)}
-          onPost={() => {
-            setShowPreview(false);
-            handleSubmit();
-          }}
-        />
+      {/* Preview (D3): the real feed card, one Edit key. */}
+      {previewPost && (
+        <PreviewOverlay post={previewPost} currentUserId={account?.id ?? userId} onClose={() => setShowPreview(false)} />
       )}
 
-      {/* Tag People Modal */}
+      {/* Tag People (A9): the same dialog as the golf flow's. */}
       <TagPeopleModal
         isOpen={showTagModal}
         onClose={() => setShowTagModal(false)}
         existingTags={taggedProfiles}
         onSelectionComplete={handleTagPeopleComplete}
+        variant="mech"
         selectionMode={true}
       />
 
@@ -1727,6 +1352,7 @@ export default function CreatePostModal({
         <MediaEditor
           assets={editorAssets}
           config={COMPOSER_EDITOR_CONFIG}
+          initialTool={editorTool}
           onDone={handleEditorDone}
           onCancel={() => {
             setEditorAssets(null);
@@ -1734,172 +1360,6 @@ export default function CreatePostModal({
           }}
         />
       )}
-    </div>
-  );
-}
-
-// Post Preview Component
-function PostPreview({
-  postType,
-  caption,
-  tags,
-  hashtags,
-  mediaFiles,
-  accountVisibility,
-  taggedPeople = [],
-  onClose,
-  onPost
-}: PostPreviewProps) {
-  const tagOptions = getTagOptions(postType);
-
-  return (
-    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-[60] p-4">
-      <div className="bg-surface-raised rounded-lg shadow-2xl max-w-2xl w-full max-h-modal overflow-y-auto">
-        {/* Preview Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border bg-surface-muted">
-          <h3 className="text-lg font-semibold text-primary">Post Preview</h3>
-          <button
-            onClick={onClose}
-            aria-label="Close preview"
-            className="p-2 hover:bg-gray-200 dark:hover:bg-stone-800 rounded-lg transition-colors"
-          >
-            <FaIcon icon={faXmark} className="text-tertiary" />
-          </button>
-        </div>
-
-        {/* Mock Post */}
-        <div className="p-6">
-          <div className="bg-surface border border-border rounded-lg">
-            {/* Post Header */}
-            <div className="p-4 border-b border-border-subtle">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full"></div>
-                <div>
-                  <div className="font-semibold text-primary">Your Name</div>
-                  <div className="text-sm text-muted">
-                    Just now • {isPrivateAccount(accountVisibility) ? 'Your fans' : 'Anyone'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Post Content */}
-            <div className="p-4">
-              {/* Media — first, mirroring the composer's media-first order */}
-              {mediaFiles.length > 0 && (
-                <div className={`grid ${mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 rounded-lg overflow-hidden mb-3`}>
-                  {mediaFiles.slice(0, 4).map((file: MediaFile, index: number) => (
-                    <div key={file.id} className="relative aspect-square bg-surface-sunken p-1.5">
-                      {/* Same fix as the upload grid above: fill the cell,
-                          don't bake pixel dimensions into an inline style. */}
-                      {file.type === 'image' ? (
-                        <MediaTile
-                          src={file.url}
-                          kind="image"
-                          alt=""
-                          className="h-full w-full"
-                          sizes="(max-width: 640px) 45vw, (max-width: 768px) 30vw, 300px"
-                        />
-                      ) : (
-                        <VideoFrame src={file.url} poster={file.posterPreviewUrl} alt="" className="w-full h-full" />
-                      )}
-                      {index === 3 && mediaFiles.length > 4 && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <span className="text-white text-2xl font-bold">+{mediaFiles.length - 4}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Caption */}
-              {caption && (
-                <p className="text-primary whitespace-pre-wrap mb-3">{caption}</p>
-              )}
-
-              {/* Hashtags */}
-              {hashtags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {hashtags.map((tag: string) => (
-                    <span key={tag} className="text-brand-fg hover:underline cursor-pointer">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Tagged People */}
-              {taggedPeople.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3 items-center">
-                  <span className="text-sm text-tertiary">with</span>
-                  {taggedPeople.map((person: {id: string; name: string}) => (
-                    <span
-                      key={person.id}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-soft text-brand-fg-strong text-sm rounded-full font-semibold border border-violet-200 dark:border-violet-800"
-                    >
-                      <FaIcon icon={faUser} className="text-xs" />
-                      {person.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Tags */}
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {tags.map((tagValue: string) => {
-                    const tag = tagOptions.find((t: TagOption) => t.value === tagValue);
-                    if (!tag) return null;
-                    return (
-                      <span
-                        key={tagValue}
-                        className={`px-2 py-1 bg-${tag.color}-100 text-${tag.color}-800 text-xs rounded-full font-medium`}
-                      >
-                        {tag.label}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-
-            </div>
-
-            {/* Mock Engagement */}
-            <div className="px-4 py-3 border-t border-border-subtle flex justify-between text-muted">
-              <div className="flex gap-4">
-                <button className="hover:text-brand-fg transition-colors">
-                  <FaIcon icon={faHeartRegular} className="mr-1" /> Like
-                </button>
-                <button className="hover:text-brand-fg transition-colors">
-                  <FaIcon icon={faCommentRegular} className="mr-1" /> Comment
-                </button>
-                <button className="hover:text-brand-fg transition-colors">
-                  <FaIcon icon={faShare} className="mr-1" /> Share
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Preview Actions */}
-        <div className="px-6 py-4 border-t border-border bg-surface-muted flex justify-between">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-tertiary hover:text-primary transition-colors"
-          >
-            Edit Post
-          </button>
-          <button
-            onClick={onPost}
-            className="px-6 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
-          >
-            <FaIcon icon={faPaperPlane} className="mr-2" />
-            Post Now
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

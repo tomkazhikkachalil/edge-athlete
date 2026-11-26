@@ -1,4 +1,5 @@
 import path from 'path';
+import { openThumbEditor, slidePost, thumbs } from './helpers/composer';
 import { test, expect } from './helpers/test';
 
 // Capture v2 (Sep 3 2026): a CAMERA capture attaches immediately as a tile —
@@ -11,16 +12,16 @@ test('a camera photo attaches as a tile at once; Edit is one tap away @mobile', 
 
   await page.goto('/feed');
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
 
   // The photo CAPTURE input (single-file, accept=image/*) — not the library one.
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles(fixture);
-  const editTile = page.getByRole('button', { name: 'Edit media', exact: true });
+  const editTile = thumbs(page);
   await expect(editTile).toBeVisible({ timeout: 5_000 });
   await expect(page.getByRole('heading', { name: 'Edit media' })).toHaveCount(0);
 
   // The editor is still there when wanted.
-  await editTile.click();
+  await openThumbEditor(page);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });
@@ -31,7 +32,7 @@ test('a camera photo attaches as a tile at once; Edit is one tap away @mobile', 
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(2);
+  await expect(thumbs(page)).toHaveCount(2);
 });
 
 test('a camera video attaches as a tile at once and posts @mobile', async ({ page }) => {
@@ -78,7 +79,7 @@ test('a camera video attaches as a tile at once and posts @mobile', async ({ pag
   });
 
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   const clip = {
     name: base64.mime === 'video/mp4' ? 'clip.mp4' : 'clip.webm',
     mimeType: base64.mime,
@@ -86,7 +87,7 @@ test('a camera video attaches as a tile at once and posts @mobile', async ({ pag
   };
   await page.locator('input[type="file"][accept="video/*"]').setInputFiles(clip);
 
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(thumbs(page)).toBeVisible({ timeout: 5_000 });
   await expect(page.getByRole('heading', { name: 'Edit media' })).toHaveCount(0);
   await expect(page.locator('[role="status"]').filter({ hasText: 'Too long' })).toHaveCount(0);
 
@@ -94,15 +95,14 @@ test('a camera video attaches as a tile at once and posts @mobile', async ({ pag
   // pick and the tile (that editor pass is where "uploading is slow" came
   // from). Photos from the library still open the editor (the first test).
   await page.locator('input[type="file"][multiple]').setInputFiles(clip);
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(2, { timeout: 5_000 });
+  await expect(thumbs(page)).toHaveCount(2, { timeout: 5_000 });
   await expect(page.getByRole('heading', { name: 'Edit media' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Remove media' }).last().click();
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(1);
+  await expect(thumbs(page)).toHaveCount(1);
 
   const marker = `Capture v2 clip ${Date.now()}`;
-  await page.getByPlaceholder('Share your thoughts...').fill(marker);
-  // At 390px the nav drawer ALSO carries a "Create Post" button — the composer's is last.
-  await page.getByRole('button', { name: 'Create Post', exact: true }).last().click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeHidden({ timeout: 60_000 });
+  await page.getByPlaceholder('Share your thoughts').fill(marker);
+  await slidePost(page);
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeHidden({ timeout: 60_000 });
   await expect(page.getByText(marker).first()).toBeVisible({ timeout: 30_000 });
 });

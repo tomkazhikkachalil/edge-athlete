@@ -104,6 +104,8 @@ export interface MediaEditorModalProps {
   config: EditorConfig;
   onDone: (results: EditedMedia[]) => void;
   onCancel: () => void;
+  /** The tool the editor opens on (the composer's Crop / Adjust / Filter keys, Nov 26 2026). One the asset does not have falls back to its first. */
+  initialTool?: 'crop' | 'adjust' | 'filter';
 }
 
 /** The house spinner on the black stage with one line under it (the
@@ -117,7 +119,7 @@ function StageOpening({ label }: { label: string }) {
   );
 }
 
-export default function MediaEditorModal({ assets: initialAssets, config, onDone, onCancel }: MediaEditorModalProps) {
+export default function MediaEditorModal({ assets: initialAssets, config, onDone, onCancel, initialTool }: MediaEditorModalProps) {
   useBodyScrollLock(true);
   const { showError } = useToast();
   const defaultAspect = config.enforcedRatio ?? config.aspectRatios[0] ?? 'free';
@@ -145,7 +147,7 @@ export default function MediaEditorModal({ assets: initialAssets, config, onDone
   // instead of black (Oct 22 2026, Tom: keep the full-resolution decode, show
   // that it is happening). Each stage reports through onReady.
   const [readyFor, setReadyFor] = useState<string | null>(null);
-  const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? 'clips' : 'crop');
+  const [tool, setTool] = useState<Tool>(initialAssets[0]?.kind === 'video' ? (initialTool === 'crop' ? 'crop' : 'clips') : initialTool ?? 'crop');
   // Crop's geometry row: Straighten shows the crop stage; Vertical /
   // Horizontal (the keystone warp, applied to the FRAMED picture) show the
   // engine preview. Back to Straighten whenever the tool or the photo changes.

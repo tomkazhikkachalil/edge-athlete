@@ -97,7 +97,7 @@ test('@mobile a library photo reaches the editor quickly — composer and profil
     });
     await page.goto('/feed');
     await page.getByRole('button', { name: /create a post/i }).click();
-    await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible({ timeout: 30_000 });
     const annotate = (note: string) => testInfo.annotations.push({ type: 'editor', description: `${testInfo.project.name} · ${note}` });
     const composer = await timedPick(page, LIBRARY, { annotate });
 
