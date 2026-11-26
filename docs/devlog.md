@@ -1,5 +1,21 @@
 # Development Log
 
+## November 25, 2026 (22:45) — Maintenance after the Select Sport change: every gate green, nothing found in the app
+
+**Why.** Tom: "run the full project maintenance checklist." The earlier pass today ran before #1636 (one home per sport); this one covers main as it stands (`50392864`; code = `c3c24cb2`, which production serves).
+
+**The checklist.**
+- `npm run verify` exit 0: type check, lint (0 warnings), 7,058 tests, build, syntax floor.
+- `npm audit --omit=dev`: 0. Hardening guardrails, blocklists: green.
+- `check:schema` and `check:schema:prod`: ledger OK at 320 on both. No migration since the baseline was rebuilt at 320, so no rebuild.
+- **Staging sweep** (14 specs: the sport picker and Create, golf setup, the live round, feed post, install-app, golf and sport profiles), one project at a time: desktop 25, mobile 16, firefox-mobile 16, android 16, webkit-mobile 14 + 2 failed.
+- **The two WebKit failures were staging, not the app:** the staging database answered "521: Web server is down" during that run (a QA teardown call and a saved-score read). Staging read in ~0.2 s minutes later, and both specs passed on webkit-mobile alone with retries off (3 / 3). The staging-exhaustion trap again: five projects of 14 specs back to back is too long a run; split the sweep in two next time.
+- **Production probe on `c3c24cb2`** (11 specs incl. `install-app`), one project at a time: desktop 18 / 18, mobile 14 / 14, android 14 / 14, webkit-mobile 14 / 14, no retry, no Vercel checkpoint. `/manifest.webmanifest` 200, `/sw.js` 200.
+
+**Found.** Nothing in the app. Still standing, not from this work, not fixed: `composer-default-general` "profile tabs: Training inside the viewport" fails on main at 390 px.
+
+**Owed.** Tom's look on real phones: the picker's slide, the dial drag, the map keys (a quick double tap on zoom), the slide to go live.
+
 ## November 25, 2026 (21:51) — Select Sport: one home per sport
 
 **Why.** Tom's note: a sport only ever shows in one list; favouriting moves it up, unfavouriting moves it back to its alphabetical spot; the newest favourite goes at the end; no header for an empty Favourites, a one-line hint instead; search covers both lists; show the move with a short slide (about 200 ms) so nobody reads it as a delete; save right away and put the sport back with a toast if the save fails. His one decision: the control stays the switch (not a star), so the hint reads "Switch a sport on to pin it here."
