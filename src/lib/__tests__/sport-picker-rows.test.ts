@@ -30,7 +30,7 @@ describe('the sport picker rows', () => {
     // the row button closes before the star button opens.
     const row = picker.indexOf('<button\n        type="button"\n        onClick={() => onSelect(sport)}');
     const rowClose = picker.indexOf('</button>', row);
-    const star = picker.indexOf('data-sport-favourite=');
+    const star = picker.indexOf('data-sport-favourite={sport.sport_key}');
     expect(row).toBeGreaterThan(-1);
     expect(rowClose).toBeGreaterThan(row);
     expect(star).toBeGreaterThan(rowClose);
@@ -38,9 +38,19 @@ describe('the sport picker rows', () => {
 
   it('the sections come from the one rule module and the switch is gold by token', () => {
     expect(picker).toContain("from '@/lib/sports/favourite-sports'");
-    // The SECTION follows the stored list a beat late (the tile slides in
-    // after the switch has moved); the switch itself reads the stored list.
-    expect(picker).toContain('partitionSports(getAllSports(), shown.keys, searchQuery)');
+    // One home per sport (Tom, Nov 25 2026): the sections read the stored
+    // list at once, a sport has ONE tile (keyed by its sport key alone), and
+    // the move is a slide through the rule module's offset, skipped under
+    // reduced motion. No waiting state, no slide-in class.
+    expect(picker).toContain('partitionSports(getAllSports(), favourites, searchQuery)');
+    expect(picker).not.toMatch(/key=\{`(fav|all)-/);
+    expect(picker).toContain('moveOffset(before.current.get(key), box)');
+    expect(picker).toContain('duration: TILE_MOVE_MS');
+    expect(picker).toContain("'(prefers-reduced-motion: reduce)'");
+    expect(picker).not.toContain('data-enter');
+    expect(picker).not.toContain('setTimeout');
+    expect(picker).toContain('data-sport-favourites-hint=""');
+    expect(picker).toContain('showFavouritesHint(sections.favourites.length, searchQuery, canFavourite)');
     expect(picker).toContain('isFavourite={favourites.includes(sport.sport_key)}');
     expect(picker).toContain('data-sport-favourites=""');
     // Nov 23 2026 (the mechanical dialect): the star is a switch; its gold

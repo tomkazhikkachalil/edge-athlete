@@ -12,7 +12,8 @@ import { reportRouteError } from '@/lib/observability/report';
  * PATCH /api/settings/favourite-sports — save the caller's OWN favourite
  * sports for the post composer's picker (profiles.favourite_sports, 285).
  *   { sports: string[] } → { sports: string[] } — the WHOLE list, sanitized:
- *   unknown keys and duplicates are dropped, the stored array is sorted.
+ *   unknown keys and duplicates are dropped, the order sent is kept
+ *   (the order the favourites were added, newest last).
  *
  * Always `.eq('id', user.id)` — the favourites belong to the ACCOUNT, never
  * to a guardian-managed activeProfile, so no targetProfileId is accepted.

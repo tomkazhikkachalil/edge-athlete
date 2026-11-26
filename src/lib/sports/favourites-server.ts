@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * The ONE writer of favourite sports (285): the whole sanitized, sorted list
+ * The ONE writer of favourite sports (285): the whole sanitized list, in the order added,
  * onto the ACCOUNT's own profile row. The caller (PATCH /api/settings/
  * favourite-sports) has already run sanitizeFavouriteSports — this stores
  * exactly what it is given, like the theme-prefs route.

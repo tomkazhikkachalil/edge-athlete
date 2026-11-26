@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { getAllSports, type SportKey } from '@/lib/sports/SportRegistry';
-import { enteringFavourites, partitionSports } from '@/lib/sports/favourite-sports';
+import { TILE_MOVE_MS, moveOffset, partitionSports, showFavouritesHint, type TileBox } from '@/lib/sports/favourite-sports';
 import { useFavouriteSports } from '@/hooks/useFavouriteSports';
 import { useLastSport } from '@/hooks/useLastSport';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
@@ -14,7 +14,8 @@ import { sportIcon } from '@/lib/sports/sport-icons';
 /**
  * The composer's Sport step — search first, favourites per account (Tom's
  * spec, Oct 27 2026; migration 285). Top to bottom: the search, Favourites
- * (only once the account has one), All Sports alphabetical. No "General
+ * (only once the account has one; a one-line hint until then), All Sports
+ * alphabetical. No "General
  * Post" and nothing pre-selected: a new post already starts General (Oct 10
  * rule) and closing this without a pick leaves it so; a chosen sport is
  * cleared with the composer's "Remove sport" link, never from here.
@@ -27,7 +28,11 @@ import { sportIcon } from '@/lib/sports/sport-icons';
  * the sport. A tile tap picks the sport and closes. The switch's accessible
  * name never carries the sport's name (`aria-describedby` points at it), so
  * "the one button named Golf" stays the tile — the e2e specs rely on that.
- * A favourite still appears under All Sports (Tom, Nov 23: unchanged).
+ * ONE HOME PER SPORT (Tom, Nov 25 2026): a favourite sits in Favourites
+ * only, in the order it was added; switched off, it returns to its
+ * alphabetical place in All Sports. The tile SLIDES to its new place
+ * (~200 ms, every tile that shifts with it), so nobody reads the move as a
+ * delete; with the system's reduced motion on it moves without the slide.
  * LAST marks the sport of the account's newest sport post (useLastSport).
  */
 interface SportSelectorProps {
@@ -37,8 +42,18 @@ interface SportSelectorProps {
 
 type PickerSport = ReturnType<typeof getAllSports>[number];
 
-/** The section change waits for the switch to finish moving (spec: ~400 ms). */
-const MOVE_DELAY_MS = 400;
+/** Where every tile sits now, by sport key, relative to the viewport. */
+function tileBoxes(root: HTMLElement | null): Map<string, TileBox> {
+  const boxes = new Map<string, TileBox>();
+  if (!root) return boxes;
+  for (const el of root.querySelectorAll<HTMLElement>('[data-sport-row]')) {
+    const key = el.dataset.sportRow;
+    if (!key) continue;
+    const rect = el.getBoundingClientRect();
+    boxes.set(key, { left: rect.left, top: rect.top });
+  }
+  return boxes;
+}
 
 export default function SportSelector({ onSelectSport, onClose }: SportSelectorProps) {
   // Mounted only while open — lock background scroll for the whole lifetime
@@ -64,23 +79,57 @@ export default function SportSelector({ onSelectSport, onClose }: SportSelectorP
   const { favourites, canFavourite, toggle } = useFavouriteSports();
   const lastSport = useLastSport();
 
-  // The Favourites SECTION follows the stored list a beat late: the switch
-  // flips at once (its own confirmation), then the tile arrives in — or
-  // leaves — the section. `entering` names the tiles that slide in.
-  const [shown, setShown] = useState<{ keys: string[]; entering: string[] }>({ keys: favourites, entering: [] });
-  const favouritesKey = favourites.join(',');
-  useEffect(() => {
-    const next = favouritesKey ? favouritesKey.split(',') : [];
-    const timer = window.setTimeout(() => {
-      setShown(prev => (prev.keys.join(',') === favouritesKey ? prev : { keys: next, entering: enteringFavourites(prev.keys, next) }));
-    }, MOVE_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [favouritesKey]);
-
   const sections = useMemo(
-    () => partitionSports(getAllSports(), shown.keys, searchQuery),
-    [shown.keys, searchQuery],
+    () => partitionSports(getAllSports(), favourites, searchQuery),
+    [favourites, searchQuery],
   );
+
+  // The slide (FLIP). `before` holds where the tiles sat ahead of the last
+  // list change: measured at the tap (so a resize in between cannot leave it
+  // stale) and again after every layout, which also serves a put-back after a
+  // failed save. When the favourites change, each tile that moved is drawn
+  // back at its old place and let go.
+  const listRef = useRef<HTMLDivElement>(null);
+  const before = useRef<Map<string, TileBox>>(new Map());
+  const lastFavourites = useRef(favourites.join(','));
+  const refocus = useRef<string | null>(null);
+  const favouritesKey = favourites.join(',');
+  useLayoutEffect(() => {
+    const root = listRef.current;
+    const moved = lastFavourites.current !== favouritesKey;
+    lastFavourites.current = favouritesKey;
+    const after = tileBoxes(root);
+    if (moved && root) {
+      const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!still) {
+        for (const el of root.querySelectorAll<HTMLElement>('[data-sport-row]')) {
+          const key = el.dataset.sportRow ?? '';
+          const box = after.get(key);
+          const offset = box ? moveOffset(before.current.get(key), box) : null;
+          if (!offset || typeof el.animate !== 'function') continue;
+          el.animate(
+            [{ transform: `translate(${offset.dx}px, ${offset.dy}px)` }, { transform: 'none' }],
+            { duration: TILE_MOVE_MS, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+          );
+        }
+      }
+      // The tile was redrawn in the other list: keep focus on its switch.
+      const key = refocus.current;
+      if (key && (document.activeElement === document.body || document.activeElement === null)) {
+        root.querySelector<HTMLElement>(`[data-sport-favourite="${key}"]`)?.focus({ preventScroll: true });
+      }
+    }
+    refocus.current = null;
+    before.current = after;
+  }, [favouritesKey, searchQuery]);
+
+  const handleToggle = useCallback((sportKey: string) => {
+    before.current = tileBoxes(listRef.current);
+    refocus.current = sportKey;
+    void toggle(sportKey);
+  }, [toggle]);
+
+  const hint = showFavouritesHint(sections.favourites.length, searchQuery, canFavourite);
 
   const handleSelectSport = (sport: PickerSport) => {
     if (!sport.enabled) return;
@@ -123,26 +172,31 @@ export default function SportSelector({ onSelectSport, onClose }: SportSelectorP
         </div>
 
         {/* Content - Scrollable */}
-        <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pt-2.5 pb-4">
+        <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pt-2.5 pb-4">
           {nothingFound ? (
             <p className="py-8 text-center text-sm text-[color:var(--mech-text-soft)]">No sports found</p>
           ) : (
             <>
+              {hint && (
+                <p className="mb-2.5 text-[13px] leading-[18px] text-[color:var(--mech-text-soft)]" data-sport-favourites-hint="">
+                  Switch a sport on to pin it here.
+                </p>
+              )}
+
               {sections.favourites.length > 0 && (
                 <div className="mb-2.5" data-sport-favourites="">
                   <h4 className="ea-mech-micro mb-2">Favourites</h4>
                   <ul className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {sections.favourites.map(sport => (
                       <SportTile
-                        key={`fav-${sport.sport_key}`}
+                        key={sport.sport_key}
                         section="fav"
                         sport={sport}
                         isFavourite={favourites.includes(sport.sport_key)}
                         canFavourite={canFavourite}
                         isLast={lastSport === sport.sport_key}
-                        entering={shown.entering.includes(sport.sport_key)}
                         onSelect={handleSelectSport}
-                        onToggleFavourite={toggle}
+                        onToggleFavourite={handleToggle}
                       />
                     ))}
                   </ul>
@@ -150,20 +204,19 @@ export default function SportSelector({ onSelectSport, onClose }: SportSelectorP
               )}
 
               {sections.all.length > 0 && (
-                <div>
+                <div data-sport-all="">
                   <h4 className="ea-mech-micro mb-2">All Sports</h4>
                   <ul className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {sections.all.map(sport => (
                       <SportTile
-                        key={`all-${sport.sport_key}`}
+                        key={sport.sport_key}
                         section="all"
                         sport={sport}
                         isFavourite={favourites.includes(sport.sport_key)}
                         canFavourite={canFavourite}
                         isLast={lastSport === sport.sport_key}
-                        entering={false}
                         onSelect={handleSelectSport}
-                        onToggleFavourite={toggle}
+                        onToggleFavourite={handleToggle}
                       />
                     ))}
                   </ul>
@@ -183,13 +236,12 @@ interface SportTileProps {
   isFavourite: boolean;
   canFavourite: boolean;
   isLast: boolean;
-  entering: boolean;
   onSelect: (sport: PickerSport) => void;
   onToggleFavourite: (sportKey: string) => void;
 }
 
 /** One sport: a tile button (the pick) and a SIBLING switch (the favourite). */
-function SportTile({ section, sport, isFavourite, canFavourite, isLast, entering, onSelect, onToggleFavourite }: SportTileProps) {
+function SportTile({ section, sport, isFavourite, canFavourite, isLast, onSelect, onToggleFavourite }: SportTileProps) {
   const isDisabled = !sport.enabled;
   const nameId = `sport-name-${section}-${sport.sport_key}`;
   const [pressed, setPressed] = useState(false);
@@ -201,7 +253,6 @@ function SportTile({ section, sport, isFavourite, canFavourite, isLast, entering
       className="ea-mech-tile h-[76px] min-w-0"
       {...(pressed ? { 'data-pressed': '' } : {})}
       {...(isDisabled ? { 'data-off': '' } : {})}
-      {...(entering ? { 'data-enter': '' } : {})}
     >
       <button
         type="button"
