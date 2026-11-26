@@ -12,6 +12,8 @@
 
 **Proof (staging, against the build).** Unit: the rules (order kept, append, never in both lists and never in neither, the alphabetical return, the hint, the offsets). `e2e/sport-favourites.spec.ts` rewritten (one tile per sport, order survives a reload, the recorded 200 ms slide, the hint, search, a save forced to 500 put back with its toast): with `header-create`, `combat-sports`, `golf-fit`, `golf-part2`, one project at a time: desktop 14, mobile 6, webkit-mobile 6, firefox-mobile 6, android 6, none failed. Looked at 320, 390 and 1280 px, with none and with two favourites.
 
+**Proof (production, Nov 25 2026, 22:07 EST).** #1636 merged as `c3c24cb2`; `/api/health` on it. Probe (`sport-favourites`, `header-create`, `golf-part2`), one project at a time: desktop 12 / 12, mobile 4 / 4, android 4 / 4, webkit-mobile 4 / 4, no retry.
+
 **Owed.** Tom's look on a real phone (the slide above all).
 
 ## November 25, 2026 (19:45) — Maintenance after the live round: every gate, baseline at 320, a lost zoom tap found and fixed
