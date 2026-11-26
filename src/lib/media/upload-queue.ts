@@ -203,6 +203,8 @@ export interface UploadQueue {
   retry(localId: string): void;
   forget(localId: string): void;
   forgetAll(): void;
+  /** Let go of every item in memory but KEEP its stashed bytes: a draft saved on the device (`resumeFromStash` brings them back). */
+  releaseAll(): void;
   /** Edited bytes replace the queued ones under the same id; a landing upload of the old bytes is ignored. */
   replaceWithEdited(localId: string, file: File, extras?: { previewUrl?: string; posterBlob?: Blob | null }): void;
   /** The video's poster.jpg — uploaded after the main bytes; replaces an earlier poster (generation-safe). */
@@ -399,6 +401,17 @@ export function createUploadQueue(opts: UploadQueueOptions): UploadQueue {
     },
     forgetAll() {
       for (const localId of Object.keys(state)) queue.forget(localId);
+    },
+    releaseAll() {
+      for (const localId of Object.keys(state)) {
+        abortInFlight(localId);
+        const preview = previews.get(localId);
+        if (preview) URL.revokeObjectURL(preview);
+        previews.delete(localId);
+        files.delete(localId);
+        originals.delete(localId);
+        dispatch({ type: 'forget', localId });
+      }
     },
     replaceWithEdited(localId, file, extras = {}) {
       if (!state[localId]) return;

@@ -62,7 +62,14 @@ export function fileFromStashRecord(record: StashRecord): File {
   return new File([record.bytes], record.name || `clip-${record.localId}`, { type: record.type });
 }
 
-export function isStashExpired(record: { savedAt: number }, now: number): boolean {
+/** Sessions whose bytes wait for a decision instead of a clock (Nov 26 2026):
+ *  the post composer's saved draft has no expiry, so its media has none. The
+ *  composer clears its own session on Post, on Discard, and on an open that
+ *  finds no draft to offer them back with. */
+export const STASH_KEPT_SESSIONS: ReadonlySet<string> = new Set(['composer']);
+
+export function isStashExpired(record: { savedAt: number; sessionId?: string }, now: number): boolean {
+  if (record.sessionId !== undefined && STASH_KEPT_SESSIONS.has(record.sessionId)) return false;
   return now - record.savedAt > STASH_TTL_MS;
 }
 

@@ -1,4 +1,5 @@
 import path from 'path';
+import { thumbs } from './helpers/composer';
 import { test, expect, type Locator, type Page } from './helpers/test';
 
 // Offline (maintenance pass, Oct 10 2026 — Tom's section 7): a calm banner
@@ -62,25 +63,25 @@ test('a captured photo waits on the device: a reload offers the post back with i
   test.setTimeout(120_000);
   const fixture = path.join(__dirname, 'fixtures', 'photo.png');
   await page.goto('/feed');
-  await tapCreate(page, page.getByPlaceholder('Share your thoughts...'));
+  await tapCreate(page, page.getByPlaceholder('Share your thoughts'));
   // The camera hand-back (the photo CAPTURE input): a tile at once.
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles(fixture);
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(thumbs(page)).toBeVisible({ timeout: 5_000 });
   // The stash write and the draft follow the tile (debounced).
   await page.waitForTimeout(2_000);
 
   await page.reload();
-  const offer = page.getByText(/You have an unfinished post/);
+  const offer = page.locator('[data-draft-banner]');
   await tapCreate(page, offer);
-  await expect(offer).toContainText('1 photo or video');
+  await expect(offer).toContainText('Unfinished post');
   await page.getByRole('button', { name: 'Restore', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toHaveCount(1, { timeout: 10_000 });
+  await expect(thumbs(page)).toHaveCount(1, { timeout: 10_000 });
 
   // Discarding clears it: no offer next time.
   await page.reload();
-  await tapCreate(page, page.getByText(/You have an unfinished post/));
-  await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await tapCreate(page, page.locator('[data-draft-banner]'));
+  await page.locator('[data-draft-dismiss]').click();
   await page.reload();
-  await tapCreate(page, page.getByPlaceholder('Share your thoughts...'));
-  await expect(page.getByText(/You have an unfinished post/)).toHaveCount(0);
+  await tapCreate(page, page.getByPlaceholder('Share your thoughts'));
+  await expect(page.locator('[data-draft-banner]')).toHaveCount(0);
 });

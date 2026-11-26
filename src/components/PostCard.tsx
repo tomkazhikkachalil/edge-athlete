@@ -208,6 +208,8 @@ interface PostCardProps {
   onPosted?: (postId: string) => void;
   /** Drafts (253): rendered ON the review screen — no link to itself. */
   inReview?: boolean;
+  /** The composer's preview (Nov 26 2026): the post does not exist yet, so the owner's "…" menu (pin, edit, delete) is not drawn. */
+  preview?: boolean;
   /** One-shot: open the viewer's own score entry once the shared-round
    *  scorecard is available (resume-banner deep link). */
 }
@@ -225,6 +227,7 @@ function PostCard({
   onReposted,
   onPosted,
   inReview = false,
+  preview = false,
 }: PostCardProps) {
   const router = useRouter();
   // PR 8: while the worker still owes a fresh post's playable file, the card
@@ -831,7 +834,7 @@ function PostCard({
               <FaIcon icon={faThumbtack} className="text-sm" />
             </span>
           )}
-          {isOwner && (
+          {isOwner && !preview && (
             <PostOwnerMenu
               isPinned={isPinned}
               pinBusy={pinBusy}

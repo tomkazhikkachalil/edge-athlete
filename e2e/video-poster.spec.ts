@@ -1,4 +1,5 @@
 import { test, expect, type Page } from './helpers/test';
+import { openThumbEditor, slidePost } from './helpers/composer';
 import sharp from 'sharp';
 
 // Video posters program, PR 1 (Oct 13 2026): a recorded clip posts with a
@@ -57,7 +58,7 @@ test('a recorded clip posts with its poster; the feed card shows the poster and 
   test.skip(!clip, 'MediaRecorder unavailable in this browser');
 
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await page.locator('input[type="file"][accept="video/*"]').setInputFiles(clip!);
   // The tile: the local file previews itself, then wears its poster. Scoped
   // to the composer's tile — the feed behind the composer has video cards of
@@ -68,13 +69,13 @@ test('a recorded clip posts with its poster; the feed card shows the poster and 
   await expect(tile).toHaveAttribute('data-video-frame', 'poster', { timeout: 20_000 });
 
   const marker = `Poster clip ${Date.now()}`;
-  await page.getByPlaceholder('Share your thoughts...').fill(marker);
+  await page.getByPlaceholder('Share your thoughts').fill(marker);
   const postRequest = page.waitForRequest(r => r.url().includes('/api/posts') && r.method() === 'POST', { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Create Post', exact: true }).last().click();
+  await slidePost(page);
   const body = (await postRequest).postDataJSON() as { media?: Array<{ type: string; thumbnailUrl?: string | null }> };
   expect(body.media?.[0]?.type).toBe('video');
   expect(body.media?.[0]?.thumbnailUrl, 'the poster rides the post').toMatch(/^https?:\/\//);
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeHidden({ timeout: 60_000 });
 
   // The feed card: the poster image, never a black box; the tap plays in place.
   const card = page.locator('[data-testid="post-card"]').filter({ hasText: marker }).first();
@@ -98,11 +99,11 @@ test('a cover chosen in the editor rides the post @mobile', { tag: '@mobile' }, 
   test.skip(!clip, 'MediaRecorder unavailable in this browser');
 
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await page.locator('input[type="file"][multiple]').setInputFiles(clip!);
-  await page.getByRole('button', { name: 'Edit media', exact: true }).click();
+  await openThumbEditor(page);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('button', { name: 'Cover', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Edit media' }).getByRole('button', { name: 'Cover', exact: true }).click();
   // Scrub to the last quarter of the clip and keep it as the cover.
   const timeline = page.getByRole('slider', { name: 'Video timeline' });
   await expect(timeline).toBeVisible({ timeout: 15_000 });
@@ -113,12 +114,12 @@ test('a cover chosen in the editor rides the post @mobile', { tag: '@mobile' }, 
   await expect(page.locator('[data-media-upload] [data-video-frame]').first()).toHaveAttribute('data-video-frame', 'poster', { timeout: 20_000 });
 
   const marker = `Cover clip ${Date.now()}`;
-  await page.getByPlaceholder('Share your thoughts...').fill(marker);
+  await page.getByPlaceholder('Share your thoughts').fill(marker);
   const postRequest = page.waitForRequest(r => r.url().includes('/api/posts') && r.method() === 'POST', { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Create Post', exact: true }).last().click();
+  await slidePost(page);
   const body = (await postRequest).postDataJSON() as { media?: Array<{ type: string; thumbnailUrl?: string | null }> };
   expect(body.media?.[0]?.thumbnailUrl, 'the chosen cover rides the post').toMatch(/^https?:\/\//);
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeHidden({ timeout: 60_000 });
   const card = page.locator('[data-testid="post-card"]').filter({ hasText: marker }).first();
   await expect(card).toBeVisible({ timeout: 30_000 });
   await expect(card.locator('[data-video-frame]')).toHaveAttribute('data-video-frame', 'poster', { timeout: 20_000 });
@@ -135,11 +136,11 @@ test('a photo from the library as the cover: the tile and the post carry the pho
   const cover = { name: 'cover.png', mimeType: 'image/png', buffer: await sharp({ create: { width: 400, height: 200, channels: 3, background: { r: 30, g: 120, b: 200 } } }).png().toBuffer() };
 
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await page.locator('input[type="file"][multiple]').setInputFiles(clip!);
-  await page.getByRole('button', { name: 'Edit media', exact: true }).click();
+  await openThumbEditor(page);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
-  await page.getByRole('button', { name: 'Cover', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Edit media' }).getByRole('button', { name: 'Cover', exact: true }).click();
   await expect(page.locator('[data-cover-source]')).toHaveAttribute('data-cover-source', 'frame');
   await page.locator('[data-cover-photo-input]').setInputFiles(cover);
   await expect(page.locator('[data-cover-source]')).toHaveAttribute('data-cover-source', 'photo');
@@ -154,12 +155,12 @@ test('a photo from the library as the cover: the tile and the post carry the pho
     .toBeCloseTo(photoRatio, 1);
 
   const marker = `Photo cover ${Date.now()}`;
-  await page.getByPlaceholder('Share your thoughts...').fill(marker);
+  await page.getByPlaceholder('Share your thoughts').fill(marker);
   const postRequest = page.waitForRequest(r => r.url().includes('/api/posts') && r.method() === 'POST', { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Create Post', exact: true }).last().click();
+  await slidePost(page);
   const body = (await postRequest).postDataJSON() as { media?: Array<{ thumbnailUrl?: string | null; editRecipe?: { recipe?: { poster?: unknown } } | null }> };
   expect(body.media?.[0]?.thumbnailUrl).toMatch(/^https?:\/\//);
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeHidden({ timeout: 60_000 });
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeHidden({ timeout: 60_000 });
   const card = page.locator('[data-testid="post-card"]').filter({ hasText: marker }).first();
   await expect(card).toBeVisible({ timeout: 30_000 });
   const frame = card.locator('[data-video-frame]');

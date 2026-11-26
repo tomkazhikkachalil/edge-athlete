@@ -1,4 +1,5 @@
 import path from 'path';
+import { openThumbEditor } from './helpers/composer';
 import { test, expect, type Page } from './helpers/test';
 
 // The hands-on crop (Oct 2026): the person shapes the crop box itself —
@@ -46,7 +47,7 @@ async function drag(page: Page, handle: string, fx: number, fy: number): Promise
 async function openEditor(page: Page): Promise<void> {
   await page.goto('/feed');
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await page.locator('input[type="file"][multiple]').setInputFiles(FIXTURE);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('[data-crop-box]')).toBeVisible({ timeout: 15_000 });
@@ -165,7 +166,7 @@ async function customCrop(page: Page): Promise<void> {
   expect(exported).toEqual({ width: freed.width, height: freed.height });
 
   // Reopened, the editor shows the same box (the recipe carried it).
-  await page.getByRole('button', { name: 'Edit media', exact: true }).click();
+  await openThumbEditor(page);
   await expect(page.locator('[data-crop-box]')).toBeVisible({ timeout: 20_000 });
   expect(await rectOf(page)).toEqual(freed);
 
@@ -271,7 +272,7 @@ async function videoCrop(page: Page): Promise<void> {
   });
 
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await page.locator('input[type="file"][multiple]').setInputFiles({
     name: clip.mime === 'video/webm' ? 'clip.webm' : 'clip.mp4',
     mimeType: clip.mime,
@@ -279,11 +280,11 @@ async function videoCrop(page: Page): Promise<void> {
   });
   // Oct 4 2026: a library video attaches as a tile first; the editor is the
   // tile's Edit button.
-  await page.getByRole('button', { name: 'Edit media', exact: true }).click();
+  await openThumbEditor(page);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
 
   // Video has the same box: any area, by hand.
-  await page.getByRole('button', { name: 'Crop', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Edit media' }).getByRole('button', { name: 'Crop', exact: true }).click();
   await expect(page.locator('[data-crop-box]')).toBeVisible({ timeout: 20_000 });
   expect(await rectOf(page)).toEqual({ x: 0, y: 0, width: 320, height: 240 });
   await drag(page, 'se', -0.3, -0.5);

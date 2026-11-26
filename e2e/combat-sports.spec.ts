@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from './helpers/test';
+import { slidePost } from './helpers/composer';
 import { E2E_BASE_URL, adminClient, bypassHeaders, createQaUser, deleteQaUser, mintStorageState, readErrorBody, type QaUser } from './helpers/qa-user';
 
 // Combat sports (Oct 16 2026, C1–C3): MMA, boxing, wrestling and jiu-jitsu
@@ -87,7 +88,7 @@ test('the composer logs an MMA win by TKO and the feed card reads its headline @
     await selector.getByRole('button', { name: /mma/i }).first().click();
     const fields = page.locator('[data-bout-fields="mma"]');
     await expect(fields).toBeVisible({ timeout: 15_000 });
-    await page.getByPlaceholder('Share your thoughts...').fill(stamp);
+    await page.getByPlaceholder('Share your thoughts').fill(stamp);
     await fields.locator('[data-bout-result="W"]').click();
     await fields.locator('[data-bout-field="method"] select').selectOption('tko');
     await fields.locator('[data-bout-field="round"] input').fill('2');
@@ -98,7 +99,7 @@ test('the composer logs an MMA win by TKO and the feed card reads its headline @
       const box = await b.boundingBox();
       expect(box!.height).toBeGreaterThanOrEqual(44);
     }
-    await page.getByRole('button', { name: 'Create Post' }).click();
+    await slidePost(page);
     const headline = page.locator('[data-bout-headline]', { hasText: 'TKO · R2 1:47 · 155 lb' }).first();
     await expect(headline).toBeVisible({ timeout: 30_000 });
     await expect(headline.locator('xpath=..').locator('[data-stat-line-result="W"]')).toBeVisible();

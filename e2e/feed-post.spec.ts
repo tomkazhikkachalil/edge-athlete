@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { slidePost } from './helpers/composer';
 
 // Authenticated via the minted storageState (playwright.config.ts default).
 test('create a text post from the feed composer and see it render', { tag: '@smoke' }, async ({ page }) => {
@@ -15,11 +16,11 @@ test('create a text post from the feed composer and see it render', { tag: '@smo
   // hidden drawer copies; keep names anchored and specific.)
   await page.getByRole('button', { name: /create a post/i }).click();
 
-  const composer = page.getByPlaceholder('Share your thoughts...');
+  const composer = page.getByPlaceholder('Share your thoughts');
   await expect(composer).toBeVisible();
   await composer.fill(marker);
   // NOT /new/i or /post/i — those also match the header's "Create new post".
-  await page.getByRole('button', { name: 'Create Post', exact: true }).click();
+  await slidePost(page);
 
   // Modal closes and the new post shows in the feed. 30s, not 15s: the POST
   // itself is fast (verified directly against production — 200, and the post

@@ -219,14 +219,14 @@ for (const tag of ['', ' @mobile']) {
   });
 }
 
-// The general post's Tag People keeps its own look: the dialect is opt-in.
-test('the general composer\'s Tag People dialog is not restyled', async ({ page }) => {
+// The general post took the dialect on Nov 26 2026: its Tag People is the same dialog.
+test('the general composer opens the same Tag People dialog', async ({ page }) => {
   await page.goto('/feed');
   await page.getByRole('button', { name: /create a post/i }).click();
-  await page.getByRole('button', { name: 'Add Tags' }).click();
+  await page.locator('[data-compose-tag-people]').click();
   await expect(page.getByRole('heading', { name: 'Tag People' })).toBeVisible();
-  await expect(page.locator('[data-tag-people="mech"]')).toHaveCount(0);
-  await expect(page.getByPlaceholder('Search people...')).toBeVisible();
+  await expect(page.locator('[data-tag-people="mech"]')).toHaveCount(1);
+  await expect(page.getByPlaceholder('Search people', { exact: true })).toBeVisible();
 });
 
 // Keyboard: the key is focusable and Enter starts the round.

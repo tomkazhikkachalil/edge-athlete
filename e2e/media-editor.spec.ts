@@ -1,4 +1,5 @@
 import path from 'path';
+import { openThumbEditor, slidePost, thumbs } from './helpers/composer';
 import { test, expect } from './helpers/test';
 
 // First editor coverage (the editor shipped Jul 26 with zero e2e). Drives the
@@ -12,14 +13,15 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
 
   await page.goto('/feed');
   await page.getByRole('button', { name: /create a post/i }).click();
-  const composer = page.getByPlaceholder('Share your thoughts...');
+  const composer = page.getByPlaceholder('Share your thoughts');
   await expect(composer).toBeVisible();
 
   // Media-first round: native-camera capture buttons headline the composer.
   // (Capture itself can't run headless — the camera is outside the browser;
   // the device pass covers it. Here we pin that the affordances exist.)
-  await expect(page.getByRole('button', { name: 'Take photo' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Record video' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Photo', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Video', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Upload', exact: true })).toBeVisible();
 
   // Pick a file — the composer routes every pick through the editor.
   await page.locator('input[type="file"][multiple]').setInputFiles(fixture);
@@ -348,9 +350,9 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   expect(whitePixels).toBeGreaterThan(200);
 
   // The tile rendered with its re-edit pencil; reopening rehydrates the recipe.
-  const editPencil = page.getByRole('button', { name: 'Edit media', exact: true });
+  const editPencil = thumbs(page);
   await expect(editPencil).toBeVisible();
-  await editPencil.click();
+  await openThumbEditor(page);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
 
   // Overlays rehydrated: the Text tool lists both, content intact.
@@ -358,7 +360,7 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
   await expect(page.getByRole('button', { name: 'GO', exact: true })).toBeVisible();
   // .first(): the history rail also has a 'Crop' row; the tool tab
   // precedes the rail in DOM order.
-  await page.getByRole('button', { name: 'Crop', exact: true }).first().click();
+  await page.getByRole('dialog', { name: 'Edit media' }).getByRole('button', { name: 'Crop', exact: true }).first().click();
 
   // Dirty close asks before discarding; "Keep editing" returns to the editor.
   await page.getByRole('button', { name: '4:5', exact: true }).click();
@@ -370,7 +372,7 @@ test('media editor: crop session, undo, re-edit, dirty confirm, publish', async 
 
   // Publish with the edited image and see it land.
   await composer.fill(marker);
-  await page.getByRole('button', { name: 'Create Post', exact: true }).click();
+  await slidePost(page);
   await expect(composer).toBeHidden({ timeout: 30_000 });
   await expect(page.getByText(marker).first()).toBeVisible({ timeout: 30_000 });
 });
@@ -384,7 +386,7 @@ test('look tools: copy a look across a multi-photo session', async ({ page }) =>
 
   await page.goto('/feed');
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await page.locator('input[type="file"][multiple]').setInputFiles([fixture, fixture]);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
 
@@ -453,19 +455,19 @@ test('video editor: clips/crop/cover tools, frame step, split within the asset',
   });
 
   await page.getByRole('button', { name: /create a post/i }).click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await page
     .locator('input[type="file"][multiple]')
     .setInputFiles({ name: 'clip.webm', mimeType: 'video/webm', buffer: Buffer.from(webm) });
 
   // Oct 4 2026: a library video attaches as a tile first; the editor is the
   // tile's Edit button (capture-attach.spec pins the attach itself).
-  await page.getByRole('button', { name: 'Edit media', exact: true }).click();
+  await openThumbEditor(page);
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 15_000 });
   // The three video tools.
   await expect(page.getByRole('button', { name: 'Clips', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Crop', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Cover', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Edit media' }).getByRole('button', { name: 'Crop', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Edit media' }).getByRole('button', { name: 'Cover', exact: true })).toBeVisible();
   // Frame stepping present.
   await expect(page.getByRole('button', { name: 'Forward one frame' })).toBeVisible();
 
@@ -483,5 +485,5 @@ test('video editor: clips/crop/cover tools, frame step, split within the asset',
   // composer shows the video tile.
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 60_000 });
-  await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toBeVisible();
+  await expect(thumbs(page)).toBeVisible();
 });

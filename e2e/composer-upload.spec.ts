@@ -1,9 +1,11 @@
 import { test, expect, type Page } from './helpers/test';
+import { composeFooter, postSlide, slidePost } from './helpers/composer';
 import { join } from 'node:path';
 
 // Video posters program, PR 2 (Oct 13 2026): media never looks broken while
 // it uploads. The composer's tile shows the local file with its progress from
-// the moment it is attached; Post waits for the uploads; a failure is a
+// the moment it is attached; the slide waits for the uploads (it reads
+// "Uploading" and does not move — the General post spec, Nov 26 2026); a failure is a
 // Retry that keeps the file; the connection returning retries by itself; a
 // failed Post loses nothing already uploaded.
 
@@ -27,11 +29,11 @@ async function openComposer(page: Page) {
   // A tap before the page is interactive does nothing (slow under the Brave project's blocker): tap until it opens.
   await expect(async () => {
     await page.getByRole('button', { name: /create a post/i }).click();
-    await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible({ timeout: 2_000 });
+    await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
 }
 
-test('a slow connection: the tile shows the local file with its progress before Post; Post waits for the upload; the post lands @mobile', { tag: '@mobile' }, async ({ page }) => {
+test('a slow connection: the tile shows the local file with its progress before Post; the slide waits for the upload; the post lands @mobile', { tag: '@mobile' }, async ({ page }) => {
   test.setTimeout(120_000);
   await openComposer(page);
   const release = await holdComplete(page);
@@ -43,14 +45,20 @@ test('a slow connection: the tile shows the local file with its progress before 
   await expect(tile.locator('img')).toBeVisible(); // the local file, not a broken image
 
   const marker = `Slow upload ${Date.now()}`;
-  await page.getByPlaceholder('Share your thoughts...').fill(marker);
-  await page.getByRole('button', { name: 'Create Post', exact: true }).last().click();
-  // Post waits: the composer is still open, the tile still pending.
-  await page.waitForTimeout(1_500);
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await page.getByPlaceholder('Share your thoughts').fill(marker);
+  // The slide waits: it reads "Uploading", its key cannot be used, the tile is still pending.
+  const key = postSlide(page);
+  await expect(composeFooter(page).locator('[data-slide-label]')).toHaveText('Uploading');
+  await expect(key).toHaveAttribute('aria-disabled', 'true');
+  await key.focus();
+  await key.press('Enter');
+  await page.waitForTimeout(1_000);
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await expect(tile).toHaveAttribute('data-media-upload', 'pending');
   release();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeHidden({ timeout: 60_000 });
+  await expect(composeFooter(page).locator('[data-slide-label]')).toHaveText('Slide to post', { timeout: 30_000 });
+  await slidePost(page);
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeHidden({ timeout: 60_000 });
   const card = page.locator('[data-testid="post-card"]').filter({ hasText: marker }).first();
   await expect(card).toBeVisible({ timeout: 30_000 });
   // PR 6: the photo's blurred placeholder (its ThumbHash, computed on the device after the upload) is under the picture.
@@ -94,13 +102,13 @@ test('a failed Post loses nothing: the second tap sends no new upload @mobile', 
     await route.continue();
   });
   const marker = `Kept upload ${Date.now()}`;
-  await page.getByPlaceholder('Share your thoughts...').fill(marker);
-  await page.getByRole('button', { name: 'Create Post', exact: true }).last().click();
+  await page.getByPlaceholder('Share your thoughts').fill(marker);
+  await slidePost(page);
   await expect(page.getByText('Simulated outage')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeVisible();
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeVisible();
   await expect(tile).toHaveAttribute('data-media-upload', 'stored');
-  await page.getByRole('button', { name: 'Create Post', exact: true }).last().click();
-  await expect(page.getByPlaceholder('Share your thoughts...')).toBeHidden({ timeout: 60_000 });
+  await slidePost(page);
+  await expect(page.getByPlaceholder('Share your thoughts')).toBeHidden({ timeout: 60_000 });
   await expect(page.locator('[data-testid="post-card"]').filter({ hasText: marker }).first()).toBeVisible({ timeout: 30_000 });
   expect(intents, 'no file was uploaded again').toBe(0);
 });

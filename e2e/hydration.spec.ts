@@ -1,4 +1,5 @@
 import { test, expect } from './helpers/test';
+import { slidePost } from './helpers/composer';
 
 /**
  * The installed app reopens to what it had (performance program Phase 2b,
@@ -15,9 +16,9 @@ test('a reopened feed paints the remembered page and name before the network ans
   // One ordinary open that leaves a copy on the device: post, see it, reload once.
   await page.goto('/feed');
   await page.getByRole('button', { name: /create a post/i }).click();
-  const composer = page.getByPlaceholder('Share your thoughts...');
+  const composer = page.getByPlaceholder('Share your thoughts');
   await composer.fill(marker);
-  await page.getByRole('button', { name: 'Create Post', exact: true }).click();
+  await slidePost(page);
   await expect(composer).toBeHidden({ timeout: 30_000 });
   await expect(page.getByText(marker).first()).toBeVisible({ timeout: 30_000 });
   await page.reload();

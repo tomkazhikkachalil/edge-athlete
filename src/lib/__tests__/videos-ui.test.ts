@@ -25,12 +25,15 @@ describe('the Videos program\'s doors', () => {
     expect(read('src/components/AppHeader.tsx')).toContain("onFullGame={() => { setIsCreateOpen(false); router.push('/videos/new'); }}");
   });
 
-  it('the composer keeps its "Too long" tile line byte-identical and names the full-game door in the footer hint', () => {
+  it('the composer keeps its "Too long" tile line byte-identical and names the full-game door above the slide', () => {
     const composer = read('src/components/CreatePostModal.tsx');
-    expect(composer).toContain('Too long — trim in the editor');
+    // The media block draws the tiles since Nov 26 2026 (the General post spec).
+    expect(read('src/components/composer/MediaSection.tsx')).toContain('Too long — trim in the editor');
     expect(composer).toContain('data-full-game-link=""');
     expect(composer).toContain('href="/videos/new"');
-    expect(composer).toContain("'Add a caption or media to post'");
+    // X1: the slide never names what is missing.
+    expect(composer).not.toMatch(/Add a caption or media|Add media or a caption/);
+    expect(composer).toContain('ariaLabel="Slide to post"');
   });
 
   it('the Create menu spec lists six doors', () => {

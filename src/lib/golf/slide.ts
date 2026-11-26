@@ -11,9 +11,9 @@ export const SLIDE_INSET = 4;
 export const SLIDE_LOCK_AT = 0.85;
 
 /** How far the key can travel in a track this wide (never negative). */
-export function slideTravel(trackWidth: number): number {
+export function slideTravel(trackWidth: number, key: number = SLIDE_KEY): number {
   if (!Number.isFinite(trackWidth)) return 0;
-  return Math.max(0, trackWidth - SLIDE_KEY - SLIDE_INSET * 2);
+  return Math.max(0, trackWidth - key - SLIDE_INSET * 2);
 }
 
 /** The key's offset for a drag of `dx` px: clamped to the travel, so the
@@ -30,6 +30,9 @@ export function slideLocks(offset: number, travel: number): boolean {
 }
 
 /** The red trail behind the key: from the left edge to just behind it. */
-export function slideTrailWidth(offset: number): number {
-  return Math.max(0, offset) + 30;
+export function slideTrailWidth(offset: number, key: number = SLIDE_KEY): number {
+  return Math.max(0, offset) + SLIDE_INSET + key / 2 + 2;
 }
+
+/** The General post's slide (Nov 26 2026): a 40 px key in a 48 px track. */
+export const SLIDE_KEY_COMPACT = 40;
