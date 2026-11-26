@@ -14,6 +14,8 @@
 
 **Found: a quick second tap on a zoom key was lost.** The one retry was the same map test both times it was probed on production. Cause: Leaflet returns early from a zoom asked for while the last zoom is still animating, and our zoom keys called `map.zoomIn()` / `zoomOut()` directly (Leaflet's own control has the same behaviour). Fixed in `CourseMapInner`: `stepZoom` adds up the taps made during an animation and applies them at `zoomend`. The map spec now taps twice quickly each way. Proof on staging, retries off: desktop 3 of 3 repeats; mobile, webkit-mobile, firefox-mobile, android green.
 
+**Proof (production, Nov 25 2026, 20:10 EST).** #1634 merged as `8fdfdeac`; `/api/health` on it. Probe, the same 9 specs, one project at a time: desktop 9 / 9 with no retry (the map test passes first time now), mobile 11 / 11, android 11 / 11, webkit-mobile 11 / 11. `/manifest.webmanifest` 200, `/sw.js` 200.
+
 **Owed.** Tom's look on real phones (the dial drag, the map keys, the slide to go live). Not fixed, not from this work: `composer-default-general` "profile tabs: Training inside the viewport" fails on main at 390 px.
 
 ## November 25, 2026 (04:20) — The live golf round: a new scoring card and map view (live on production)
