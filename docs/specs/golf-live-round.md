@@ -41,7 +41,7 @@ The data underneath (hole lines, greens, elevation, "plays like", the one positi
 
 - **Top bar:** Back, the LIVE / Final badge (`RoundBadge scope="live"`), Scorecard | Map as `role="tab"` keys.
 - **Hole plate** (glass): ‹ ›, Hole, Par ("Par est." when estimated), Yds, Plays. "Hole N" is one sr-only string (the e2e idiom `/^Hole N\b/` holds).
-- **Control capsule:** layers · my position · follow me (while tracking) · re-center (when the map has moved off the player) · set target. **Zoom capsule:** our own keys; Leaflet's zoom and attribution controls are off in overlay mode only.
+- **Control capsule:** layers · my position · follow me (while tracking) · re-center (when the map has moved off the player) · set target. **Zoom capsule:** our own keys; Leaflet's zoom and attribution controls are off in overlay mode only. A zoom key goes through `stepZoom`: Leaflet drops a zoom asked for while the last one is animating, so taps made mid-animation are added up and applied at `zoomend` (never call `map.zoomIn()` from a key).
 - **Set target** shows whether a target is set; a tap clears it, or opens the info panel when there is none. Setting one is still a tap on the map.
 - **Info key:** the two hints ("Tap the map to set a target." / "Your position stays on your device. It is never uploaded.") are in its panel, not on the map.
 - **Bottom bar:** First hole · "Score hole N" · Info. **Credit strip:** the tile layer's own credit and links, the hole lines' and Leaflet's; it scrolls sideways on a phone, never an ellipsis.

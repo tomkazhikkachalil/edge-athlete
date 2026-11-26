@@ -130,6 +130,30 @@ const CONTROL_COLUMN_H = 280;
 // A round key over the map (the live-round spec, section B): 44 px, the raised grey; accent while on.
 // Sized in px, like every offset around it: `rem` grows with the reader's text
 // size, and keys that grow walk into the plate and the pills beside them.
+/**
+ * One zoom step from a key. Leaflet drops a zoom request made while the last
+ * zoom is still animating (`_tryAnimatedZoom` returns early), so a quick
+ * second tap was lost. Taps made during an animation are added up and applied
+ * together when it ends.
+ */
+const pendingZoom = new WeakMap<L.Map, number>();
+function stepZoom(map: L.Map | null, delta: 1 | -1) {
+  if (!map) return;
+  const animating = (map as unknown as { _animatingZoom?: boolean })._animatingZoom === true;
+  if (!animating) {
+    map.setZoom(map.getZoom() + delta);
+    return;
+  }
+  const waiting = pendingZoom.has(map);
+  pendingZoom.set(map, (pendingZoom.get(map) ?? 0) + delta);
+  if (waiting) return;
+  map.once('zoomend', () => {
+    const steps = pendingZoom.get(map) ?? 0;
+    pendingZoom.delete(map);
+    if (steps !== 0) map.setZoom(map.getZoom() + steps);
+  });
+}
+
 const ROUND_KEY = 'ea-mech-round inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center disabled:opacity-40';
 
 const flagIcon = () =>
@@ -760,10 +784,10 @@ export default function CourseMapInner({
           </div>
           {/* Zoom: the same glass capsule, under the hole plate. */}
           <div className="ea-mech-glass live-map-capsule live-map-zoom z-[500]" data-map-zoom="">
-            <button type="button" onClick={() => mapRef.current?.zoomIn()} aria-label="Zoom in" data-map-key="zoom-in" className={ROUND_KEY}>
+            <button type="button" onClick={() => stepZoom(mapRef.current, 1)} aria-label="Zoom in" data-map-key="zoom-in" className={ROUND_KEY}>
               <PlusIcon size={20} />
             </button>
-            <button type="button" onClick={() => mapRef.current?.zoomOut()} aria-label="Zoom out" data-map-key="zoom-out" className={ROUND_KEY}>
+            <button type="button" onClick={() => stepZoom(mapRef.current, -1)} aria-label="Zoom out" data-map-key="zoom-out" className={ROUND_KEY}>
               <MinusIcon size={20} />
             </button>
           </div>

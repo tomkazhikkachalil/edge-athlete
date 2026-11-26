@@ -27,8 +27,12 @@ describe('behaviour untouched', () => {
     expect(map).toMatch(/onClick=\{\(\) => \(tracking \? stopTracking\(\) : startTracking\(\)\)\}/);
     expect(map).toMatch(/onClick=\{toggleFollow\}/);
     expect(map).toMatch(/<button type="button" onClick=\{recenter\} aria-label="Re-center on my position"/);
-    expect(map).toMatch(/mapRef\.current\?\.zoomIn\(\)/);
-    expect(map).toMatch(/mapRef\.current\?\.zoomOut\(\)/);
+    // A zoom key goes through stepZoom (taps made mid-animation are queued to
+    // zoomend), never straight to zoomIn / zoomOut, which Leaflet drops then.
+    expect(map).toMatch(/stepZoom\(mapRef\.current, 1\)/);
+    expect(map).toMatch(/stepZoom\(mapRef\.current, -1\)/);
+    expect(map).toMatch(/map\.once\('zoomend'/);
+    expect(map).not.toMatch(/\.zoomIn\(\)|\.zoomOut\(\)/);
   });
   it('the Set target key only shows or clears a target; with none it asks the caller to say how', () => {
     expect(map).toMatch(/onClick=\{\(\) => \(activeTarget \? setTarget\(null\) : onTargetHelp\?\.\(\)\)\}/);
