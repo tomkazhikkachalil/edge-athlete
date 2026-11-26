@@ -47,7 +47,7 @@ function persistToServer(sports: string[]): Promise<Response> {
 }
 
 export interface UseFavouriteSportsResult {
-  /** Sanitized, sorted registry keys. */
+  /** Sanitized registry keys, in the order they were added (newest last). */
   favourites: string[];
   /** False until the account's own profile is loaded — the picker shows no stars. */
   canFavourite: boolean;

@@ -1,5 +1,19 @@
 # Development Log
 
+## November 25, 2026 (21:51) — Select Sport: one home per sport
+
+**Why.** Tom's note: a sport only ever shows in one list; favouriting moves it up, unfavouriting moves it back to its alphabetical spot; the newest favourite goes at the end; no header for an empty Favourites, a one-line hint instead; search covers both lists; show the move with a short slide (about 200 ms) so nobody reads it as a delete; save right away and put the sport back with a toast if the save fails. His one decision: the control stays the switch (not a star), so the hint reads "Switch a sport on to pin it here."
+
+**What (one PR, no DDL).**
+- `favourite-sports.ts`: `partitionSports` gives each sport one home (Favourites = the enabled favourites in the stored order; All Sports = the rest, alphabetical); `toggleFavourite` appends; `sanitizeFavouriteSports` no longer sorts, so the stored order is the order added. Lists stored before today keep their alphabetical order. New `showFavouritesHint`, `moveOffset`, `TILE_MOVE_MS`; `enteringFavourites` removed.
+- `SportSelector`: one tile per sport; the 400 ms wait and the slide-in class are gone; every tile that shifts slides from its old box to its new one in 200 ms (measured at the tap, `element.animate`), skipped under reduced motion; focus stays on the moved sport's switch; the hint line.
+- Already true and kept: search over both lists with an empty section hidden; the save (screen first, one save at a time, put back + "Could not save favourite" on failure).
+- My readings: a favourite of a sport that is off stays in All Sports as its locked tile; the hint shows only with no favourites and no search; drag to reorder is not built.
+
+**Proof (staging, against the build).** Unit: the rules (order kept, append, never in both lists and never in neither, the alphabetical return, the hint, the offsets). `e2e/sport-favourites.spec.ts` rewritten (one tile per sport, order survives a reload, the recorded 200 ms slide, the hint, search, a save forced to 500 put back with its toast): with `header-create`, `combat-sports`, `golf-fit`, `golf-part2`, one project at a time: desktop 14, mobile 6, webkit-mobile 6, firefox-mobile 6, android 6, none failed. Looked at 320, 390 and 1280 px, with none and with two favourites.
+
+**Owed.** Tom's look on a real phone (the slide above all).
+
 ## November 25, 2026 (19:45) — Maintenance after the live round: every gate, baseline at 320, a lost zoom tap found and fixed
 
 **Why.** Tom: "run the full project maintenance checklist … make sure it gets to production to all customer facing applications for both web, large screen, mobile, and downloaded app without issues."
