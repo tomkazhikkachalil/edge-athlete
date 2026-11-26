@@ -18,6 +18,9 @@
 // category chips (`tags`) are gone from the composer and from the record.
 
 import type { GolfComposerValue } from '@/components/golf/GolfComposerSection';
+import type { StatPlateData } from './attachment';
+import { parseAttachRef } from './attachment';
+import { parsePostLocation, type PostLocation } from './location';
 
 export interface ComposerDraft {
   postType: string;
@@ -35,6 +38,19 @@ export interface ComposerDraft {
   people?: DraftPerson[];
   /** Saved on purpose (Save draft): never expires. */
   kept?: boolean;
+  /** The attached activity as the row showed it (the server checks it again at Post). */
+  attached?: StatPlateData;
+  /** The post's one location. */
+  location?: PostLocation;
+}
+
+/** A stored plate, shape-checked: a real reference and the words the row draws. */
+function parsePlate(value: unknown): StatPlateData | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const ref = parseAttachRef(value);
+  const p = value as Partial<StatPlateData>;
+  if (!ref || ref === 'invalid' || typeof p.sport !== 'string' || typeof p.name !== 'string' || typeof p.headline !== 'string' || typeof p.tone !== 'string') return undefined;
+  return value as StatPlateData;
 }
 
 export interface DraftPerson {
@@ -66,6 +82,8 @@ export function isEmptyComposerDraft(draft: ComposerDraft): boolean {
     draft.caption.trim() === '' &&
     draft.hashtags.length === 0 &&
     !(draft.people && draft.people.length > 0) &&
+    draft.attached === undefined &&
+    draft.location === undefined &&
     draft.golf === undefined &&
     !(draft.mediaCount && draft.mediaCount > 0)
   );
@@ -88,6 +106,9 @@ export function parseComposerDraft(raw: string | null, now: number = Date.now())
         ? (parsed.golf as GolfComposerValue)
         : undefined;
     const people = parsePeople(parsed.people);
+    const attached = parsePlate(parsed.attached);
+    const parsedLocation = parsePostLocation(parsed.location);
+    const location = parsedLocation && parsedLocation !== 'invalid' ? parsedLocation : undefined;
     const mediaOrder = Array.isArray(parsed.mediaOrder) ? parsed.mediaOrder.filter((id): id is string => typeof id === 'string').slice(0, 10) : [];
     const draft: ComposerDraft = {
       postType: typeof parsed.postType === 'string' ? parsed.postType : 'general',
@@ -99,6 +120,8 @@ export function parseComposerDraft(raw: string | null, now: number = Date.now())
       ...(mediaOrder.length > 0 ? { mediaOrder } : {}),
       ...(people.length > 0 ? { people } : {}),
       ...(kept ? { kept: true } : {}),
+      ...(attached ? { attached } : {}),
+      ...(location ? { location } : {}),
     };
     return isEmptyComposerDraft(draft) ? null : draft;
   } catch {
