@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-21T02:44:54.914832+00:00 from server 17.6 by
+-- Generated 2026-11-25T13:10:27.868824+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 318.
+-- public.schema_dump() (migration 227). Ledger head at generation: 320.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -2404,21 +2404,39 @@ CREATE OR REPLACE FUNCTION public.golf_site_evidence_due(p_limit integer)
 AS $function$
   SELECT c.id
     FROM public.golf_courses c
-    LEFT JOIN public.golf_course_picks p ON p.course_id = c.id
+    LEFT JOIN public.golf_course_picks p
+      ON p.course_id = c.id
    WHERE c.hole_data IS NOT NULL
-     AND c.website IS NOT NULL AND btrim(c.website) <> ''
-     AND (c.site_evidence_at IS NULL OR c.site_evidence_at < timezone('utc'::text, now()) - interval '90 days')
+     AND c.website IS NOT NULL
+     AND btrim(c.website) <> ''
+     AND (
+       c.site_evidence_at IS NULL
+       OR c.site_evidence_at
+          < timezone('utc'::text, now()) - interval '90 days'
+       OR (
+         c.site_evidence_outcome IN ('unreachable', 'not_kept')
+         AND c.site_evidence_at
+             < timezone('utc'::text, now()) - interval '7 days'
+       )
+     )
      AND EXISTS (
        SELECT 1
          FROM public.golf_par_evidence a
          JOIN public.golf_par_evidence b
-           ON b.course_id = a.course_id AND b.source = 'golfcourseapi' AND b.votes
+           ON b.course_id = a.course_id
+          AND b.source = 'golfcourseapi'
+          AND b.votes
           AND b.label > a.label
           AND cardinality(b.pars) = cardinality(a.pars)
           AND b.pars IS DISTINCT FROM a.pars
-        WHERE a.course_id = c.id AND a.source = 'golfcourseapi' AND a.votes
+        WHERE a.course_id = c.id
+          AND a.source = 'golfcourseapi'
+          AND a.votes
      )
-   ORDER BY (p.course_id IS NULL), p.picks DESC NULLS LAST, c.site_evidence_at NULLS FIRST, c.id
+   ORDER BY (p.course_id IS NULL),
+            p.picks DESC NULLS LAST,
+            c.site_evidence_at NULLS FIRST,
+            c.id
    LIMIT greatest(1, least(coalesce(p_limit, 1), 20));
 $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
@@ -6124,7 +6142,8 @@ CREATE TABLE IF NOT EXISTS public.golf_hole_scores (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   penalties text[],
-  version integer DEFAULT 1 NOT NULL
+  version integer DEFAULT 1 NOT NULL,
+  penalty_strokes smallint[]
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_holes (
@@ -9645,6 +9664,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_hole_scores_hole_number_check' AND conrelid = 'public.golf_hole_scores'::regclass) THEN
     ALTER TABLE public.golf_hole_scores ADD CONSTRAINT golf_hole_scores_hole_number_check CHECK (((hole_number > 0) AND (hole_number <= 18)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_hole_scores_penalty_strokes_check' AND conrelid = 'public.golf_hole_scores'::regclass) THEN
+    ALTER TABLE public.golf_hole_scores ADD CONSTRAINT golf_hole_scores_penalty_strokes_check CHECK (((penalty_strokes IS NULL) OR (penalty_strokes <@ ARRAY[(1)::smallint, (2)::smallint, (3)::smallint, (4)::smallint, (5)::smallint, (6)::smallint, (7)::smallint, (8)::smallint, (9)::smallint])));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -15727,21 +15751,39 @@ CREATE OR REPLACE FUNCTION public.golf_site_evidence_due(p_limit integer)
 AS $function$
   SELECT c.id
     FROM public.golf_courses c
-    LEFT JOIN public.golf_course_picks p ON p.course_id = c.id
+    LEFT JOIN public.golf_course_picks p
+      ON p.course_id = c.id
    WHERE c.hole_data IS NOT NULL
-     AND c.website IS NOT NULL AND btrim(c.website) <> ''
-     AND (c.site_evidence_at IS NULL OR c.site_evidence_at < timezone('utc'::text, now()) - interval '90 days')
+     AND c.website IS NOT NULL
+     AND btrim(c.website) <> ''
+     AND (
+       c.site_evidence_at IS NULL
+       OR c.site_evidence_at
+          < timezone('utc'::text, now()) - interval '90 days'
+       OR (
+         c.site_evidence_outcome IN ('unreachable', 'not_kept')
+         AND c.site_evidence_at
+             < timezone('utc'::text, now()) - interval '7 days'
+       )
+     )
      AND EXISTS (
        SELECT 1
          FROM public.golf_par_evidence a
          JOIN public.golf_par_evidence b
-           ON b.course_id = a.course_id AND b.source = 'golfcourseapi' AND b.votes
+           ON b.course_id = a.course_id
+          AND b.source = 'golfcourseapi'
+          AND b.votes
           AND b.label > a.label
           AND cardinality(b.pars) = cardinality(a.pars)
           AND b.pars IS DISTINCT FROM a.pars
-        WHERE a.course_id = c.id AND a.source = 'golfcourseapi' AND a.votes
+        WHERE a.course_id = c.id
+          AND a.source = 'golfcourseapi'
+          AND a.votes
      )
-   ORDER BY (p.course_id IS NULL), p.picks DESC NULLS LAST, c.site_evidence_at NULLS FIRST, c.id
+   ORDER BY (p.course_id IS NULL),
+            p.picks DESC NULLS LAST,
+            c.site_evidence_at NULLS FIRST,
+            c.id
    LIMIT greatest(1, least(coalesce(p_limit, 1), 20));
 $function$;
 
@@ -20762,6 +20804,7 @@ COMMENT ON COLUMN public.golf_hole_scores.strokes IS 'Total strokes taken on thi
 COMMENT ON COLUMN public.golf_hole_scores.putts IS 'Number of putts (must be <= strokes)';
 COMMENT ON COLUMN public.golf_hole_scores.penalties IS 'Per-hole penalty occurrences for live shared scoring — same model and vocabulary as golf_holes.penalties (078).';
 COMMENT ON COLUMN public.golf_hole_scores.version IS 'Per-hole compare-and-set (209): starts at 1, +1 by trigger_bump_hole_score_version only when a scored field changes. A client sends expected_version; the server updates WHERE version = expected — 0 rows is a conflict (409). Never set by a client.';
+COMMENT ON COLUMN public.golf_hole_scores.penalty_strokes IS 'The stroke value of each penalty, aligned by index with penalties (320). NULL = one stroke each. Descriptive: never added to strokes.';
 COMMENT ON COLUMN public.golf_holes.penalties IS 'Per-hole penalty occurrences, one array element each (e.g. {out_of_bounds,drop,drop} = OB x1 + Drop x2). Vocabulary app-validated in src/lib/golf/penalties.ts; no CHECK by design (078 header).';
 COMMENT ON COLUMN public.golf_holes.par_estimated IS 'True when this hole''s par was estimated from the map''s hole length (migration 316); copied from the group round''s hole_data by the round mirror.';
 COMMENT ON TABLE public.golf_map_sweep_cells IS 'The course-map sweep''s cells (255): one row per 0.5° box holding catalog courses; the planner''s tier / priority / courses / rounds, the state machine (status, attempts, leased_until, next_due_at) and the last success''s metrics. Service role only; written by src/lib/golf/map-sweep-server.ts.';
@@ -20994,7 +21037,7 @@ COMMENT ON FUNCTION public.get_group_post_details(p_group_post_id uuid) IS 'Retu
 COMMENT ON FUNCTION public.golf_map_sweep_claim(p_n integer, p_lease_seconds integer) IS 'Claim up to n due cells for one sweep invocation (255): FOR UPDATE SKIP LOCKED plus a lease, so the cron tick and the dashboard loop never work the same cell twice.';
 COMMENT ON FUNCTION public.golf_map_sweep_elevation_due(p_limit integer) IS 'Courses whose elevation profile is missing, older than their geometry or past 30 days (255) — elevation-server.ts elevationFresh() in SQL.';
 COMMENT ON FUNCTION public.golf_site_card_due(p_limit integer) IS 'Courses whose own website is due a scorecard visit: a website, no card, never visited or over 90 days ago; picked courses first (315).';
-COMMENT ON FUNCTION public.golf_site_evidence_due(p_limit integer) IS 'Carded courses whose own website is due a visit to confirm their pars: a card, a website, two voting provider tee boxes that disagree, never visited or over 90 days ago; picked courses first (318).';
+COMMENT ON FUNCTION public.golf_site_evidence_due(p_limit integer) IS 'Carded courses due a website visit to confirm pars; retry afte not answer (318, 319).';
 COMMENT ON FUNCTION public.hidden_authors_for(p_viewer uuid) IS 'The authors a viewer never sees: muted ∪ blocked ∪ blockers, each arm capped at 2,000 as hiddenAuthorsFor read them (281). service_role only; src/lib/mutes.ts is the caller.';
 COMMENT ON FUNCTION public.live_cheer_totals(p_context_key text) IS 'The cheer counts of one live round, grouped by key, in one pass over idx_live_cheers_context (275). Called only by src/lib/play/cheers-server.ts through the service role; the route gates the context first.';
 COMMENT ON FUNCTION public.live_now_participants(p_viewer uuid, p_limit integer) IS 'The Live Now strip''s "whose rounds" read (303): participant rows of the viewer and their accepted followees, newest first — the follows joined in SQL, never sent back as an IN list. GET /api/golf/live-now. service_role only.';
@@ -21489,7 +21532,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (315, '315_golf_site_cards.sql', 'rebuild-000'),
   (316, '316_golf_holes_par_estimated.sql', 'rebuild-000'),
   (317, '317_golf_par_evidence.sql', 'rebuild-000'),
-  (318, '318_golf_site_evidence.sql', 'rebuild-000')
+  (318, '318_golf_site_evidence.sql', 'rebuild-000'),
+  (319, '319_golf_site_evidence_retry.sql', 'rebuild-000'),
+  (320, '320_hole_penalty_strokes.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21498,12 +21543,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 153 | 149 | 145 | 318
+-- Expected: 000 REBUILT | 153 | 149 | 145 | 320
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_153,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_149,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_318;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_320;
 

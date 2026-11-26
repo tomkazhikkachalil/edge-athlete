@@ -154,6 +154,13 @@ for (const tag of ['', ' @mobile']) {
       await expect.poll(zoomOf, { timeout: 15_000 }).toBe((z0 as number) - 1);
       await key('zoom-in').click();
       await expect.poll(zoomOf, { timeout: 15_000 }).toBe(z0);
+      // Two quick taps both count: Leaflet drops a zoom asked for mid-animation, the keys queue it.
+      await key('zoom-out').click();
+      await key('zoom-out').click();
+      await expect.poll(zoomOf, { timeout: 15_000 }).toBe((z0 as number) - 2);
+      await key('zoom-in').click();
+      await key('zoom-in').click();
+      await expect.poll(zoomOf, { timeout: 15_000 }).toBe(z0);
       // My position: on (the round is open and location is granted) and accent while on.
       await expect(key('position')).toHaveAttribute('aria-pressed', 'true', { timeout: 15_000 });
       await expect(map.locator('.leaflet-marker-pane [data-player-dot]')).toHaveCount(1, { timeout: 15_000 });

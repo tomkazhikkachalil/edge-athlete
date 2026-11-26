@@ -1,5 +1,21 @@
 # Development Log
 
+## November 25, 2026 (19:45) — Maintenance after the live round: every gate, baseline at 320, a lost zoom tap found and fixed
+
+**Why.** Tom: "run the full project maintenance checklist … make sure it gets to production to all customer facing applications for both web, large screen, mobile, and downloaded app without issues."
+
+**The checklist, on main `c88365fc` (the live round, #1630–#1633).**
+- `npm run verify` exit 0: type check, lint (0 warnings), 7,051 tests in 718 files, build, syntax floor.
+- `npm audit --omit=dev`: 0. Hardening guardrails, blocklists: green.
+- `check:schema` and `check:schema:prod`: ledger OK at 320 on both databases.
+- **Baseline:** `database/baseline/000_rebuild.sql` rebuilt from production at ledger head 320 (153 tables, 149 functions, 145 policies, 120 triggers; self-check OK). The diff is migrations 319 and 320 and nothing else.
+- **Staging sweep** (golf setup + the live round, 10 specs, one project at a time): desktop 15, mobile 11, webkit-mobile 11, firefox-mobile 11, android 11, none failed. The Mac slept in the middle of the first WebKit run (dropped connections, no app fault); the three remaining projects were run again under `caffeinate`.
+- **Production probe on `045ed413`** (9 specs incl. `install-app`, feed post, golf setup, the live round, golf and sport profiles): mobile 11 / 11, android 11 / 11, webkit-mobile 11 / 11 (no Vercel checkpoint this time), desktop 8 passed + 1 passed on its retry. `/manifest.webmanifest` 200, `/sw.js` 200.
+
+**Found: a quick second tap on a zoom key was lost.** The one retry was the same map test both times it was probed on production. Cause: Leaflet returns early from a zoom asked for while the last zoom is still animating, and our zoom keys called `map.zoomIn()` / `zoomOut()` directly (Leaflet's own control has the same behaviour). Fixed in `CourseMapInner`: `stepZoom` adds up the taps made during an animation and applies them at `zoomend`. The map spec now taps twice quickly each way. Proof on staging, retries off: desktop 3 of 3 repeats; mobile, webkit-mobile, firefox-mobile, android green.
+
+**Owed.** Tom's look on real phones (the dial drag, the map keys, the slide to go live). Not fixed, not from this work: `composer-default-general` "profile tabs: Training inside the viewport" fails on main at 390 px.
+
 ## November 25, 2026 (04:20) — The live golf round: a new scoring card and map view (live on production)
 
 **Why.** Tom: "we're now making a pretty big change", his doc "live golf round, scoring card and map view". Three decisions from him: each penalty stores its own strokes; the tee control stays a viewer; "Finish round" saves and closes.
