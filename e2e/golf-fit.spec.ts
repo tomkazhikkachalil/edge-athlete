@@ -288,6 +288,13 @@ for (const tag of ['', ' @mobile']) {
       await rule.getByRole('button', { name: 'About putting' }).click();
       await rule.getByRole('button', { name: 'Auto 2', exact: true }).click();
       await fits(page, 'Indoor course (Auto 2)', FRAME, found);
+      // The Start step with its Putting row (the longest line: Auto 2).
+      for (const step of ['format', 'players', 'finish']) {
+        await flow.locator('[data-step-next]').click();
+        await expect(flow).toHaveAttribute('data-step', step);
+      }
+      await expect(flow.locator('[data-round-summary-row="putting"]')).toContainText('Auto 2 · on the green, 2 putts');
+      await fits(page, 'Indoor start', FRAME, found);
       expect(found, `\n${found.join('\n')}\n`).toEqual([]);
     } finally {
       await cleanup('golf-fit-indoor', [

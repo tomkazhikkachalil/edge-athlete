@@ -17,6 +17,7 @@ import {
   puttingModeOr,
   puttingPayload,
   puttingRuleOf,
+  puttingSummary,
 } from '../putting-rule';
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8');
@@ -92,6 +93,13 @@ describe('the putting rule of an indoor round (Tom, Nov 27 2026)', () => {
     expect(puttingInfoLine('gimme', 6)).toBe('A ball that stops inside 6 ft is holed for 1 putt.');
     expect(puttingInfoLine('gimme', 12)).toBe('A ball that stops inside 12 ft is holed for 1 putt.');
     expect(puttingInfoLine('auto_2', 6)).toBe('Any ball on the green is holed for 2 putts.');
+  });
+
+  it("the Start step's Putting row, word for word; the gimme line carries the feet", () => {
+    expect(puttingSummary('putt_out', 6)).toBe('Putt out · every putt counts');
+    expect(puttingSummary('gimme', 6)).toBe('Gimme · inside 6 ft, 1 putt');
+    expect(puttingSummary('gimme', 15)).toBe('Gimme · inside 15 ft, 1 putt');
+    expect(puttingSummary('auto_2', 6)).toBe('Auto 2 · on the green, 2 putts');
   });
 
   it('is pure: the module imports nothing', () => {
