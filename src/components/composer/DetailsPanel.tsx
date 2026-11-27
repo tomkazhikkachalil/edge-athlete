@@ -2,8 +2,8 @@
 
 import { AvatarImage } from '@/components/OptimizedImage';
 import { tagRowLabel } from '@/lib/posts/composer-rules';
-import { PlusIcon } from '@/components/golf/scoring/icons';
-import { PeopleIcon } from './icons';
+import { ChevronRightIcon, CloseIcon, PlusIcon } from '@/components/golf/scoring/icons';
+import { GaugeIcon, PeopleIcon, PinIcon } from './icons';
 
 /**
  * The composer's Details panel (Tom's General post spec, Nov 26 2026 — C5):
@@ -94,4 +94,69 @@ export function TagPeopleRow({ people, onAdd, onRemove, first = true }: {
       </button>
     </DetailRow>
   );
+}
+
+/** A row whose label opens something and whose right side is a chevron
+ *  (empty) or a remove key (set). */
+function OpenRow({ icon, iconColour, hook, label, set, onOpen, onRemove, removeLabel, children }: {
+  icon: React.ReactNode;
+  iconColour: string;
+  hook: string;
+  label: string;
+  set: boolean;
+  onOpen: () => void;
+  onRemove: () => void;
+  removeLabel: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <DetailRow icon={icon} iconColour={iconColour} hook={hook}>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="ea-mech-btn flex h-14 min-w-0 flex-1 items-center gap-2 text-left"
+        data-compose-open={hook}
+      >
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold" style={{ color: set ? 'var(--mech-text)' : 'var(--mech-text-dim)' }}>{label}</span>
+        {children}
+        {!set && (
+          <span aria-hidden="true" className="inline-flex h-11 w-9 shrink-0 items-center justify-center text-[color:var(--mech-chevron)]">
+            <ChevronRightIcon size={16} />
+          </span>
+        )}
+      </button>
+      {set && (
+        <button type="button" onClick={onRemove} aria-label={removeLabel} className="ea-mech-btn inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--mech-text-soft)]" data-compose-remove={hook}>
+          <CloseIcon size={14} />
+        </button>
+      )}
+    </DetailRow>
+  );
+}
+
+/** Row 2 — Attach activity (C6): empty, a door to the picker; set, the
+ *  sport and the activity's name, its headline number in the sport's colour
+ *  in a recessed chip, and a key that removes it. */
+export function AttachRow({ label, headline, colour, onOpen, onRemove }: {
+  /** "Golf · Loch March" when set; null when nothing is attached. */
+  label: string | null;
+  headline: string | null;
+  colour: string | null;
+  onOpen: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <OpenRow icon={<GaugeIcon size={18} />} iconColour="var(--mech-gold)" hook="activity" label={label ?? 'Attach activity'} set={label !== null} onOpen={onOpen} onRemove={onRemove} removeLabel="Remove the attached activity">
+      {label !== null && headline !== null && (
+        <span className="ea-mech-recess ea-mech-readout shrink-0 rounded-lg px-2 py-1 text-[13px]" style={{ color: colour ?? 'var(--mech-text)' }} data-compose-activity-chip="">
+          {headline}
+        </span>
+      )}
+    </OpenRow>
+  );
+}
+
+/** Row 3 — Location: empty, a door to the search; set, the place's name and a key that removes it. */
+export function LocationRow({ label, onOpen, onRemove }: { label: string | null; onOpen: () => void; onRemove: () => void }) {
+  return <OpenRow icon={<PinIcon size={18} />} iconColour="var(--mech-media)" hook="location" label={label ?? 'Add location'} set={label !== null} onOpen={onOpen} onRemove={onRemove} removeLabel="Remove the location" />;
 }

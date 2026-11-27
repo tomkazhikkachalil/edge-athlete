@@ -266,7 +266,7 @@ async function problems(page: Page, scopeSelector: string, scrolls = false): Pro
       if (track && label && track.getBoundingClientRect().width < 150) out.push(`the slide is ${Math.round(track.getBoundingClientRect().width)} px wide: no room for its words`);
     }
     // Keys a thumb must reach: 44 px tall (the thumbnail's own remove key is the spec's 28).
-    for (const el of scope.querySelectorAll('[data-compose-capture], [data-compose-edit-key], [data-compose-suggest-key], [data-compose-tag-people], [data-mech-info], [data-mech-choice], [data-compose-preview-edit], [data-post-type-line] button')) {
+    for (const el of scope.querySelectorAll('[data-compose-capture], [data-compose-edit-key], [data-compose-suggest-key], [data-compose-tag-people], [data-mech-info], [data-mech-choice], [data-compose-preview-edit], [data-post-type-line] button, [data-compose-open], [data-compose-remove], [data-attach-option], [data-location-add]')) {
       if (!visible(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.height < 43.5) out.push(`"${name(el)}" is ${Math.round(r.height)} px tall`);
@@ -311,6 +311,16 @@ for (const tag of ['', ' @mobile']) {
     await expect(page.locator('[data-compose-preview] [data-testid="post-card"]')).toBeVisible({ timeout: 20_000 });
     await walkLadder(page, 'General post preview', found, () => problems(page, '[data-compose-preview] > div', true));
     await page.locator('[data-compose-preview-edit]').click();
+
+    // The two dialogs of the Details panel: the picker (nothing logged: its empty line) and the location search.
+    await frame.locator('[data-compose-open="activity"]').click();
+    await expect(page.locator('[data-attach-picker] [data-attach-empty], [data-attach-picker] [data-attach-list]')).toBeVisible({ timeout: 20_000 });
+    await walkLadder(page, 'General post attach picker', found, () => problems(page, '[data-attach-picker] [role="dialog"]'));
+    await page.locator('[data-attach-picker]').getByRole('button', { name: 'Close' }).click();
+    await frame.locator('[data-compose-open="location"]').click();
+    await page.locator('#post-location').fill('A rink with a long name on the east side');
+    await walkLadder(page, 'General post location', found, () => problems(page, '[data-location-dialog] [role="dialog"]'));
+    await page.locator('[data-location-dialog]').getByRole('button', { name: 'Cancel' }).click();
 
     // Save draft.
     await frame.getByRole('button', { name: 'Close modal' }).click();

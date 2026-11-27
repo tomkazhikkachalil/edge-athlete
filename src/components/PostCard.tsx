@@ -50,6 +50,8 @@ import WorkoutPostCard from './workouts/WorkoutPostCard';
 import ActivityPostCard from './activities/ActivityPostCard';
 import { getHandle } from '@/lib/profile-display';
 import PostOwnerMenu from '@/components/PostOwnerMenu';
+import StatPlate from '@/components/posts/StatPlate';
+import type { StatPlateData } from '@/lib/posts/attachment';
 import ActionMenu from '@/components/ActionMenu';
 import ReportSheet from '@/components/tickets/ReportSheet';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
@@ -169,6 +171,11 @@ interface Post {
    *  round through announced → live → results. The chip opens /events/[id]. */
   sport_event_round_id?: string | null;
   sport_event?: PostSportEvent | null;
+  /** The attached activity's stat plate (321): read from the source on every
+   *  read; null when nothing is attached or the source is hidden or gone. */
+  attached_plate?: StatPlateData | null;
+  /** The post's one location, as shown beside the time (321). */
+  location?: string | null;
 }
 
 // Module scope, so the component identity is stable across renders.
@@ -775,6 +782,12 @@ function PostCard({
                   Private badge sits on the name" at 390px. */}
               <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                 <time dateTime={post.created_at} title={timeFull} className="text-sm text-secondary font-medium whitespace-nowrap truncate" data-post-time="">{timeAgo}</time>
+                {post.location && (
+                  <>
+                    <span className="text-sm text-secondary font-medium">•</span>
+                    <span className="text-sm text-secondary font-medium truncate min-w-0 shrink-[4]" data-post-location="">{post.location}</span>
+                  </>
+                )}
                 {chipKey && (
                   <>
                     <span className="text-sm text-secondary font-medium">•</span>
@@ -968,6 +981,12 @@ function PostCard({
             </>
           )}
         </div>
+      )}
+
+      {/* The attached activity's stat plate (321): below the media, or right
+          under the author line when the post has none. */}
+      {post.attached_plate && (
+        <StatPlate plate={post.attached_plate} className={`px-3.5 ${post.media && post.media.length > 0 ? 'pt-3' : 'pt-1'}`} />
       )}
 
       {/* Content */}

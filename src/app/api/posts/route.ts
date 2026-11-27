@@ -27,6 +27,9 @@ import { resolveRepostTarget, canViewSharedPost, validateRepostBody } from '@/li
 import { normalizePostIdentity } from '@/lib/posts/post-category';
 import { createGolfRoundEntities } from '@/lib/golf/post-write';
 import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
+import { ATTACH_COLUMN, parseAttachRef, type StatPlateData } from '@/lib/posts/attachment';
+import { checkAttachment, platesFor } from '@/lib/posts/attachment-server';
+import { locationOf, parsePostLocation } from '@/lib/posts/location';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isOrgLensVisible, parseOrgParam } from '@/lib/affiliations/org-peers';
 import { toProxyUrl } from '@/lib/media/proxy-url';
@@ -223,6 +226,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid visibility setting' }, { status: 400 });
     }
 
+    // An attached activity and a location (321, the General post spec, Nov 26
+    // 2026). The attachment is a REFERENCE the author must own and that may be
+    // attached (finished, not hidden from the profile, not Only me) — the
+    // plate is read from the source on every read, nothing is copied.
+    const attachRef = parseAttachRef(body.attached);
+    if (attachRef === 'invalid') {
+      return NextResponse.json({ error: 'Invalid attached activity' }, { status: 400 });
+    }
+    let attachedPlate: StatPlateData | null = null;
+    if (attachRef) {
+      if (sharedPostId) return NextResponse.json({ error: 'A repost cannot attach an activity' }, { status: 400 });
+      const checked = await checkAttachment(supabase, attachRef, userId);
+      if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
+      attachedPlate = checked.plate;
+    }
+    const postLocation = parsePostLocation(body.location);
+    if (postLocation === 'invalid') {
+      return NextResponse.json({ error: 'Invalid location' }, { status: 400 });
+    }
+
     // Repost validation. A repost is caption-only — media/golf/stats would
     // break the 074 STATEMENT classification — and must target a post the
     // REPOSTER can see. Repost-of-a-repost collapses to the ROOT original,
@@ -364,6 +387,12 @@ export async function POST(request: NextRequest) {
       created_by_user_id?: string;
       event_id?: string;
       on_feed: boolean;
+      attached_round_id?: string;
+      attached_workout_id?: string;
+      attached_activity_id?: string;
+      attached_post_id?: string;
+      location_label?: string;
+      location_place_id?: string;
     } = {
       profile_id: userId,
       // The feed switch (269): never an audience — the account decides who sees it.
@@ -384,6 +413,8 @@ export async function POST(request: NextRequest) {
       ...(repostTargetId ? { shared_post_id: repostTargetId } : {}),
       ...(postCategory ? { post_category: postCategory } : {}),
       ...(eventId ? { event_id: eventId } : {}),
+      ...(attachRef ? { [ATTACH_COLUMN[attachRef.kind]]: attachRef.id } : {}),
+      ...(postLocation ? { location_label: postLocation.label, ...(postLocation.placeId ? { location_place_id: postLocation.placeId } : {}) } : {}),
     };
 
     let roundId: string | null = null;
@@ -721,6 +752,8 @@ export async function POST(request: NextRequest) {
       // A just-created post cannot have likes — no embed, no query.
       likes: [],
       golf_round: golfRound,
+      attached_plate: attachedPlate,
+      location: locationOf(completePost),
       tagged_profiles: taggedProfilesList,
       shared_post_id: completePost.shared_post_id ?? null,
       shared_post: null as ReturnType<typeof gateSharedPost>,
@@ -1152,6 +1185,8 @@ export async function GET(request: NextRequest) {
         likes: viewerLikedPost && currentUserId ? [{ profile_id: currentUserId }] : [],
         golf_round: golfRound,
         group_scorecard: groupScorecard,
+        attached_plate: (await platesFor(supabase, [post])).get(post.id) ?? null,
+        location: locationOf(post),
         tagged_profiles: taggedProfiles,
         shared_post_id: post.shared_post_id ?? null,
         shared_post: sharedPost,
@@ -1524,6 +1559,8 @@ export async function GET(request: NextRequest) {
     // Events program (203): the event beside a post — the chip's label and
     // the announce card's facts (name, date, course, status, joining).
     const sportEventRoundIds = [...new Set(finalVisiblePosts.map(p => p.sport_event_round_id).filter(Boolean))] as string[];
+    // Attached activities (321): the page's stat plates, read beside the rest (no read when no post attaches one).
+    const attachedPlatesPromise = platesFor(supabase, finalVisiblePosts);
     const [roundsResult, groupsResult, tagProfilesResult, sharedResult, contestsResult, sportEventRoundsResult] = await Promise.all([
       fetchGolfRoundsByIds(supabase, roundIds as string[]),
       groupPostIds.length > 0
@@ -1546,6 +1583,7 @@ export async function GET(request: NextRequest) {
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (sportEventRoundsResult.error) reportRouteError('[GET] Error fetching sport event labels:', sportEventRoundsResult.error);
+    const attachedPlates = await attachedPlatesPromise;
     const sportEventByRound = sportEventLabelsByRound(sportEventRoundsResult.data ?? []);
     // Phase 2: one grouped read for "Round n of m" — behind the same branch as the labels.
     const sportEventIds = sportEventIdsOf(sportEventByRound);
@@ -1691,6 +1729,8 @@ export async function GET(request: NextRequest) {
           likes: currentUserId && likedPostIds.has(post.id) ? [{ profile_id: currentUserId }] : [],
           golf_round: post.golf_round || null,
           group_scorecard: post.group_scorecard || null,
+          attached_plate: attachedPlates.get(post.id) ?? null,
+          location: locationOf(post),
           tagged_profiles: post.tagged_profiles || [],
           shared_post_id: post.shared_post_id ?? null,
           shared_post: post.shared_post ?? null,

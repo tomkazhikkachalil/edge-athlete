@@ -46,7 +46,12 @@ import { canPost, isEmptyPost, slideWords, withHashtag } from '@/lib/posts/compo
 import { moveToCover } from '@/lib/media/cover';
 import MediaSection, { type ComposerMediaItem, type ComposerUpload, type MediaEditTool } from '@/components/composer/MediaSection';
 import CaptionPanel from '@/components/composer/CaptionPanel';
-import { DetailsPanel, TagPeopleRow, type TaggedPerson } from '@/components/composer/DetailsPanel';
+import { AttachRow, DetailsPanel, LocationRow, TagPeopleRow, type TaggedPerson } from '@/components/composer/DetailsPanel';
+import AttachPicker from '@/components/composer/AttachPicker';
+import LocationDialog from '@/components/composer/LocationDialog';
+import { plateColour } from '@/components/posts/StatPlate';
+import { attachRowLabel, type StatPlateData } from '@/lib/posts/attachment';
+import type { PostLocation } from '@/lib/posts/location';
 import { EyeIcon } from '@/components/composer/icons';
 import { PencilIcon } from '@/components/golf/scoring/icons';
 import type { PostCardPost } from '@/components/PostCard';
@@ -211,6 +216,14 @@ export default function CreatePostModal({
   const taggedProfiles = useMemo(() => taggedProfilesData.map(p => p.id), [taggedProfilesData]);
   const [showTagModal, setShowTagModal] = useState(false);
 
+  // One attached activity and one location (321). The plate is what the
+  // picker handed over; the server checks the reference again at Post.
+  const [attached, setAttached] = useState<StatPlateData | null>(null);
+  const [showAttachPicker, setShowAttachPicker] = useState(false);
+  const closeAttachPicker = useCallback(() => setShowAttachPicker(false), []);
+  const [location, setLocation] = useState<PostLocation | null>(null);
+  const [showLocation, setShowLocation] = useState(false);
+
   // Golf specific data lives in GolfComposerSection (see the sport slot in
   // the JSX below); the section reports its full value up on every internal
   // change, and this snapshot is all the submit, validation, footer-hint and
@@ -261,9 +274,11 @@ export default function CreatePostModal({
       ...(golfValue.isDirty ? { golf: golfValue } : {}),
       ...(mediaOrder.length > 0 ? { mediaCount: mediaOrder.length, mediaOrder } : {}),
       ...(taggedProfilesData.length > 0 ? { people: taggedProfilesData } : {}),
+      ...(attached ? { attached } : {}),
+      ...(location ? { location } : {}),
       ...(draftKept ? { kept: true } : {}),
     };
-  }, [postType, caption, hashtags, visibility, golfValue, mediaIdsKey, taggedProfilesData, draftKept]);
+  }, [postType, caption, hashtags, visibility, golfValue, mediaIdsKey, taggedProfilesData, attached, location, draftKept]);
   const keptPending = availableDraft?.kept === true;
   const draftOffered = availableDraft !== null;
   useEffect(() => {
@@ -379,6 +394,10 @@ export default function CreatePostModal({
     setPosted(false);
     setDraftKept(false);
     setTaggedProfilesData([]);
+    setAttached(null);
+    setShowAttachPicker(false);
+    setLocation(null);
+    setShowLocation(false);
     setShowTagModal(false);
     // Reset ALL golf state (shared round data, course search, hole data,
     // score entry): restore the reported snapshot to its default and remount
@@ -415,6 +434,8 @@ export default function CreatePostModal({
     hashtags.length > 0 ||
     customHashtag.trim() !== '' ||
     taggedProfiles.length > 0 ||
+    attached !== null ||
+    location !== null ||
     statLineData !== null ||
     // Golf's share (scorecard, course, participants, manual pars, scores) is
     // computed in GolfComposerSection.
@@ -700,9 +721,9 @@ export default function CreatePostModal({
   const isValidForSubmission = () => {
     // Capture v2: a video over the cap waits for a trim (the tile says so).
     if (hasTooLongVideo) return false;
-    // General posts need either caption or media
+    // A General post needs a caption, media, or an attached activity (A3)
     if (postType === 'general') {
-      return caption.trim().length > 0 || mediaFiles.length > 0;
+      return caption.trim().length > 0 || mediaFiles.length > 0 || attached !== null;
     }
 
     // Stat-line sports: postable with a caption, media, or any entered stats
@@ -710,6 +731,7 @@ export default function CreatePostModal({
       return (
         caption.trim().length > 0 ||
         mediaFiles.length > 0 ||
+        attached !== null ||
         (statLineData !== null && statLineHasContent(statLineData))
       );
     }
@@ -852,6 +874,9 @@ export default function CreatePostModal({
             ? statLineData
             : undefined,
         taggedProfiles: taggedProfiles, // Add tagged people
+        // One attached activity (a reference the server checks) and one location (321).
+        ...(attached ? { attached: { kind: attached.kind, id: attached.id } } : {}),
+        ...(location ? { location } : {}),
         // Cross-cutting category (077) — e.g. the Training tab's training posts.
         ...(defaultPostCategory ? { postCategory: defaultPostCategory } : {}),
         // Guardian-profiles: post to the acting-as athlete's profile.
@@ -918,7 +943,7 @@ export default function CreatePostModal({
 
   // Escape asks to close (the one-page composer; a golf round's steps keep
   // their own keys). A dialog above the composer answers Escape itself.
-  const dialogAbove = confirmOpen || showTagModal || showSportSelector || showPreview || editorAssets !== null;
+  const dialogAbove = confirmOpen || showTagModal || showSportSelector || showPreview || showAttachPicker || showLocation || editorAssets !== null;
   useEffect(() => {
     if (!isOpen || postType === 'golf' || dialogAbove) return;
     const onKey = (e: KeyboardEvent) => {
@@ -955,7 +980,7 @@ export default function CreatePostModal({
   const readiness = {
     mediaCount: mediaFiles.length,
     caption,
-    hasActivity: false,
+    hasActivity: attached !== null,
     hasStats: isStatLineSport && statLineData !== null && statLineHasContent(statLineData),
     uploading,
     tooLongVideo: hasTooLongVideo,
@@ -1066,6 +1091,8 @@ export default function CreatePostModal({
           display_order: index,
         })),
         likes: [],
+        attached_plate: attached,
+        location: location?.label ?? null,
         hashtags,
         tagged_profiles: taggedProfilesData.map(person => {
           const [first, ...rest] = person.name.split(' ');
@@ -1079,6 +1106,8 @@ export default function CreatePostModal({
     setHashtags(draft.hashtags);
     setVisibility(draft.visibility);
     if (draft.people) setTaggedProfilesData(draft.people);
+    if (draft.attached) setAttached(draft.attached);
+    if (draft.location) setLocation(draft.location);
     if (draft.postType !== postType) {
       setPostType(draft.postType as SportKey | 'general');
     }
@@ -1234,6 +1263,14 @@ export default function CreatePostModal({
                   )}
                   <DetailsPanel>
                     <TagPeopleRow people={taggedProfilesData} onAdd={() => setShowTagModal(true)} onRemove={removeTaggedPerson} />
+                    <AttachRow
+                      label={attached ? attachRowLabel(attached) : null}
+                      headline={attached ? `${attached.headline}${attached.unit ? ` ${attached.unit}` : ''}` : null}
+                      colour={attached ? plateColour(attached) : null}
+                      onOpen={() => setShowAttachPicker(true)}
+                      onRemove={() => setAttached(null)}
+                    />
+                    <LocationRow label={location?.label ?? null} onOpen={() => setShowLocation(true)} onRemove={() => setLocation(null)} />
                   </DetailsPanel>
                   {/* Who sees it: the ACCOUNT's call (Oct 9 2026, Tom) — never a
                       per-post audience. A General post has no switch at all
@@ -1332,6 +1369,12 @@ export default function CreatePostModal({
         variant="mech"
         selectionMode={true}
       />
+
+      {/* Attach activity (A1, D2) and Location (A10). */}
+      {showAttachPicker && (
+        <AttachPicker onClose={closeAttachPicker} profileId={activeProfile?.id ?? null} current={attached} onPick={setAttached} />
+      )}
+      <LocationDialog isOpen={showLocation} onClose={() => setShowLocation(false)} onPick={setLocation} />
 
       {/* The participant-selection TagPeopleModal for shared rounds moved
           into GolfComposerSection, which owns the participant state. */}
