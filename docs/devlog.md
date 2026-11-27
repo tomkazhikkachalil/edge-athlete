@@ -1,5 +1,13 @@
 # Development Log
 
+## November 27, 2026 (14:13) — Migrations 321 and 322 on production; attach activity and the indoor course step are live
+
+**What.** Tom ran 322 then 321 in the production SQL editor (`322 APPLIED | 4 | 6 | 322`, `321 APPLIED | 6 | 7 | 5 | 322`; the two do not depend on each other). #1640 (attach activity, stat plate, location) merged as `2d93d2ad`, #1642 (the indoor course step and the putting rule) as `d6200a44`, both by hand with `merge-pr.sh`. The baseline is rebuilt at ledger head 322.
+
+**Proof.** `/api/health` on production shows `d6200a44`. `check:schema:prod`: ledger OK, 321 rows, head 322. Production probe, one project at a time: desktop 4/4 (`golf-course-step`, `post-attach`), mobile 6/6 (those and `general-composer`). Emulated engines, not real devices.
+
+**Owed.** Tom's look on a real phone: the gimme slider under a thumb, the slide to post, Save draft across a real app close.
+
 ## November 27, 2026 (12:52) — The indoor golf round's course step: the tee table, a putting rule saved on the round (migration 322)
 
 **Why.** Tom's spec `indoor-course-spec.md` (Nov 27): step 2 of 5 of an indoor round showed the course, three empty dials and the Map / Scorecard keys; the player could not pick a tee and nothing recorded how the simulator handles putts. His decisions the same day: the indoor tee list is **always the men's boxes** (no switch, no profile lookup); the handicap is **left as it is** (a rated indoor round counts toward it today, reported, not changed).

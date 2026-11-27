@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-11-25T13:10:27.868824+00:00 from server 17.6 by
+-- Generated 2026-11-27T19:13:54.290556+00:00 from server 17.6 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 320.
+-- public.schema_dump() (migration 227). Ledger head at generation: 322.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -6266,7 +6266,9 @@ CREATE TABLE IF NOT EXISTS public.golf_rounds (
   course_id uuid,
   profile_hidden_at timestamp with time zone,
   conditions_source text,
-  conditions_at timestamp with time zone
+  conditions_at timestamp with time zone,
+  putting_rule text,
+  gimme_feet smallint
 );
 
 CREATE TABLE IF NOT EXISTS public.golf_scorecard_data (
@@ -6288,7 +6290,9 @@ CREATE TABLE IF NOT EXISTS public.golf_scorecard_data (
   hole_data jsonb,
   course_composition jsonb,
   conditions_source text,
-  conditions_at timestamp with time zone
+  conditions_at timestamp with time zone,
+  putting_rule text,
+  gimme_feet smallint
 );
 
 CREATE TABLE IF NOT EXISTS public.group_post_media (
@@ -6935,7 +6939,13 @@ CREATE TABLE IF NOT EXISTS public.posts (
   profile_hidden_at timestamp with time zone,
   views_count integer DEFAULT 0 NOT NULL,
   plays_count integer DEFAULT 0 NOT NULL,
-  on_feed boolean DEFAULT true NOT NULL
+  on_feed boolean DEFAULT true NOT NULL,
+  attached_round_id uuid,
+  attached_workout_id uuid,
+  attached_activity_id uuid,
+  attached_post_id uuid,
+  location_label text,
+  location_place_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS public.privacy_settings (
@@ -9792,8 +9802,23 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_rounds_gimme_feet_check' AND conrelid = 'public.golf_rounds'::regclass) THEN
+    ALTER TABLE public.golf_rounds ADD CONSTRAINT golf_rounds_gimme_feet_check CHECK ((((gimme_feet IS NULL) AND (putting_rule IS DISTINCT FROM 'gimme'::text)) OR ((putting_rule = 'gimme'::text) AND ((gimme_feet >= 1) AND (gimme_feet <= 15)))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_rounds_gir_percentage_check' AND conrelid = 'public.golf_rounds'::regclass) THEN
     ALTER TABLE public.golf_rounds ADD CONSTRAINT golf_rounds_gir_percentage_check CHECK (((gir_percentage >= (0)::numeric) AND (gir_percentage <= (100)::numeric)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_rounds_putting_indoor_check' AND conrelid = 'public.golf_rounds'::regclass) THEN
+    ALTER TABLE public.golf_rounds ADD CONSTRAINT golf_rounds_putting_indoor_check CHECK (((putting_rule IS NULL) OR (round_type = 'indoor'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_rounds_putting_rule_check' AND conrelid = 'public.golf_rounds'::regclass) THEN
+    ALTER TABLE public.golf_rounds ADD CONSTRAINT golf_rounds_putting_rule_check CHECK (((putting_rule IS NULL) OR (putting_rule = ANY (ARRAY['putt_out'::text, 'gimme'::text, 'auto_2'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9812,8 +9837,23 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_scorecard_data_gimme_feet_check' AND conrelid = 'public.golf_scorecard_data'::regclass) THEN
+    ALTER TABLE public.golf_scorecard_data ADD CONSTRAINT golf_scorecard_data_gimme_feet_check CHECK ((((gimme_feet IS NULL) AND (putting_rule IS DISTINCT FROM 'gimme'::text)) OR ((putting_rule = 'gimme'::text) AND ((gimme_feet >= 1) AND (gimme_feet <= 15)))));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_scorecard_data_holes_played_check' AND conrelid = 'public.golf_scorecard_data'::regclass) THEN
     ALTER TABLE public.golf_scorecard_data ADD CONSTRAINT golf_scorecard_data_holes_played_check CHECK (((holes_played > 0) AND (holes_played <= 18)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_scorecard_data_putting_indoor_check' AND conrelid = 'public.golf_scorecard_data'::regclass) THEN
+    ALTER TABLE public.golf_scorecard_data ADD CONSTRAINT golf_scorecard_data_putting_indoor_check CHECK (((putting_rule IS NULL) OR (round_type = 'indoor'::text)));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'golf_scorecard_data_putting_rule_check' AND conrelid = 'public.golf_scorecard_data'::regclass) THEN
+    ALTER TABLE public.golf_scorecard_data ADD CONSTRAINT golf_scorecard_data_putting_rule_check CHECK (((putting_rule IS NULL) OR (putting_rule = ANY (ARRAY['putt_out'::text, 'gimme'::text, 'auto_2'::text]))));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -10279,6 +10319,16 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_golf_sources' AND conrelid = 'public.posts'::regclass) THEN
     ALTER TABLE public.posts ADD CONSTRAINT check_golf_sources CHECK ((NOT ((round_id IS NOT NULL) AND (group_post_id IS NOT NULL))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_location_label_check' AND conrelid = 'public.posts'::regclass) THEN
+    ALTER TABLE public.posts ADD CONSTRAINT posts_location_label_check CHECK (((location_label IS NULL) OR ((char_length(location_label) >= 1) AND (char_length(location_label) <= 120))));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_one_attachment_check' AND conrelid = 'public.posts'::regclass) THEN
+    ALTER TABLE public.posts ADD CONSTRAINT posts_one_attachment_check CHECK ((num_nonnulls(attached_round_id, attached_workout_id, attached_activity_id, attached_post_id) <= 1));
   END IF;
 END $$;
 DO $$ BEGIN
@@ -12274,6 +12324,26 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_attached_activity_id_fkey' AND conrelid = 'public.posts'::regclass) THEN
+    ALTER TABLE public.posts ADD CONSTRAINT posts_attached_activity_id_fkey FOREIGN KEY (attached_activity_id) REFERENCES activities(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_attached_post_id_fkey' AND conrelid = 'public.posts'::regclass) THEN
+    ALTER TABLE public.posts ADD CONSTRAINT posts_attached_post_id_fkey FOREIGN KEY (attached_post_id) REFERENCES posts(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_attached_round_id_fkey' AND conrelid = 'public.posts'::regclass) THEN
+    ALTER TABLE public.posts ADD CONSTRAINT posts_attached_round_id_fkey FOREIGN KEY (attached_round_id) REFERENCES golf_rounds(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_attached_workout_id_fkey' AND conrelid = 'public.posts'::regclass) THEN
+    ALTER TABLE public.posts ADD CONSTRAINT posts_attached_workout_id_fkey FOREIGN KEY (attached_workout_id) REFERENCES workout_sessions(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_contest_id_fkey' AND conrelid = 'public.posts'::regclass) THEN
     ALTER TABLE public.posts ADD CONSTRAINT posts_contest_id_fkey FOREIGN KEY (contest_id) REFERENCES contests(id) ON DELETE SET NULL;
   END IF;
@@ -12296,6 +12366,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_hidden_ticket_id_fkey' AND conrelid = 'public.posts'::regclass) THEN
     ALTER TABLE public.posts ADD CONSTRAINT posts_hidden_ticket_id_fkey FOREIGN KEY (hidden_ticket_id) REFERENCES tickets(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'posts_location_place_id_fkey' AND conrelid = 'public.posts'::regclass) THEN
+    ALTER TABLE public.posts ADD CONSTRAINT posts_location_place_id_fkey FOREIGN KEY (location_place_id) REFERENCES places(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -13258,6 +13333,10 @@ CREATE INDEX IF NOT EXISTS idx_post_tags_post_id ON public.post_tags USING btree
 CREATE INDEX IF NOT EXISTS idx_post_tags_status ON public.post_tags USING btree (status);
 CREATE INDEX IF NOT EXISTS idx_post_tags_tagged_profile ON public.post_tags USING btree (tagged_profile_id);
 CREATE INDEX IF NOT EXISTS idx_post_view_marks_day ON public.post_view_marks USING btree (day);
+CREATE INDEX IF NOT EXISTS idx_posts_attached_activity_id ON public.posts USING btree (attached_activity_id) WHERE (attached_activity_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_posts_attached_post_id ON public.posts USING btree (attached_post_id) WHERE (attached_post_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_posts_attached_round_id ON public.posts USING btree (attached_round_id) WHERE (attached_round_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_posts_attached_workout_id ON public.posts USING btree (attached_workout_id) WHERE (attached_workout_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_category_profile_created ON public.posts USING btree (post_category, profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_contest ON public.posts USING btree (contest_id) WHERE (contest_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_created_at_id_desc ON public.posts USING btree (created_at DESC, id DESC);
@@ -13265,6 +13344,7 @@ CREATE INDEX IF NOT EXISTS idx_posts_created_by ON public.posts USING btree (cre
 CREATE INDEX IF NOT EXISTS idx_posts_event_id ON public.posts USING btree (event_id) WHERE (event_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_group_post_id ON public.posts USING btree (group_post_id);
 CREATE INDEX IF NOT EXISTS idx_posts_hidden_ticket_id ON public.posts USING btree (hidden_ticket_id);
+CREATE INDEX IF NOT EXISTS idx_posts_location_place_id ON public.posts USING btree (location_place_id) WHERE (location_place_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_posts_pending_nudge ON public.posts USING btree (created_at) WHERE ((status = 'pending_approval'::text) AND (approval_nudged_at IS NULL));
 CREATE INDEX IF NOT EXISTS idx_posts_pinned ON public.posts USING btree (profile_id, pinned_at DESC) WHERE (is_pinned = true);
 CREATE INDEX IF NOT EXISTS idx_posts_profile_created ON public.posts USING btree (profile_id, created_at DESC);
@@ -20826,6 +20906,8 @@ COMMENT ON COLUMN public.golf_rounds.group_post_id IS 'Set on rounds mirrored fr
 COMMENT ON COLUMN public.golf_rounds.profile_hidden_at IS 'Hidden from the owner''s profile (241). Still counts: handicap, WHS, leaderboards, the dataset.';
 COMMENT ON COLUMN public.golf_rounds.conditions_source IS 'Where weather / temperature / wind came from (291), copied from the scorecard by mirrorCompletedRound: manual | forecast; NULL = unknown, read as manual.';
 COMMENT ON COLUMN public.golf_rounds.conditions_at IS 'The forecast''s observation time when conditions_source = forecast (291); NULL otherwise.';
+COMMENT ON COLUMN public.golf_rounds.putting_rule IS 'The finished round''s copy of golf_scorecard_data.putting_rule (322), written by mirrorCompletedRound.';
+COMMENT ON COLUMN public.golf_rounds.gimme_feet IS 'The finished round''s copy of golf_scorecard_data.gimme_feet (322).';
 COMMENT ON TABLE public.golf_scorecard_data IS 'Golf-specific data for group posts of type golf_round';
 COMMENT ON COLUMN public.golf_scorecard_data.round_type IS 'outdoor (on course) or indoor (simulator/range)';
 COMMENT ON COLUMN public.golf_scorecard_data.holes_played IS 'Number of holes played (supports any count 1-18)';
@@ -20833,6 +20915,8 @@ COMMENT ON COLUMN public.golf_scorecard_data.game_format IS 'Scoring format: str
 COMMENT ON COLUMN public.golf_scorecard_data.hole_data IS 'Per-hole course data: [{"hole":1,"par":4,"yardage":390}, …]. Source of real pars for group rounds.';
 COMMENT ON COLUMN public.golf_scorecard_data.conditions_source IS 'Where weather_conditions / temperature / wind_speed came from (291): manual = typed, forecast = Open-Meteo at the course at tee-off (the Conditions step''s button, live rounds only). NULL = unknown, read as manual.';
 COMMENT ON COLUMN public.golf_scorecard_data.conditions_at IS 'The forecast''s observation time when conditions_source = forecast (291); NULL otherwise.';
+COMMENT ON COLUMN public.golf_scorecard_data.putting_rule IS 'An INDOOR round''s putting rule (322): putt_out | gimme | auto_2. NULL on an indoor round reads as putt_out; always NULL outdoors.';
+COMMENT ON COLUMN public.golf_scorecard_data.gimme_feet IS 'The gimme distance in feet, 1–15 (322): set exactly when putting_rule is gimme.';
 COMMENT ON TABLE public.group_post_media IS 'Shared media gallery for group posts, contributed by multiple participants';
 COMMENT ON COLUMN public.group_post_media.thumbnail_url IS 'Poster frame for videos (captured client-side at export). NULL for images.';
 COMMENT ON COLUMN public.group_post_media.segment_number IS 'Which slice of the event this media belongs to (hole/inning/quarter/set/lap). NULL = event-level media. Bounds enforced per-sport in segment-schemas.ts, not here.';
@@ -20910,6 +20994,12 @@ COMMENT ON COLUMN public.posts.profile_hidden_at IS 'The owner hid this result f
 COMMENT ON COLUMN public.posts.views_count IS 'Impact (252): people who saw this post, one per person per day (a hashed daily mark in post_view_marks — never who). Shown to everyone. The owner''s own views never count.';
 COMMENT ON COLUMN public.posts.plays_count IS 'Impact (252): people who played this post''s video for 3 s or more, one per person per day.';
 COMMENT ON COLUMN public.posts.on_feed IS 'The feed switch (269): true = also on the feed. Never an audience — the account decides who sees the post; this only says whether the feed lists it. Profile readers ignore it.';
+COMMENT ON COLUMN public.posts.attached_round_id IS 'The golf round this post ATTACHES (321): its stat plate is read from the round. Not round_id (the round''s own card).';
+COMMENT ON COLUMN public.posts.attached_workout_id IS 'The workout this post attaches (321): its stat plate is read from the session.';
+COMMENT ON COLUMN public.posts.attached_activity_id IS 'The tracked activity this post attaches (321): its stat plate is read from the row.';
+COMMENT ON COLUMN public.posts.attached_post_id IS 'The stat-line post this post attaches (321): its stat plate is read from that post''s stats_data.';
+COMMENT ON COLUMN public.posts.location_label IS 'The post''s one location as shown on the card (321), e.g. "Ottawa, ON".';
+COMMENT ON COLUMN public.posts.location_place_id IS 'The place the location was picked from (321), when it was.';
 COMMENT ON TABLE public.profile_claim_requests IS 'A request to be given an unclaimed placeholder''s film (312): approved by the organization that tagged it, it moves the placeholder''s tags on that organization''s videos to the requester (docs/specs/sport-profile.md). Service role only; the one writer is src/lib/sport-profile/unclaimed-server.ts.';
 COMMENT ON TABLE public.profile_film_hidden IS 'A game (highlight_id NULL) or a clip an athlete hid from their own page (311): it leaves their game log, reels and Clips browser for visitors; the stat still counts (docs/specs/sport-profile.md). Service role only; the one writer is src/lib/sport-profile/film-hide-server.ts.';
 COMMENT ON TABLE public.profile_seen IS 'One row per account (267): the signup day, the last day the app was opened signed in, and a 63-day bitmap of those days. Counts only; never shown per person.';
@@ -21534,7 +21624,9 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (317, '317_golf_par_evidence.sql', 'rebuild-000'),
   (318, '318_golf_site_evidence.sql', 'rebuild-000'),
   (319, '319_golf_site_evidence_retry.sql', 'rebuild-000'),
-  (320, '320_hole_penalty_strokes.sql', 'rebuild-000')
+  (320, '320_hole_penalty_strokes.sql', 'rebuild-000'),
+  (321, '321_post_attachment_location.sql', 'rebuild-000'),
+  (322, '322_golf_putting_rule.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -21543,12 +21635,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 153 | 149 | 145 | 320
+-- Expected: 000 REBUILT | 153 | 149 | 145 | 322
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_153,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
           AND p.proname <> 'rls_auto_enable') AS functions_expect_149,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_145,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_320;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_322;
 
