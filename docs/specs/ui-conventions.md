@@ -177,6 +177,8 @@ A second accent of the house language, for the sport picker and the golf round: 
 ---
 
 
+**The General post composer wears it too (Nov 26 2026, Tom's General post spec).** Its own parts: `mech/ChoiceDialog` (a title, one soft line, stacked keys: filled / danger outline / accent text; Escape takes the way back), `SlideToConfirm tone="post"` (the accent 40 px key in a 48 px track, green once done), `.ea-mech-tintkey` (a capture key ringed in its own tint), `.ea-mech-flatkey`, `.ea-mech-outline-key`, `.ea-mech-suggest`, and the screen class `.ea-mech-compose` (480 px from 640, 820 px in two columns from 900). The stat plate (`posts/StatPlate`) carries the `ea-mech` scope by itself inside the house-styled feed card. A dialog whose background is always dark (the preview's 0.86 scrim) writes the dialect's dark values as they are. The page's rules are in `feed-and-posts.md`.
+
 **Every screen size, every engine (Tom, Nov 25 2026: "fits any mobile screen size and could also be expanded to larger screens… work in every web browser… not Apple and Chrome focused").** A mech screen is proven on a ladder, on every engine, in the PR that builds it:
 
 - **The ladder** (`FIT_LADDER` in `e2e/golf-fit.spec.ts`): 320×568, 344×882, 360×640, 360×800, 375×667, 390×844, 412×915, 430×932, 667×375 and 844×390 (a phone on its side), 600×960, 768×1024, 820×1180, 1024×768, 1280×800, 1440×900, 1920×1080, 2560×1440, plus enlarged text (root font 125 % and 150 % at 390, 125 % at 320).
