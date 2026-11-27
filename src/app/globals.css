@@ -72,9 +72,19 @@
   --decor: #9ca3af;           /* non-text only: dividers, borders, decorative icons */
   --text-inverse: #ffffff;    /* text on --surface-inverse */
 
-  --border-default: #e5e7eb;  /* was border-gray-200 */
-  --border-subtle: #f3f4f6;   /* was border-gray-100 */
-  --border-strong: #d1d5db;   /* was border-gray-300 (inputs) */
+  /* INK (Nov 27 2026, Tom): every line in the app is one near-black ink —
+   * cards, inputs, buttons, table rows, dividers, grids — and a card sits on
+   * a HARD edge instead of a soft shadow. --ink-soft is the quietest line
+   * (a divider inside a card). The public organisation sites opt out
+   * ([data-plain] / .org-scope below keep the values these replaced). */
+  --ink: #1f1b2a;
+  --ink-soft: rgb(31 27 42 / 0.55);
+  --ink-line: inset 0 0 0 1px var(--ink);
+  --ink-edge: 0 3px 0 var(--ink);
+  --ink-edge-raised: 0 5px 0 var(--ink);
+  --border-default: var(--ink);
+  --border-subtle: var(--ink-soft);
+  --border-strong: var(--ink);
 
   /* Brand. Solid violet works on both themes (white text ≥4.5:1); brand TEXT
    * needs its own token because violet-600 on a dark surface is only ~3.4:1. */
@@ -326,12 +336,13 @@ body {
   /* EXACTLY TWO elevation levels. A third is how a design starts to feel
    * arbitrary — if something needs to stand out more, it should be the only
    * saturated thing, not the third shadow. */
-  --ea-shadow-rest: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.03);
-  --ea-shadow-raised: 0 2px 4px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.06);
+  /* Ink (Nov 27 2026): the two levels are two HARD edges, 3 px and 5 px. */
+  --ea-shadow-rest: var(--ink-edge);
+  --ea-shadow-raised: var(--ink-edge-raised);
 
   /* Hairline border at ~6% black — reads as a defined edge without the
    * grey-box look a solid gray-200 gives at this scale. */
-  --ea-hairline: rgb(0 0 0 / 0.06);
+  --ea-hairline: var(--ink);
 
   /* Neutral hover wash for quiet controls. */
   --ea-tint: rgb(0 0 0 / 0.04);
@@ -347,6 +358,8 @@ body {
 }
 
 /* ── DARK THEME ──────────────────────────────────────────────────────────────
+ * (Ink, Nov 27 2026: black IS used — as the line and the edge under a card,
+ * never as a canvas or a surface.)
  * Warm neutrals (stone-family, R>G>B) rather than blue-grey; no #000
  * canvas, no #fff body text. Elevation = lighter surface; shadows stay but
  * deepen and become secondary. Placed AFTER both :root blocks — same
@@ -375,9 +388,17 @@ body {
   --decor: #78716c;          /* non-text only: dividers, borders, decorative icons */
   --text-inverse: #1f1a16;
 
-  --border-default: #332d27;
-  --border-subtle: #2a241f;
-  --border-strong: #4a423b;  /* ≥3:1 vs surface — input affordance */
+  /* INK in dark (Nov 27 2026, Tom: "Dark + ink"): the line is BLACK — the
+   * outline and the edge, never the canvas. A black line cannot mark a
+   * control on a dark surface, so inputs and outlined buttons keep
+   * --control-line (the old --border-strong, ≥3:1 vs surface) by the rule
+   * beside the shadow re-pointing below. */
+  --ink: #000000;
+  --ink-soft: rgb(0 0 0 / 0.55);
+  --control-line: #4a423b;
+  --border-default: var(--ink);
+  --border-subtle: var(--ink-soft);
+  --border-strong: var(--ink);
 
   --brand: #7c3aed;
   --brand-hover: #8b5cf6;    /* hover LIGHTENS in dark: raised = lighter */
@@ -406,12 +427,12 @@ body {
 
   /* Hairline + tint invert to white-alpha; shadows deepen but elevation is
    * carried by the surface ramp above. */
-  --ea-hairline: rgb(255 255 255 / 0.09);
+  --ea-hairline: var(--ink);
   --ea-tint: rgb(255 255 255 / 0.06);
   --ea-metal-rim: rgb(255 255 255 / 0.14);
   --ea-metal-sheen: rgb(255 255 255 / 0.10);
-  --ea-shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
-  --ea-shadow-raised: 0 2px 4px rgb(0 0 0 / 0.45), 0 4px 12px rgb(0 0 0 / 0.5);
+  --ea-shadow-rest: var(--ink-edge);
+  --ea-shadow-raised: var(--ink-edge-raised);
 }
 
 /* A SIGNAL, not a style (Oct 15 2026). Samsung Internet's dark mode keeps a
@@ -444,16 +465,64 @@ body {
 }
 
 /* Resting surface: hairline + soft shadow. One step up on hover. */
+/* ── INK: the lines and the edges (Nov 27 2026, Tom) ────────────────────────
+ * Tailwind writes a shadow's value into each utility, so a token cannot
+ * re-point `shadow-sm`. These unlayered rules set the utility's own variable
+ * instead (rings still compose): a resting shadow is the ink line + the 3 px
+ * edge, a raised one (menus, dialogs) the line + the 5 px edge. Bare `shadow`
+ * (a toggle's knob) is left alone. The public sites are excluded. */
+:where([class~="shadow-sm"], [class~="shadow-md"]):not(:where([data-plain] *, .org-scope, .org-scope *)) {
+  --tw-shadow: var(--ink-line), var(--ink-edge);
+}
+:where([class~="shadow-lg"], [class~="shadow-xl"], [class~="shadow-2xl"]):not(:where([data-plain] *, .org-scope, .org-scope *)) {
+  --tw-shadow: var(--ink-line), var(--ink-edge-raised);
+}
+:where([class*="hover:shadow-"]):hover:not(:where([data-plain] *, .org-scope, .org-scope *)) {
+  --tw-shadow: var(--ink-line), var(--ink-edge-raised);
+}
+/* Dark: a control keeps a line that can be seen (the black ink cannot mark
+ * an input on a dark surface). Unlayered, so it beats the border utility. */
+[data-theme="dark"] :where(input, select, textarea, button, a)[class~="border-border-strong"]:not(:where([data-plain] *, .org-scope, .org-scope *)) {
+  border-color: var(--control-line);
+}
+
+/* ── INK OPT-OUT: the public organisation sites ─────────────────────────────
+ * Tom, Nov 27 2026: the public sites (and the site editor's preview of them)
+ * keep the look their organisations chose colours for. The public root
+ * layout marks <html data-plain>; `.org-scope` is the editor's canvas inside
+ * the app. These are the values Ink replaced, verbatim. */
+html[data-plain],
+.org-scope {
+  --border-default: #e5e7eb;
+  --border-subtle: #f3f4f6;
+  --border-strong: #d1d5db;
+  --ea-hairline: rgb(0 0 0 / 0.06);
+  --ink-line: 0 0 #0000;
+  --ea-shadow-rest: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.03);
+  --ea-shadow-raised: 0 2px 4px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.06);
+}
+html[data-plain][data-theme="dark"],
+[data-theme="dark"] .org-scope:not([data-theme="light"]),
+.org-scope[data-theme="dark"] {
+  --border-default: #332d27;
+  --border-subtle: #2a241f;
+  --border-strong: #4a423b;
+  --ea-hairline: rgb(255 255 255 / 0.09);
+  --ea-shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4), 0 1px 3px rgb(0 0 0 / 0.3);
+  --ea-shadow-raised: 0 2px 4px rgb(0 0 0 / 0.45), 0 4px 12px rgb(0 0 0 / 0.5);
+}
+
 .ea-surface {
   background-color: var(--color-surface);
   border: 1px solid var(--ea-hairline);
-  box-shadow: var(--ea-shadow-rest);
+  /* Ink: the inset line (--ink-line) makes the 1 px border read 2 px without moving layout. */
+  box-shadow: var(--ink-line), var(--ea-shadow-rest);
   transition:
     box-shadow var(--ea-hover-ms) var(--ea-ease),
     border-color var(--ea-hover-ms) var(--ea-ease);
 }
 .ea-surface-raised:hover {
-  box-shadow: var(--ea-shadow-raised);
+  box-shadow: var(--ink-line), var(--ea-shadow-raised);
 }
 /* In dark, shadows barely read — the "lift" needs the edge to brighten too. */
 [data-theme="dark"] .ea-surface-raised:hover {
@@ -746,18 +815,12 @@ body {
  * Shared-class contract holds: no display/width here; callers own layout.
  */
 .tr-scope {
-  /* Re-pointed, not added: still exactly two elevation levels. */
-  --ea-shadow-rest: 0 2px 8px rgb(0 0 0 / 0.05), 0 6px 20px rgb(0 0 0 / 0.05);
-  --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.07), 0 12px 32px rgb(0 0 0 / 0.08);
+  /* (Ink, Nov 27 2026: the softer, larger shadows this scope re-pointed are
+   * gone — a bubble sits on the house's hard edge like every card.) */
   /* Gentle overshoot for entrances; presses keep the house scale(0.97).
    * --ea-spring since the Org Pages Program (Sep 8 2026) lifted the generic
    * half of this dialect to neutral names; .org-app-scope declares the same. */
   --ea-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-[data-theme="dark"] .tr-scope {
-  /* Dark elevation still rides the surface ramp; shadows deepen, stay soft. */
-  --ea-shadow-rest: 0 2px 8px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
-  --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
 }
 
 /* ── ORG APP DIALECT (".org-app-scope") — Org Pages Program R2 ──────────────
@@ -771,15 +834,9 @@ body {
  * trees never nest, so there is no precedence question. Shared-class
  * contract holds: no display/width here. */
 .org-app-scope {
-  --ea-shadow-rest: 0 2px 8px rgb(0 0 0 / 0.05), 0 6px 20px rgb(0 0 0 / 0.05);
-  --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.07), 0 12px 32px rgb(0 0 0 / 0.08);
   --ea-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --org-accent: #8b5cf6;        /* violet-500 — the pre-R2 hero strip start */
   --org-accent-strong: #7c3aed; /* violet-600 — its end */
-}
-[data-theme="dark"] .org-app-scope {
-  --ea-shadow-rest: 0 2px 8px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
-  --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
 }
 /* The hero band: the accent pair as a gradient (byte-identical to the old
  * from-violet-500 to-violet-600 strip when no site accent is set), and the
@@ -798,9 +855,9 @@ body {
 .tr-card,
 .ea-bubble {
   background-color: var(--color-surface);
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--color-border);
   border-radius: 1.5rem;
-  box-shadow: var(--ea-shadow-rest);
+  box-shadow: var(--ink-line), var(--ea-shadow-rest);
 }
 /* An emphasised bubble (the org page's registration / roster-invite
  * banners). A class, not `border-brand`: .ea-bubble is unlayered CSS, so a
@@ -1158,48 +1215,58 @@ html:has(.org-scope[data-theme="dark"]) body {
  * holds: nothing here sets display or width; callers own layout. Plain
  * rgb() alphas: color-mix is above the browser floor. */
 .ea-mech {
-  --mech-page: #eceaf1;
-  --mech-surface: #f7f6fa;
+  --mech-page: #e6e2f0;
+  --mech-surface: #f4f2f9;
   --mech-panel: #ffffff;
   --mech-tile: #ffffff;
-  --mech-recess: #e6e3ec;
+  --mech-recess: #dcd7ea;
   --mech-key: #ffffff;
   --mech-text: #17151c;
   --mech-text-soft: #5c5868;
   --mech-text-dim: #4a4656;      /* info text beside an option name */
-  --mech-label: #6b6777;
+  --mech-label: #605c6c;         /* 4.5:1 on a slot too (Ink darkened the slot) */
   --mech-chevron: #9c98a8;
   --mech-tick: #b9b5c4;           /* a dial's minor ticks, a bolt's rim */
   --mech-dot-ring: rgb(20 16 40 / 0.35);
-  --mech-hairline: rgb(20 16 40 / 0.10);
-  --mech-divider: rgb(20 16 40 / 0.07);
-  --mech-outline: rgb(20 16 40 / 0.22);   /* Back's border */
+  --mech-hairline: var(--ink);        /* Ink (Nov 27 2026): the outline */
+  --mech-divider: rgb(31 27 42 / 0.30);
+  --mech-outline: var(--ink);   /* Back's border */
   --mech-outline-off: rgb(20 16 40 / 0.10);
   --mech-text-off: #a09cab;
-  --mech-accent: #6d3af0;
-  --mech-accent-light: #5b2fd6;  /* icons, text links, needles */
-  --mech-selected-border: #7c4dff;
-  --mech-selected-fill: rgb(109 58 240 / 0.10);
-  --mech-progress-current: #7c3aed;
-  --mech-progress-done: #b9a4f5;
-  --mech-progress-empty: #dad6e3;
-  --mech-gold: #d99a00;
+  --mech-accent: #7a3dff;
+  --mech-accent-light: #6a2ff0;  /* icons, text links, needles */
+  --mech-selected-border: #7a3dff;
+  --mech-selected-fill: rgb(122 61 255 / 0.22);
+  --mech-progress-current: #7a3dff;
+  --mech-progress-done: #a88bff;
+  --mech-progress-empty: #bdb6d0;
+  --mech-gold: #f5b400;
   --mech-gold-track: rgb(217 154 0 / 0.28);
   --mech-knob: #ffffff;
-  --mech-live: #e5354a;
+  --mech-live: #f5334c;
   /* The live round (Tom's live-round spec, Nov 25 2026): what a score means. */
-  --mech-good: #15803d;          /* par or better, in regulation, recorded, forward */
-  --mech-great: #b45309;         /* eagle or better, 0 or 1 putt */
-  --mech-warn: #a16207;          /* double bogey */
-  --mech-danger: #c2410c;        /* 3 putts, penalties */
-  --mech-bad: #dc2626;           /* triple or worse, 4+ putts, the penalty count */
-  --mech-media: #2563eb;         /* photo and video */
+  /* Ink (Nov 27 2026): the signal colours are BRIGHT in light mode too. A
+   * bright colour is a FILL, a stroke or a large glyph; small text and small
+   * icons use the `-text` twin (the darker value, 4.5:1 on the panel). */
+  --mech-good: #0fa34a;          /* par or better, in regulation, recorded, forward */
+  --mech-great: #e08600;         /* eagle or better, 0 or 1 putt */
+  --mech-warn: #d98a00;          /* double bogey */
+  --mech-danger: #f2600c;        /* 3 putts, penalties */
+  --mech-bad: #f03a3a;           /* triple or worse, 4+ putts, the penalty count */
+  --mech-media: #2f7bff;         /* photo and video */
+  --mech-good-text: #116a32;     /* each 4.5:1 on a panel, the surface AND a slot */
+  --mech-great-text: #8f4307;
+  --mech-warn-text: #7d4c05;
+  --mech-danger-text: #a2360a;
+  --mech-bad-text: #b91c1c;
+  --mech-media-text: #1d4fd0;
+  --mech-gold-icon: #a16207;
   --mech-live-text: #c81e3a;
-  --mech-on-good: #ffffff;       /* text on a good-coloured fill */
-  --mech-on-danger: #ffffff;
+  --mech-on-good: #06210f;       /* text on a good-coloured fill (dark, as in the dark theme) */
+  --mech-on-danger: #2a0e00;
   --mech-route: #7c3aed;         /* the line of play */
   --mech-position: #2563eb;      /* the player on the map */
-  --mech-good-glow: rgb(21 128 61 / 0.35);
+  --mech-good-glow: rgb(15 163 74 / 0.65);
   --mech-lamp-off: #c9c4d6;      /* a green-toned switch's unlit lamp */
   --mech-metal-key: #ffffff;     /* the range slider's key */
   --mech-metal-key-depth: inset 0 -2px 0 rgb(20 16 40 / 0.14), 0 0 0 1px rgb(20 16 40 / 0.12), 0 2px 5px rgb(20 16 40 / 0.28);
@@ -1210,7 +1277,7 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-media-ring: rgb(37 99 235 / 0.35);
   --mech-recorded: #ebe8f1;      /* a recorded hole's jump key */
   --mech-lamp-ring: #b9b5c4;
-  --mech-round-depth: inset 0 1px 0 rgb(255 255 255 / 1), 0 2px 5px rgb(20 16 40 / 0.22);
+  --mech-round-depth: inset 0 0 0 2px var(--ink), 0 3px 0 var(--ink);
   --mech-good-depth: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 2px 8px rgb(20 16 40 / 0.25);
   --mech-glass: rgb(255 255 255 / 0.9);
   --mech-glass-ring: rgb(20 16 40 / 0.12);
@@ -1245,11 +1312,11 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-close: #e6e3ec;
   --mech-close-icon: #4a4656;
   --mech-overlay: rgb(20 16 40 / 0.45);
-  --mech-panel-depth: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 2px rgb(20 16 40 / 0.08);
-  --mech-recess-depth: inset 0 2px 3px rgb(20 16 40 / 0.14), 0 1px 0 rgb(255 255 255 / 0.9);
-  --mech-key-depth: inset 0 1px 0 rgb(255 255 255 / 1), 0 1px 2px rgb(20 16 40 / 0.22);
+  --mech-panel-depth: var(--ink-line), var(--ink-edge);
+  --mech-recess-depth: inset 0 0 0 1.5px var(--ink);
+  --mech-key-depth: inset 0 0 0 1.5px var(--ink), 0 2px 0 var(--ink);
   --mech-knob-depth: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 2px rgb(20 16 40 / 0.35);
-  --mech-cta-depth: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 2px 6px rgb(20 16 40 / 0.25);
+  --mech-cta-depth: 0 0 0 2px var(--ink), 0 3px 0 2px var(--ink);
   --mech-dialog-depth: 0 24px 80px rgb(20 16 40 / 0.25);
   --mech-hover: brightness(0.96);
   --mech-spring: cubic-bezier(0.3, 1.5, 0.5, 1);
@@ -1279,8 +1346,8 @@ html:has(.org-scope[data-theme="dark"]) body {
 [data-theme="dark"] .ea-mech {
   --mech-page: #0e0d10;
   --mech-surface: #141318;
-  --mech-panel: #1b1a20;
-  --mech-tile: #201f26;
+  --mech-panel: #24222b;        /* Ink (Nov 27 2026): a step lighter, so the black outline shows */
+  --mech-tile: #24222b;
   --mech-recess: #0b0a0d;
   --mech-key: #34323c;
   --mech-text: #f4f3f7;
@@ -1290,8 +1357,8 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-chevron: #6e6a79;
   --mech-tick: #55525f;
   --mech-dot-ring: rgb(255 255 255 / 0.4);
-  --mech-hairline: rgb(255 255 255 / 0.07);
-  --mech-divider: rgb(255 255 255 / 0.05);
+  --mech-hairline: var(--ink);
+  --mech-divider: rgb(0 0 0 / 0.55);
   --mech-outline: rgb(255 255 255 / 0.14);
   --mech-outline-off: rgb(255 255 255 / 0.08);
   --mech-text-off: #6e6a79;
@@ -1312,6 +1379,14 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-danger: #ff7a3d;
   --mech-bad: #ff3b4e;
   --mech-media: #6fb1ff;
+  /* In dark the bright colours are readable text: the twins are the same. */
+  --mech-good-text: #3ecf6e;
+  --mech-great-text: #f5a300;
+  --mech-warn-text: #ffe14d;
+  --mech-danger-text: #ff7a3d;
+  --mech-bad-text: #ff3b4e;
+  --mech-media-text: #6fb1ff;
+  --mech-gold-icon: #f5b301;
   --mech-live-text: #ff7a85;
   --mech-on-good: #06210f;
   --mech-on-danger: #2a0e00;
@@ -1328,7 +1403,7 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-media-ring: rgb(111 177 255 / 0.33);
   --mech-recorded: #2a2831;
   --mech-lamp-ring: #4a4753;
-  --mech-round-depth: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 2px 5px rgb(0 0 0 / 0.6);
+  --mech-round-depth: inset 0 0 0 2px var(--ink), inset 0 3px 0 rgb(255 255 255 / 0.12), 0 3px 0 var(--ink);
   --mech-good-depth: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 2px 8px rgb(0 0 0 / 0.5);
   --mech-glass: rgb(20 19 24 / 0.88);
   --mech-glass-ring: rgb(255 255 255 / 0.1);
@@ -1360,11 +1435,11 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-close: #26252d;
   --mech-close-icon: #c9c6d1;
   --mech-overlay: rgb(5 4 8 / 0.72);
-  --mech-panel-depth: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 0 rgb(0 0 0 / 0.6);
-  --mech-recess-depth: inset 0 2px 3px rgb(0 0 0 / 0.8), 0 1px 0 rgb(255 255 255 / 0.06);
-  --mech-key-depth: inset 0 1px 0 rgb(255 255 255 / 0.16), 0 1px 2px rgb(0 0 0 / 0.7);
+  --mech-panel-depth: var(--ink-line), inset 0 2px 0 rgb(255 255 255 / 0.07), var(--ink-edge);
+  --mech-recess-depth: inset 0 0 0 1.5px var(--ink);
+  --mech-key-depth: inset 0 0 0 1.5px var(--ink), inset 0 2px 0 rgb(255 255 255 / 0.14), 0 2px 0 var(--ink);
   --mech-knob-depth: inset 0 1px 0 rgb(255 255 255 / 0.45), 0 1px 2px rgb(0 0 0 / 0.6);
-  --mech-cta-depth: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 2px 6px rgb(0 0 0 / 0.5);
+  --mech-cta-depth: 0 0 0 2px var(--ink), 0 3px 0 2px var(--ink);
   --mech-dialog-depth: 0 24px 80px rgb(0 0 0 / 0.6);
   --mech-hover: brightness(1.15);
 }

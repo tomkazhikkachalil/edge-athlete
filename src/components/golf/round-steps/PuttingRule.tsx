@@ -89,14 +89,14 @@ export default function PuttingRule({ mode, gimmeFeet, onMode, onGimmeFeet, clas
               className="flex-1"
             />
             <span className="flex w-[50px] shrink-0 items-baseline justify-end gap-1" data-putting-feet="">
-              <span className="ea-mech-readout text-lg leading-none !text-[color:var(--mech-good)]">{gimmeFeet}</span>
+              <span className="ea-mech-readout text-lg leading-none !text-[color:var(--mech-good-text)]">{gimmeFeet}</span>
               <span className="ea-mech-micro">ft</span>
             </span>
           </>
         ) : mode === 'auto_2' ? (
           <span className="flex min-w-0 items-baseline gap-2">
             <span className="ea-mech-micro truncate">On the green</span>
-            <span className="ea-mech-readout text-base leading-none !text-[color:var(--mech-good)]">+2</span>
+            <span className="ea-mech-readout text-base leading-none !text-[color:var(--mech-good-text)]">+2</span>
             <span className="ea-mech-micro">Putts</span>
           </span>
         ) : (

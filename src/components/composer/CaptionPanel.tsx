@@ -32,9 +32,9 @@ interface CaptionPanelProps {
 
 const TONE_COLOUR = {
   empty: 'var(--mech-chevron)',
-  ok: 'var(--mech-good)',
-  warn: 'var(--mech-danger)',
-  bad: 'var(--mech-bad)',
+  ok: 'var(--mech-good-text)',
+  warn: 'var(--mech-danger-text)',
+  bad: 'var(--mech-bad-text)',
 } as const;
 
 export default function CaptionPanel({ caption, onCaption, maxCaption, captionRef, hashtags }: CaptionPanelProps) {
@@ -122,7 +122,7 @@ export default function CaptionPanel({ caption, onCaption, maxCaption, captionRe
                 data-compose-suggest-key=""
               >
                 {/* A 36 px key inside a 44 px target. */}
-                <span aria-hidden="true" className="ea-mech-flatkey inline-flex h-9 w-9 items-center justify-center rounded-[10px]" style={suggesting ? { backgroundColor: 'var(--mech-accent)', color: '#ffffff' } : { color: 'var(--mech-gold)' }}>
+                <span aria-hidden="true" className="ea-mech-flatkey inline-flex h-9 w-9 items-center justify-center rounded-[10px]" style={suggesting ? { backgroundColor: 'var(--mech-accent)', color: '#ffffff' } : { color: 'var(--mech-gold-icon)' }}>
                   <SparkIcon size={16} />
                 </span>
               </button>

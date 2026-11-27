@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { CARD_STROKES_MAX, CARD_STROKES_MIN, scoreName, toneVar } from '@/lib/golf/score-card';
+import { CARD_STROKES_MAX, CARD_STROKES_MIN, scoreName, toneTextVar, toneVar } from '@/lib/golf/score-card';
 import { dialArcPath, dialPolar, SCORE_DIAL_CENTRE as C, SCORE_DIAL_SIZE as SIZE, SCORE_DIAL_START, scoreDialAngle, scoreDialTicks, strokesForPointer } from '@/lib/golf/score-dial';
 import { MinusIcon, PlusIcon } from './icons';
 
@@ -141,7 +141,7 @@ export default function StrokesDial({ strokes, par, onChange, onConfirm, disable
             {strokes}
           </text>
           <rect x={C - nameWidth(name) / 2} y={C + 18} width={nameWidth(name)} height={20} rx={10} fill={colour} opacity={0.18} />
-          <text x={C} y={C + 32} textAnchor="middle" className="ea-mech-readout" style={{ fontSize: 10, fill: colour, letterSpacing: '0.12em', textTransform: 'uppercase' }} data-dial-name="">
+          <text x={C} y={C + 32} textAnchor="middle" className="ea-mech-readout" style={{ fontSize: 10, fill: toneTextVar(tone), letterSpacing: '0.12em', textTransform: 'uppercase' }} data-dial-name="">
             {name}
           </text>
         </g>

@@ -93,6 +93,13 @@ export function toneVar(tone: ScoreTone): string {
   return tone === 'text' ? 'var(--mech-text)' : `var(--mech-${tone})`;
 }
 
+/** The same tone for SMALL text (Ink, Nov 27 2026): the bright colour is a
+ *  fill, a stroke or a large numeral; a small label takes its `-text` twin,
+ *  which reads at 4.5:1 on a panel in both themes. */
+export function toneTextVar(tone: ScoreTone): string {
+  return tone === 'text' ? 'var(--mech-text)' : `var(--mech-${tone}-text)`;
+}
+
 // ── The totals strip and the tabs ────────────────────────────────────────────
 export interface CardTotals {
   /** Recorded holes. */

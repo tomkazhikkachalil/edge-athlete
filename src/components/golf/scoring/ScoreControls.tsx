@@ -131,7 +131,7 @@ export function StatLamp({ label, caption, on, onToggle, disabled }: { label: 'F
 export function TotalsStrip({ totals, holesPlayed }: { totals: CardTotals; holesPlayed: number }) {
   const cells: Array<{ label: string; value: string; colour?: string; hook?: string }> = [
     { label: 'Thru', value: `${totals.thru}/${holesPlayed}`, hook: 'thru' },
-    { label: 'To par', value: toParCell(totals.toPar), colour: totals.toPar !== null && totals.toPar <= 0 ? 'var(--mech-good)' : undefined, hook: 'to-par' },
+    { label: 'To par', value: toParCell(totals.toPar), colour: totals.toPar !== null && totals.toPar <= 0 ? 'var(--mech-good-text)' : undefined, hook: 'to-par' },
     { label: 'Strokes', value: String(totals.strokes), hook: 'strokes' },
     { label: 'Putts', value: String(totals.putts), hook: 'putts' },
   ];
