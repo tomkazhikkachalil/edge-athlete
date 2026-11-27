@@ -29,6 +29,9 @@ import { PUBLIC_THEME_SCRIPT } from '@/lib/theme-script';
 // match a media pair against the OS, which is not what decides the theme
 // here. The head script darkens it when the page resolves dark.
 //
+//   * INK (Nov 27 2026) — the app's ink lines and hard edges. `data-plain`
+//     on <html> keeps the public sites on the values Ink replaced (Tom: the
+//     sites keep the look their organisations chose colours for).
 // CSP for this tree comes from the middleware's /org/ static branch
 // (buildStaticCsp — no nonce needed since nothing here is dynamic).
 
@@ -76,7 +79,7 @@ export default function PublicRootLayout({ children }: { children: React.ReactNo
     // suppressHydrationWarning is attribute-scoped to <html>: the script
     // below stamps data-theme before React hydrates, and that delta is
     // expected (the app root layout's own note).
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={inter.variable} data-plain="" suppressHydrationWarning>
       <head>
         {/* BLOCKING on purpose — stamps the visitor's theme before first
             paint. Read-only: see src/lib/theme-script.ts. */}

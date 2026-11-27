@@ -272,7 +272,7 @@ export default function MediaSection({ items, uploadOf, onFiles, selectedId, onS
       {/* What the selected thumbnail's state means, in words (a consequence
           line, not an explanation: it stays visible). */}
       {selected && (selected.tooLong || selected.willProcess) && (
-        <p className="mt-1 text-xs font-medium" style={{ color: selected.tooLong ? 'var(--mech-danger)' : 'var(--mech-text-soft)' }} data-compose-media-note="">
+        <p className="mt-1 text-xs font-medium" style={{ color: selected.tooLong ? 'var(--mech-danger-text)' : 'var(--mech-text-soft)' }} data-compose-media-note="">
           {selected.tooLong ? 'Too long — trim in the editor' : 'Will process after posting'}
         </p>
       )}

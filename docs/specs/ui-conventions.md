@@ -138,7 +138,7 @@ in `globals.css`, not per-component styling:
 
 ```css
 .ea-interactive   /* hover: bg tint; press: scale(.97). 150ms / 100ms */
-.ea-surface       /* resting card: hairline border + soft shadow */
+.ea-surface       /* resting card: the ink line + the 3 px hard edge (Ink, below) */
 .ea-surface-raised/* one step up on hover — there are exactly TWO levels */
 .ea-icon-btn      /* 40px circular hit area for a bare icon */
 .ea-cta           /* the one loud control: gradient, deepens on hover */
@@ -253,6 +253,21 @@ Tom's spec (pasted, refined): *"Reduce visual clutter by hiding descriptive or i
 - **Never in `src/app/(public)`** or `src/components/contests/ContestPage.tsx` (server components only): their captions stay. `public/offline.html` (static HTML) stays.
 - **Pinned by** `src/lib/__tests__/section-info.test.ts` (the source: the hook, collapsed on load, no storage, the disclosure attributes, the glyph and classes, no `after:` / `focus:`; no Note box under `src/components/settings/`; nothing server-only imports it) and `e2e/section-info.spec.ts` (@mobile, Settings → Privacy: named, collapsed on load, inline between the heading and the first option, outside tap and Escape close it, a 44 px box whose corner `elementFromPoint` resolves to the button).
 - **The ledger** of every screen and block (moved, deleted or kept, with the reason) is the Oct 28 2026 devlog entry — the review deliverable Tom asked for. Program: PR 1 the component + Settings; PR 2 profile, feed cards, page h1 deletions, recorder, workouts, golf; PR 3 the org console; PR 4 the site editor and the guardian pages.
+
+## Ink: one line colour, a hard edge (Nov 27 2026, Tom)
+
+Tom found the light theme underwhelming beside the dark one. After four rounds of real-screenshot options he chose **Ink** for light and **Dark + ink** for dark, for the whole app.
+
+- **The ink.** `--ink` is near-black `#1f1b2a` in light and black `#000000` in dark (the line and the edge, never a canvas or a surface). `--ink-soft` is the same at 55 %, for the quietest lines.
+- **Every line is the ink** (Tom's call, over my "cards only"): `--border-default` and `--border-strong` are `var(--ink)`, `--border-subtle` is `var(--ink-soft)`, `--ea-hairline` is `var(--ink)`. Cards, inputs, buttons, table rows, dividers, the calendar grid and scorecard cells all follow. Never write a border colour at a call site.
+- **A hard edge, not a soft shadow.** Still exactly two levels: `--ea-shadow-rest` is `--ink-edge` (`0 3px 0`), `--ea-shadow-raised` is `--ink-edge-raised` (`0 5px 0`). No scope re-points them (`.tr-scope` and `.org-app-scope` used to).
+- **Tailwind's shadow utilities are re-pointed**, because Tailwind writes the value into each utility: unlayered rules in `globals.css` set `--tw-shadow` for `shadow-sm` / `shadow-md` (the ink line + the 3 px edge) and `shadow-lg` / `shadow-xl` / `shadow-2xl` (the line + the 5 px edge); a `hover:shadow-*` takes the raised edge. A bare `shadow` (a toggle's knob) is left alone. So `shadow-sm` on a card IS the ink edge: do not add a literal shadow.
+- **Thickness is an inset line, never a wider border** (`--ink-line`): a card reads 2 px and nothing changes size.
+- **Dark, one exception:** inputs and outlined buttons (`border-border-strong` on `input`, `select`, `textarea`, `button`, `a`) keep `--control-line` (the old ≥3:1 grey). A black line cannot mark a control on a dark surface.
+- **The mechanical dialect** wears the same ink: panels (`--mech-panel-depth`), slots (`--mech-recess-depth`), keys, round keys and the Next key. In dark the panel is a step lighter (`#24222b`) so the black line shows.
+- **Bright colours in light mode, readable text.** The mech signal colours are bright in both themes. A bright colour is a FILL, a stroke or a large numeral. SMALL text and small icons take the `-text` twin (`--mech-good-text`, `-great-`, `-warn-`, `-danger-`, `-bad-`, `-media-`; `toneTextVar` in `score-card.ts`), which reads at 4.5:1 on a panel, the surface and a slot; in dark the twin equals the bright colour. A label on a bright fill is dark (`--mech-on-good`, `--mech-on-danger`) in both themes. Gold is too light for an icon on white: `--mech-gold-icon`. The house `--brand` did not change.
+- **The public organisation sites opt out** (Tom): the public root layout marks `<html data-plain>`, and `[data-plain]` / `.org-scope` (the site editor's canvas) keep the values Ink replaced.
+- **Pinned by** `ink-theme.test.ts` (the tokens in both themes, the two edges, the re-pointing, the opt-out, every contrast above).
 
 ## Light and dark on every phone: the page themes itself (Oct 15 2026, zero DDL)
 

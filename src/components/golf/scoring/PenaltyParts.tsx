@@ -37,7 +37,7 @@ function ActionButton({ label, colour, ring, onClick, disabled, badge, hook, chi
             aria-hidden="true"
             className="ea-mech-readout absolute -right-1 -top-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-[10px] px-1 text-[11px]"
             style={badge > 0
-              ? { backgroundColor: 'var(--mech-bad)', color: '#ffffff', boxShadow: '0 0 0 2px var(--mech-surface)' }
+              ? { backgroundColor: 'var(--mech-bad-text)', color: 'var(--mech-surface)', boxShadow: '0 0 0 2px var(--mech-surface)' }
               : { backgroundColor: 'var(--mech-key)', color: 'var(--mech-text-soft)', boxShadow: '0 0 0 2px var(--mech-surface)' }}
             data-penalty-badge=""
           >
@@ -147,7 +147,7 @@ export function PenaltyStack({ entries, onRemove, disabled }: { entries: readonl
         <li key={`${i}-${entry.type}-${entry.strokes}`} className="ea-mech-penalty flex h-11 items-center gap-2.5 rounded-xl pl-3" data-penalty-row={entry.type}>
           <WarningIcon size={16} className="shrink-0 text-[color:var(--mech-danger)]" />
           <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[color:var(--mech-text)]">{PENALTY_LABELS[entry.type]}</span>
-          <span className="ea-mech-readout shrink-0 text-[13px]" style={{ color: 'var(--mech-danger)' }} data-penalty-row-strokes="">+{entry.strokes}</span>
+          <span className="ea-mech-readout shrink-0 text-[13px]" style={{ color: 'var(--mech-danger-text)' }} data-penalty-row-strokes="">+{entry.strokes}</span>
           <button
             type="button"
             onClick={() => onRemove(i)}

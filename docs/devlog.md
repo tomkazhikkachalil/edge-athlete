@@ -1,5 +1,27 @@
 # Development Log
 
+## November 27, 2026 (17:36) — Ink: one line colour and a hard edge under every card, light and dark, across the app
+
+**Why.** Tom, Nov 27: dark mode looks great, light mode is underwhelming and its sections are not pronounced. He asked for examples and chose over four rounds of real screenshots: **Ink** for light (near-black outlines, a hard edge under each panel, brighter colours), **Dark + ink** for dark (black outlines and edges, panels a step lighter), both across the entire app. His other calls: **every line** takes the ink (I recommended cards only); the **public organisation sites stay as they are**.
+
+**What (zero DDL).**
+- `--ink` (`#1f1b2a` light, `#000000` dark). The three border tokens and the hairline point at it, so cards, inputs, buttons, table rows, dividers and grids follow with no call-site edit.
+- The two elevation levels are hard edges (3 px, 5 px). Tailwind's `shadow-sm … shadow-2xl` are re-pointed once through `--tw-shadow` (about 380 sites); a bare `shadow` (a knob) is left alone. The softer shadows of `.tr-scope` and `.org-app-scope` are gone.
+- A card reads 2 px through an inset line, never a wider border: nothing changes size.
+- The mechanical dialect wears the same ink in both themes; its dark panel is a step lighter.
+- Light mode's signal colours are bright. Small coloured text and small icons take a darker `-text` twin; a label on a bright fill is dark, as in dark mode.
+- The public tree opts out (`<html data-plain>`, `.org-scope`): it keeps the values Ink replaced.
+
+**Where it differs from the pictures Tom chose from.** In dark, inputs and outlined buttons keep a lighter grey line (a black line cannot mark a control on a dark surface): the one exception to "every line". Small coloured text is a darker shade. The green forward key has a dark label in light mode. The first text twins I picked did not reach 4.5:1 on the darkened slots (the stat plate sits in one); the new test caught it and the shades and the micro-label colour were darkened.
+
+**My lesson.** The first round of options moved values by a few percent and Tom could not tell them apart. Big steps and a control that flips the look on the same picture worked. I also read "inked background" as a dark page once; he meant the border.
+
+**Proof.** `npm run verify` exit 0 (7,137 tests, with the new `ink-theme.test.ts`); guardrails, blocklists, audit 0. Staging against the build, one project at a time: desktop 60 passed, mobile 41, android 16, brave-android 16, firefox-mobile 14, webkit-mobile 13 passed and 1 failed. The four size ladders (golf, live, live map, composer) passed on every project, so nothing changed size; `android-forced-dark` (the light theme's brightness floor) and the public site specs passed. The WebKit failure was `general-composer` "the one page" timing out once; it passed twice when repeated. Not reproduced; it is the second one-off WebKit composer failure today (the first was Save draft, in the maintenance pass). Review pictures of 23 screens in both themes at two widths were looked at and given to Tom. Emulated engines, not real devices.
+
+**Not looked at.** League and organisation pages, events with entries and a finished scorecard (my seeding for them did not run). They take the same lines.
+
+**Owed.** Tom's look on a real phone in both themes; his read of the dense screens (calendar, settings, org console).
+
 ## November 27, 2026 (15:46) — Maintenance after the indoor course step: every gate green; two one-off test failures not reproduced
 
 **Why.** Tom asked for the maintenance pass after the day's four merges (#1640 attach activity, #1642 the indoor course step, #1643 the baseline, #1644 the Start step's Putting row). Main and production are both on `41895a6e`.

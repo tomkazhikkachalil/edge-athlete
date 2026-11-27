@@ -115,7 +115,7 @@ export default function HolePlate({ holeNumber, facts, tees, teeInPlay, live, co
                   {fromFix ? COPY.GOLF_HOLE.PLAYS_LIKE_WORD : 'Plays like'}{' '}
                   <span className="ea-mech-readout" data-plays-like-yards="">{live.playsLike}</span>
                   {diff != null && diff !== 0 && (
-                    <span className="ea-mech-readout font-medium" style={{ color: 'var(--mech-danger)', fontWeight: 500 }} data-plays-like-delta=""> {diff > 0 ? `+${diff}` : diff}</span>
+                    <span className="ea-mech-readout font-medium" style={{ color: 'var(--mech-danger-text)', fontWeight: 500 }} data-plays-like-delta=""> {diff > 0 ? `+${diff}` : diff}</span>
                   )}
                   {rise && <span className="sr-only"> ({rise})</span>}
                 </>

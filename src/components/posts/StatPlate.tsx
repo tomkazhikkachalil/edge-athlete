@@ -36,6 +36,17 @@ export function plateColour(plate: Pick<StatPlateData, 'tone' | 'colour'>): stri
   return plate.tone === 'sport' ? plate.colour ?? 'var(--mech-accent-light)' : TONE_COLOUR[plate.tone];
 }
 
+/** The plate's colour for SMALL text (the sport's name): the `-text` twin of
+ *  a signal colour; a sport's own colour is not a text colour, so the accent. */
+const TONE_TEXT: Record<string, string> = {
+  golf: 'var(--mech-good-text)',
+  strength: 'var(--mech-danger-text)',
+  run: 'var(--mech-media-text)',
+};
+function plateTextColour(plate: StatPlateData): string {
+  return plate.tone === 'sport' ? 'var(--mech-accent-light)' : TONE_TEXT[plate.tone] ?? 'var(--mech-accent-light)';
+}
+
 export default function StatPlate({ plate, className = '' }: { plate: StatPlateData; className?: string }) {
   const { sys } = useUnitSystem();
   const reading = readingFor(plate, sys === 'imperial' ? 'mi' : 'km');
@@ -49,7 +60,7 @@ export default function StatPlate({ plate, className = '' }: { plate: StatPlateD
             {reading.unit && <span className="text-sm font-medium text-[color:var(--mech-text-soft)]">{reading.unit}</span>}
           </p>
           <div className="min-w-0 flex-1">
-            <p className="ea-mech-micro truncate" style={{ color: colour }}>{plate.sport}</p>
+            <p className="ea-mech-micro truncate" style={{ color: plateTextColour(plate) }}>{plate.sport}</p>
             <p className="truncate text-sm font-semibold text-[color:var(--mech-text)]" data-stat-plate-name="">{plate.name}</p>
             {reading.detail && <p className="truncate text-xs text-[color:var(--mech-text-soft)]" data-stat-plate-detail="">{reading.detail}</p>}
           </div>

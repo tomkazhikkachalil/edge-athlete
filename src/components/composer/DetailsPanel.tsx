@@ -146,7 +146,7 @@ export function AttachRow({ label, headline, colour, onOpen, onRemove }: {
   onRemove: () => void;
 }) {
   return (
-    <OpenRow icon={<GaugeIcon size={18} />} iconColour="var(--mech-gold)" hook="activity" label={label ?? 'Attach activity'} set={label !== null} onOpen={onOpen} onRemove={onRemove} removeLabel="Remove the attached activity">
+    <OpenRow icon={<GaugeIcon size={18} />} iconColour="var(--mech-gold-icon)" hook="activity" label={label ?? 'Attach activity'} set={label !== null} onOpen={onOpen} onRemove={onRemove} removeLabel="Remove the attached activity">
       {label !== null && headline !== null && (
         <span className="ea-mech-recess ea-mech-readout shrink-0 rounded-lg px-2 py-1 text-[13px]" style={{ color: colour ?? 'var(--mech-text)' }} data-compose-activity-chip="">
           {headline}
