@@ -77,6 +77,8 @@ describe('the picked course — the visuals drive the round', () => {
     // Next waits for the tee; the Start summary shows it for every round.
     expect(section).toMatch(/roundStepRefusal\(currentStep\.id, \{[^}]*indoor,\n\s+teeColor: sharedRoundDetails\.teeColor,\n\s+courseShown,/);
     expect(section).toContain("{ key: 'tee', label: 'Tee', value: teeInPlay },");
+    // …and, for an indoor round only, the putting rule in force.
+    expect(section).toMatch(/\.\.\.\(indoor\n\s+\? \[\{ key: 'putting', label: 'Putting', value: puttingSummary\(/);
     // No rating or slope for a tee nobody picked.
     expect(section).toContain("...(prev.roundTypeIndoorOutdoor === 'indoor' && !teeColor\n        ? { courseRating: '', slopeRating: '' }");
     // A tee the indoor list does not offer is let go on the switch to Indoor.

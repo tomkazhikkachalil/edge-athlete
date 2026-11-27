@@ -29,7 +29,7 @@ import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores, withoutEnteredScores } from '@/lib/golf/score-entry';
 import { localDayKey } from '@/lib/calendar/grid';
 import { courseTeeOptions, teeLabel, FALLBACK_TEES, hasBothTeeSides, indoorTeeKeys, isWomensTee, splitTeeSides, ratingEntryNeeded } from '@/lib/golf/tees';
-import { DEFAULT_PUTTING_MODE, GIMME_DEFAULT, clampGimmeFeet, puttingModeOr, type PuttingMode } from '@/lib/golf/putting-rule';
+import { DEFAULT_PUTTING_MODE, GIMME_DEFAULT, clampGimmeFeet, puttingModeOr, puttingSummary, type PuttingMode } from '@/lib/golf/putting-rule';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
@@ -1152,6 +1152,10 @@ export default function GolfComposerSection({
     { key: 'round-type', label: 'Round', value: indoor ? 'Indoor' : 'Outdoor' },
     { key: 'format', label: 'Format', value: gameFormatLabel(sharedRoundDetails.gameFormat) },
     { key: 'tee', label: 'Tee', value: teeInPlay },
+    // An indoor round states its putting rule before it starts (Tom, Nov 27 2026).
+    ...(indoor
+      ? [{ key: 'putting', label: 'Putting', value: puttingSummary(puttingModeOr(sharedRoundDetails.puttingMode), clampGimmeFeet(sharedRoundDetails.gimmeFeet)) }]
+      : []),
     // ONE line (Tom, Oct 29 + Nov 24 2026): "Sunny · 11 °C · 5 to 10 mph" —
     // the temperature in the viewer's unit; "Forecast at tee-off" lives on
     // the step's note, the round card and the round page, not here.

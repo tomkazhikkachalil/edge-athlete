@@ -88,3 +88,11 @@ export function puttingInfoLine(mode: PuttingMode, gimmeFeet: number): string {
   if (mode === 'auto_2') return 'Any ball on the green is holed for 2 putts.';
   return 'Every putt is played and counted.';
 }
+
+/** The Start step's Putting row (Tom, Nov 27 2026): the rule in force, said
+ *  in one line before the round goes live. */
+export function puttingSummary(mode: PuttingMode, gimmeFeet: number): string {
+  if (mode === 'gimme') return `Gimme · inside ${clampGimmeFeet(gimmeFeet)} ft, 1 putt`;
+  if (mode === 'auto_2') return 'Auto 2 · on the green, 2 putts';
+  return 'Putt out · every putt counts';
+}

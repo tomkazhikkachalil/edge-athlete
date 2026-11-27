@@ -151,6 +151,8 @@ for (const tag of ['', ' @mobile']) {
         await expect(flow).toHaveAttribute('data-step', step);
       }
       await expect(flow.locator('[data-round-summary-row="tee"]')).toContainText('Red (F) · 5,400 yds · 71.9 / 124');
+      // An outdoor round has no putting rule to state.
+      await expect(flow.locator('[data-round-summary-row="putting"]')).toHaveCount(0);
       await goLive(flow);
       await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
       groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';
@@ -406,6 +408,9 @@ for (const tag of ['', ' @mobile']) {
       }
       await expect(flow.locator('[data-round-summary-row="round-type"]')).toContainText('Indoor');
       await expect(flow.locator('[data-round-summary-row="tee"]')).toContainText('Blue · 6,660 yds · 71.7 / 131');
+      // The Start step states the putting rule in force.
+      await expect(flow.locator('[data-round-summary-row="putting"]')).toContainText('Putting');
+      await expect(flow.locator('[data-round-summary-row="putting"]')).toContainText('Gimme · inside 9 ft, 1 putt');
       await goLive(flow);
       await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
       groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';

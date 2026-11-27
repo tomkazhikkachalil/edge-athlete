@@ -1,5 +1,13 @@
 # Development Log
 
+## November 27, 2026 (14:29) — The indoor round's Start step states the putting rule
+
+**Why.** Tom, after the indoor course step went live: step 5 (Start) should state the gimme and putting info as well. The summary named the course, round, format and tee, and said nothing of the rule set two steps earlier.
+
+**What (zero DDL).** An indoor round's Start summary has a **Putting** row under Tee: "Putt out · every putt counts", "Gimme · inside 6 ft, 1 putt" (the feet as set), or "Auto 2 · on the green, 2 putts" (`puttingSummary` in `putting-rule.ts`). An outdoor round has no such row. The wording is mine.
+
+**Proof.** `npm run verify` exit 0. e2e on staging against the build, one project at a time: the outdoor walk (no Putting row), the indoor walk (the row reads the gimme distance set on the slider) and the indoor size ladder with the Start step added (320 px to 1920 px, enlarged text) green on desktop, mobile, webkit-mobile, firefox-mobile, android, brave-android. Emulated engines, not real devices.
+
 ## November 27, 2026 (14:13) — Migrations 321 and 322 on production; attach activity and the indoor course step are live
 
 **What.** Tom ran 322 then 321 in the production SQL editor (`322 APPLIED | 4 | 6 | 322`, `321 APPLIED | 6 | 7 | 5 | 322`; the two do not depend on each other). #1640 (attach activity, stat plate, location) merged as `2d93d2ad`, #1642 (the indoor course step and the putting rule) as `d6200a44`, both by hand with `merge-pr.sh`. The baseline is rebuilt at ledger head 322.
