@@ -76,6 +76,26 @@ async function problems(page: Page, scopeSelector: string): Promise<string[]> {
       if (el.scrollWidth > el.clientWidth + 1) out.push(`"${name(el)}" is cut (${el.scrollWidth} in ${el.clientWidth})`);
       if (el.scrollHeight > el.clientHeight + 1) out.push(`"${name(el)}" is clipped (${el.scrollHeight} in ${el.clientHeight} px tall)`);
     }
+    // The range slider: a 44 px row, its key inside it; the putting readout
+    // keeps its one height (Nov 27 2026).
+    for (const el of scope.querySelectorAll('[data-range-slider]')) {
+      if (!visible(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height < 43.5) out.push(`the slider is ${Math.round(r.height)} px tall`);
+      if (r.width < 80) out.push(`the slider is ${Math.round(r.width)} px wide`);
+      const key = el.querySelector('[data-range-key]')?.getBoundingClientRect();
+      if (key && (key.left < r.left - 0.5 || key.right > r.right + 0.5)) out.push('the slider key leaves its track');
+    }
+    for (const el of scope.querySelectorAll<HTMLElement>('[data-putting-readout]')) {
+      if (!visible(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (Math.abs(r.height - 52) > 0.5) out.push(`the putting readout is ${Math.round(r.height)} px tall`);
+      for (const line of el.querySelectorAll<HTMLElement>('p, span.ea-mech-micro')) {
+        const l = line.getBoundingClientRect();
+        if (l.top < r.top - 0.5 || l.bottom > r.bottom + 0.5) out.push(`the putting readout's text leaves its panel (${Math.round(l.height)} px)`);
+        if (line.scrollWidth > line.clientWidth + 1 && getComputedStyle(line).display !== 'inline') out.push(`"${name(line)}" is cut in the putting readout`);
+      }
+    }
     // A picture and its ring are one circle at any text size.
     for (const ring of scope.querySelectorAll('[data-round-partner] span.relative, [data-round-quick-add-person]')) {
       const img = ring.firstElementChild;
@@ -214,6 +234,64 @@ for (const tag of ['', ' @mobile']) {
         () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
         () => partner && deleteQaUser(partner.id),
         () => api.dispose(),
+      ]);
+    }
+  });
+}
+
+// The INDOOR course step (Tom's indoor course spec, Nov 27 2026): the tee
+// table, the putting rule in each mode and with its info open, at every size.
+for (const tag of ['', ' @mobile']) {
+  test(`the indoor course step fits every screen size, on this engine${tag}`, async ({ page }) => {
+    test.setTimeout(300_000);
+    const admin = adminClient();
+    const stamp = Date.now();
+    const courseName = `QA Ladder Sim ${stamp}`;
+    const found: string[] = [];
+    let courseId = '';
+    try {
+      const tees: Record<string, [number, number, number]> = { black: [73.9, 138, 400], blue: [71.7, 131, 370], white: [69.8, 126, 345], 'white (f)': [75.1, 133, 345], 'red (f)': [71.9, 124, 300] };
+      const seeded = await admin.from('golf_courses').insert({
+        external_source: 'qa-e2e', external_id: `ladder-sim-${stamp}`, name: courseName, city: 'Ottawa', region: 'Ontario', country: 'Canada',
+        total_par: 72, holes_count: 18, hydrated_at: new Date().toISOString(),
+        course_rating: Object.fromEntries(Object.entries(tees).map(([k, v]) => [k, v[0]])),
+        slope_rating: Object.fromEntries(Object.entries(tees).map(([k, v]) => [k, v[1]])),
+        hole_data: Array.from({ length: 18 }, (_, i) => ({ number: i + 1, par: 4, handicap: i + 1, yardage: Object.fromEntries(Object.entries(tees).map(([k, v]) => [k, v[2]])) })),
+      }).select('id').single();
+      expect(seeded.error, seeded.error?.message).toBeNull();
+      courseId = seeded.data!.id as string;
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto('/feed?create=1&sport=golf');
+      const flow: Locator = page.locator('[data-step-flow="golf-round"]');
+      await expect(flow).toBeVisible({ timeout: 20_000 });
+      await page.getByRole('button', { name: 'Indoor' }).click();
+      await flow.locator('[data-step-next]').click();
+      await expect(flow).toHaveAttribute('data-step', 'course');
+      await page.getByPlaceholder(/search courses/i).fill('QA Ladder Sim');
+      await page.locator('[data-course-results] button', { hasText: courseName }).first().click({ timeout: 20_000 });
+      await expect(page.locator('[data-course-chosen]')).toContainText(courseName);
+      await expect(page.locator('[data-course-show-scorecard]')).toBeVisible({ timeout: 15_000 });
+
+      const rule = page.locator('[data-putting-rule]');
+      await fits(page, 'Indoor course (no tee, Putt out)', FRAME, found);
+      await page.locator('[data-tee-row="blue"]').click();
+      await rule.getByRole('button', { name: 'Gimme', exact: true }).click();
+      await fits(page, 'Indoor course (Gimme)', FRAME, found);
+      // The rule sits below the fold on a phone: its own picture, at rest size.
+      if (process.env.FIT_SHOTS) {
+        await rule.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${process.env.FIT_SHOTS}/indoor-putting-rule-390x844.png` });
+      }
+      await rule.getByRole('button', { name: 'About putting' }).click();
+      await fits(page, 'Indoor course (Gimme, info open)', FRAME, found);
+      await rule.getByRole('button', { name: 'About putting' }).click();
+      await rule.getByRole('button', { name: 'Auto 2', exact: true }).click();
+      await fits(page, 'Indoor course (Auto 2)', FRAME, found);
+      expect(found, `\n${found.join('\n')}\n`).toEqual([]);
+    } finally {
+      await cleanup('golf-fit-indoor', [
+        () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
       ]);
     }
   });

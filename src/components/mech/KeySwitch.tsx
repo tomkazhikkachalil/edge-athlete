@@ -29,6 +29,9 @@ interface KeySwitchProps<T extends string> {
   size?: 'lg' | 'sm';
   /** A 6 px light before each label, lit on the pressed key. */
   light?: boolean;
+  /** The lit light's colour: the selection purple, or green for a control
+   *  whose signal is "on", not "selected" (the putting rule, Nov 27 2026). */
+  lampTone?: 'accent' | 'good';
   /** Fixed-width numbers (the mono readout) for the key labels. */
   mono?: boolean;
   keyClassName?: string;
@@ -36,7 +39,7 @@ interface KeySwitchProps<T extends string> {
   id?: string;
 }
 
-export default function KeySwitch<T extends string>({ options, value, onChange, label, size = 'lg', light = false, mono = false, keyClassName = '', className = '', id }: KeySwitchProps<T>) {
+export default function KeySwitch<T extends string>({ options, value, onChange, label, size = 'lg', light = false, lampTone = 'accent', mono = false, keyClassName = '', className = '', id }: KeySwitchProps<T>) {
   const lg = size === 'lg';
   return (
     <div
@@ -65,8 +68,10 @@ export default function KeySwitch<T extends string>({ options, value, onChange, 
                 aria-hidden="true"
                 className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
                 style={selected
-                  ? { backgroundColor: 'var(--mech-selected-border)', boxShadow: '0 0 6px var(--mech-selected-border)' }
-                  : { backgroundColor: 'var(--mech-progress-empty)' }}
+                  ? lampTone === 'good'
+                    ? { backgroundColor: 'var(--mech-good)', boxShadow: '0 0 6px var(--mech-good)' }
+                    : { backgroundColor: 'var(--mech-selected-border)', boxShadow: '0 0 6px var(--mech-selected-border)' }
+                  : { backgroundColor: lampTone === 'good' ? 'var(--mech-lamp-off)' : 'var(--mech-progress-empty)' }}
               />
             )}
             {option.icon?.(selected)}

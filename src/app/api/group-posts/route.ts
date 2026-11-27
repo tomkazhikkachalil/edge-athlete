@@ -4,6 +4,7 @@ import { getSupabaseAdmin, getServerAuth, activeWriterRefusal } from '@/lib/auth
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
 import { parseComposition } from '@/lib/golf/course-sections';
+import { parsePuttingRule, type PuttingRule } from '@/lib/golf/putting-rule';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { GROUP_TYPE_TO_SPORT, GROUP_POST_TYPES, type GroupPostType } from '@/types/group-posts';
 import { reportRouteError } from '@/lib/observability/report';
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest) {
     // nothing). Validate-if-present keeps the contract backward compatible
     // across Vercel's rolling deploy (a stale client that doesn't send
     // golf_data degrades to the old behavior instead of erroring).
+    let puttingRule: PuttingRule | null = null;
     if (golf_data !== undefined) {
       if (type !== 'golf_round') {
         return NextResponse.json(
@@ -181,6 +183,13 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      // An indoor round's putting rule (322): validated when sent, never
+      // repaired; an outdoor round has none whatever was sent.
+      const putting = parsePuttingRule(golf_data.round_type, golf_data.putting_rule, golf_data.gimme_feet);
+      if (!putting.ok) {
+        return NextResponse.json({ error: `golf_data.${putting.error}` }, { status: 400 });
+      }
+      puttingRule = putting.rule;
       // Per-hole course data (real pars). Optional; sanitized to the known
       // shape — bad entries are dropped rather than failing the round.
       if (golf_data.hole_data !== undefined && !Array.isArray(golf_data.hole_data)) {
@@ -388,6 +397,8 @@ export async function POST(request: NextRequest) {
           tee_color: golf_data.tee_color ?? null,
           slope_rating: golf_data.slope_rating ?? null,
           course_rating: golf_data.course_rating ?? null,
+          putting_rule: puttingRule?.mode ?? null,
+          gimme_feet: puttingRule?.gimmeFeet ?? null,
           weather_conditions: golf_data.weather_conditions ?? null,
           temperature: golf_data.temperature ?? null,
           wind_speed: golf_data.wind_speed ?? null,

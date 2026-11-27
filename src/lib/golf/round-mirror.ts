@@ -202,7 +202,7 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
         date,
         golf_data:golf_scorecard_data (
           course_name, course_id, round_type, holes_played, tee_color,
-          slope_rating, course_rating, hole_data,
+          slope_rating, course_rating, hole_data, putting_rule, gimme_feet,
           weather_conditions, temperature, wind_speed, conditions_source, conditions_at
         ),
         participants:group_post_participants (
@@ -264,6 +264,9 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
             course_rating: golfData.course_rating ?? null,
             slope_rating: golfData.slope_rating ?? null,
             round_type: golfData.round_type ?? 'outdoor',
+            // An indoor round's putting rule (322) rides to the finished round.
+            putting_rule: golfData.putting_rule ?? null,
+            gimme_feet: golfData.gimme_feet ?? null,
             // The conditions (Oct 29 2026, 291): the scorecard's words and
             // numbers, the wind as its band — the round row never carried
             // them before, so a finished live round showed none.

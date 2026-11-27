@@ -14,6 +14,7 @@
 
 import type { GolfComposerValue } from '@/components/golf/GolfComposerSection';
 import { deriveRecordedRound } from '@/lib/golf/derive-round';
+import { clampGimmeFeet, puttingModeOr, puttingPayload } from '@/lib/golf/putting-rule';
 import type { CreatedRoundLike } from '@/lib/golf/round-route';
 
 export interface SharedRoundSubmitContext<M extends { type: 'image' | 'video' }> {
@@ -122,6 +123,12 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
           ? parseInt(sharedRoundDetails.slopeRating) || undefined
           : undefined,
         tee_color: sharedRoundDetails.teeColor || undefined,
+        // An indoor round's putting rule (322); nothing for an outdoor one.
+        ...puttingPayload(
+          sharedRoundDetails.roundTypeIndoorOutdoor === 'indoor',
+          puttingModeOr(sharedRoundDetails.puttingMode),
+          clampGimmeFeet(sharedRoundDetails.gimmeFeet),
+        ),
         weather_conditions: sharedRoundDetails.weather || undefined,
         temperature: sharedRoundDetails.temperature ? parseInt(sharedRoundDetails.temperature) : undefined,
         wind_speed: sharedRoundDetails.wind === 'calm' ? 0 :

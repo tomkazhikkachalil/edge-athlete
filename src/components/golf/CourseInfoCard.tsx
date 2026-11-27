@@ -69,6 +69,9 @@ interface CourseInfoCardProps {
   /** The person just picked this course to play: ask for its card without a
    *  tap (Oct 31 2026). Other surfaces keep the button, and never ask unprompted. */
   autoFindSheet?: boolean;
+  /** The utility row without its Website key (an indoor round's course
+   *  step, Nov 27 2026: Map and Scorecard only). */
+  hideWebsite?: boolean;
   /** The mechanical dialect (Nov 23 2026, the golf round's course step): the
    *  SAME card — one panel at a time, the honest states, the lookups — drawn
    *  as the spec's utility row (Map · Scorecard · Website) with the panels
@@ -84,7 +87,7 @@ interface CourseInfoCardProps {
   onPanelChange?: (panel: 'map' | 'scorecard' | null) => void;
 }
 
-export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated, onClubFound, autoFindSheet = false, variant = 'card', className = '', openClassName = '', onPanelChange }: CourseInfoCardProps) {
+export default function CourseInfoCard({ course, defaultOpen = false, enableTracking = false, mapMode = 'toggle', onViewMap, teeInPlay = null, onCourseUpdated, onClubFound, autoFindSheet = false, hideWebsite = false, variant = 'card', className = '', openClassName = '', onPanelChange }: CourseInfoCardProps) {
   const mech = variant === 'mech';
   // ONE panel at a time (Oct 29 2026, Tom's refinement spec): the map or
   // the official scorecard, opened by two side-by-side buttons under the
@@ -411,7 +414,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       {/* Show Map | Official Scorecard (Oct 29 2026): two equal buttons; the
           open one reads Hide; one panel at a time, directly below. The old
           "View on map" Google link is gone. */}
-      {((hasCoords && mapMode !== 'hidden') || scorecardPossible || sheetFindable || (mech && !!course.website)) && (
+      {((hasCoords && mapMode !== 'hidden') || scorecardPossible || sheetFindable || (mech && !hideWebsite && !!course.website)) && (
         <div className={mech ? 'flex gap-2' : 'mt-3 grid grid-cols-2 gap-2'} data-course-panels="">
           {hasCoords && mapMode !== 'hidden' && (
             <button
@@ -453,7 +456,7 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
               {showScorecard ? 'Hide' : mech || scorecardSource?.sheetSource === 'map_estimated' ? 'Scorecard' : 'Official Scorecard'}
             </button>
           )}
-          {mech && course.website && (
+          {mech && !hideWebsite && course.website && (
             <a
               href={course.website}
               target="_blank"

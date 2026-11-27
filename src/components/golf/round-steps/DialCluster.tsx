@@ -27,6 +27,9 @@ interface DialClusterProps {
   slope: number | null;
   /** The yardage is the map's (a course with no card): "≈" before the number. */
   yardsApprox?: boolean;
+  /** The strip names the holes. Off for an indoor round (Nov 27 2026): the
+   *  count is worked out from the holes played, so the strip says only Par. */
+  showHoles?: boolean;
 }
 
 const CX = 54;
@@ -102,12 +105,14 @@ function Bolt() {
   );
 }
 
-export default function DialCluster({ holes, par, parEstimated = false, yards, rating, slope, yardsApprox = false }: DialClusterProps) {
+export default function DialCluster({ holes, par, parEstimated = false, yards, rating, slope, yardsApprox = false, showHoles = true }: DialClusterProps) {
   return (
     <div className="ea-mech-panel rounded-2xl pt-2.5 px-2 pb-3" data-dial-cluster="">
       <div className="flex items-center gap-2 px-1 mb-1.5">
         <Bolt />
-        <span className="ea-mech-micro whitespace-nowrap" data-dial-holes="">{holes != null ? `${holes} holes` : 'Holes —'}</span>
+        {showHoles && (
+          <span className="ea-mech-micro whitespace-nowrap" data-dial-holes="">{holes != null ? `${holes} holes` : 'Holes —'}</span>
+        )}
         <span aria-hidden="true" className="flex-1 h-px" style={{ backgroundColor: 'var(--mech-hairline)' }} />
         <span className="ea-mech-micro whitespace-nowrap" data-dial-par="">
           {par != null ? `Par ${par}${parEstimated ? ' est.' : ''}` : 'Par —'}

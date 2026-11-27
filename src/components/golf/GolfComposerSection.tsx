@@ -28,7 +28,8 @@ import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores, withoutEnteredScores } from '@/lib/golf/score-entry';
 import { localDayKey } from '@/lib/calendar/grid';
-import { courseTeeOptions, teeLabel, FALLBACK_TEES, hasBothTeeSides, isWomensTee, splitTeeSides, ratingEntryNeeded } from '@/lib/golf/tees';
+import { courseTeeOptions, teeLabel, FALLBACK_TEES, hasBothTeeSides, indoorTeeKeys, isWomensTee, splitTeeSides, ratingEntryNeeded } from '@/lib/golf/tees';
+import { DEFAULT_PUTTING_MODE, GIMME_DEFAULT, clampGimmeFeet, puttingModeOr, type PuttingMode } from '@/lib/golf/putting-rule';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
@@ -47,6 +48,7 @@ import RoundTypeStep from '@/components/golf/round-steps/RoundTypeStep';
 import CoursePlate from '@/components/golf/round-steps/CoursePlate';
 import DialCluster from '@/components/golf/round-steps/DialCluster';
 import TeeTable from '@/components/golf/round-steps/TeeTable';
+import PuttingRule from '@/components/golf/round-steps/PuttingRule';
 import KeySwitch from '@/components/mech/KeySwitch';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { logoUrl, websiteDomain } from '@/lib/logo-dev';
@@ -129,6 +131,12 @@ export interface GolfSharedRoundDetails {
   /** "Already played" rounds post as FINAL immediately (no LIVE badge, no
    *  resume banner) — for logging rounds after the fact */
   alreadyPlayed: boolean;
+  /** An INDOOR round's putting rule (Nov 27 2026; putting-rule.ts): how the
+   *  simulator handles putts, and the gimme distance in feet. Held for every
+   *  round, sent only for an indoor one. Optional: a draft saved before the
+   *  rule existed reads as Putt out, 6 ft. */
+  puttingMode?: PuttingMode;
+  gimmeFeet?: number;
 }
 
 /** Catalog course ids are golf_courses UUIDs; history rows use `history-*`. */
@@ -186,6 +194,8 @@ export function defaultGolfComposerValue(): GolfComposerValue {
       courseId: null,
       courseComposition: null,
       alreadyPlayed: false,
+      puttingMode: DEFAULT_PUTTING_MODE,
+      gimmeFeet: GIMME_DEFAULT,
     },
     sharedRoundParticipants: [],
     sharedRoundParticipantsData: [],
@@ -311,6 +321,8 @@ export default function GolfComposerSection({
     // "Already played" rounds post as FINAL immediately (no LIVE badge, no
     // resume banner) — for logging rounds after the fact
     alreadyPlayed: false,
+    puttingMode: DEFAULT_PUTTING_MODE,
+    gimmeFeet: GIMME_DEFAULT,
   });
   // The step the person is on, by id (round-steps.ts). A restored draft
   // lands where it was; an id the current list lacks starts over.
@@ -540,14 +552,22 @@ export default function GolfComposerSection({
       // courses-you've-played suggestions carry ratings keyed by whichever
       // tee the historical round used (e.g. only `blue`), so the white-only
       // fallback silently filled nothing for them.
-      courseRating: String(
-        course.courseRating?.[teeColor || 'white'] ?? course.courseRating?.white ??
-          Object.values(course.courseRating ?? {})[0] ?? prev.courseRating ?? ''
-      ),
-      slopeRating: String(
-        course.slopeRating?.[teeColor || 'white'] ?? course.slopeRating?.white ??
-          Object.values(course.slopeRating ?? {})[0] ?? prev.slopeRating ?? ''
-      ),
+      //
+      // An INDOOR round waits for its tee (Nov 27 2026): with none picked it
+      // carries no rating and no slope — it used to save the white tee's
+      // numbers for a tee nobody chose, while its dials showed dashes.
+      ...(prev.roundTypeIndoorOutdoor === 'indoor' && !teeColor
+        ? { courseRating: '', slopeRating: '' }
+        : {
+            courseRating: String(
+              course.courseRating?.[teeColor || 'white'] ?? course.courseRating?.white ??
+                Object.values(course.courseRating ?? {})[0] ?? prev.courseRating ?? ''
+            ),
+            slopeRating: String(
+              course.slopeRating?.[teeColor || 'white'] ?? course.slopeRating?.white ??
+                Object.values(course.slopeRating ?? {})[0] ?? prev.slopeRating ?? ''
+            ),
+          }),
     }));
 
     // Auto-populate par and yardage from course data for the current range
@@ -913,16 +933,18 @@ export default function GolfComposerSection({
   const steps = stepsForRound({ alreadyPlayed: sharedRoundDetails.alreadyPlayed, indoor });
   const stepIndex = roundStepIndex(steps, stepId);
   const currentStep = steps[stepIndex];
-  const refusal = roundStepRefusal(currentStep.id, {
-    courseName: sharedRoundDetails.courseName,
-    date: sharedRoundDetails.date,
-    alreadyPlayed: sharedRoundDetails.alreadyPlayed,
-  });
-
   // The course step's view: the picked course (or the hand-typed one, once
   // added), else the search.
   const typedCourse = sharedRoundDetails.courseName.trim();
   const courseShown = !!selectedCourse || (manualCourse && typedCourse !== '');
+  const refusal = roundStepRefusal(currentStep.id, {
+    courseName: sharedRoundDetails.courseName,
+    date: sharedRoundDetails.date,
+    alreadyPlayed: sharedRoundDetails.alreadyPlayed,
+    indoor,
+    teeColor: sharedRoundDetails.teeColor,
+    courseShown,
+  });
 
   useEffect(() => {
     if (!active || currentStep.id !== 'course' || recentAskedRef.current) return;
@@ -984,13 +1006,32 @@ export default function GolfComposerSection({
   };
   const setIndoor = (next: boolean) => {
     if (next) forgetForecast();
-    setSharedRoundDetails(prev => ({
-      ...prev,
-      roundTypeIndoorOutdoor: next ? 'indoor' : 'outdoor',
-      // Indoor has no conditions step — values entered before the switch
-      // used to ride along to the server; they are cleared here.
-      ...(next ? { weather: '', temperature: '', wind: '', conditionsSource: undefined, conditionsAt: null } : {}),
-    }));
+    const course = selectedCourse;
+    const offered = indoorTeeKeys(isMapSheet(course?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(course));
+    setSharedRoundDetails(prev => {
+      // An indoor round offers the men's boxes only (Nov 27 2026): a tee it
+      // does not list is let go. With no tee, a catalog course's rating and
+      // slope wait for the pick indoors; outdoors they fall back to the white
+      // tee's (then any tee's), as picking the course always did.
+      const tee = next && !offered.includes(prev.teeColor) ? '' : prev.teeColor;
+      const numbers = !course || tee
+        ? {}
+        : next
+          ? { courseRating: '', slopeRating: '' }
+          : {
+              courseRating: String(course.courseRating?.white ?? Object.values(course.courseRating ?? {})[0] ?? ''),
+              slopeRating: String(course.slopeRating?.white ?? Object.values(course.slopeRating ?? {})[0] ?? ''),
+            };
+      return {
+        ...prev,
+        roundTypeIndoorOutdoor: next ? 'indoor' : 'outdoor',
+        teeColor: tee,
+        ...numbers,
+        // Indoor has no conditions step — values entered before the switch
+        // used to ride along to the server; they are cleared here.
+        ...(next ? { weather: '', temperature: '', wind: '', conditionsSource: undefined, conditionsAt: null } : {}),
+      };
+    });
   };
 
   // Both steps that show a handicap ask (Nov 24 2026: the Players step's
@@ -1007,7 +1048,8 @@ export default function GolfComposerSection({
   const teeKeys: string[] = isMapSheet(selectedCourse?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(selectedCourse);
   const bothTeeSides = hasBothTeeSides(teeKeys);
   const teeSide: TeeSide = teeSideChoice ?? (isWomensTee(sharedRoundDetails.teeColor) ? 'women' : 'men');
-  const teeRows: TeeTotal[] = (bothTeeSides ? splitTeeSides(teeKeys)[teeSide] : teeKeys).map(key =>
+  // Indoor (Nov 27 2026): no Men | Women switch — the men's boxes, always.
+  const teeRows: TeeTotal[] = (indoor ? indoorTeeKeys(teeKeys) : bothTeeSides ? splitTeeSides(teeKeys)[teeSide] : teeKeys).map(key =>
     teeTotals.find(t => t.key === key) ?? { key, label: teeLabel(key), yards: null, rating: null, slope: null }
   );
   /** A tee row's tap — the old Tees select's onChange, verbatim. */
@@ -1109,7 +1151,7 @@ export default function GolfComposerSection({
     ...(sharedRoundDetails.alreadyPlayed ? [{ key: 'date', label: 'Date', value: sharedRoundDetails.date || null }] : []),
     { key: 'round-type', label: 'Round', value: indoor ? 'Indoor' : 'Outdoor' },
     { key: 'format', label: 'Format', value: gameFormatLabel(sharedRoundDetails.gameFormat) },
-    ...(!indoor ? [{ key: 'tee', label: 'Tee', value: teeInPlay }] : []),
+    { key: 'tee', label: 'Tee', value: teeInPlay },
     // ONE line (Tom, Oct 29 + Nov 24 2026): "Sunny · 11 °C · 5 to 10 mph" —
     // the temperature in the viewer's unit; "Forecast at tee-off" lives on
     // the step's note, the round card and the round page, not here.
@@ -1432,10 +1474,11 @@ export default function GolfComposerSection({
                 </div>
               )}
 
-              {/* A phone reads top to bottom: plate, dials, tees, utility row.
-                  From 640 px the same four are two columns — plate, dials and
-                  utility row on the left, the tees on the right; an open map
-                  or scorecard takes the full width under both. */}
+              {/* A phone reads top to bottom: plate, dials, tees, (indoor: the
+                  putting rule,) utility row. From 640 px the same are two
+                  columns — plate, dials, putting rule and utility row on the
+                  left, the tees on the right; an open map or scorecard takes
+                  the full width under both. */}
               <div className="flex flex-col gap-2.5 sm:grid sm:grid-cols-2 sm:gap-x-4 sm:items-start">
                 <div className="sm:col-start-1 sm:row-start-1">
                   <CoursePlate
@@ -1451,6 +1494,7 @@ export default function GolfComposerSection({
                 <div className="sm:col-start-1 sm:row-start-2">
                   <DialCluster
                     holes={courseFacts.holeCount}
+                    showHoles={!indoor}
                     par={courseFacts.par}
                     parEstimated={selectedCourse?.sheetSource === 'map_estimated'}
                     yards={dialYards}
@@ -1460,29 +1504,27 @@ export default function GolfComposerSection({
                   />
                 </div>
 
-                <div className="flex flex-col gap-2.5 sm:col-start-2 sm:row-start-1 sm:row-span-3">
-                  {/* Tees (outdoor only) — a catalog course lists its REAL
-                      tees (hardest first); picking one re-fills that tee's
-                      exact rating/slope and per-hole yardages. Custom and
-                      history courses keep the classic five colours. */}
-                  {sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (
-                    <>
-                      {bothTeeSides && (
-                        <div className="flex items-center h-[50px]">
-                          <KeySwitch
-                            size="sm"
-                            light
-                            label="Tees for"
-                            options={TEE_SIDE_OPTIONS}
-                            value={teeSide}
-                            onChange={setTeeSideChoice}
-                            keyClassName="w-[86px]"
-                          />
-                        </div>
-                      )}
-                      <TeeTable tees={teeRows} value={sharedRoundDetails.teeColor} onPick={pickTee} />
-                    </>
+                <div className={`flex flex-col gap-2.5 sm:col-start-2 sm:row-start-1 ${indoor ? 'sm:row-span-4' : 'sm:row-span-3'}`}>
+                  {/* Tees — a catalog course lists its REAL tees (hardest
+                      first); picking one re-fills that tee's exact
+                      rating/slope and per-hole yardages. Custom and history
+                      courses keep the classic five colours. An INDOOR round
+                      (Nov 27 2026) gets the same table without the Men |
+                      Women switch: its rows are the men's boxes. */}
+                  {!indoor && bothTeeSides && (
+                    <div className="flex items-center h-[50px]">
+                      <KeySwitch
+                        size="sm"
+                        light
+                        label="Tees for"
+                        options={TEE_SIDE_OPTIONS}
+                        value={teeSide}
+                        onChange={setTeeSideChoice}
+                        keyClassName="w-[86px]"
+                      />
+                    </div>
                   )}
+                  <TeeTable tees={teeRows} value={sharedRoundDetails.teeColor} onPick={pickTee} />
 
                   {/* Course rating & slope — the key that unlocks the
                       computed handicap. Typed only where the card cannot
@@ -1525,6 +1567,18 @@ export default function GolfComposerSection({
                   )}
                 </div>
 
+                {/* The putting rule (indoor only, Nov 27 2026): how the
+                    simulator handles putts, saved on the round. */}
+                {indoor && (
+                  <PuttingRule
+                    className="sm:col-start-1 sm:row-start-3"
+                    mode={puttingModeOr(sharedRoundDetails.puttingMode)}
+                    gimmeFeet={clampGimmeFeet(sharedRoundDetails.gimmeFeet)}
+                    onMode={puttingMode => setSharedRoundDetails(prev => ({ ...prev, puttingMode }))}
+                    onGimmeFeet={gimmeFeet => setSharedRoundDetails(prev => ({ ...prev, gimmeFeet }))}
+                  />
+                )}
+
                 {/* Keyed: a course swap remounts the card (and its Leaflet
                     map) cleanly instead of re-using one instance's state. */}
                 {selectedCourse && (
@@ -1534,8 +1588,9 @@ export default function GolfComposerSection({
                     teeInPlay={sharedRoundDetails.teeColor}
                     autoFindSheet
                     variant="mech"
-                    className="min-w-0 sm:col-start-1 sm:row-start-3"
-                    openClassName="sm:!col-span-2 sm:!row-start-4"
+                    hideWebsite={indoor}
+                    className={`min-w-0 sm:col-start-1 ${indoor ? 'sm:row-start-4' : 'sm:row-start-3'}`}
+                    openClassName={indoor ? 'sm:!col-span-2 sm:!row-start-5' : 'sm:!col-span-2 sm:!row-start-4'}
                     onPanelChange={setCoursePanel}
                     // "Find the official scorecard" found one: the selection takes
                     // the fuller row so the round's pars, tees and ratings follow.
