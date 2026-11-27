@@ -1,5 +1,28 @@
 # Development Log
 
+## November 27, 2026 (12:52) — The indoor golf round's course step: the tee table, a putting rule saved on the round (migration 322)
+
+**Why.** Tom's spec `indoor-course-spec.md` (Nov 27): step 2 of 5 of an indoor round showed the course, three empty dials and the Map / Scorecard keys; the player could not pick a tee and nothing recorded how the simulator handles putts. His decisions the same day: the indoor tee list is **always the men's boxes** (no switch, no profile lookup); the handicap is **left as it is** (a rated indoor round counts toward it today, reported, not changed).
+
+**What (one PR, stacked on #1640; migration 322).**
+- The indoor course step shows the SAME tee table as outdoors (one `TeeTable`, one `pickTee`), without Men | Women. Picking a tee fills the dials. Next waits for a tee ("Pick a tee first").
+- The putting rule: Putt out / Gimme / Auto 2 on a three-way key switch with green lamps, the gimme distance on a new slider (1–15 ft, default 6; touch, mouse, arrow keys), an info key that swaps the 52 px readout for one line. Nothing below it moves.
+- Saved on the round: `putting_rule` and `gimme_feet` on `golf_scorecard_data`, copied to `golf_rounds` when the round finishes. Indoor only (a CHECK); an outdoor round never carries one. **The scoring card does not read it** — the spec leaves that for a later design.
+- Indoor only: the dials' strip says "Par 72" without "18 holes"; the utility row has no Website key. The Start summary shows the Tee row for an indoor round too. Step 1's note now reads "Indoor rounds skip the playing conditions."
+- The outdoor step is unchanged.
+
+**What the spec asked to remove that was not there.** Men / Women was already hidden on indoor. The 18 / F9 / B9 switch was never built (holes are 18, or 9 on a nine-hole course, as before). The pinned footer and the 760 px two-column desktop dialog already existed (`StepFlow`, the "wide" frame); only the columns' contents changed.
+
+**Fixed on the way.** An indoor round on a catalog course used to save the white tee's rating and slope for a tee nobody picked, while its dials showed dashes. With no tee it now carries neither.
+
+**My readings (not Tom's words).** The light theme twin is kept ("dark theme only" read as: the design is given in dark). A typed course keeps the five classic colours and the rating slots, as outdoors. A name typed but not yet added reads "Pick a course, or add the one you typed" rather than asking for a tee that is not on screen. No Putting row on the Start summary.
+
+**Found, not changed.** A rated indoor round counts toward the handicap (`handicap-server.ts` does not look at `round_type`; leagues and club stats do exclude indoor). The scoring card allows 10 putts on a hole while `golf_holes` accepts 8, so such a hole would fail the copy to the finished round (only logged). No simulator data exists anywhere in the app, so nothing limits the gimme range or its unit: feet, 1 to 15, as specified.
+
+**Proof.** Migration 322 on STAGING: `322 APPLIED | 4 | 6 | 322`. Unit: `putting-rule.test.ts`, `range.test.ts`, the extended `round-steps`, `tees` and `golf-course-step` tests. e2e on staging against the build, one project at a time: the indoor walk and the indoor size ladder (320 px to 1920 px, enlarged text, both themes) green on desktop, mobile, webkit-mobile, firefox-mobile, android, brave-android; the outdoor course step, quick entry, part 2, forecast and console-race specs green on desktop and mobile. Emulated engines, not real devices.
+
+**Owed.** Production SQL for 321 then 322 (Tom), then the merges by hand, the production probe and the baseline rebuild. A look on a real phone: the slider under a thumb.
+
 ## November 26, 2026 (02:56) — The General post composer: one page, a slide that posts, Save draft; attach activity and location built, waiting on migration 321
 
 **Why.** Tom's spec `general-post-spec.md` (Nov 26): the screen after Create → Post rebuilt in the mechanical look on one page, with three features added (attach a logged activity with a stat plate on the card, one location, Save draft). His decisions the same night: the "Post to feed" switch leaves the General post (it always goes to the feed and the profile); a saved draft stays on this device with no expiry; the picker lists every finished activity except hidden and Only me ones.

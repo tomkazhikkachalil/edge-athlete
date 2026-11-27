@@ -3,6 +3,7 @@
 // behaviour stays, only the way through them changes. The step LIST depends
 // on the first step's answers (the org wizard's `stepsFor` idea):
 //   • Indoor drops Conditions (the form hid them for indoor already).
+//     Its course step picks a tee and a putting rule (Nov 27 2026).
 //   • No round enters scores here (Nov 24 2026, Tom: the flow is about
 //     starting a live round; the already-played process is rebuilt later).
 //     A live round is scored on its live page; an already-played round is
@@ -76,18 +77,31 @@ export interface RoundStepFacts {
   courseName: string;
   date: string;
   alreadyPlayed: boolean;
+  /** An indoor round's course step also waits for a tee (Nov 27 2026). */
+  indoor?: boolean;
+  teeColor?: string;
+  /** The picked (or hand-added) course is on screen — the tee list with it. */
+  courseShown?: boolean;
 }
 
 export const REFUSAL_COURSE = 'Pick or type a course first';
 export const REFUSAL_DATE = 'Pick the date you played';
+export const REFUSAL_TEE = 'Pick a tee first';
+/** Indoor, a name typed but not yet added: the tee list is one tap away. */
+export const REFUSAL_COURSE_ADD = 'Pick a course, or add the one you typed';
 
 /** Why Next (or the finish) is refused on a step; null means go ahead.
- *  Only the course step and the finish can refuse, and only for the two
- *  fields the form always required. */
+ *  Only the course step and the finish can refuse: for the two fields the
+ *  form always required, and — on an INDOOR round's course step (Tom's
+ *  indoor course spec, Nov 27 2026) — until a tee is picked. The finish
+ *  never asks for the tee: a draft saved before the rule still starts. */
 export function roundStepRefusal(id: RoundStepId, facts: RoundStepFacts): string | null {
   if (id !== 'course' && id !== 'finish') return null;
   if (facts.courseName.trim().length === 0) return REFUSAL_COURSE;
   if (facts.alreadyPlayed && !facts.date) return REFUSAL_DATE;
+  if (id === 'course' && facts.indoor && !(facts.teeColor ?? '').trim()) {
+    return facts.courseShown === false ? REFUSAL_COURSE_ADD : REFUSAL_TEE;
+  }
   return null;
 }
 

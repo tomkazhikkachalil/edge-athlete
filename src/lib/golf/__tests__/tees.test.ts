@@ -88,3 +88,16 @@ describe('the tee table — sides, labels, dots, and when the rating is typed', 
     expect(ratingEntryNeeded({ courseRating: {}, slopeRating: {} }, '')).toBe(true); // a map-only row
   });
 });
+
+describe('indoorTeeKeys — an indoor round lists the men\'s boxes (Tom, Nov 27 2026)', () => {
+  it('drops the women\'s boxes, keeping the tee-sheet order', async () => {
+    const { indoorTeeKeys } = await import('../tees');
+    expect(indoorTeeKeys(['black', 'blue', 'white', 'blue (f)', 'red (f)'])).toEqual(['black', 'blue', 'white']);
+    expect(indoorTeeKeys(['blue', 'white'])).toEqual(['blue', 'white']);
+  });
+  it('a course with only women\'s boxes shows those: a tee can always be picked', async () => {
+    const { indoorTeeKeys } = await import('../tees');
+    expect(indoorTeeKeys(['red (f)', 'gold (f)'])).toEqual(['red (f)', 'gold (f)']);
+    expect(indoorTeeKeys([])).toEqual([]);
+  });
+});

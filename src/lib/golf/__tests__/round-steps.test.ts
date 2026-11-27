@@ -10,6 +10,8 @@ import {
   windOptionLabel,
   windRange,
   REFUSAL_COURSE,
+  REFUSAL_COURSE_ADD,
+  REFUSAL_TEE,
   REFUSAL_DATE,
   roundBusyLabel,
   roundDateForMode,
@@ -80,6 +82,23 @@ describe('roundStepRefusal — only course and the finish refuse, only for cours
     for (const id of ['type', 'format', 'conditions', 'players'] as const) {
       expect(roundStepRefusal(id, { courseName: '', date: '', alreadyPlayed: true })).toBeNull();
     }
+  });
+});
+
+describe('an indoor round waits for its tee on the course step (Tom, Nov 27 2026)', () => {
+  const indoor = { courseName: 'Eagle Creek', date: '', alreadyPlayed: false, indoor: true, courseShown: true };
+  it('Next is refused until a tee is picked, then allowed', () => {
+    expect(roundStepRefusal('course', { ...indoor, teeColor: '' })).toBe(REFUSAL_TEE);
+    expect(roundStepRefusal('course', { ...indoor })).toBe(REFUSAL_TEE);
+    expect(roundStepRefusal('course', { ...indoor, teeColor: 'blue' })).toBeNull();
+  });
+  it('a name typed but not yet added is asked for the course, not for a tee it cannot see', () => {
+    expect(roundStepRefusal('course', { ...indoor, courseShown: false, teeColor: '' })).toBe(REFUSAL_COURSE_ADD);
+    expect(roundStepRefusal('course', { ...indoor, courseName: '', teeColor: '' })).toBe(REFUSAL_COURSE);
+  });
+  it('an outdoor round never needs a tee; the finish never asks for one', () => {
+    expect(roundStepRefusal('course', { ...indoor, indoor: false, teeColor: '' })).toBeNull();
+    expect(roundStepRefusal('finish', { ...indoor, teeColor: '' })).toBeNull();
   });
 });
 

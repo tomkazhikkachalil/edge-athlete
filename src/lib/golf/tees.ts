@@ -56,6 +56,14 @@ export function hasBothTeeSides(keys: readonly string[]): boolean {
   return men.length > 0 && women.length > 0;
 }
 
+/** An INDOOR round's tee list (Tom, Nov 27 2026): no Men | Women switch —
+ *  always the men's boxes. A course that only has women's boxes shows those,
+ *  so a tee can always be picked. */
+export function indoorTeeKeys(keys: readonly string[]): string[] {
+  const { men } = splitTeeSides(keys);
+  return men.length > 0 ? men : [...keys];
+}
+
 /** A row's name under the switch: the side is the switch's to say, so the
  *  "(F)" is dropped — "blue (f)" → "Blue". */
 export function teeRowLabel(key: string): string {

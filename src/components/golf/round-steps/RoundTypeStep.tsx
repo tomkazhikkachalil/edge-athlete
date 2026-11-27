@@ -120,7 +120,7 @@ export default function RoundTypeStep({ alreadyPlayed, indoor, onAlreadyPlayed, 
           onChange={v => onIndoor(v === 'indoor')}
         />
         {indoor && (
-          <p className="mt-2 text-xs text-[color:var(--mech-text-soft)]">Indoor rounds skip the tee and the playing conditions.</p>
+          <p className="mt-2 text-xs text-[color:var(--mech-text-soft)]">Indoor rounds skip the playing conditions.</p>
         )}
       </div>
     </div>

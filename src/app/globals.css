@@ -1200,6 +1200,9 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-route: #7c3aed;         /* the line of play */
   --mech-position: #2563eb;      /* the player on the map */
   --mech-good-glow: rgb(21 128 61 / 0.35);
+  --mech-lamp-off: #c9c4d6;      /* a green-toned switch's unlit lamp */
+  --mech-metal-key: #ffffff;     /* the range slider's key */
+  --mech-metal-key-depth: inset 0 -2px 0 rgb(20 16 40 / 0.14), 0 0 0 1px rgb(20 16 40 / 0.12), 0 2px 5px rgb(20 16 40 / 0.28);
   --mech-live-fill: rgb(229 53 74 / 0.10);
   --mech-live-ring: rgb(229 53 74 / 0.45);
   --mech-danger-fill: rgb(194 65 12 / 0.10);
@@ -1315,6 +1318,9 @@ html:has(.org-scope[data-theme="dark"]) body {
   --mech-route: #8b5cf6;
   --mech-position: #4da3ff;
   --mech-good-glow: rgb(62 207 110 / 0.55);
+  --mech-lamp-off: #3a3842;
+  --mech-metal-key: #eceaf0;
+  --mech-metal-key-depth: inset 0 -2px 0 rgb(0 0 0 / 0.28), 0 2px 5px rgb(0 0 0 / 0.6);
   --mech-live-fill: rgb(255 77 94 / 0.14);
   --mech-live-ring: rgb(255 77 94 / 0.5);
   --mech-danger-fill: rgb(255 122 61 / 0.12);
@@ -1698,6 +1704,27 @@ html:has(.org-scope[data-theme="dark"]) body {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.5), 0 0 16px var(--mech-good-glow);
 }
 .ea-mech-lamp:active { transform: scale(0.97); }
+/* The range slider (the putting rule's gimme distance, Nov 27 2026): a
+   recessed track, green behind the key, a light metal key. The row is the
+   target; the ring goes on the key, where the eye is. */
+.ea-mech-range { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ea-mech-range:focus-visible { outline: none; }
+.ea-mech-range-track {
+  background-color: var(--mech-recess);
+  box-shadow: var(--mech-recess-depth);
+}
+.ea-mech-range-fill { background-color: var(--mech-good); }
+.ea-mech-range-key {
+  background-color: var(--mech-metal-key);
+  box-shadow: var(--mech-metal-key-depth);
+  transition: filter 120ms var(--ea-ease), transform 120ms var(--ea-ease);
+}
+.ea-mech-range:focus-visible .ea-mech-range-key {
+  outline: 2px solid var(--mech-accent-light);
+  outline-offset: 2px;
+}
+/* (The key is centred with the `translate` property, so this is free.) */
+.ea-mech-range[data-dragging] .ea-mech-range-key { transform: scale(1.06); }
 /* The forward button (Next, "Score hole N"). */
 .ea-mech-go {
   border-radius: 28px;
@@ -1787,6 +1814,7 @@ html:has(.org-scope[data-theme="dark"]) body {
   .ea-mech-holekey:hover,
   .ea-mech-chip:hover,
   .ea-mech-slide-key:hover,
+  .ea-mech-range:hover .ea-mech-range-key,
   .ea-mech-tintkey:not(:disabled):hover,
   .ea-mech-flatkey:not(:disabled):hover,
   .ea-mech-suggest:not(:disabled):hover,

@@ -32,6 +32,8 @@ export const GROUP_SCORECARD_SELECT = `
     tee_color,
     slope_rating,
     course_rating,
+    putting_rule,
+    gimme_feet,
     hole_data,
     course_composition,
     course:golf_courses (

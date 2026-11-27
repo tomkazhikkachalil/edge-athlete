@@ -57,10 +57,49 @@ describe('the picked course — the visuals drive the round', () => {
   });
   it('the rows are the old select\'s options; Men | Women only splits them', () => {
     expect(section).toContain('isMapSheet(selectedCourse?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(selectedCourse)');
-    expect(section).toContain('(bothTeeSides ? splitTeeSides(teeKeys)[teeSide] : teeKeys)');
-    expect(section).toContain('{bothTeeSides && (');
-    // Indoor: no tee, as before.
-    expect(section).toContain("{sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (");
+    expect(section).toContain('(indoor ? indoorTeeKeys(teeKeys) : bothTeeSides ? splitTeeSides(teeKeys)[teeSide] : teeKeys)');
+    // The switch is the outdoor step's alone.
+    expect(section).toContain('{!indoor && bothTeeSides && (');
+  });
+  it('an INDOOR round picks a tee from the same table and sets its putting rule (Tom, Nov 27 2026)', () => {
+    // ONE tee table, for both round types — never a second one.
+    expect(section.match(/<TeeTable /g)).toHaveLength(1);
+    expect(section).not.toContain("{sharedRoundDetails.roundTypeIndoorOutdoor === 'outdoor' && (");
+    // The dials' strip drops the holes; the utility row drops Website.
+    expect(section).toContain('showHoles={!indoor}');
+    expect(section).toContain('hideWebsite={indoor}');
+    const card = read('src/components/golf/CourseInfoCard.tsx');
+    expect(card).toContain('{mech && !hideWebsite && course.website && (');
+    // The putting rule: indoor only, between the tees and the utility row.
+    expect(section).toMatch(/\{indoor && \(\n\s+<PuttingRule\n/);
+    expect(section.indexOf('<TeeTable ')).toBeLessThan(section.indexOf('<PuttingRule'));
+    expect(section.indexOf('<PuttingRule')).toBeLessThan(section.indexOf('<CourseInfoCard'));
+    // Next waits for the tee; the Start summary shows it for every round.
+    expect(section).toMatch(/roundStepRefusal\(currentStep\.id, \{[^}]*indoor,\n\s+teeColor: sharedRoundDetails\.teeColor,\n\s+courseShown,/);
+    expect(section).toContain("{ key: 'tee', label: 'Tee', value: teeInPlay },");
+    // No rating or slope for a tee nobody picked.
+    expect(section).toContain("...(prev.roundTypeIndoorOutdoor === 'indoor' && !teeColor\n        ? { courseRating: '', slopeRating: '' }");
+    // A tee the indoor list does not offer is let go on the switch to Indoor.
+    expect(section).toContain("const tee = next && !offered.includes(prev.teeColor) ? '' : prev.teeColor;");
+  });
+  it('the putting rule: a three-way switch with green lamps, an info key, a readout of one height, a real slider', () => {
+    const rule = read('src/components/golf/round-steps/PuttingRule.tsx');
+    expect(rule).toContain('lampTone="good"');
+    expect(rule).toContain('<InfoToggle');
+    expect(rule).toContain('label="Gimme distance in feet"');
+    expect(rule).toContain('h-[52px]');
+    expect(rule).toContain('puttingInfoLine(mode, gimmeFeet)');
+    expect(rule).toContain('Every putt counts');
+    expect(rule).toContain('On the green');
+    const slider = read('src/components/mech/RangeSlider.tsx');
+    expect(slider).toContain('role="slider"');
+    expect(slider).toContain('setPointerCapture');
+    expect(slider).toContain('rangeKeyStep(e.key, value, scale)');
+    // The row is the 44 px target.
+    expect(slider).toContain('h-11');
+    const dials = read('src/components/golf/round-steps/DialCluster.tsx');
+    expect(dials).toContain('{showHoles && (');
+    expect(read('src/components/golf/round-steps/RoundTypeStep.tsx')).toContain('Indoor rounds skip the playing conditions.');
   });
   it('rating and slope are typed only where the card cannot answer, and the dials read the round\'s values', () => {
     expect(section).toContain('const ratingTyped = ratingEntryNeeded(selectedCourse, sharedRoundDetails.teeColor);');
