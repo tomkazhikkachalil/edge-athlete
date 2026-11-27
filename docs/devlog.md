@@ -1,5 +1,19 @@
 # Development Log
 
+## November 27, 2026 (15:46) — Maintenance after the indoor course step: every gate green; two one-off test failures not reproduced
+
+**Why.** Tom asked for the maintenance pass after the day's four merges (#1640 attach activity, #1642 the indoor course step, #1643 the baseline, #1644 the Start step's Putting row). Main and production are both on `41895a6e`.
+
+**Gates.** `npm run verify` exit 0 (7,123 tests). `npm audit --omit=dev` 0. Guardrails 0, blocklists 0. `check:schema` and `check:schema:prod` 0: the ledger is at 322 on both, every file has run.
+
+**Staging sweep, against the build, one project at a time.** Desktop 76 passed, 1 failed. Mobile 37 passed. webkit-mobile, android, firefox-mobile and brave-android 20 passed each. The one failure, `org-site` "pages: create, blocks, publish" (it failed in 6 s), passed twice when run again; not reproduced, cause not found.
+
+**Production probe, one spec at a time.** Desktop 52 passed, 3 failed: `org-site`'s three tests that read through the launch gate. Mobile 18 passed, 1 failed, and android 12 passed, 1 failed: `tab-bar`'s signed-out "Log in" step, the launch gate again. webkit-mobile: the first run failed eight tests in a row across `tab-bar`, `header-create`, `golf-course-step` and `general-composer`, about fifty specs into the probe; the last three specs run again with pauses passed (6 passed, 1 flaky). Transient: likely Vercel's bot challenge after many runs in a row, as on Nov 23, but the error text was not captured, so that is not confirmed. The flaky one was Save draft on WebKit (failed once, passed on its retry); repeated four times without retries it passed four times. Not reproduced, cause not found. Production health stayed fast throughout (worst reading 135 ms).
+
+**Found in the app.** Nothing.
+
+**Owed.** Tom's look on a real iPhone, Save draft first (the one WebKit result that could not be explained), then the gimme slider and the slide to post.
+
 ## November 27, 2026 (14:29) — The indoor round's Start step states the putting rule
 
 **Why.** Tom, after the indoor course step went live: step 5 (Start) should state the gimme and putting info as well. The summary named the course, round, format and tee, and said nothing of the rule set two steps earlier.
