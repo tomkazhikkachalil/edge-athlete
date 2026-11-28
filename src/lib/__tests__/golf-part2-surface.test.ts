@@ -94,6 +94,17 @@ describe('A8 — Go Live is a slide', () => {
     expect(slide).toMatch(/data-step-finish=""/);
     expect(slide).toMatch(/if \(slideLocks\(at, d\.travel\)\) lock\(d\.travel\);/);
   });
+  it('the outline is the keyboard\'s: the track is marked only while the key is :focus-visible (Nov 28 2026)', () => {
+    expect(slide).toMatch(/data-kbd-focus=\{kbdFocus \? '' : undefined\}/);
+    expect(slide).toMatch(/visible = e\.currentTarget\.matches\(':focus-visible'\);/);
+    expect(slide).toMatch(/onBlur=\{\(\) => setKbdFocus\(false\)\}/);
+    expect(slide).toMatch(/userSelect: 'none'/);
+    const css = code('src/app/globals.css');
+    expect(css).toMatch(/\.ea-mech-recess\[data-slide-track\]:focus-within \{ outline: none; \}/);
+    expect(css).toMatch(/\.ea-mech-recess\[data-slide-track\]\[data-kbd-focus\] \{\s*outline: 2px solid var\(--mech-accent-light\);/);
+    // The footer that holds the slide leaves room under it on a desktop.
+    expect(code('src/components/StepFlow.tsx')).toMatch(/ownFinish \? 'flex-wrap sm:pb-1\.5' : 'sm:pb-0'/);
+  });
   it('a click only confirms when no pointer made it (keyboard, assistive tech)', () => {
     expect(slide).toMatch(/if \(e\.detail !== 0 \|\| off\) return;/);
   });
@@ -159,7 +170,7 @@ describe('fits any screen, on any engine', () => {
   it('the slide takes the pointer on the whole TRACK, and follows the distance dragged', () => {
     // The handlers and touch-action sit on the track, before the key's markup.
     const track = slide.slice(slide.indexOf('data-slide-track=""'), slide.indexOf('<button'));
-    expect(track).toMatch(/style=\{\{ touchAction: 'none' \}\}/);
+    expect(track).toMatch(/style=\{\{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' \}\}/);
     expect(track).toMatch(/onPointerDown=/);
     expect(track).toMatch(/e\.currentTarget\.setPointerCapture\(e\.pointerId\)/);
     expect(slide).toMatch(/slideOffset\(e\.clientX - d\.startX, d\.travel\)/);

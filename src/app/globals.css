@@ -1655,6 +1655,18 @@ html:has(.org-scope[data-theme="dark"]) body {
   cursor: grab;
 }
 .ea-mech-slide-key:active { cursor: grabbing; }
+/* The slide's outline is the keyboard's (Nov 28 2026): a mouse or a finger
+ * pressing the key focuses it too, and the outline then showed mid-slide,
+ * cut off along the bottom on a desktop. SlideToConfirm marks the track
+ * while the key is :focus-visible. */
+.ea-mech-recess[data-slide-track]:focus-within { outline: none; }
+.ea-mech-recess[data-slide-track][data-kbd-focus] {
+  outline: 2px solid var(--mech-accent-light);
+  outline-offset: 2px;
+}
+/* The hover tint is a sign before the press: not while the key is dragged
+ * (the pointer leaves and meets the key as it follows). */
+[data-slide-track][data-slide-state="dragging"] .ea-mech-slide-key { filter: none; }
 /* Slide to post: the accent key; green once the post is up. */
 .ea-mech-slide-key[data-tone="post"] { background-color: var(--mech-accent); }
 .ea-mech-slide-key[data-tone="post"][data-done] { background-color: var(--mech-posted); }
