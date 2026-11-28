@@ -152,7 +152,7 @@ export default function StepFlow({ id, steps, index, onIndex, finishLabel, onFin
 
       <div
         className={mech
-          ? `sticky bottom-0 flex items-center gap-2 px-4 sm:px-5 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-0 shrink-0 bg-[color:var(--mech-surface)] ${ownFinish ? 'flex-wrap' : ''}`
+          ? `sticky bottom-0 flex items-center gap-2 px-4 sm:px-5 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shrink-0 bg-[color:var(--mech-surface)] ${ownFinish ? 'flex-wrap sm:pb-1.5' : 'sm:pb-0'}`
           : 'sticky bottom-0 flex items-center gap-2 border-t border-border bg-surface px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]'}
         data-step-footer=""
       >

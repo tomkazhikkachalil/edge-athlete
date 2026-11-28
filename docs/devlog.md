@@ -1,5 +1,22 @@
 # Development Log
 
+## November 28, 2026 (02:04) — The Go Live slide on a desktop: the outline that was cut off mid-slide; the hand-typed course's par pickers are 44 px
+
+**Why.** Tom: on a larger screen the swipe to go live is not as smooth, the pixels at the bottom of the bar break as he swipes, the button slightly cut off. And he asked what the "36 px par dropdowns" I had reported were, then to fix them.
+
+**Found, by photographing the bar mid-slide at 390, 1280 and 1920 px before any change.** Pressing the key with a mouse focuses it, and the track drew its focus outline (2 px, 2 px away) on `:focus-within`. On a phone the footer has 12 px under the track and the outline is whole; from 640 px the footer had none (`sm:pb-0`) and the scrolling area clips, so the outline's bottom edge was cut off exactly while sliding. Measured: the clipping edge sat at the track's own bottom (0 px of room). Two things I had guessed from the code were not in the pictures (the trail covering the bar's edge, the key's shadow cut) and were left alone.
+
+**What changed (zero DDL).**
+- `SlideToConfirm`: the outline is the keyboard's. The track is marked `data-kbd-focus` only while the key is `:focus-visible`; a mouse or a finger rings nothing. The track selects no text, the key cannot be dragged as a ghost, and it is promoted for its transform.
+- `globals.css`: the outline rule for a slide track follows that mark; no hover tint on the key while it is dragged.
+- `StepFlow`: the footer that holds a slide keeps 6 px under it from 640 px, so the keyboard's outline is whole too. Back / Next rows are unchanged.
+- The General post's "slide to post" is the same component and gets the same.
+- **The par pickers:** a course typed by hand shows a table to enter each hole's par and yardage. Its par picker and yardage field were 36 px tall, under the 44 px tap minimum; they are 44 px now. A new ladder test walks that table at every size (no test showed it before).
+
+**Proof.** After the change the same pictures show no outline mid-slide and 6 px of room; `golf-part2` asserts it (a mouse press rings nothing, the key stays inside its track, no text is selected; the keyboard rings the track and the whole ring is inside the clip). `npm run verify` exit 0 (7,165 tests); guardrails 0; blocklists 0. Staging, against the build, one project at a time (`golf-part2`, `golf-fit`, `golf-quick-entry`, `golf-already-played`, `golf-course-step`, `general-composer`): desktop 23, mobile 17, webkit-mobile 17, none failed on the final code. One thing the iPhone engine caught on the way: WebKit ignored `min-height` on the par picker (18 controls still short), so the height is fixed at 44 px.
+
+**Owed.** "Smooth" is Tom's to judge with a real mouse: the test proves the outline and the selection, not the feel.
+
 ## November 27, 2026 (22:40) — Golf: the Men | Women tee switch is gone; every round lists the men's tees
 
 **Why.** Tom: "remove the men and women option from the live rounds and already played rounds, it should just be defaulted to mens where it just shows the yardage like it should standard." Indoor rounds already worked this way (his Nov 27 decision); outdoor rounds showed the switch whenever a course had both sides.

@@ -229,8 +229,9 @@ test('the general composer opens the same Tag People dialog', async ({ page }) =
   await expect(page.getByPlaceholder('Search people', { exact: true })).toBeVisible();
 });
 
-// Keyboard: the key is focusable and Enter starts the round.
-test('start: Enter on the slide key goes live', async ({ page }) => {
+// Keyboard: the key is focusable and Enter starts the round. The outline is
+// the keyboard's alone.
+test('start: a mouse press rings nothing, the keyboard rings the track; Enter on the slide key goes live', async ({ page }) => {
   const admin = adminClient();
   let groupPostId = '';
   try {
@@ -239,8 +240,47 @@ test('start: Enter on the slide key goes live', async ({ page }) => {
     await expect(flow).toHaveAttribute('data-step', 'finish');
     const key = slideKey(flow);
     await expect(key).toHaveAttribute('aria-label', 'Slide to go live');
-    await key.focus();
+
+    // The outline is the keyboard's (Nov 28 2026). A mouse pressing the key
+    // focuses it but rings nothing: on a desktop the outline used to show
+    // mid-slide with its bottom edge cut off. A half slide, held, then let go.
+    const track = flow.locator('[data-slide-track]');
+    const outline = () => track.evaluate(el => getComputedStyle(el).outlineStyle);
+    const k = (await key.boundingBox())!;
+    const t = (await track.boundingBox())!;
+    await page.mouse.move(k.x + k.width / 2, k.y + k.height / 2);
+    await page.mouse.down();
+    for (let s = 1; s <= 6; s++) await page.mouse.move(k.x + k.width / 2 + (t.width * 0.4 * s) / 6, k.y + k.height / 2);
+    await expect(track).toHaveAttribute('data-slide-state', 'dragging');
     await expect(key).toBeFocused();
+    await expect(track).not.toHaveAttribute('data-kbd-focus', '');
+    expect(await outline()).toBe('none');
+    // Dragged, the key stays inside its track, and no text is selected.
+    const mid = (await key.boundingBox())!;
+    expect(mid.x).toBeGreaterThanOrEqual(t.x);
+    expect(mid.x + mid.width).toBeLessThanOrEqual(t.x + t.width + 0.5);
+    expect(mid.y).toBeGreaterThanOrEqual(t.y);
+    expect(mid.y + mid.height).toBeLessThanOrEqual(t.y + t.height + 0.5);
+    expect(await page.evaluate(() => String(getSelection()))).toBe('');
+    await page.mouse.up();
+    await expect(track).toHaveAttribute('data-slide-state', 'rest');
+
+    // The keyboard reaching the key rings the track, and the whole ring
+    // (2 px, 2 px away) is inside whatever clips the footer.
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(key).toBeFocused();
+    await expect(track).toHaveAttribute('data-kbd-focus', '');
+    expect(await outline()).toBe('solid');
+    const room = await track.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      let clip = Infinity;
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        if (getComputedStyle(p).overflowY !== 'visible') clip = Math.min(clip, p.getBoundingClientRect().bottom);
+      }
+      return Math.min(clip, window.innerHeight) - r.bottom;
+    });
+    expect(room, 'room under the track for its 4 px outline').toBeGreaterThanOrEqual(4);
     await key.press('Enter');
     await page.waitForURL(/\/live\/[0-9a-f-]+/, { timeout: 30_000 });
     groupPostId = page.url().match(/\/live\/([0-9a-f-]+)/)?.[1] ?? '';

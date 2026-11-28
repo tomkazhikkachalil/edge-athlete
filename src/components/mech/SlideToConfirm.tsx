@@ -24,6 +24,13 @@ import { SLIDE_KEY, SLIDE_KEY_COMPACT, slideLocks, slideOffset, slideTrailWidth,
  *  - The keyboard and assistive tech: the key is a real button; Enter,
  *    Space or a screen reader's activation confirm (a click that no pointer
  *    made — a pointer's own click is ignored, the drag decides).
+ *  - The focus outline is the KEYBOARD's (Nov 28 2026): a mouse or a finger
+ *    pressing the key focuses it too, and the track's outline then appeared
+ *    mid-slide — cut off along the bottom on a desktop, where the footer has
+ *    no room under the track. `data-kbd-focus` marks the track only while
+ *    the key is `:focus-visible`; the style lives in globals.css.
+ *  - A mouse drag selects no text and drags no ghost of the key
+ *    (`user-select: none`, `draggable={false}`).
  *  - If the work it started ends without leaving the screen (`busy` went
  *    true and came back, or never started), the key returns to the start so
  *    it can be slid again.
@@ -62,6 +69,7 @@ export default function SlideToConfirm({ label, doneLabel, ariaLabel, onConfirm,
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [kbdFocus, setKbdFocus] = useState(false);
 
   // The work finished and we are still here (a failed Go Live): back to rest.
   const [prevBusy, setPrevBusy] = useState(busy);
@@ -100,7 +108,8 @@ export default function SlideToConfirm({ label, doneLabel, ariaLabel, onConfirm,
       data-slide-state={state}
       data-slide-tone={tone}
       data-slide-done={done ? '' : undefined}
-      style={{ touchAction: 'none' }}
+      data-kbd-focus={kbdFocus ? '' : undefined}
+      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
       onPointerDown={e => {
         if (off || (e.pointerType === 'mouse' && e.button !== 0)) return;
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -153,10 +162,20 @@ export default function SlideToConfirm({ label, doneLabel, ariaLabel, onConfirm,
         data-slide-key=""
         data-tone={tone}
         data-done={done ? '' : undefined}
+        draggable={false}
+        onFocus={e => {
+          // `:focus-visible` is the browser's own answer to "did the keyboard
+          // bring the focus here"; an engine without it shows the outline.
+          let visible = true;
+          try { visible = e.currentTarget.matches(':focus-visible'); } catch { /* keep the outline */ }
+          setKbdFocus(visible);
+        }}
+        onBlur={() => setKbdFocus(false)}
         className={`ea-mech-slide-key absolute left-1 top-1 inline-flex items-center justify-center text-white ${post ? 'h-10 w-10 rounded-[11px]' : 'h-12 w-12 rounded-xl'}`}
         style={{
           transform: `translateX(${offset}px)`,
           transition: dragging ? 'none' : `transform 260ms ${SPRING}`,
+          willChange: 'transform',
         }}
         onClick={e => {
           // detail 0: the keyboard or assistive tech made this click. A

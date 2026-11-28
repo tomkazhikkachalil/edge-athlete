@@ -382,3 +382,29 @@ for (const tag of ['', ' @mobile']) {
     }
   });
 }
+
+// A HAND-TYPED course (Nov 28 2026): its own par and yardage table, which no
+// walk above shows. Its par pickers were 36 px tall.
+for (const tag of ['', ' @mobile']) {
+  test(`a hand-typed course's hole table fits every screen size, on this engine${tag}`, async ({ page }) => {
+    test.setTimeout(300_000);
+    const found: string[] = [];
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/feed?create=1&sport=golf');
+    const flow: Locator = page.locator('[data-step-flow="golf-round"]');
+    await expect(flow).toBeVisible({ timeout: 20_000 });
+    await flow.locator('[data-step-next]').click();
+    await expect(flow).toHaveAttribute('data-step', 'course');
+    await page.getByPlaceholder(/search courses/i).fill(`QA Ladder Typed ${Date.now()}`);
+    await page.locator('[data-course-add-manually]').click();
+    await expect(page.locator('[data-course-chosen]')).toContainText('QA Ladder Typed');
+    await expect(flow.locator('select').first()).toBeVisible();
+    await fits(page, 'Typed course (the hole table)', FRAME, found);
+    // Every par picker and yardage field of the table is a full tap target.
+    const short = await flow.locator('select, input[type="number"]').evaluateAll(els =>
+      els.map(el => ({ tag: el.tagName.toLowerCase(), h: Math.round(el.getBoundingClientRect().height) })).filter(e => e.h > 0 && e.h < 44).map(e => `${e.tag} ${e.h}`));
+    expect(short, 'par pickers and yardage fields under 44 px').toEqual([]);
+    expect(found, `\n${found.join('\n')}\n`).toEqual([]);
+  });
+}
+

@@ -1656,6 +1656,8 @@ export default function GolfComposerSection({
                       const holeNum = startingHoleNum + i;
                       return (
                         <div key={holeNum} className="flex items-center gap-3 bg-surface p-3 rounded border border-border">
+                          {/* The par picker and the yardage field are 44 px tall (Nov 28
+                              2026): they were 36, under the tap minimum. */}
                           <span className="text-sm font-semibold text-secondary w-16">Hole {holeNum}</span>
                           <div className="flex-1 flex gap-3">
                             <div className="flex-1">
@@ -1667,7 +1669,7 @@ export default function GolfComposerSection({
                                   newPar[i] = parseInt(e.target.value) || 0;
                                   setManualParEntry(newPar);
                                 }}
-                                className={GOLF_INPUT_COMPACT}
+                                className={`${GOLF_INPUT_COMPACT} h-11`}
                               >
                                 <option value="">-</option>
                                 <option value="3">3</option>
@@ -1689,7 +1691,7 @@ export default function GolfComposerSection({
                                 placeholder="yards"
                                 min="50"
                                 max="700"
-                                className={GOLF_INPUT_COMPACT}
+                                className={`${GOLF_INPUT_COMPACT} h-11`}
                               />
                             </div>
                           </div>
