@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth, activeWriterRefusal } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
+import { PLAYED_DATE_INVALID, playedDateAllowed } from '@/lib/golf/round-steps';
 import { parseComposition } from '@/lib/golf/course-sections';
 import { parsePuttingRule, type PuttingRule } from '@/lib/golf/putting-rule';
 import { filterBlockedBidirectional } from '@/lib/blocks';
@@ -241,6 +242,12 @@ export async function POST(request: NextRequest) {
         { error: 'already_played must be a boolean' },
         { status: 400 }
       );
+    }
+
+    // An already-played round is dated when it was played: a real day, not
+    // after today (Nov 27 2026). A live round's date is not judged here.
+    if (already_played === true && !playedDateAllowed(date, new Date())) {
+      return NextResponse.json({ error: PLAYED_DATE_INVALID }, { status: 400 });
     }
 
     // Create group post. "Already played" rounds post as completed (FINAL,

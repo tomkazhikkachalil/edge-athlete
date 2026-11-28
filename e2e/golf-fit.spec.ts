@@ -165,6 +165,11 @@ for (const tag of ['', ' @mobile']) {
 
       // ── Round type ────────────────────────────────────────────────────────
       await fits(page, 'Round type', FRAME, found);
+      // The four keys with Already played pressed and its line in the footer
+      // (Nov 27 2026); then back to Live for the rest of the walk.
+      await flow.getByRole('button', { name: 'Already played', exact: true }).click();
+      await fits(page, 'Round type, Already played', FRAME, found);
+      await flow.getByRole('button', { name: 'Live', exact: true }).click();
       await flow.locator('[data-step-next]').click();
       await expect(flow).toHaveAttribute('data-step', 'course');
 
@@ -298,6 +303,80 @@ for (const tag of ['', ' @mobile']) {
       expect(found, `\n${found.join('\n')}\n`).toEqual([]);
     } finally {
       await cleanup('golf-fit-indoor', [
+        () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
+      ]);
+    }
+  });
+}
+
+// An ALREADY-PLAYED round (Nov 27 2026): the course step with its date, the
+// Scores step, the scoring card with the putts set by the rule, and the
+// Create step with the caption and photos block, at every size. A catalog
+// course, as the two walks above use (a hand-typed course's own par table is
+// not measured by this spec).
+for (const tag of ['', ' @mobile']) {
+  test(`the already-played steps fit every screen size, on this engine${tag}`, async ({ page }) => {
+    test.setTimeout(420_000);
+    const admin = adminClient();
+    const stamp = Date.now();
+    const course = `QA Ladder Played ${stamp}`;
+    const found: string[] = [];
+    let courseId = '';
+    try {
+      const tees: Record<string, [number, number, number]> = { blue: [71.7, 131, 370], white: [69.8, 126, 345] };
+      const seeded = await admin.from('golf_courses').insert({
+        external_source: 'qa-e2e', external_id: `ladder-played-${stamp}`, name: course, city: 'Ottawa', region: 'Ontario', country: 'Canada',
+        total_par: 72, holes_count: 18, hydrated_at: new Date().toISOString(),
+        course_rating: Object.fromEntries(Object.entries(tees).map(([k, v]) => [k, v[0]])),
+        slope_rating: Object.fromEntries(Object.entries(tees).map(([k, v]) => [k, v[1]])),
+        hole_data: Array.from({ length: 18 }, (_, i) => ({ number: i + 1, par: 4, handicap: i + 1, yardage: Object.fromEntries(Object.entries(tees).map(([k, v]) => [k, v[2]])) })),
+      }).select('id').single();
+      expect(seeded.error, seeded.error?.message).toBeNull();
+      courseId = seeded.data!.id as string;
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto('/feed?create=1&sport=golf');
+      const flow: Locator = page.locator('[data-step-flow="golf-round"]');
+      await expect(flow).toBeVisible({ timeout: 20_000 });
+      await flow.getByRole('button', { name: 'Already played', exact: true }).click();
+      await flow.getByRole('button', { name: 'Indoor' }).click();
+      await flow.locator('[data-step-next]').click();
+      await expect(flow).toHaveAttribute('data-step', 'course');
+      await fits(page, 'Played: course search with the date', FRAME, found);
+      await page.getByPlaceholder(/search courses/i).fill('QA Ladder Played');
+      await page.locator('[data-course-results] button', { hasText: course }).first().click({ timeout: 20_000 });
+      await expect(page.locator('[data-course-chosen]')).toContainText(course);
+      await expect(page.locator('[data-course-show-scorecard]')).toBeVisible({ timeout: 15_000 });
+      await page.locator('[data-tee-row="white"]').click();
+      await page.locator('[data-putting-rule]').getByRole('button', { name: 'Auto 2', exact: true }).click();
+      await fits(page, 'Played: the course with the date', FRAME, found);
+      await flow.locator('[data-step-next]').click();
+      await flow.locator('[data-step-next]').click();
+      await flow.locator('[data-step-next]').click();
+      await expect(flow).toHaveAttribute('data-step', 'scores');
+      await fits(page, 'Played: Scores (nothing entered, Next refused)', FRAME, found);
+      await flow.getByRole('button', { name: 'More information about Scores' }).click();
+      await fits(page, 'Played: Scores (info open)', FRAME, found);
+
+      await flow.locator('[data-round-score-row]').first().click();
+      const card = page.locator('[data-score-card]');
+      await expect(card.locator('[data-putts-fixed]')).toBeVisible();
+      await fits(page, 'Played: the card, putts set by the rule', '[data-score-card] [role="dialog"]', found);
+      await card.locator('[data-scorer-actions] button').first().click();
+      await fits(page, 'Played: the card, penalty entry', '[data-score-card] [role="dialog"]', found);
+      await card.getByRole('button', { name: 'Cancel the penalty' }).click();
+      await card.locator('[data-scorer-next]').click();
+      await card.getByRole('button', { name: 'Close' }).click();
+      await expect(card).toHaveCount(0);
+      await fits(page, 'Played: Scores (a card entered)', FRAME, found);
+
+      await flow.locator('[data-step-next]').click();
+      await expect(flow).toHaveAttribute('data-step', 'finish');
+      await fits(page, 'Played: Create', FRAME, found);
+      expect(found, `\n${found.join('\n')}\n`).toEqual([]);
+      // Nothing was created: the flow is left without Create Post.
+    } finally {
+      await cleanup('golf-fit-played', [
         () => courseId && admin.from('golf_courses').delete().eq('id', courseId),
       ]);
     }

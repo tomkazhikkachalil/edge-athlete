@@ -32,6 +32,9 @@ interface StartStepProps {
   rows: readonly StartRow[];
   players: readonly { id: string; name: string; avatar_url?: string }[];
   handicaps: Readonly<Record<string, string | null>>;
+  /** An already-played round: each player's entered card in one line
+   *  ("18 holes · 82 · +10"), under their name. Absent for a live round. */
+  scores?: Readonly<Record<string, string>>;
   children?: ReactNode;
 }
 
@@ -47,7 +50,7 @@ function Value({ text }: { text: string }) {
   );
 }
 
-export default function StartStep({ alreadyPlayed, rows, players, handicaps, children }: StartStepProps) {
+export default function StartStep({ alreadyPlayed, rows, players, handicaps, scores, children }: StartStepProps) {
   const [infoOpen, setInfoOpen] = useState(false);
   const title = alreadyPlayed ? 'Your round' : 'Ready to go live';
   const info = alreadyPlayed
@@ -102,9 +105,14 @@ export default function StartStep({ alreadyPlayed, rows, players, handicaps, chi
             {players.map(p => {
               const handicap = handicaps[p.id];
               return (
-                <li key={p.id} data-round-player={p.id} className="flex h-10 items-center gap-2.5">
+                <li key={p.id} data-round-player={p.id} className={`flex items-center gap-2.5 ${scores ? 'min-h-11 py-1' : 'h-10'}`}>
                   <AvatarImage src={p.avatar_url} alt="" size={28} fallbackInitials={getInitials(p.name)} />
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[color:var(--mech-text)]">{p.name}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-semibold text-[color:var(--mech-text)]">{p.name}</span>
+                    {scores?.[p.id] ? (
+                      <span className="ea-mech-readout truncate text-xs !text-[color:var(--mech-text-dim)]" data-round-player-score="">{scores[p.id]}</span>
+                    ) : null}
+                  </span>
                   {handicap ? (
                     <span className="flex shrink-0 items-baseline gap-1.5" data-round-player-index="">
                       <span className="ea-mech-micro">Index</span>

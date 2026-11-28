@@ -38,7 +38,7 @@ The step is held by ID (`GolfComposerValue.stepId`, riding the crash draft so a 
 
 **Unchanged by design:** no 9/18 or Front/Back picker (derived at submit from the holes scored); `isValid` = course + date; `isDirty` as before (a seeded row is not work); the crash draft (`ea:composer-draft:v1`) carries the golf value while dirty, now with the step; the hole-range and creator-row render-phase syncs.
 
-**Pinned by:** `round-steps.test.ts` (the four lists, skippable, index fallback, the refusals, the date rule, the labels), `step-flow.test.ts` (the refusal line, the finish's `canAdvance`, the tones), `request-position.test.ts` (granted only); e2e `golf-quick-entry.spec.ts` (the already-played walk to the draft review with the creator's row and the refusal; the defaults, the indoor list and the clean close; **Playing now to Go Live through the UI** — the first spec to; the phone Quick entry walk with no overflow on any step), `composer-near-me.spec.ts` (the course step's auto-run where the Permissions API answers granted, the tap elsewhere), `header-create`, `composer-default-general`, `sport-favourites`, `dropdown-visibility` (the frame is the door; the course field is step 2).
+**Pinned by:** `round-steps.test.ts` (the four lists, skippable, index fallback, the refusals, the date rule, the labels), `step-flow.test.ts` (the refusal line, the finish's `canAdvance`, the tones), `request-position.test.ts` (granted only); e2e `golf-quick-entry.spec.ts` (step 1's Live / Already played keys and the hold on Already played, Nov 27 2026; the already-played walk to the draft review left with the Scores step on Nov 25 2026; the defaults, the indoor list and the clean close; **Playing now to Go Live through the UI** — the first spec to; the phone Quick entry walk with no overflow on any step), `composer-near-me.spec.ts` (the course step's auto-run where the Permissions API answers granted, the tap elsewhere), `header-create`, `composer-default-general`, `sport-favourites`, `dropdown-visibility` (the frame is the door; the course field is step 2).
 
 ### The live path's look (Oct 29 2026, Tom's refinement spec — #1359 the account unit, PR B the look; zero DDL in PR B)
 
@@ -118,3 +118,41 @@ Tom's doc "golf round flow, part 2" finishes the flow in the mechanical dialect 
 **Pinned by:** `round-steps.test.ts` (lists, numbering, wording, frame, the flag), `recent-partners.test.ts`, `slide.test.ts`, `score-entry.test.ts` (`withoutEnteredScores`), `golf-part2-surface.test.ts` (the surface and the route), `step-flow.test.ts`, `weather-surface.test.ts`; e2e `golf-part2.spec.ts` (quick add, the dialog, a tap and a half slide start nothing, a full slide starts the round once with its partner; Enter on the key), `golf-quick-entry.spec.ts`, `golf-forecast.spec.ts`, `golf-course-step.spec.ts`.
 
 **Every screen size, every engine (Nov 25 2026):** the flow is measured on the size ladder and on all six browser projects by `e2e/golf-fit.spec.ts`; the rules are in `ui-conventions.md`, "The mechanical dialect". The slide's drag may start anywhere on its track (it follows the distance dragged), so a tap on the track, its far end included, starts nothing.
+
+## Part 3: Already played, outdoor and indoor (Nov 27 2026; zero DDL)
+
+Tom, Nov 27 2026: the live round is done; rounds already played come next, outdoor and indoor, "similar to what we had before", following the live round and changing nothing in it. Every round was "auto live": step 1 gets a key for **Live** and a key for **Already played** beside Outdoor / Indoor. His decisions: the creator enters **everyone's** scores; an already-played **indoor** round's card **follows the putting rule**; Live + Outdoor stay the defaults. The steps themselves are my design from the old flow and the live look, built for him to adjust.
+
+**The steps** (`stepsForRound`): the live list, plus **Scores** before the finish.
+
+| Round | Steps |
+| --- | --- |
+| Outdoor, already played | Round type · Course · Game format · Conditions · Players · Scores · Create (7) |
+| Indoor, already played | Round type · Course · Game format · Players · Scores · Create (6) |
+
+- **Step 1** asks WHEN again (`ALREADY_PLAYED_OFFERED = true`). The keys read **Live** (was "Playing now") and **Already played**. Below 360 px the two keys set a 13 px label so "Already played" is not cut.
+- **Course** carries the **date** (today by default, `max` today). Refused without a date and with a date after today (`REFUSAL_DATE`, `REFUSAL_DATE_FUTURE`); the server refuses the same on `POST /api/group-posts` for `already_played` (`playedDateAllowed`: a real day, not after the latest "today" anywhere, UTC+14). Indoor still waits for a tee and saves its putting rule. No "Playing at X?" offer.
+- **Conditions** (outdoor): typed by the person; no forecast key.
+- **Players:** "Round participants"; quick add and Tag People as live.
+- **Scores** (`round-steps/ScoresStep.tsx`): one row per player in the round's order, the picture ringed in the player's colour, and the row's line (`playedCardLine`: "18 holes · 82 · +10", "5 of 18 holes · 23 · +3", "No scores yet"). A row opens the **live scoring card** on that player. Not skippable: Next and Create wait for one scored hole on any card (`REFUSAL_SCORES`), because a finished round without scores draws no scorecard and has no door to add them.
+- **Create** (`StartStep`): the summary with the date in words and each player's card line, the caption and photos block (`finishSlot`), a **Create Post** button (never the slide). It creates the round `completed` with a draft post and lands on `/athlete/drafts/[postId]` to review and post (Convention 33), as before Nov 25.
+
+**The scoring card** is `ScoreEntryModal` in its batch mode (no `onSaveHole`): nothing is sent from the card; a save lands on the player's row in the composer (`mergeCardSave`) and the round is created with it.
+
+- Same dial, putts, FIR / GIR, penalty stack (each penalty with its strokes), totals, hole keys and player tabs as live. Next records what is shown, par and 2 putts included, as live.
+- Not drawn: the Live / Final badge, Photo and Video (`mediaHidden`: there is no round to attach to yet; photos go on the Create step), the map.
+- **The X keeps what was recorded** (`handleBatchClose`) and records nothing new, so a part of a round can be entered and left. The last hole's key reads "Save Scores".
+- `draftless`: no localStorage draft (the id here is a profile id; a draft would carry one round's holes into the next). The composer's own draft keeps the scores; an already-played draft is restored with them, a live draft with its holes blank.
+- **The putting rule** (`puttingRule`, indoor only): **Auto 2** fixes the putts at 2, never above the strokes, and the putts control gives way to a read-only plate ("2 · Putts · Auto 2"); `withPuttingRule` applies the same to every entered hole when the round is sent, so a rule chosen after holes were entered still reaches them. **Gimme** and **Putt out** leave the putts as entered. The live card passes no rule and is unchanged; how a live indoor round reads its rule is still to be designed.
+
+**What is sent** (`submitSharedRound`): `POST /api/group-posts` with `already_played: true` (the round's size derived from the holes scored, as before: front nine only is a 9, back nine only a 9 numbered 10–18, else 18), then `POST /api/golf/participant-scores` with `already_played`. That route now keeps each penalty's strokes (`penalty_strokes`, validated; dropped rather than mis-paired). `mirrorCompletedRound` then writes `golf_rounds` dated as played, which is what the handicap and the stats read.
+
+**A finished round is never left without scores.** The scores request is tried `SCORE_SAVE_ATTEMPTS` (3) times; if no card was saved the round is deleted (`DELETE /api/group-posts/[id]?mode=delete`) and the composer stays open with every score in it and says so. Some cards saved and some refused: the round stands and the person is told.
+
+**Live is unchanged.** A live round has no Scores step, never carries a score from the composer (the value sent up is `withoutEnteredScores` unless already played, even after a switch from Already played back to Live), and `ruled` / `draftId` in the card are the identity without the new props.
+
+**The switches** (`round-steps.ts`): `ALREADY_PLAYED_OFFERED = false` hides the key; `ALREADY_PLAYED_STEPS_BUILT = false` keeps the key and holds the path on step 1 ("Already played is not ready yet"), and a saved played draft comes back live. Neither touches live.
+
+**Known, not changed here:** a hand-typed course's par dropdowns are 36 px tall (below the 44 px target) on every round type; `MultiPlayerScorecardGrid` still has no renderer; rated indoor rounds count toward the handicap (Tom, Nov 27: leave as is).
+
+**Pinned by:** `round-steps.test.ts` (the four lists, the Scores and date rules, the server's date check, the switches), `played-scores.test.ts` (the merge, the lines, the rule, the save outcome), `golf-part2-surface.test.ts` and `live-score-card-surface.test.ts` (the card mounts for an already-played round only, in batch mode, with no draft; the live lines); e2e `golf-already-played.spec.ts` (outdoor to the review and Post with the database checked; indoor on Auto 2 with a partner scored from a tab and a two-stroke penalty; a failed save leaves no round and keeps the scores; a future date refused by the server; back to Live sends no score), `golf-quick-entry.spec.ts` (step 1's keys and counts), `golf-fit.spec.ts` (the played steps and the card on the size ladder).

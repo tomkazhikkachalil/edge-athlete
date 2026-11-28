@@ -11,9 +11,16 @@
 // failure toast, exactly as before). Partial failures after the round exists
 // (scores, media) surface their own toasts here and do NOT throw — the round
 // is real and the user can repair it from the post.
+//
+// One exception (Nov 27 2026): an ALREADY-PLAYED round whose scores could not
+// be saved at all. A finished round without scores draws no scorecard and
+// has no door to add them, so it is never left behind: the save is tried
+// SCORE_SAVE_ATTEMPTS times, then the round is deleted and this throws — the
+// composer stays open with every score still in it.
 
 import type { GolfComposerValue } from '@/components/golf/GolfComposerSection';
 import { deriveRecordedRound } from '@/lib/golf/derive-round';
+import { SCORE_SAVE_ATTEMPTS, scoreSaveOutcome, type ScoreSaveOutcome } from '@/lib/golf/played-scores';
 import { clampGimmeFeet, puttingModeOr, puttingPayload } from '@/lib/golf/putting-rule';
 import type { CreatedRoundLike } from '@/lib/golf/round-route';
 
@@ -163,12 +170,8 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
     p.hole_scores.some(h => h.strokes !== undefined && h.strokes > 0)
   );
 
-  const scoresPromise = hasScores
-    ? fetch('/api/golf/participant-scores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+  const scoresBody = hasScores
+    ? JSON.stringify({
           group_post_id: groupPostId,
           // An already-played round is finished by its entered cards (round-status.ts).
           already_played: sharedRoundDetails.alreadyPlayed === true,
@@ -196,17 +199,49 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
                 };
               })
           }))
-        }),
-      })
-    : Promise.resolve(null);
+        })
+    : null;
 
-  const [scoresResult] = await Promise.allSettled([scoresPromise]);
+  // One request; the route upserts, so a second try after a lost answer
+  // writes the same holes again and changes nothing.
+  const saveScores = async (): Promise<ScoreSaveOutcome> => {
+    try {
+      const res = await fetch('/api/golf/participant-scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: scoresBody,
+      });
+      return scoreSaveOutcome(res.ok, res.ok ? await res.json().catch(() => null) : null);
+    } catch {
+      return 'failed';
+    }
+  };
 
-  if (hasScores && (scoresResult.status === 'rejected' || (scoresResult.status === 'fulfilled' && scoresResult.value && !scoresResult.value.ok))) {
-    // Surface it — silently losing entered scores erodes trust. The
-    // round itself is fine; scores are re-enterable from the post.
-    console.error('Failed to save participant scores');
-    showError('Round created, but some scores could not be saved. You can re-enter them from the post.');
+  if (scoresBody) {
+    let outcome = await saveScores();
+    if (sharedRoundDetails.alreadyPlayed) {
+      for (let attempt = 1; outcome === 'failed' && attempt < SCORE_SAVE_ATTEMPTS; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 600 * attempt));
+        outcome = await saveScores();
+      }
+      if (outcome === 'failed') {
+        // No card was saved: take the empty finished round away again.
+        console.error('Failed to save an already-played round\'s scores');
+        const removed = await fetch(`/api/group-posts/${groupPostId}?mode=delete`, { method: 'DELETE', credentials: 'include' })
+          .then(res => res.ok)
+          .catch(() => false);
+        throw new Error(removed
+          ? 'The scores could not be saved, so the round was not created. Your scores are still here: try again.'
+          : 'The scores could not be saved. The round was created without them: delete it from your drafts, then try again.');
+      }
+    }
+    if (outcome !== 'saved') {
+      // Surface it — silently losing entered scores erodes trust. The
+      // round itself is fine; scores are re-enterable from the post.
+      console.error('Failed to save participant scores');
+      showError('Round created, but some scores could not be saved. You can re-enter them from the post.');
+    }
   }
 
   // Attach any composer media to the ROUND. This branch used to return

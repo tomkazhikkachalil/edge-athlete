@@ -4,20 +4,22 @@
 // on the first step's answers (the org wizard's `stepsFor` idea):
 //   • Indoor drops Conditions (the form hid them for indoor already).
 //     Its course step picks a tee and a putting rule (Nov 27 2026).
-//   • No round enters scores here (Nov 24 2026, Tom: the flow is about
-//     starting a live round; the already-played process is rebuilt later).
-//     A live round is scored on its live page; an already-played round is
-//     created without scores and takes them from its scorecard on the draft
-//     review. This reverses Oct 31 2026 (Scores on every round).
+//   • A LIVE round enters no scores here (Nov 24 2026, Tom): it is scored
+//     on its live page. This reversed Oct 31 2026 (Scores on every round).
+//   • An ALREADY-PLAYED round (rebuilt Nov 27 2026, Tom: "similar to what
+//     we had before", following the live round) adds a Scores step after
+//     Players: the live scoring card, in its batch mode, for every player.
+//     It needs at least one scored hole: a finished round without scores
+//     draws no scorecard.
 //   • Already played finishes on "Create" — the round lands on the draft
-//     review; Playing now finishes on "Start" — Go Live.
+//     review; Live finishes on "Start" — Go Live.
 // Playing now + Outdoor are the defaults (Tom, Oct 28: keep today's), the
 // date is locked to today while Playing now (the old past-date → Already
 // played flip is retired), and only the course step can refuse Next:
 // course + date were the ONLY required fields of the form and still are.
 // StepFlow draws the frame; this module decides the list and the refusals.
 
-export type RoundStepId = 'type' | 'course' | 'format' | 'conditions' | 'players' | 'finish';
+export type RoundStepId = 'type' | 'course' | 'format' | 'conditions' | 'players' | 'scores' | 'finish';
 
 export interface RoundStep {
   id: RoundStepId;
@@ -31,19 +33,28 @@ export interface RoundStepAnswers {
   indoor: boolean;
 }
 
-// ── "Already played" is not offered (Nov 25 2026, Tom) ──────────────────────
-// With the Scores step gone, a round logged as already played would be
-// created with no scores and no door to add them (a finished round without
-// scores draws no scorecard). Tom: hide it until the already-played process
-// is rebuilt. Step 1 then asks only Outdoor / Indoor and every round started
-// here is live. The mode's rules and paths below stay, unreachable, for the
-// rebuild: turning this on brings the switch back — it does NOT bring score
-// entry back.
-export const ALREADY_PLAYED_OFFERED = false;
+// ── "Already played" is offered, and its steps are built (Nov 27 2026) ──────
+// History: hidden on Nov 25 2026, because with the Scores step gone a round
+// logged as already played would be created with no scores and no door to
+// add them (a finished round without scores draws no scorecard).
+// Tom, Nov 27 2026: step 1 asks Live / Already played again, beside Outdoor /
+// Indoor, for both round types, and the played steps are built: the same
+// steps as live, a date on the course step, a Scores step, Create. The live
+// path is unchanged. Either flag set back to false closes the played path
+// again without touching live: `OFFERED` hides the key, `STEPS_BUILT` holds
+// the path on step 1 (`REFUSAL_PLAYED_STEPS`) and brings a saved played
+// draft back as a live round.
+export const ALREADY_PLAYED_OFFERED = true;
+/** The already-played steps exist. While false, step 1 refuses Next for an
+ *  already-played round and a restored already-played draft comes back live. */
+export const ALREADY_PLAYED_STEPS_BUILT = true;
 
-/** The mode a round may be in: an already-played answer (a draft saved
- *  before the option was hidden) is a live round while it is not offered. */
-export function offeredAlreadyPlayed(alreadyPlayed: boolean | undefined, offered: boolean = ALREADY_PLAYED_OFFERED): boolean {
+/** The mode a round may be RESTORED in: an already-played answer in a saved
+ *  draft is a live round until the mode is offered and its steps are built. */
+export function offeredAlreadyPlayed(
+  alreadyPlayed: boolean | undefined,
+  offered: boolean = ALREADY_PLAYED_OFFERED && ALREADY_PLAYED_STEPS_BUILT,
+): boolean {
   return offered && alreadyPlayed === true;
 }
 
@@ -61,13 +72,16 @@ export function stepsForRound(a: RoundStepAnswers): RoundStep[] {
   ];
   if (!a.indoor) steps.push({ id: 'conditions', label: 'Conditions', skippable: true });
   steps.push({ id: 'players', label: 'Players', skippable: true });
+  // An already-played round's scores (Nov 27 2026). Never skippable: the
+  // round is created finished, and a finished round needs a score.
+  if (a.alreadyPlayed) steps.push({ id: 'scores', label: 'Scores' });
   steps.push({ id: 'finish', label: a.alreadyPlayed ? 'Create' : 'Start' });
   return steps;
 }
 
-/** Where a step sits in the list; 0 (the first step) when the list no longer
- *  holds it — a draft saved on a step that has since left the list (the
- *  retired Scores step) starts over rather than rendering nothing. */
+/** Where a step sits in the list; 0 (the first step) when the list does not
+ *  hold it — a draft saved on a step its list lacks (a live round has no
+ *  Scores step) starts over rather than rendering nothing. */
 export function roundStepIndex(steps: RoundStep[], id: RoundStepId | string | undefined): number {
   const i = steps.findIndex(s => s.id === id);
   return i < 0 ? 0 : i;
@@ -82,27 +96,64 @@ export interface RoundStepFacts {
   teeColor?: string;
   /** The picked (or hand-added) course is on screen — the tee list with it. */
   courseShown?: boolean;
+  /** At least one hole has strokes on someone's card (an already-played
+   *  round's Scores step and its Create). */
+  scoresEntered?: boolean;
+  /** The viewer's own day (YYYY-MM-DD): an already-played round is never
+   *  dated after it. Absent = not checked. */
+  today?: string;
 }
 
 export const REFUSAL_COURSE = 'Pick or type a course first';
 export const REFUSAL_DATE = 'Pick the date you played';
+/** A typed date after today (the picker's own `max` stops a picked one). */
+export const REFUSAL_DATE_FUTURE = 'The date cannot be after today';
 export const REFUSAL_TEE = 'Pick a tee first';
 /** Indoor, a name typed but not yet added: the tee list is one tap away. */
 export const REFUSAL_COURSE_ADD = 'Pick a course, or add the one you typed';
+/** Step 1, Already played picked while its steps are switched off. */
+export const REFUSAL_PLAYED_STEPS = 'Already played is not ready yet';
+/** An already-played round with no hole scored yet (Nov 27 2026). */
+export const REFUSAL_SCORES = 'Enter at least one hole first';
 
 /** Why Next (or the finish) is refused on a step; null means go ahead.
- *  Only the course step and the finish can refuse: for the two fields the
- *  form always required, and — on an INDOOR round's course step (Tom's
- *  indoor course spec, Nov 27 2026) — until a tee is picked. The finish
- *  never asks for the tee: a draft saved before the rule still starts. */
-export function roundStepRefusal(id: RoundStepId, facts: RoundStepFacts): string | null {
+ *  The course step and the finish refuse for the two fields the form always
+ *  required, and — on an INDOOR round's course step (Tom's indoor course
+ *  spec, Nov 27 2026) — until a tee is picked. The finish never asks for the
+ *  tee: a draft saved before the rule still starts. Step 1 refuses an
+ *  already-played round while its steps are switched off. An already-played
+ *  round's Scores step and its Create wait for one scored hole. A live
+ *  round meets none of the already-played rules. */
+export function roundStepRefusal(
+  id: RoundStepId,
+  facts: RoundStepFacts,
+  playedStepsBuilt: boolean = ALREADY_PLAYED_STEPS_BUILT,
+): string | null {
+  if (id === 'type') return facts.alreadyPlayed && !playedStepsBuilt ? REFUSAL_PLAYED_STEPS : null;
+  if (id === 'scores') return facts.alreadyPlayed && !facts.scoresEntered ? REFUSAL_SCORES : null;
   if (id !== 'course' && id !== 'finish') return null;
   if (facts.courseName.trim().length === 0) return REFUSAL_COURSE;
   if (facts.alreadyPlayed && !facts.date) return REFUSAL_DATE;
+  if (facts.alreadyPlayed && facts.today && facts.date > facts.today) return REFUSAL_DATE_FUTURE;
   if (id === 'course' && facts.indoor && !(facts.teeColor ?? '').trim()) {
     return facts.courseShown === false ? REFUSAL_COURSE_ADD : REFUSAL_TEE;
   }
+  if (id === 'finish' && facts.alreadyPlayed && !facts.scoresEntered) return REFUSAL_SCORES;
   return null;
+}
+
+export const PLAYED_DATE_INVALID = 'An already-played round needs the date it was played, not after today';
+
+/** The server's own check on an already-played round's date (the client's
+ *  is `REFUSAL_DATE_FUTURE`): a real YYYY-MM-DD day, not after today. The
+ *  server does not know the viewer's time zone, so "today" is the latest
+ *  day it is anywhere on Earth (UTC+14). */
+export function playedDateAllowed(date: unknown, now: Date): boolean {
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const day = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== date) return false;
+  const latestToday = new Date(now.getTime() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return date <= latestToday;
 }
 
 /** The round's date for its mode: a live round is always today; an

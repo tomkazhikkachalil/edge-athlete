@@ -9,15 +9,25 @@ const code = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), 'ut
 const composer = code('src/components/golf/GolfComposerSection.tsx');
 const modal = code('src/components/CreatePostModal.tsx');
 
-describe('A1 / A3 — no score entry and no Preview in the golf flow', () => {
-  it('the composer renders no scores step, no score grid and no Quick entry', () => {
-    expect(composer).not.toMatch(/currentStep\.id === 'scores'/);
+describe('A1 / A3 — a LIVE round enters no score and has no Preview in the golf flow', () => {
+  it('the old score grid and Quick entry are gone; the scoring card opens for an already-played round only', () => {
     expect(composer).not.toMatch(/<MultiPlayerScorecardGrid/);
     expect(composer).not.toMatch(/Quick entry/);
-    expect(composer).not.toMatch(/ScoreEntryModal/);
+    // Nov 27 2026: the Scores step exists for an already-played round (the
+    // step list gives it to no live round), and the card mounts for one only.
+    expect(composer).toMatch(/\{active && scoring && scoringRow && sharedRoundDetails\.alreadyPlayed && \(\s*<ScoreEntryModal/);
+    expect(code('src/lib/golf/round-steps.ts')).toMatch(/if \(a\.alreadyPlayed\) steps\.push\(\{ id: 'scores', label: 'Scores' \}\);/);
   });
-  it('a restored draft comes back with its holes blank', () => {
-    expect(composer).toMatch(/withoutEnteredScores\(seed\?\.playerScores \?\? \[\]\)/);
+  it('a restored LIVE draft comes back with its holes blank, and a live round is never created with a score', () => {
+    expect(composer).toMatch(/offeredAlreadyPlayed\(seed\?\.sharedRoundDetails\?\.alreadyPlayed\) \? seed\?\.playerScores \?\? \[\] : withoutEnteredScores\(seed\?\.playerScores \?\? \[\]\)/);
+    expect(composer).toMatch(/: withoutEnteredScores\(playerScores\),/);
+  });
+  it('the card over the Scores step sends nothing by itself: batch mode, no draft, the putting rule', () => {
+    const mount = composer.slice(composer.indexOf('<ScoreEntryModal'), composer.indexOf('{/* Participant Selection Modal'));
+    expect(mount).not.toContain('onSaveHole');
+    expect(mount).toContain('draftless');
+    expect(mount).toContain('puttingRule={playedRule}');
+    expect(mount).toContain('setPlayerScores(prev => mergeCardSave(prev, playerId, scores));');
   });
   it('Preview is not offered to the golf section, and the prop is gone', () => {
     expect(composer).not.toMatch(/onPreview/);
@@ -125,7 +135,14 @@ describe('the frame — no card around a step, the banner in one line', () => {
   });
 });
 
-describe('Already played is hidden (Nov 25 2026)', () => {
+describe('Already played: the key is offered and its steps are built (Nov 27 2026)', () => {
+  it('the keys read Live and Already played, and step 1 can still hold the played path', () => {
+    const step = code('src/components/golf/round-steps/RoundTypeStep.tsx');
+    expect(step).toMatch(/label: 'Live',/);
+    expect(step).toMatch(/label: 'Already played',/);
+    const rules = code('src/lib/golf/round-steps.ts');
+    expect(rules).toMatch(/if \(id === 'type'\) return facts\.alreadyPlayed && !playedStepsBuilt \? REFUSAL_PLAYED_STEPS : null;/);
+  });
   it('step 1 asks WHEN only while the mode is offered, and a restored draft comes back live', () => {
     const step = code('src/components/golf/round-steps/RoundTypeStep.tsx');
     expect(step).toMatch(/\{offerAlreadyPlayed && \(/);

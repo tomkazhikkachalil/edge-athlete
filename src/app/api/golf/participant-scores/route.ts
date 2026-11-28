@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseExpectedVersion, type HoleConflict, type HoleWrite } from '@/lib/golf/hole-writes';
 import { writeHoleScores } from '@/lib/golf/hole-scores-server';
-import { sanitizePenalties } from '@/lib/golf/penalties';
+import { sanitizePenalties, validatePenaltyStrokes } from '@/lib/golf/penalties';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { holeNumberInRange } from '@/lib/sport-events/scoring-authz';
@@ -12,7 +12,7 @@ import { reportRouteError } from '@/lib/observability/report';
 /**
  * POST /api/golf/participant-scores — the bulk creator-entered path. Body
  * `{ group_post_id, participant_scores: [{ participant_id (a PROFILE id),
- * hole_scores: [{ hole_number, strokes, …, penalties?, expected_version? }] }] }`.
+ * hole_scores: [{ hole_number, strokes, …, penalties?, penalty_strokes?, expected_version? }] }] }`.
  * Conflicts (phase 2b, mig 209): a hole with `expected_version` is a
  * per-hole compare-and-set; any conflict in the batch answers 409
  * `{ error, conflicts: [{ participant_id, hole_number, current }], results,
@@ -180,14 +180,26 @@ export async function POST(request: NextRequest) {
       // hole names them (209). A bad expected_version fails THIS entry.
       let badVersion: string | null = null;
       const holeWrites: HoleWrite[] = [];
-      for (const hole of validHoleScores as Array<{ hole_number: number; strokes: number; putts?: number; fairway_hit?: boolean; green_in_regulation?: boolean; penalties?: unknown; expected_version?: unknown }>) {
+      for (const hole of validHoleScores as Array<{ hole_number: number; strokes: number; putts?: number; fairway_hit?: boolean; green_in_regulation?: boolean; penalties?: unknown; penalty_strokes?: unknown; expected_version?: unknown }>) {
         const expected = parseExpectedVersion(hole.expected_version);
         if (expected === null) {
           badVersion = `Invalid expected_version on hole ${hole.hole_number}`;
           break;
         }
         const w: HoleWrite = { hole_number: hole.hole_number, strokes: hole.strokes, putts: hole.putts ?? null, fairway_hit: hole.fairway_hit ?? null, green_in_regulation: hole.green_in_regulation ?? null };
-        if (Object.prototype.hasOwnProperty.call(hole, 'penalties')) w.penalties = sanitizePenalties(hole.penalties);
+        if (Object.prototype.hasOwnProperty.call(hole, 'penalties')) {
+          w.penalties = sanitizePenalties(hole.penalties);
+          // Each penalty's strokes (320), as the single-card route stores
+          // them (Nov 27 2026: an already-played round is entered on the
+          // live card, which records them). Lenient like the types here:
+          // they ride only when they still line up with the kept types —
+          // otherwise the hole reads one stroke each, never a wrong pairing.
+          const kept = w.penalties?.length ?? 0;
+          if (kept > 0 && Array.isArray(hole.penalties) && hole.penalties.length === kept) {
+            const strokes = validatePenaltyStrokes(hole.penalty_strokes, kept);
+            if (Array.isArray(strokes)) w.penalty_strokes = strokes;
+          }
+        }
         if (expected !== undefined) w.expected_version = expected;
         holeWrites.push(w);
       }

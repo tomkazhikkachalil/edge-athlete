@@ -2,6 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_ROUND_ANSWERS,
   ALREADY_PLAYED_OFFERED,
+  ALREADY_PLAYED_STEPS_BUILT,
+  REFUSAL_PLAYED_STEPS,
+  REFUSAL_SCORES,
+  REFUSAL_DATE_FUTURE,
+  playedDateAllowed,
   LIVE_OUTDOOR_STEPS,
   offeredAlreadyPlayed,
   conditionsLine,
@@ -34,15 +39,15 @@ describe('stepsForRound — the list follows the first step', () => {
   it('Indoor drops Conditions', () => {
     expect(ids({ alreadyPlayed: false, indoor: true })).toEqual(['type', 'course', 'format', 'players', 'finish']);
   });
-  it('Already played walks the same steps, its finish labelled Create; no round has a Scores step (Nov 24 2026)', () => {
-    expect(ids({ alreadyPlayed: true, indoor: false })).toEqual(['type', 'course', 'format', 'conditions', 'players', 'finish']);
-    expect(ids({ alreadyPlayed: true, indoor: true })).toEqual(['type', 'course', 'format', 'players', 'finish']);
-    for (const alreadyPlayed of [true, false]) for (const indoor of [true, false]) {
-      expect(ids({ alreadyPlayed, indoor }) as string[]).not.toContain('scores');
+  it('Already played walks the same steps plus Scores before its finish, labelled Create; a live round has no Scores step', () => {
+    expect(ids({ alreadyPlayed: true, indoor: false })).toEqual(['type', 'course', 'format', 'conditions', 'players', 'scores', 'finish']);
+    expect(ids({ alreadyPlayed: true, indoor: true })).toEqual(['type', 'course', 'format', 'players', 'scores', 'finish']);
+    for (const indoor of [true, false]) {
+      expect(ids({ alreadyPlayed: false, indoor }) as string[]).not.toContain('scores');
     }
     expect(stepsForRound({ alreadyPlayed: true, indoor: false }).at(-1)?.label).toBe('Create');
   });
-  it('Conditions and Players are skippable (nothing on them was ever required); Type, Course, Format and the finish are not', () => {
+  it('Conditions and Players are skippable (nothing on them was ever required); Type, Course, Format, Scores and the finish are not', () => {
     const steps = stepsForRound({ alreadyPlayed: true, indoor: false });
     const skippable = steps.filter(s => s.skippable).map(s => s.id);
     expect(skippable).toEqual(['conditions', 'players']);
@@ -79,9 +84,31 @@ describe('roundStepRefusal — only course and the finish refuse, only for cours
   });
   it('the finish mirrors the course step; every other step always advances', () => {
     expect(roundStepRefusal('finish', { ...ok, courseName: '' })).toBe(REFUSAL_COURSE);
-    for (const id of ['type', 'format', 'conditions', 'players'] as const) {
+    for (const id of ['format', 'conditions', 'players'] as const) {
       expect(roundStepRefusal(id, { courseName: '', date: '', alreadyPlayed: true })).toBeNull();
     }
+  });
+});
+
+// Nov 27 2026 (Tom): Live / Already played are keys on step 1 again; the
+// played steps are built next, so the played path stops on step 1 until then.
+describe('step 1 can hold an already-played round (the switch in round-steps.ts)', () => {
+  const played = { courseName: '', date: '', alreadyPlayed: true };
+  it('the steps are built, so step 1 lets Already played through', () => {
+    expect(ALREADY_PLAYED_STEPS_BUILT).toBe(true);
+    expect(roundStepRefusal('type', played)).toBeNull();
+    expect(roundStepRefusal('type', { ...played, indoor: true })).toBeNull();
+  });
+  it('switched off, it refuses Next for Already played, outdoor and indoor', () => {
+    expect(roundStepRefusal('type', played, false)).toBe(REFUSAL_PLAYED_STEPS);
+    expect(roundStepRefusal('type', { ...played, indoor: true }, false)).toBe(REFUSAL_PLAYED_STEPS);
+  });
+  it('a live round never meets the rule', () => {
+    expect(roundStepRefusal('type', { ...played, alreadyPlayed: false }, false)).toBeNull();
+    expect(roundStepRefusal('type', { ...played, alreadyPlayed: false, indoor: true }, false)).toBeNull();
+  });
+  it('once the steps are built, step 1 lets it through', () => {
+    expect(roundStepRefusal('type', played, true)).toBeNull();
   });
 });
 
@@ -99,6 +126,43 @@ describe('an indoor round waits for its tee on the course step (Tom, Nov 27 2026
   it('an outdoor round never needs a tee; the finish never asks for one', () => {
     expect(roundStepRefusal('course', { ...indoor, indoor: false, teeColor: '' })).toBeNull();
     expect(roundStepRefusal('finish', { ...indoor, teeColor: '' })).toBeNull();
+  });
+});
+
+describe('an already-played round needs a score, and a date not after today (Nov 27 2026)', () => {
+  const ok = { courseName: 'Eagle Creek', date: '2026-11-20', alreadyPlayed: true, scoresEntered: true, today: '2026-11-27' };
+  it('the Scores step and the Create refuse until one hole is scored', () => {
+    expect(roundStepRefusal('scores', { ...ok, scoresEntered: false })).toBe(REFUSAL_SCORES);
+    expect(roundStepRefusal('scores', { ...ok, scoresEntered: undefined })).toBe(REFUSAL_SCORES);
+    expect(roundStepRefusal('scores', ok)).toBeNull();
+    expect(roundStepRefusal('finish', { ...ok, scoresEntered: false })).toBe(REFUSAL_SCORES);
+    expect(roundStepRefusal('finish', ok)).toBeNull();
+  });
+  it('the course and the date are asked for before the scores', () => {
+    expect(roundStepRefusal('finish', { ...ok, courseName: '', scoresEntered: false })).toBe(REFUSAL_COURSE);
+    expect(roundStepRefusal('finish', { ...ok, date: '', scoresEntered: false })).toBe(REFUSAL_DATE);
+  });
+  it('a live round never needs a score', () => {
+    expect(roundStepRefusal('finish', { ...ok, alreadyPlayed: false, scoresEntered: false })).toBeNull();
+    expect(roundStepRefusal('scores', { ...ok, alreadyPlayed: false, scoresEntered: false })).toBeNull();
+  });
+  it('a date after today is refused on the course step and the Create; today and earlier pass', () => {
+    expect(roundStepRefusal('course', { ...ok, date: '2026-11-28' })).toBe(REFUSAL_DATE_FUTURE);
+    expect(roundStepRefusal('finish', { ...ok, date: '2026-11-28' })).toBe(REFUSAL_DATE_FUTURE);
+    expect(roundStepRefusal('course', { ...ok, date: '2026-11-27' })).toBeNull();
+    expect(roundStepRefusal('course', { ...ok, date: '2019-06-01' })).toBeNull();
+    expect(roundStepRefusal('course', { ...ok, alreadyPlayed: false, date: '2026-11-28' })).toBeNull();
+  });
+  it('the server judges the date by the latest day anywhere on Earth', () => {
+    const now = new Date('2026-11-27T12:00:00Z');
+    expect(playedDateAllowed('2026-11-27', now)).toBe(true);
+    expect(playedDateAllowed('2026-11-28', now)).toBe(true); // already the 28th at UTC+14
+    expect(playedDateAllowed('2026-11-29', now)).toBe(false);
+    expect(playedDateAllowed('2020-02-29', now)).toBe(true);
+    expect(playedDateAllowed('2026-02-30', now)).toBe(false);
+    expect(playedDateAllowed('27/11/2026', now)).toBe(false);
+    expect(playedDateAllowed('', now)).toBe(false);
+    expect(playedDateAllowed(undefined, now)).toBe(false);
   });
 });
 
@@ -166,12 +230,15 @@ describe('roundFrame — the dialog width on a desktop', () => {
   });
 });
 
-// Nov 25 2026 (Tom): "Already played" is hidden until its rebuild — a round
-// logged that way would have no scores and no door to add them.
-describe('ALREADY_PLAYED_OFFERED — the flow starts live rounds only', () => {
-  it('is off, so an already-played answer (a draft from before) is a live round', () => {
-    expect(ALREADY_PLAYED_OFFERED).toBe(false);
-    expect(offeredAlreadyPlayed(true)).toBe(false);
+// Nov 25 2026 (Tom): "Already played" was hidden until its rebuild — a round
+// logged that way would have no scores and no door to add them. Nov 27 2026:
+// the key is offered again and its steps are built, so a saved draft comes
+// back in the mode it was saved in.
+describe('ALREADY_PLAYED_OFFERED — the key is back, a restored draft keeps its mode', () => {
+  it('is on: an already-played answer in a draft stands; switched off it is a live round', () => {
+    expect(ALREADY_PLAYED_OFFERED).toBe(true);
+    expect(offeredAlreadyPlayed(true)).toBe(true);
+    expect(offeredAlreadyPlayed(true, false)).toBe(false);
     expect(offeredAlreadyPlayed(false)).toBe(false);
     expect(offeredAlreadyPlayed(undefined)).toBe(false);
   });

@@ -52,13 +52,17 @@ function ActionButton({ label, colour, ring, onClick, disabled, badge, hook, chi
 
 /** C7 — Penalty, Photo, Video. Photo and Video open the phone's own chooser
  *  (camera or library): the separate Library button is gone. */
-export function ActionRow({ penaltyStrokes, onPenalty, onMedia, mediaEnabled, mediaBusy, mediaCount }: {
+export function ActionRow({ penaltyStrokes, onPenalty, onMedia, mediaEnabled, mediaBusy, mediaCount, mediaHidden = false }: {
   penaltyStrokes: number;
   onPenalty: () => void;
   onMedia: (file: File | undefined) => void;
   mediaEnabled: boolean;
   mediaBusy: boolean;
   mediaCount: number;
+  /** No Photo / Video keys at all (Nov 27 2026): an already-played round is
+   *  scored before it exists, so there is no hole to attach to yet; its
+   *  photos go on the Create step. Penalty keeps its place. */
+  mediaHidden?: boolean;
 }) {
   const photoRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLInputElement>(null);
@@ -72,15 +76,19 @@ export function ActionRow({ penaltyStrokes, onPenalty, onMedia, mediaEnabled, me
       <ActionButton label="Penalty" colour="var(--mech-danger)" ring="var(--mech-danger-ring)" onClick={onPenalty} badge={penaltyStrokes} hook="penalty">
         <WarningIcon size={22} />
       </ActionButton>
-      {/* No `capture`: the phone offers the camera or the library itself. */}
-      <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={pick} data-scorer-photo-input="" />
-      <input ref={videoRef} type="file" accept="video/*" className="hidden" onChange={pick} data-scorer-video-input="" />
-      <ActionButton label="Photo" colour="var(--mech-media)" ring="var(--mech-media-ring)" onClick={() => photoRef.current?.click()} disabled={!mediaEnabled || mediaBusy} hook="photo">
-        <CameraIcon size={22} />
-      </ActionButton>
-      <ActionButton label="Video" colour="var(--mech-media)" ring="var(--mech-media-ring)" onClick={() => videoRef.current?.click()} disabled={!mediaEnabled || mediaBusy} hook="video">
-        <VideoIcon size={22} />
-      </ActionButton>
+      {!mediaHidden && (
+        <>
+          {/* No `capture`: the phone offers the camera or the library itself. */}
+          <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={pick} data-scorer-photo-input="" />
+          <input ref={videoRef} type="file" accept="video/*" className="hidden" onChange={pick} data-scorer-video-input="" />
+          <ActionButton label="Photo" colour="var(--mech-media)" ring="var(--mech-media-ring)" onClick={() => photoRef.current?.click()} disabled={!mediaEnabled || mediaBusy} hook="photo">
+            <CameraIcon size={22} />
+          </ActionButton>
+          <ActionButton label="Video" colour="var(--mech-media)" ring="var(--mech-media-ring)" onClick={() => videoRef.current?.click()} disabled={!mediaEnabled || mediaBusy} hook="video">
+            <VideoIcon size={22} />
+          </ActionButton>
+        </>
+      )}
     </div>
   );
 }
