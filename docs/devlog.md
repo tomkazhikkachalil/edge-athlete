@@ -1,5 +1,22 @@
 # Development Log
 
+## November 27, 2026 (20:22) — Golf: Live and Already played are keys on step 1 again; the played path is held there (built, not released)
+
+**Why.** Tom, Nov 27: the live round is done; now rounds already played, outdoor and indoor, "similar to what we had before", following the live round and changing nothing in it. Asked how scores should be entered, he answered that the choice comes first: rounds are "auto live" today, and he wants a key for Live and a key for Already played on the step that asks Outdoor / Indoor; "We'll create the steps for them then." His choices: build the keys now and hold the release until the played steps are built; the creator will enter everyone's scores; an already-played indoor round's card will follow the putting rule.
+
+**What changed (zero DDL, branch `feat/golf-already-played`, not merged).**
+- `round-steps.ts`: `ALREADY_PLAYED_OFFERED = true`; new `ALREADY_PLAYED_STEPS_BUILT = false`. While it is false, step 1 refuses Next for an already-played round with "Already played is not ready yet" (`REFUSAL_PLAYED_STEPS`), outdoor and indoor, and a draft saved as already played still comes back live. No finished round without scores can be created from the flow, which was the reason the mode was hidden on Nov 25.
+- `RoundTypeStep.tsx`: the WHEN keys are back and read **Live** and **Already played** ("Playing now" before). Live is the default: a live round takes the same taps as yesterday.
+- Nothing else in the live path, the submit or the API changed.
+
+**Found by the size ladder.** At 320 px "Already played" beside its flag was cut in its key (109 px in 102; in 92 with enlarged text). Below 360 px these two keys now set a 13 px label and a smaller gap. The ladder passes at every size.
+
+**Proof.** `npm run verify` exit 0 (7,141 tests). On staging, one project at a time: `golf-quick-entry`, `golf-part2`, `golf-course-step`, `golf-forecast`, `golf-fit`: desktop 13, mobile 11, webkit-mobile 11, all passing after the fit fix. The live specs passed unedited apart from the one step 1 test rewritten for the keys. Not on production; no prod probe.
+
+**Read before the steps are built** (in `docs/specs/golf-round-setup.md`, part 3): the live card's batch mode disables Photo / Video and has no past-round label; the bulk scores route drops `penalty_strokes`; a completed round with no scores has no scorecard and no door to add them.
+
+**Owed.** Tom's steps for an already-played round (outdoor and indoor). The branch waits for them.
+
 ## November 27, 2026 (18:53) — Maintenance after Ink: every gate green on `9c44f3df`; one test race found and fixed
 
 **Why.** Tom asked for the full checklist after Ink (#1646) reached production, with every customer-facing surface checked: web, large screen, phone, and the installed app.

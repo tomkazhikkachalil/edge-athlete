@@ -7,8 +7,9 @@ import { goLive } from './helpers/go-live';
 // opens StepFlow on "Round type" (Playing now + Outdoor pre-selected, today's
 // defaults); the course step is the only one that refuses Next (course, and
 // a live round is today); indoor drops Conditions. No round enters scores
-// here (Nov 24 2026: the Scores step and Preview are gone) and "Already
-// played" is not offered (Nov 25 2026, until its rebuild): every round
+// here (Nov 24 2026: the Scores step and Preview are gone). "Already
+// played" is a key on step 1 again (Nov 27 2026) and is held there until its
+// steps are built: every round that goes on is live and
 // finishes on the slide to go live (→ the live page). The composer's own footer stays off while golf is the
 // post type; the step footer is the one set of buttons.
 
@@ -45,17 +46,34 @@ async function nameCourse(page: Page, courseName: string) {
   await expect(page.locator('[data-course-view="selected"]')).toBeVisible();
 }
 
-// Nov 25 2026 (Tom): "Already played" is hidden until its process is rebuilt
-// — with the Scores step gone such a round would have no scores and no door
-// to add them. Step 1 asks only Outdoor / Indoor; every round here is live.
-test('Already played is not offered: step 1 asks only the round type', async ({ page }) => {
+// Nov 27 2026 (Tom): step 1 asks Live / Already played again, beside Outdoor
+// / Indoor. The already-played steps are built next: until then that path
+// stops on step 1 with a line saying so, outdoor and indoor alike, and a
+// live round goes on exactly as before.
+test('step 1 offers Live and Already played; Already played is held on step 1, Live goes on', { tag: '@mobile' }, async ({ page }) => {
   const flow = await openGolf(page);
   await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
-  await expect(page.getByRole('button', { name: /already played/i })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Playing now' })).toHaveCount(0);
-  await expect(page.getByRole('group', { name: 'Round type' })).toBeVisible();
+  const live = flow.getByRole('button', { name: 'Live', exact: true });
+  const played = flow.getByRole('button', { name: 'Already played', exact: true });
+  await expect(live).toHaveAttribute('aria-pressed', 'true');
+  await expect(played).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveAttribute('aria-pressed', 'true');
-  // No date to pick on the course step: a live round is today.
+  const nextKey = flow.locator('[data-step-next]');
+  await expect(nextKey).toBeEnabled();
+
+  await played.click();
+  await expect(played).toHaveAttribute('aria-pressed', 'true');
+  await expect(nextKey).toBeDisabled();
+  await expect(flow.locator('[data-step-refusal]')).toHaveText('Already played is not ready yet');
+  // Indoor is held the same way.
+  await page.getByRole('button', { name: 'Indoor' }).click();
+  await expect(nextKey).toBeDisabled();
+  await expect(flow.locator('[data-step-refusal]')).toHaveText('Already played is not ready yet');
+  await page.getByRole('button', { name: 'Outdoor' }).click();
+
+  // Back to Live: no date to pick on the course step, a live round is today.
+  await live.click();
+  await expect(nextKey).toBeEnabled();
   await next(flow, /Step 2 of 6 · Course/);
   await expect(page.locator('#golf-round-date')).toHaveCount(0);
 });
@@ -268,8 +286,8 @@ test('the live path look: purple selection, Show Map | Official Scorecard one at
     expect(seeded.error, seeded.error?.message).toBeNull();
     courseId = seeded.data!.id as string;
 
-    // Step 1 (the mechanical dialect): one key switch, Outdoor | Indoor — the
-    // WHEN switch and its info panel are away while Already played is hidden.
+    // Step 1 (the mechanical dialect): two key switches, Live | Already
+    // played and Outdoor | Indoor; the info panel stays shut until asked for.
     const flow = await openGolf(page);
     await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-round-when-info]')).toHaveCount(0);

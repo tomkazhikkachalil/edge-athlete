@@ -6,9 +6,9 @@
 //     Its course step picks a tee and a putting rule (Nov 27 2026).
 //   • No round enters scores here (Nov 24 2026, Tom: the flow is about
 //     starting a live round; the already-played process is rebuilt later).
-//     A live round is scored on its live page; an already-played round is
-//     created without scores and takes them from its scorecard on the draft
-//     review. This reverses Oct 31 2026 (Scores on every round).
+//     A live round is scored on its live page. This reverses Oct 31 2026
+//     (Scores on every round). Nov 27 2026: Already played is a key on step
+//     1 again and stops there until its own steps are built.
 //   • Already played finishes on "Create" — the round lands on the draft
 //     review; Playing now finishes on "Start" — Go Live.
 // Playing now + Outdoor are the defaults (Tom, Oct 28: keep today's), the
@@ -31,19 +31,27 @@ export interface RoundStepAnswers {
   indoor: boolean;
 }
 
-// ── "Already played" is not offered (Nov 25 2026, Tom) ──────────────────────
-// With the Scores step gone, a round logged as already played would be
-// created with no scores and no door to add them (a finished round without
-// scores draws no scorecard). Tom: hide it until the already-played process
-// is rebuilt. Step 1 then asks only Outdoor / Indoor and every round started
-// here is live. The mode's rules and paths below stay, unreachable, for the
-// rebuild: turning this on brings the switch back — it does NOT bring score
-// entry back.
-export const ALREADY_PLAYED_OFFERED = false;
+// ── "Already played" is offered again; its steps are not built (Nov 27 2026) ─
+// History: hidden on Nov 25 2026, because with the Scores step gone a round
+// logged as already played would be created with no scores and no door to
+// add them (a finished round without scores draws no scorecard).
+// Tom, Nov 27 2026: step 1 asks Live / Already played again, beside Outdoor /
+// Indoor, for both round types; the already-played steps are designed with
+// him next. Until they are built the played path STOPS on step 1
+// (`REFUSAL_PLAYED_STEPS`), so no finished round without scores can be
+// created here. The live path is unchanged. The mode's older rules and paths
+// below stay for the rebuild.
+export const ALREADY_PLAYED_OFFERED = true;
+/** The already-played steps exist. While false, step 1 refuses Next for an
+ *  already-played round and a restored already-played draft comes back live. */
+export const ALREADY_PLAYED_STEPS_BUILT = false;
 
-/** The mode a round may be in: an already-played answer (a draft saved
- *  before the option was hidden) is a live round while it is not offered. */
-export function offeredAlreadyPlayed(alreadyPlayed: boolean | undefined, offered: boolean = ALREADY_PLAYED_OFFERED): boolean {
+/** The mode a round may be RESTORED in: an already-played answer in a saved
+ *  draft is a live round until the mode is offered and its steps are built. */
+export function offeredAlreadyPlayed(
+  alreadyPlayed: boolean | undefined,
+  offered: boolean = ALREADY_PLAYED_OFFERED && ALREADY_PLAYED_STEPS_BUILT,
+): boolean {
   return offered && alreadyPlayed === true;
 }
 
@@ -89,13 +97,22 @@ export const REFUSAL_DATE = 'Pick the date you played';
 export const REFUSAL_TEE = 'Pick a tee first';
 /** Indoor, a name typed but not yet added: the tee list is one tap away. */
 export const REFUSAL_COURSE_ADD = 'Pick a course, or add the one you typed';
+/** Step 1, Already played picked before its steps exist (Nov 27 2026). */
+export const REFUSAL_PLAYED_STEPS = 'Already played is not ready yet';
 
 /** Why Next (or the finish) is refused on a step; null means go ahead.
- *  Only the course step and the finish can refuse: for the two fields the
- *  form always required, and — on an INDOOR round's course step (Tom's
- *  indoor course spec, Nov 27 2026) — until a tee is picked. The finish
- *  never asks for the tee: a draft saved before the rule still starts. */
-export function roundStepRefusal(id: RoundStepId, facts: RoundStepFacts): string | null {
+ *  The course step and the finish refuse for the two fields the form always
+ *  required, and — on an INDOOR round's course step (Tom's indoor course
+ *  spec, Nov 27 2026) — until a tee is picked. The finish never asks for the
+ *  tee: a draft saved before the rule still starts. Step 1 refuses an
+ *  already-played round while its steps are not built; a live round never
+ *  meets that rule. */
+export function roundStepRefusal(
+  id: RoundStepId,
+  facts: RoundStepFacts,
+  playedStepsBuilt: boolean = ALREADY_PLAYED_STEPS_BUILT,
+): string | null {
+  if (id === 'type') return facts.alreadyPlayed && !playedStepsBuilt ? REFUSAL_PLAYED_STEPS : null;
   if (id !== 'course' && id !== 'finish') return null;
   if (facts.courseName.trim().length === 0) return REFUSAL_COURSE;
   if (facts.alreadyPlayed && !facts.date) return REFUSAL_DATE;

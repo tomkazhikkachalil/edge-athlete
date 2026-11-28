@@ -165,6 +165,11 @@ for (const tag of ['', ' @mobile']) {
 
       // ── Round type ────────────────────────────────────────────────────────
       await fits(page, 'Round type', FRAME, found);
+      // The four keys with Already played pressed and its line in the footer
+      // (Nov 27 2026); then back to Live for the rest of the walk.
+      await flow.getByRole('button', { name: 'Already played', exact: true }).click();
+      await fits(page, 'Round type, Already played', FRAME, found);
+      await flow.getByRole('button', { name: 'Live', exact: true }).click();
       await flow.locator('[data-step-next]').click();
       await expect(flow).toHaveAttribute('data-step', 'course');
 

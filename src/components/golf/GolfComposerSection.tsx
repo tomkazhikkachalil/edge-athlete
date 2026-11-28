@@ -10,9 +10,9 @@
 // validation, the footer hint and the preview.
 //
 // ONE FLOW, TWO MODES (golf unification): every golf round rides the
-// group-posts rails — "Playing now" goes live and scores hole by hole;
-// "Already played" takes the same steps, one-pass score entry, and publishes
-// once, complete. The old Individual/Shared fork (a separate 868-line form
+// group-posts rails — "Live" goes live and scores hole by hole on its live
+// page; "Already played" is a key on step 1 whose own steps are not built
+// yet (Nov 27 2026: round-steps.ts holds that path on step 1). The old Individual/Shared fork (a separate 868-line form
 // writing golf_rounds directly, on which players could not be added at all)
 // is gone; "individual" is simply a round with zero invitees.
 //
@@ -269,9 +269,9 @@ function CourseRow({ course, showKm, divided, onPick }: { course: GolfCourse; sh
   );
 }
 
-/** A restored draft's details in a mode this flow still offers: a draft saved
- *  as "already played" before the option was hidden (Nov 25 2026) comes back
- *  as a live round, dated today like every live round. */
+/** A restored draft's details in a mode this flow can resume: a draft saved
+ *  as "already played" comes back as a live round, dated today like every
+ *  live round, until the already-played steps are built (round-steps.ts). */
 function offeredDetails(details: GolfSharedRoundDetails | undefined): GolfSharedRoundDetails | undefined {
   if (!details || !details.alreadyPlayed || offeredAlreadyPlayed(details.alreadyPlayed)) return details;
   return { ...details, alreadyPlayed: false, date: localDayKey(new Date()) };

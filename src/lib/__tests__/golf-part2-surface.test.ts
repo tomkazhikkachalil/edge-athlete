@@ -125,7 +125,14 @@ describe('the frame — no card around a step, the banner in one line', () => {
   });
 });
 
-describe('Already played is hidden (Nov 25 2026)', () => {
+describe('Already played: the key is offered, the path is held (Nov 27 2026)', () => {
+  it('the keys read Live and Already played, and step 1 holds the played path', () => {
+    const step = code('src/components/golf/round-steps/RoundTypeStep.tsx');
+    expect(step).toMatch(/label: 'Live',/);
+    expect(step).toMatch(/label: 'Already played',/);
+    const rules = code('src/lib/golf/round-steps.ts');
+    expect(rules).toMatch(/if \(id === 'type'\) return facts\.alreadyPlayed && !playedStepsBuilt \? REFUSAL_PLAYED_STEPS : null;/);
+  });
   it('step 1 asks WHEN only while the mode is offered, and a restored draft comes back live', () => {
     const step = code('src/components/golf/round-steps/RoundTypeStep.tsx');
     expect(step).toMatch(/\{offerAlreadyPlayed && \(/);
