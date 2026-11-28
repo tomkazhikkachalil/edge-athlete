@@ -1,5 +1,14 @@
 # Development Log
 
+## November 27, 2026 (22:40) — Golf: the Men | Women tee switch is gone; every round lists the men's tees
+
+**Why.** Tom: "remove the men and women option from the live rounds and already played rounds, it should just be defaulted to mens where it just shows the yardage like it should standard." Indoor rounds already worked this way (his Nov 27 decision); outdoor rounds showed the switch whenever a course had both sides.
+
+**What changed (zero DDL).** One row source for every round: `roundTeeKeys` (`tees.ts`, the former `indoorTeeKeys`): the men's boxes, or every box when a course has only women's. The switch, its options and its state are deleted from `GolfComposerSection`; `hasBothTeeSides` is deleted. Live and already-played rounds share the course step, so one change covers both.
+
+**What it costs.** On a course with both sides, a women's tee, with its own rating and slope, can no longer be picked for a new round, so those numbers no longer reach the handicap. Saved rounds are untouched.
+
+**Proof.** `npm run verify` exit 0 (7,164 tests); guardrails 0; blocklists 0. Staging, against the build, one project at a time (`golf-course-step`, `golf-quick-entry`, `golf-already-played`, `golf-part2`, `golf-fit`): desktop 19, mobile 13, webkit-mobile 13, none failed. The course-step walk seeds a course with three men's and two women's tees and finds three rows, no Men / Women keys, no "(F)" row, and the picked tee's rating and slope on the saved round. The production line follows the merge.
 ## November 27, 2026 (22:32) — Close: Already played golf rounds, outdoor and indoor, are on production
 
 Tom looked at the built flow and said to put it into production. PR #1648 was taken out of draft and merged as `7ff03b4f` (the four checks green on the head commit; no migration). `/api/health` on edgeathlete.ca and on edge-athlete.vercel.app shows `7ff03b4f`.

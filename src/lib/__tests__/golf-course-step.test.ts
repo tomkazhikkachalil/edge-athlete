@@ -55,11 +55,12 @@ describe('the picked course — the visuals drive the round', () => {
     // The Tees select is gone: one picker.
     expect(section).not.toContain('<select\n                value={sharedRoundDetails.teeColor}');
   });
-  it('the rows are the old select\'s options; Men | Women only splits them', () => {
+  it('the rows are the old select\'s options, the men\'s boxes; no Men | Women switch on any round (Nov 27 2026)', () => {
     expect(section).toContain('isMapSheet(selectedCourse?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(selectedCourse)');
-    expect(section).toContain('(indoor ? indoorTeeKeys(teeKeys) : bothTeeSides ? splitTeeSides(teeKeys)[teeSide] : teeKeys)');
-    // The switch is the outdoor step's alone.
-    expect(section).toContain('{!indoor && bothTeeSides && (');
+    expect(section).toContain('const teeRows: TeeTotal[] = roundTeeKeys(teeKeys).map(key =>');
+    expect(section).not.toContain('label="Tees for"');
+    expect(section).not.toContain('teeSide');
+    expect(section).not.toContain("label: 'Women'");
   });
   it('an INDOOR round picks a tee from the same table and sets its putting rule (Tom, Nov 27 2026)', () => {
     // ONE tee table, for both round types — never a second one.

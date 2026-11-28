@@ -5,7 +5,7 @@ import { goLive } from './helpers/go-live';
 
 // The golf round's course step in the mechanical dialect (Tom's visual spec,
 // Nov 23 2026): the SEARCH (a slot, the Near me key, the lists) swaps in
-// place for the PICKED course (the plate, the dials, the Men | Women switch,
+// place for the PICKED course (the plate, the dials,
 // the tee table, the utility row). The visuals are wired to the round: the
 // tee row that is tapped is the tee the round saves, with that tee's rating
 // and slope; the dials read the same numbers; a course played once comes back
@@ -31,7 +31,7 @@ async function openCourseStep(page: Page): Promise<Locator> {
 const readout = (page: Page, dial: string) => page.locator(`[data-dial="${dial}"] [data-dial-readout]`);
 
 for (const tag of ['', ' @mobile']) {
-  test(`the course step: search → the picked course; Men | Women, the tee table, the dials, Recent, a typed course${tag}`, async ({ page }) => {
+  test(`the course step: search → the picked course; the men's tee table (no Men | Women), the dials, Recent, a typed course${tag}`, async ({ page }) => {
     test.setTimeout(120_000);
     const admin = adminClient();
     const api = await apiAs('state.json');
@@ -102,28 +102,25 @@ for (const tag of ['', ' @mobile']) {
         await expect(readout(page, dial)).toHaveText('—');
         await expect(page.locator(`[data-dial="${dial}"]`)).toHaveAttribute('data-dial-angle', '-135');
       }
-      // Men | Women: the table lists one side at a time, without "(F)".
-      const men = page.getByRole('button', { name: 'Men', exact: true });
-      const women = page.getByRole('button', { name: 'Women', exact: true });
-      await expect(men).toHaveAttribute('aria-pressed', 'true');
+      // No Men | Women switch (Tom, Nov 27 2026): the men's boxes, always.
+      await expect(page.getByRole('button', { name: 'Men', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Women', exact: true })).toHaveCount(0);
       const rows = page.locator('[data-tee-table] [data-tee-row]');
       await expect(rows).toHaveCount(3);
       await expect(rows.nth(0)).toHaveText(/Black\s*7,200\s*73\.9 \/ 138/);
-      await women.click();
-      await expect(women).toHaveAttribute('aria-pressed', 'true');
-      await expect(rows).toHaveCount(2);
-      await expect(rows.nth(0)).toHaveText(/White\s*6,210\s*75\.1 \/ 133/);
       await expect(page.locator('[data-tee-table]')).not.toContainText('(F)');
+      await expect(page.locator('[data-tee-row="red (f)"]')).toHaveCount(0);
+      await expect(page.locator('[data-tee-row="white (f)"]')).toHaveCount(0);
 
       // A tee row's tap is the round's tee: the dials follow it.
-      const redF = page.locator('[data-tee-row="red (f)"]');
-      await redF.click();
-      await expect(redF).toHaveAttribute('aria-pressed', 'true');
-      await expect(readout(page, 'yards')).toHaveText('5,400');
-      await expect(readout(page, 'rating')).toHaveText('71.9');
-      await expect(readout(page, 'slope')).toHaveText('124');
-      // 5,400 on 5,000–7,200 → -135 + 270 × 400 / 2200 ≈ -86.
-      await expect(page.locator('[data-dial="yards"]')).toHaveAttribute('data-dial-angle', '-86');
+      const blue = page.locator('[data-tee-row="blue"]');
+      await blue.click();
+      await expect(blue).toHaveAttribute('aria-pressed', 'true');
+      await expect(readout(page, 'yards')).toHaveText('6,660');
+      await expect(readout(page, 'rating')).toHaveText('71.7');
+      await expect(readout(page, 'slope')).toHaveText('131');
+      // 6,660 on 5,000–7,200 → -135 + 270 × 1660 / 2200 ≈ 69.
+      await expect(page.locator('[data-dial="yards"]')).toHaveAttribute('data-dial-angle', '69');
       // The card has the numbers: nothing asks for them.
       await expect(page.locator('[data-course-rating-entry]')).toHaveCount(0);
       // The utility row: 44 px buttons; the scorecard opens under it and widens the dialog on a desktop.
@@ -150,7 +147,7 @@ for (const tag of ['', ' @mobile']) {
         await flow.locator('[data-step-next]').click();
         await expect(flow).toHaveAttribute('data-step', step);
       }
-      await expect(flow.locator('[data-round-summary-row="tee"]')).toContainText('Red (F) · 5,400 yds · 71.9 / 124');
+      await expect(flow.locator('[data-round-summary-row="tee"]')).toContainText('Blue · 6,660 yds · 71.7 / 131');
       // An outdoor round has no putting rule to state.
       await expect(flow.locator('[data-round-summary-row="putting"]')).toHaveCount(0);
       await goLive(flow);
@@ -161,9 +158,9 @@ for (const tag of ['', ' @mobile']) {
       expect(saved.error, saved.error?.message).toBeNull();
       expect(saved.data!.course_id).toBe(courseId);
       expect(saved.data!.course_name).toBe(name);
-      expect(saved.data!.tee_color).toBe('red (f)');
-      expect(Number(saved.data!.course_rating)).toBe(71.9);
-      expect(Number(saved.data!.slope_rating)).toBe(124);
+      expect(saved.data!.tee_color).toBe('blue');
+      expect(Number(saved.data!.course_rating)).toBe(71.7);
+      expect(Number(saved.data!.slope_rating)).toBe(131);
 
       // ── Recent: the course just played is offered before any typing ──────
       // The round is live with no scores, so the app asks to pick it up when
