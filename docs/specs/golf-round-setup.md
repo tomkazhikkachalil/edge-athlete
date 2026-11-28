@@ -156,3 +156,14 @@ Tom, Nov 27 2026: the live round is done; rounds already played come next, outdo
 **Known, not changed here:** a hand-typed course's par dropdowns are 36 px tall (below the 44 px target) on every round type; `MultiPlayerScorecardGrid` still has no renderer; rated indoor rounds count toward the handicap (Tom, Nov 27: leave as is).
 
 **Pinned by:** `round-steps.test.ts` (the four lists, the Scores and date rules, the server's date check, the switches), `played-scores.test.ts` (the merge, the lines, the rule, the save outcome), `golf-part2-surface.test.ts` and `live-score-card-surface.test.ts` (the card mounts for an already-played round only, in batch mode, with no draft; the live lines); e2e `golf-already-played.spec.ts` (outdoor to the review and Post with the database checked; indoor on Auto 2 with a partner scored from a tab and a two-stroke penalty; a failed save leaves no round and keeps the scores; a future date refused by the server; back to Live sends no score), `golf-quick-entry.spec.ts` (step 1's keys and counts), `golf-fit.spec.ts` (the played steps and the card on the size ladder).
+
+## Part 4: no Men | Women switch on any round (Nov 28 2026; zero DDL)
+
+Tom, Nov 28 2026: "remove the men and women option from the live rounds and already played rounds, it should just be defaulted to mens where it just shows the yardage like it should standard." This supersedes the Men | Women switch of the Nov 23 visual spec (items above that describe it are history) and makes outdoor match indoor (Nov 27).
+
+- The picked course's tee table lists **the men's boxes** on every round: live and already played, outdoor and indoor (`roundTeeKeys` in `tees.ts`, the former `indoorTeeKeys`). Yards and rating / slope per row, as before.
+- A course with **only** women's boxes lists those, so a tee can always be picked.
+- A women's ("(F)") tee can no longer be picked on a course that has both sides, so its rating and slope no longer reach a new round or the handicap. Rounds already saved on a women's tee are untouched and display as saved.
+- Gone from the composer: the switch, `TEE_SIDE_OPTIONS`, the side state; `hasBothTeeSides` from `tees.ts`.
+
+**Pinned by:** `tees.test.ts` (`roundTeeKeys`), `golf-course-step.test.ts` (one row source for every round, no "Tees for" switch); e2e `golf-course-step.spec.ts` (no Men / Women keys, three men's rows on a course with five tees, no "(F)" row, the picked tee's numbers saved).

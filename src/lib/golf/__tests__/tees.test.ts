@@ -48,15 +48,12 @@ describe('tidyCourseName', () => {
 
 // The tee table (the mechanical dialect, Nov 23 2026).
 describe('the tee table — sides, labels, dots, and when the rating is typed', () => {
-  it('the women\'s side is the " (f)" keys; the switch needs both sides', async () => {
-    const { splitTeeSides, hasBothTeeSides, isWomensTee } = await import('../tees');
+  it('the women\'s side is the " (f)" keys', async () => {
+    const { splitTeeSides, isWomensTee } = await import('../tees');
     expect(splitTeeSides(['black', 'blue', 'white', 'blue (f)', 'red (f)'])).toEqual({
       men: ['black', 'blue', 'white'],
       women: ['blue (f)', 'red (f)'],
     });
-    expect(hasBothTeeSides(['blue', 'blue (f)'])).toBe(true);
-    expect(hasBothTeeSides(['blue', 'white'])).toBe(false);
-    expect(hasBothTeeSides(['red (f)'])).toBe(false);
     expect(isWomensTee('Blue (F)')).toBe(true);
     expect(isWomensTee('forward')).toBe(false);
   });
@@ -89,15 +86,15 @@ describe('the tee table — sides, labels, dots, and when the rating is typed', 
   });
 });
 
-describe('indoorTeeKeys — an indoor round lists the men\'s boxes (Tom, Nov 27 2026)', () => {
+describe('roundTeeKeys — every round lists the men\'s boxes (Tom: indoor Nov 27, every round Nov 28 2026)', () => {
   it('drops the women\'s boxes, keeping the tee-sheet order', async () => {
-    const { indoorTeeKeys } = await import('../tees');
-    expect(indoorTeeKeys(['black', 'blue', 'white', 'blue (f)', 'red (f)'])).toEqual(['black', 'blue', 'white']);
-    expect(indoorTeeKeys(['blue', 'white'])).toEqual(['blue', 'white']);
+    const { roundTeeKeys } = await import('../tees');
+    expect(roundTeeKeys(['black', 'blue', 'white', 'blue (f)', 'red (f)'])).toEqual(['black', 'blue', 'white']);
+    expect(roundTeeKeys(['blue', 'white'])).toEqual(['blue', 'white']);
   });
   it('a course with only women\'s boxes shows those: a tee can always be picked', async () => {
-    const { indoorTeeKeys } = await import('../tees');
-    expect(indoorTeeKeys(['red (f)', 'gold (f)'])).toEqual(['red (f)', 'gold (f)']);
-    expect(indoorTeeKeys([])).toEqual([]);
+    const { roundTeeKeys } = await import('../tees');
+    expect(roundTeeKeys(['red (f)', 'gold (f)'])).toEqual(['red (f)', 'gold (f)']);
+    expect(roundTeeKeys([])).toEqual([]);
   });
 });

@@ -34,10 +34,11 @@ export function teeLabel(key: string): string {
 }
 
 // ── The tee table (the mechanical dialect, Nov 23 2026) ─────────────────────
-// Tom's visual spec: the tee picker is a table, with a Men | Women switch in
-// place of the separate "(F)" rows. The catalog marks a women's box only
+// Tom's visual spec: the tee picker is a table. It had a Men | Women switch
+// in place of the separate "(F)" rows until Nov 28 2026; a round now lists
+// the men's boxes only (roundTeeKeys). The catalog marks a women's box only
 // where its key collides with a men's one — that " (f)" suffix (rowToCourse)
-// — so that is what the switch can honestly split on.
+// — so that is what the sides are split on.
 
 const WOMENS_SUFFIX = / \(f\)$/i;
 
@@ -50,16 +51,12 @@ export function splitTeeSides(keys: readonly string[]): { men: string[]; women: 
   return { men: keys.filter(k => !isWomensTee(k)), women: keys.filter(isWomensTee) };
 }
 
-/** The switch is offered only when the course has BOTH sides. */
-export function hasBothTeeSides(keys: readonly string[]): boolean {
-  const { men, women } = splitTeeSides(keys);
-  return men.length > 0 && women.length > 0;
-}
-
-/** An INDOOR round's tee list (Tom, Nov 27 2026): no Men | Women switch —
- *  always the men's boxes. A course that only has women's boxes shows those,
- *  so a tee can always be picked. */
-export function indoorTeeKeys(keys: readonly string[]): string[] {
+/** A round's tee list: the men's boxes, always. There is no Men | Women
+ *  switch (Tom: indoor rounds Nov 27 2026, every round Nov 28 2026 — "it
+ *  should just be defaulted to mens where it just shows the yardage"). A
+ *  course that only has women's boxes shows those, so a tee can always be
+ *  picked. */
+export function roundTeeKeys(keys: readonly string[]): string[] {
   const { men } = splitTeeSides(keys);
   return men.length > 0 ? men : [...keys];
 }

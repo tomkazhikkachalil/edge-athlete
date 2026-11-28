@@ -31,7 +31,7 @@ import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores, withoutEnteredScores } from '@/lib/golf/score-entry';
 import { fixedPutts, mergeCardSave, playedCard, playedCardLine, playedDateLabel, withPuttingRule } from '@/lib/golf/played-scores';
 import { localDayKey } from '@/lib/calendar/grid';
-import { courseTeeOptions, teeLabel, FALLBACK_TEES, hasBothTeeSides, indoorTeeKeys, isWomensTee, splitTeeSides, ratingEntryNeeded } from '@/lib/golf/tees';
+import { courseTeeOptions, teeLabel, FALLBACK_TEES, roundTeeKeys, ratingEntryNeeded } from '@/lib/golf/tees';
 import { DEFAULT_PUTTING_MODE, GIMME_DEFAULT, clampGimmeFeet, puttingInfoLine, puttingModeOr, puttingSummary, type PuttingMode, type PuttingRule as PuttingRuleValue } from '@/lib/golf/putting-rule';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
@@ -52,7 +52,6 @@ import CoursePlate from '@/components/golf/round-steps/CoursePlate';
 import DialCluster from '@/components/golf/round-steps/DialCluster';
 import TeeTable from '@/components/golf/round-steps/TeeTable';
 import PuttingRule from '@/components/golf/round-steps/PuttingRule';
-import KeySwitch from '@/components/mech/KeySwitch';
 import LogoDevAttribution from '@/components/LogoDevAttribution';
 import { logoUrl, websiteDomain } from '@/lib/logo-dev';
 import { dialValue } from '@/lib/golf/dial';
@@ -226,12 +225,6 @@ interface ProfileData {
   avatar_url?: string | null;
 }
 
-type TeeSide = 'men' | 'women';
-const TEE_SIDE_OPTIONS = [
-  { value: 'men' as TeeSide, label: 'Men' },
-  { value: 'women' as TeeSide, label: 'Women' },
-] as const;
-
 /** One course in a list of the course step (results, nearby, recent): the
  *  name on one line, the place or the distance under it, a chevron. */
 function CourseRow({ course, showKm, divided, onPick }: { course: GolfCourse; showKm: boolean; divided: boolean; onPick: (course: GolfCourse) => void }) {
@@ -349,8 +342,6 @@ export default function GolfComposerSection({
   // restored draft carries the name but not the catalog row, so it comes
   // back as the hand-typed course it then is.
   const [manualCourse, setManualCourse] = useState<boolean>(() => !!seed?.sharedRoundDetails?.courseName?.trim());
-  // Men | Women over the tee table: null follows the tee in play.
-  const [teeSideChoice, setTeeSideChoice] = useState<TeeSide | null>(null);
   // The account's own last courses (GET /api/golf/courses?recent=1), asked
   // once when the course step first shows.
   const [recentCourses, setRecentCourses] = useState<GolfCourse[]>([]);
@@ -628,7 +619,6 @@ export default function GolfComposerSection({
     setSharedRoundDetails(prev => ({ ...prev, courseComposition: null }));
     setSectionChoice(null);
     setComboFront(null);
-    setTeeSideChoice(null);
     setCourseSearchOpen(false);
     setCourseSearchQuery('');
     // Cancel first: a response already in flight would otherwise land after
@@ -1029,7 +1019,7 @@ export default function GolfComposerSection({
   const setIndoor = (next: boolean) => {
     if (next) forgetForecast();
     const course = selectedCourse;
-    const offered = indoorTeeKeys(isMapSheet(course?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(course));
+    const offered = roundTeeKeys(isMapSheet(course?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(course));
     setSharedRoundDetails(prev => {
       // An indoor round offers the men's boxes only (Nov 27 2026): a tee it
       // does not list is let go. With no tee, a catalog course's rating and
@@ -1068,10 +1058,9 @@ export default function GolfComposerSection({
   // The rows are the old Tees select's options: a catalog course's REAL
   // tees, the classic five colours for a map-only card or a typed course.
   const teeKeys: string[] = isMapSheet(selectedCourse?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(selectedCourse);
-  const bothTeeSides = hasBothTeeSides(teeKeys);
-  const teeSide: TeeSide = teeSideChoice ?? (isWomensTee(sharedRoundDetails.teeColor) ? 'women' : 'men');
-  // Indoor (Nov 27 2026): no Men | Women switch — the men's boxes, always.
-  const teeRows: TeeTotal[] = (indoor ? indoorTeeKeys(teeKeys) : bothTeeSides ? splitTeeSides(teeKeys)[teeSide] : teeKeys).map(key =>
+  // No Men | Women switch on any round (indoor Nov 27 2026, every round
+  // Nov 28 2026, Tom): the men's boxes, always (tees.ts roundTeeKeys).
+  const teeRows: TeeTotal[] = roundTeeKeys(teeKeys).map(key =>
     teeTotals.find(t => t.key === key) ?? { key, label: teeLabel(key), yards: null, rating: null, slope: null }
   );
   /** A tee row's tap — the old Tees select's onChange, verbatim. */
@@ -1123,7 +1112,6 @@ export default function GolfComposerSection({
    *  stays in the slot to be corrected. */
   const changeCourse = () => {
     setManualCourse(false);
-    setTeeSideChoice(null);
     if (!selectedCourse) return;
     setSelectedCourse(null);
     selectedCourseIdRef.current = null;
@@ -1553,22 +1541,9 @@ export default function GolfComposerSection({
                   {/* Tees — a catalog course lists its REAL tees (hardest
                       first); picking one re-fills that tee's exact
                       rating/slope and per-hole yardages. Custom and history
-                      courses keep the classic five colours. An INDOOR round
-                      (Nov 27 2026) gets the same table without the Men |
-                      Women switch: its rows are the men's boxes. */}
-                  {!indoor && bothTeeSides && (
-                    <div className="flex items-center h-[50px]">
-                      <KeySwitch
-                        size="sm"
-                        light
-                        label="Tees for"
-                        options={TEE_SIDE_OPTIONS}
-                        value={teeSide}
-                        onChange={setTeeSideChoice}
-                        keyClassName="w-[86px]"
-                      />
-                    </div>
-                  )}
+                      courses keep the classic five colours. Every round
+                      lists the men's boxes; there is no Men | Women switch
+                      (Nov 28 2026). */}
                   <TeeTable tees={teeRows} value={sharedRoundDetails.teeColor} onPick={pickTee} />
 
                   {/* Course rating & slope — the key that unlocks the
