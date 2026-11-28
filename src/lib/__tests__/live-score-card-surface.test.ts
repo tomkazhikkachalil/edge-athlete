@@ -29,8 +29,11 @@ describe('what is gone (R1 – R7)', () => {
 
 describe('A3 / A4 — defaults, and when a hole is recorded', () => {
   it('the card shows shownScore; a change writes both numbers; Next commits what is shown', () => {
-    expect(sheet).toMatch(/const shown = shownScore\(currentHoleData\);/);
-    expect(sheet).toMatch(/patchCurrentHole\(withStrokes\(currentHoleData, strokes\)\)/);
+    // `ruled` is the identity without a putting rule (played-scores.ts): the
+    // live round passes none, an already-played indoor round may (Nov 27 2026).
+    expect(sheet).toMatch(/const ruled = <S extends \{ strokes: number; putts: number \}>\(score: S\): S => ruledScore\(score, puttsFixed\);/);
+    expect(sheet).toMatch(/const shown = ruled\(shownScore\(currentHoleData\)\);/);
+    expect(sheet).toMatch(/patchCurrentHole\(ruled\(withStrokes\(currentHoleData, strokes\)\)\)/);
     expect(sheet).toMatch(/patchCurrentHole\(withPutts\(currentHoleData, putts\)\)/);
     expect(sheet).toMatch(/const committed = commitShown\(\);\s*if \(isLive && !\(await persistHole\(currentHole, committed\)\)\) return;/);
   });
@@ -40,13 +43,18 @@ describe('A3 / A4 — defaults, and when a hole is recorded', () => {
     const tab = sheet.slice(sheet.indexOf('const handleSwitchPlayer'), sheet.indexOf('// Hole photos/videos'));
     for (const block of [previous, jump, tab]) expect(block).not.toContain('commitShown');
     // The X records nothing either: only the footer's finish does.
-    expect(sheet).toMatch(/onClick=\{\(\) => \(isLive \? handleDone\(false\) : onClose\(\)\)\}/);
+    // (Batch mode's X hands what was recorded to the parent first, Nov 27 2026;
+    // it commits nothing new either.)
+    expect(sheet).toMatch(/onClick=\{\(\) => \{ void \(isLive \? handleDone\(false\) : handleBatchClose\(\)\); \}\}/);
+    expect(sheet.slice(sheet.indexOf('const handleBatchClose'), sheet.indexOf('const handleSave'))).not.toContain('commitShown');
     expect(sheet).toMatch(/else if \(isLive\) void handleDone\(true\);/);
   });
   it('the server save keeps its timing: no save on a keystroke, the hole is persisted on leaving it', () => {
     const patch = sheet.slice(sheet.indexOf('const patchCurrentHole'), sheet.indexOf('// ── A4: when a hole is RECORDED'));
     expect(patch).not.toContain('onSaveHole');
-    expect(patch).toContain('writeDraft(participantId, draftHoles);');
+    // The draft is keyed by the participant; '' (no draft) only when asked.
+    expect(patch).toContain('writeDraft(draftId, draftHoles);');
+    expect(sheet).toMatch(/const draftId = draftless \? '' : participantId;/);
   });
 });
 

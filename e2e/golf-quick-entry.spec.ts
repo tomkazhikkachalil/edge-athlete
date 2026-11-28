@@ -8,8 +8,8 @@ import { goLive } from './helpers/go-live';
 // defaults); the course step is the only one that refuses Next (course, and
 // a live round is today); indoor drops Conditions. No round enters scores
 // here (Nov 24 2026: the Scores step and Preview are gone). "Already
-// played" is a key on step 1 again (Nov 27 2026) and is held there until its
-// steps are built: every round that goes on is live and
+// played" is a key on step 1 again (Nov 27 2026) with its own Scores step
+// (golf-already-played.spec.ts); a live round
 // finishes on the slide to go live (→ the live page). The composer's own footer stays off while golf is the
 // post type; the step footer is the one set of buttons.
 
@@ -47,36 +47,36 @@ async function nameCourse(page: Page, courseName: string) {
 }
 
 // Nov 27 2026 (Tom): step 1 asks Live / Already played again, beside Outdoor
-// / Indoor. The already-played steps are built next: until then that path
-// stops on step 1 with a line saying so, outdoor and indoor alike, and a
-// live round goes on exactly as before.
-test('step 1 offers Live and Already played; Already played is held on step 1, Live goes on', { tag: '@mobile' }, async ({ page }) => {
-  const flow = await openGolf(page);
-  await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
-  const live = flow.getByRole('button', { name: 'Live', exact: true });
-  const played = flow.getByRole('button', { name: 'Already played', exact: true });
-  await expect(live).toHaveAttribute('aria-pressed', 'true');
-  await expect(played).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveAttribute('aria-pressed', 'true');
-  const nextKey = flow.locator('[data-step-next]');
-  await expect(nextKey).toBeEnabled();
+// / Indoor. Already played adds a Scores step (seven steps outdoor, six
+// indoor; its own walk is golf-already-played.spec.ts); back on Live the
+// round is the six (or five) steps it always was.
+for (const tag of ['', ' @mobile']) {
+  test(`step 1 offers Live and Already played; Already played adds its Scores step, Live goes on as before${tag}`, async ({ page }) => {
+    const flow = await openGolf(page);
+    await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
+    const live = flow.getByRole('button', { name: 'Live', exact: true });
+    const played = flow.getByRole('button', { name: 'Already played', exact: true });
+    await expect(live).toHaveAttribute('aria-pressed', 'true');
+    await expect(played).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('button', { name: 'Outdoor' })).toHaveAttribute('aria-pressed', 'true');
+    const nextKey = flow.locator('[data-step-next]');
+    await expect(nextKey).toBeEnabled();
 
-  await played.click();
-  await expect(played).toHaveAttribute('aria-pressed', 'true');
-  await expect(nextKey).toBeDisabled();
-  await expect(flow.locator('[data-step-refusal]')).toHaveText('Already played is not ready yet');
-  // Indoor is held the same way.
-  await page.getByRole('button', { name: 'Indoor' }).click();
-  await expect(nextKey).toBeDisabled();
-  await expect(flow.locator('[data-step-refusal]')).toHaveText('Already played is not ready yet');
-  await page.getByRole('button', { name: 'Outdoor' }).click();
+    await played.click();
+    await expect(played).toHaveAttribute('aria-pressed', 'true');
+    await expect(header(flow)).toHaveText(/Step 1 of 7 · Round type/);
+    await expect(nextKey).toBeEnabled();
+    await page.getByRole('button', { name: 'Indoor' }).click();
+    await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
+    await page.getByRole('button', { name: 'Outdoor' }).click();
 
-  // Back to Live: no date to pick on the course step, a live round is today.
-  await live.click();
-  await expect(nextKey).toBeEnabled();
-  await next(flow, /Step 2 of 6 · Course/);
-  await expect(page.locator('#golf-round-date')).toHaveCount(0);
-});
+    // Back to Live: no date to pick on the course step, a live round is today.
+    await live.click();
+    await expect(header(flow)).toHaveText(/Step 1 of 6 · Round type/);
+    await next(flow, /Step 2 of 6 · Course/);
+    await expect(page.locator('#golf-round-date')).toHaveCount(0);
+  });
+}
 
 // The defaults and the frame: Playing now + Outdoor pre-selected (six steps),
 // no date field for a live round, the course step refuses until a course is

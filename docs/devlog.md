@@ -1,5 +1,27 @@
 # Development Log
 
+## November 27, 2026 (22:15) — Golf: Already played is built for outdoor and indoor rounds, on the live round's scoring card (built, not merged)
+
+**Why.** Tom, after seeing the Live / Already played keys: "build the already played for both indoor and outdoor, don't change anything in the live production, once built and i'll look and make adjustments", "and make it production ready". Live + Outdoor stay the defaults. The steps are my design from the old flow (before Nov 25) in the live look; his standing answers: the creator enters everyone's scores, the indoor card follows the putting rule.
+
+**What a golfer gets.** Step 1: Already played. Course: a date (today by default, never after today), then the course, the tee, and indoors the putting rule. Format, Conditions (outdoor, typed), Players. **Scores:** a row per player; a row opens the live round's scoring card on that player, with tabs to move between players. A part of a round is fine. **Create:** the summary with the date and each card's line, the caption and photos, Create Post. The round is created finished, as a draft post, and opens for review; Post publishes it. Seven steps outdoor, six indoor.
+
+**How it is built (zero DDL).**
+- `round-steps.ts`: a `scores` step for an already-played round only; `ALREADY_PLAYED_STEPS_BUILT = true`; Scores and Create wait for one scored hole; a date after today is refused, and the create route refuses it too (`playedDateAllowed`).
+- `played-scores.ts` (new, pure): a card save lands on one player's row; the row's line; Auto 2 fixes the putts at 2, never above the strokes; what a scores response means.
+- `ScoreEntryModal`: two optional props, `puttingRule` and `draftless`, and a batch-mode X that keeps what was recorded. Without the props every line behaves as before. `ActionRow` can hide Photo / Video (there is no round to attach to yet).
+- `ScoresStep.tsx` (new); `StartStep` shows each player's card line; `GolfComposerSection` mounts the card for an already-played round only.
+- `/api/golf/participant-scores` keeps each penalty's strokes (it dropped them).
+- `submitSharedRound`: an already-played round's scores are tried three times; if no card was saved the round is deleted and the composer keeps every score. This closes the gap that made the mode unsafe: a finished round with no scores has no scorecard and no door to add them.
+
+**Live is unchanged.** No Scores step, no score ever sent from the composer (also after switching from Already played back to Live: a test watches the network for it), the card's new code is the identity without the new props. The live specs pass unedited.
+
+**Found on the way.** (1) The size ladder caught "Already played" cut in its key at 320 px: fixed (smaller label under 360 px). (2) A hand-typed course's par dropdowns are 36 px tall, on live rounds too: reported, not changed (Tom: nothing in live changes in this work). (3) Three of my new tests first failed on the "Pick up where you left off?" dialog from a seeded open round: the usual handler added.
+
+**Proof.** `npm run verify` exit 0 (7,164 tests); guardrails 0; blocklists 0. Staging, against the build, one project at a time: desktop 35 passed (the played spec, quick entry, part 2, course step, forecast, the size ladders, the live card and its ladder, drafts, round delete, group scoring, lifecycle), mobile 19, webkit-mobile 19; none failed. The played spec checks the database: the round `completed` and dated as played, the holes with their putts and penalty strokes, `golf_rounds` for each scored player, the post a draft until Post.
+
+**Not done.** Not merged, not on production, no prod probe: Tom looks first and adjusts. android, brave-android and firefox-mobile not run. A look on a real phone is his.
+
 ## November 27, 2026 (20:22) — Golf: Live and Already played are keys on step 1 again; the played path is held there (built, not released)
 
 **Why.** Tom, Nov 27: the live round is done; now rounds already played, outdoor and indoor, "similar to what we had before", following the live round and changing nothing in it. Asked how scores should be entered, he answered that the choice comes first: rounds are "auto live" today, and he wants a key for Live and a key for Already played on the step that asks Outdoor / Indoor; "We'll create the steps for them then." His choices: build the keys now and hold the release until the played steps are built; the creator will enter everyone's scores; an already-played indoor round's card will follow the putting rule.

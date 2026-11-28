@@ -16,6 +16,8 @@ export interface PlayerHoleScore {
   green_in_regulation?: boolean;
   /** One element per occurrence — vocabulary in @/lib/golf/penalties (migration 078). */
   penalties?: string[] | null;
+  /** Each penalty's strokes, aligned with `penalties` (320); absent = one each. */
+  penalty_strokes?: number[] | null;
 }
 
 export interface PlayerScoreData {

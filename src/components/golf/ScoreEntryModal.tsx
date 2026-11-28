@@ -12,6 +12,8 @@ import type { HoleElevation } from '@/lib/golf/elevation';
 import { holePar } from '@/lib/golf/scoring';
 import { cardTotals, confirmedScore, holeKeyRows, maxPutts, nextHoleNumber, shownScore, withPutts, withStrokes } from '@/lib/golf/score-card';
 import { playerColour } from '@/lib/golf/player-colour';
+import { fixedPutts, ruledScore } from '@/lib/golf/played-scores';
+import { PUTTING_LABEL, type PuttingRule } from '@/lib/golf/putting-rule';
 import {
   firstUnscoredHole,
   readDraft,
@@ -130,6 +132,16 @@ interface ScoreEntryModalProps {
   group?: GroupPlayer[];
   /** The course's position, for the map preview of a hole without a line. */
   courseAt?: [number, number] | null;
+  // ── An already-played round, entered before it exists (Nov 27 2026) ──
+  //    Both optional; the live round passes neither and is unchanged.
+  /** The INDOOR round's putting rule. Auto 2 fixes the putts at 2 (never
+   *  above the strokes) and the putts control gives way to a plate saying
+   *  so; Gimme and Putt out leave the control as it is. */
+  puttingRule?: PuttingRule | null;
+  /** No localStorage draft: the composer holds these scores, and
+   *  `participantId` is a profile id here, which would carry one round's
+   *  typed holes into the next. */
+  draftless?: boolean;
 }
 
 export default function ScoreEntryModal({
@@ -159,8 +171,16 @@ export default function ScoreEntryModal({
   fix = null,
   group,
   courseAt = null,
+  puttingRule = null,
+  draftless = false,
 }: ScoreEntryModalProps) {
   const isLive = !!onSaveHole;
+  // '' = no draft (score-entry.ts canDraft).
+  const draftId = draftless ? '' : participantId;
+  // The putts a rule fixes (2 on Auto 2), else null: every write below
+  // passes through `ruled`, which changes nothing without a rule.
+  const puttsFixed = fixedPutts(puttingRule);
+  const ruled = <S extends { strokes: number; putts: number }>(score: S): S => ruledScore(score, puttsFixed);
   // Mounted only while open — lock background scroll for the whole lifetime
   useBodyScrollLock();
 
@@ -189,7 +209,7 @@ export default function ScoreEntryModal({
     }
     const { holes, restored } = mergeDraftIntoHoles(
       base as Array<HoleData & DraftHole & { hole_number: number | null }>,
-      readDraft(participantId),
+      readDraft(draftId),
       existingScores
     );
     // Restored draft holes are "dirty": they exist locally but not on the
@@ -236,7 +256,7 @@ export default function ScoreEntryModal({
   // What the card SHOWS for this hole: its own values, else par and 2 putts
   // (A3 — score-card.ts). Par falls back to 4 when the round carries no
   // course hole data (scoring.ts holePar).
-  const shown = shownScore(currentHoleData);
+  const shown = ruled(shownScore(currentHoleData));
 
   // Best-effort flush of the current dirty hole when the page is being left
   // (navigate away, tab switch, tab kill where the browser cooperates).
@@ -325,7 +345,7 @@ export default function ScoreEntryModal({
         };
       }
     }
-    writeDraft(participantId, draftHoles);
+    writeDraft(draftId, draftHoles);
     return next[currentHole - 1] ?? null;
   };
 
@@ -335,9 +355,9 @@ export default function ScoreEntryModal({
   // which is the one meaning of "recorded" everywhere in golf. Putts follow
   // the strokes down when they would exceed them (the scores API refuses
   // putts > strokes: a hole in one with the resting 2 putts could not save).
-  const handleStrokes = (strokes: number) => { patchCurrentHole(withStrokes(currentHoleData, strokes)); };
+  const handleStrokes = (strokes: number) => { patchCurrentHole(ruled(withStrokes(currentHoleData, strokes))); };
   const handlePutts = (putts: number) => { patchCurrentHole(withPutts(currentHoleData, putts)); };
-  const handleConfirm = () => { patchCurrentHole(confirmedScore(currentHoleData)); };
+  const handleConfirm = () => { patchCurrentHole(ruled(confirmedScore(currentHoleData))); };
   // FIR / GIR start off on every hole (null) and are on or off — never a
   // third state. Neither records a hole by itself.
   const toggleStat = (field: 'fairway_hit' | 'green_in_regulation') => {
@@ -386,7 +406,7 @@ export default function ScoreEntryModal({
       setSavedHoles(prev => new Set(prev).add(holeNum));
       setDirtyHoles(prev => { const n = new Set(prev); n.delete(holeNum); return n; });
       // Server has it now — the draft copy is obsolete
-      if (hole.hole_number != null) removeHoleFromDraft(participantId, hole.hole_number);
+      if (hole.hole_number != null) removeHoleFromDraft(draftId, hole.hole_number);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save this hole');
@@ -408,7 +428,7 @@ export default function ScoreEntryModal({
     const hole = holeData[currentHole - 1];
     if (!hole) return null;
     if (typeof hole.strokes === 'number' && typeof hole.putts === 'number') return null;
-    return patchCurrentHole(confirmedScore(hole));
+    return patchCurrentHole(ruled(confirmedScore(hole)));
   };
 
   const handleNext = async () => {
@@ -489,7 +509,7 @@ export default function ScoreEntryModal({
         setError(null);
         try {
           await onSave(scores);
-          clearDraft(participantId);
+          clearDraft(draftId);
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to save scores');
           return;
@@ -639,6 +659,28 @@ export default function ScoreEntryModal({
         penalty_strokes: h.penalties?.length ? h.penalty_strokes ?? null : null,
       }));
 
+  // Batch mode's X (Nov 27 2026): what was recorded is handed to the parent
+  // before the card closes, so a part of a round entered and closed is not
+  // lost. Like the live X it records nothing new: the hole on screen is kept
+  // only if it already has strokes.
+  const handleBatchClose = async () => {
+    const scores = collectCompletedScores(holeData);
+    if (scores.length === 0) {
+      onClose();
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(scores);
+      clearDraft(draftId);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save scores');
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     // "Save Scores" is the explicit finish in batch mode, so it commits the
     // current hole's resting wheels like the live Done button does. Work from
@@ -665,7 +707,7 @@ export default function ScoreEntryModal({
       const scores = collectCompletedScores(effective);
 
       await onSave(scores);
-      clearDraft(participantId);
+      clearDraft(draftId);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save scores');
@@ -720,7 +762,7 @@ export default function ScoreEntryModal({
           <span className="ea-mech-micro ml-auto shrink-0" aria-live="polite" data-scorer-save-state="">{status}</span>
           <button
             type="button"
-            onClick={() => (isLive ? handleDone(false) : onClose())}
+            onClick={() => { void (isLive ? handleDone(false) : handleBatchClose()); }}
             disabled={saving}
             aria-label="Close"
             className="ea-mech-close inline-flex shrink-0 items-center justify-center disabled:opacity-50"
@@ -763,7 +805,21 @@ export default function ScoreEntryModal({
                 <div className="min-w-0 max-w-[190px] flex-1">
                   <StrokesDial strokes={shown.strokes} par={currentHoleData.par} onChange={handleStrokes} onConfirm={handleConfirm} disabled={busy} />
                 </div>
-                <PuttsCapsule putts={shown.putts} max={maxPutts(currentHoleData)} onChange={handlePutts} onConfirm={handleConfirm} disabled={busy} />
+                {puttsFixed === null ? (
+                  <PuttsCapsule putts={shown.putts} max={maxPutts(currentHoleData)} onChange={handlePutts} onConfirm={handleConfirm} disabled={busy} />
+                ) : (
+                  // The rule sets the putts (Auto 2): the same capsule, read only.
+                  <div
+                    className="ea-mech-recess flex w-[76px] shrink-0 flex-col items-center justify-center gap-1 self-stretch rounded-[38px] p-2.5 max-[389px]:w-[68px] max-[389px]:p-1.5"
+                    role="group"
+                    aria-label={`Putts: ${shown.putts}, set by the putting rule`}
+                    data-putts-fixed=""
+                  >
+                    <span className="ea-mech-readout text-[38px] leading-[40px] text-[color:var(--mech-text)]" data-putts-number="">{shown.putts}</span>
+                    <span className="ea-mech-micro">Putts</span>
+                    <span className="ea-mech-micro text-center" data-putts-rule="">{puttingRule ? PUTTING_LABEL[puttingRule.mode] : ''}</span>
+                  </div>
+                )}
                 <div className="flex shrink-0 flex-col gap-4">
                   <StatLamp label="FIR" caption="Fairway" on={currentHoleData.fairway_hit === true} onToggle={() => toggleStat('fairway_hit')} disabled={busy} />
                   <StatLamp label="GIR" caption="Green" on={currentHoleData.green_in_regulation === true} onToggle={() => toggleStat('green_in_regulation')} disabled={busy} />
@@ -781,6 +837,7 @@ export default function ScoreEntryModal({
                   onPenalty={() => setPenaltyOpen(true)}
                   onMedia={handleMediaSelect}
                   mediaEnabled={canAttachMedia}
+                  mediaHidden={!isLive && draftless}
                   mediaBusy={uploadingMedia}
                   mediaCount={mediaCountByHole[headerHoleNumber] ?? 0}
                 />

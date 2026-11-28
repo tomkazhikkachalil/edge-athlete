@@ -11,8 +11,10 @@
 //
 // ONE FLOW, TWO MODES (golf unification): every golf round rides the
 // group-posts rails — "Live" goes live and scores hole by hole on its live
-// page; "Already played" is a key on step 1 whose own steps are not built
-// yet (Nov 27 2026: round-steps.ts holds that path on step 1). The old Individual/Shared fork (a separate 868-line form
+// page; "Already played" (rebuilt Nov 27 2026) takes the same steps plus a
+// date on the course step and a Scores step — the live scoring card in its
+// batch mode, for every player — and is created finished, as a draft post
+// that is reviewed and posted. The old Individual/Shared fork (a separate 868-line form
 // writing golf_rounds directly, on which players could not be added at all)
 // is gone; "individual" is simply a round with zero invitees.
 //
@@ -27,9 +29,10 @@ import { formatKm, nearbyOffer, NEAR_RADIUS_KM } from '@/lib/golf/near-me';
 import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores, withoutEnteredScores } from '@/lib/golf/score-entry';
+import { fixedPutts, mergeCardSave, playedCard, playedCardLine, playedDateLabel, withPuttingRule } from '@/lib/golf/played-scores';
 import { localDayKey } from '@/lib/calendar/grid';
 import { courseTeeOptions, teeLabel, FALLBACK_TEES, hasBothTeeSides, indoorTeeKeys, isWomensTee, splitTeeSides, ratingEntryNeeded } from '@/lib/golf/tees';
-import { DEFAULT_PUTTING_MODE, GIMME_DEFAULT, clampGimmeFeet, puttingModeOr, puttingSummary, type PuttingMode } from '@/lib/golf/putting-rule';
+import { DEFAULT_PUTTING_MODE, GIMME_DEFAULT, clampGimmeFeet, puttingInfoLine, puttingModeOr, puttingSummary, type PuttingMode, type PuttingRule as PuttingRuleValue } from '@/lib/golf/putting-rule';
 import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
@@ -63,6 +66,8 @@ import { useUnitSystem } from '@/hooks/useUnitSystem';
 import { fromInput, QUANTITY_UNITS, toDisplay } from '@/lib/activities/units';
 import { quickAddOffered, type QuickAddPerson } from '@/lib/golf/recent-partners';
 import PlayersStep from '@/components/golf/round-steps/PlayersStep';
+import ScoresStep from '@/components/golf/round-steps/ScoresStep';
+import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
 import StartStep, { type StartRow } from '@/components/golf/round-steps/StartStep';
 import SlideToConfirm from '@/components/mech/SlideToConfirm';
 import {
@@ -269,9 +274,10 @@ function CourseRow({ course, showKm, divided, onPick }: { course: GolfCourse; sh
   );
 }
 
-/** A restored draft's details in a mode this flow can resume: a draft saved
- *  as "already played" comes back as a live round, dated today like every
- *  live round, until the already-played steps are built (round-steps.ts). */
+/** A restored draft's details in a mode this flow can resume: while the
+ *  already-played path is switched off (round-steps.ts), a draft saved as
+ *  "already played" comes back as a live round, dated today like every
+ *  live round. */
 function offeredDetails(details: GolfSharedRoundDetails | undefined): GolfSharedRoundDetails | undefined {
   if (!details || !details.alreadyPlayed || offeredAlreadyPlayed(details.alreadyPlayed)) return details;
   return { ...details, alreadyPlayed: false, date: localDayKey(new Date()) };
@@ -398,10 +404,15 @@ export default function GolfComposerSection({
   );
 
   // Shared round score entry
-  // The rows the round is created with. Nothing here enters a score any
-  // more (Nov 24 2026: the Scores step is gone), so a draft saved while it
-  // existed comes back with its holes blank.
-  const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>(() => withoutEnteredScores(seed?.playerScores ?? []));
+  // The rows the round is created with. A LIVE round enters no score here
+  // (Nov 24 2026), so a draft of one comes back with its holes blank; an
+  // already-played draft keeps the holes its Scores step entered (Nov 27 2026).
+  const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>(() =>
+    offeredAlreadyPlayed(seed?.sharedRoundDetails?.alreadyPlayed) ? seed?.playerScores ?? [] : withoutEnteredScores(seed?.playerScores ?? [])
+  );
+  // The scoring card over the Scores step: whose card, and the hole a
+  // player tab handed over (the next card opens on the same hole).
+  const [scoring, setScoring] = useState<{ playerId: string; hole?: number } | null>(null);
 
   // Search for golf courses (for shared rounds). Debounced + abortable: it is
   // called straight out of the input's onChange, so undebounced it fired one
@@ -876,7 +887,16 @@ export default function GolfComposerSection({
       sharedRoundDetails,
       sharedRoundParticipants,
       sharedRoundParticipantsData,
-      playerScores,
+      // What the round is created with: an already-played round's entered
+      // holes, under its putting rule (Auto 2 reaches holes entered before
+      // the rule was chosen); a LIVE round never carries a score from here,
+      // whatever was entered before the person switched back to Live.
+      playerScores: sharedRoundDetails.alreadyPlayed
+        ? withPuttingRule(
+            playerScores,
+            sharedRoundDetails.roundTypeIndoorOutdoor === 'indoor' ? fixedPutts({ mode: puttingModeOr(sharedRoundDetails.puttingMode) }) : null,
+          )
+        : withoutEnteredScores(playerScores),
       courseHoleData,
       manualParEntry,
       manualYardageEntry,
@@ -944,6 +964,8 @@ export default function GolfComposerSection({
     indoor,
     teeColor: sharedRoundDetails.teeColor,
     courseShown,
+    scoresEntered: hasAnyEnteredScore(playerScores),
+    today: localDayKey(new Date()),
   });
 
   useEffect(() => {
@@ -1148,7 +1170,7 @@ export default function GolfComposerSection({
   // the label: "Round" was "Round type" until the part 2 spec (Nov 24 2026).
   const summaryRows: StartRow[] = [
     { key: 'course', label: 'Course', value: sharedRoundDetails.courseName.trim() || null },
-    ...(sharedRoundDetails.alreadyPlayed ? [{ key: 'date', label: 'Date', value: sharedRoundDetails.date || null }] : []),
+    ...(sharedRoundDetails.alreadyPlayed ? [{ key: 'date', label: 'Date', value: sharedRoundDetails.date ? playedDateLabel(sharedRoundDetails.date) : null }] : []),
     { key: 'round-type', label: 'Round', value: indoor ? 'Indoor' : 'Outdoor' },
     { key: 'format', label: 'Format', value: gameFormatLabel(sharedRoundDetails.gameFormat) },
     { key: 'tee', label: 'Tee', value: teeInPlay },
@@ -1181,6 +1203,25 @@ export default function GolfComposerSection({
     ...(userId ? [{ id: userId, name: creatorName ?? 'You', avatar_url: displayProfile?.avatar_url ?? undefined }] : []),
     ...sharedRoundParticipantsData,
   ];
+
+  // ── An already-played round's Scores step (Nov 27 2026) ──────────────────
+  // The rows, in the round's order (the creator first): the same order the
+  // scoring card's tabs and colours follow.
+  const parOfHole = (hole: number) =>
+    courseHoleData.find(h => h.hole === hole)?.par ?? (manualParEntry[hole - 1] > 0 ? manualParEntry[hole - 1] : 4);
+  const cardHoleData = courseHoleData.length > 0
+    ? courseHoleData
+    : manualParEntry.length > 0 || manualYardageEntry.length > 0
+      ? Array.from({ length: sharedRoundDetails.holesPlayed }, (_, i) => ({ hole: i + 1, par: manualParEntry[i] > 0 ? manualParEntry[i] : 4, yardage: manualYardageEntry[i] || undefined }))
+      : null;
+  const scoreRows = roundPlayers.map(p => {
+    const holes = playerScores.find(s => s.participant_id === p.id)?.hole_scores ?? [];
+    return { ...p, isSelf: p.id === userId, holes, card: playedCard(holes, parOfHole) };
+  });
+  const playedRule: PuttingRuleValue | null = indoor
+    ? { mode: puttingModeOr(sharedRoundDetails.puttingMode), gimmeFeet: puttingModeOr(sharedRoundDetails.puttingMode) === 'gimme' ? clampGimmeFeet(sharedRoundDetails.gimmeFeet) : null }
+    : null;
+  const scoringRow = scoring ? scoreRows.find(r => r.id === scoring.playerId) ?? null : null;
 
   return (
     <>
@@ -1726,12 +1767,23 @@ export default function GolfComposerSection({
             />
           )}
 
+          {currentStep.id === 'scores' && (
+            <ScoresStep
+              players={scoreRows.map(r => ({ id: r.id, name: r.name, avatar_url: r.avatar_url, isSelf: r.isSelf, line: playedCardLine(r.card, sharedRoundDetails.holesPlayed) }))}
+              ruleLine={playedRule && fixedPutts(playedRule) !== null ? puttingInfoLine(playedRule.mode, clampGimmeFeet(sharedRoundDetails.gimmeFeet)) : null}
+              onOpen={playerId => setScoring({ playerId })}
+            />
+          )}
+
           {currentStep.id === 'finish' && (
             <StartStep
               alreadyPlayed={sharedRoundDetails.alreadyPlayed}
               rows={summaryRows}
               players={roundPlayers}
               handicaps={handicaps}
+              scores={sharedRoundDetails.alreadyPlayed
+                ? Object.fromEntries(scoreRows.map(r => [r.id, playedCardLine(r.card, sharedRoundDetails.holesPlayed)]))
+                : undefined}
             >
               {/* The story: caption + media belong to an already-played
                   round's post (a live round tells its story at the finish). */}
@@ -1739,6 +1791,54 @@ export default function GolfComposerSection({
             </StartStep>
           )}
         </StepFlow>
+      )}
+
+      {/* The live round's scoring card, in its batch mode, over the Scores
+          step (Nov 27 2026): nothing is sent from here — a save lands on the
+          player's row and the round is created with it. Keyed by the player,
+          so a tab opens the next card fresh, on the hole it was handed. */}
+      {active && scoring && scoringRow && sharedRoundDetails.alreadyPlayed && (
+        <ScoreEntryModal
+          key={scoringRow.id}
+          groupPostId=""
+          participantId={scoringRow.id}
+          draftless
+          holesPlayed={sharedRoundDetails.holesPlayed}
+          startingHoleNumber={startingHoleNum}
+          holeData={cardHoleData}
+          courseName={sharedRoundDetails.courseName.trim() || null}
+          teeInPlay={sharedRoundDetails.teeColor || null}
+          puttingRule={playedRule}
+          initialHole={scoring.hole}
+          players={scoreRows.map(r => ({ participantId: r.id, name: r.name, avatarUrl: r.avatar_url ?? null, holesCompleted: r.card.holes, isSelf: r.isSelf }))}
+          onSwitchPlayer={(playerId, hole) => setScoring({ playerId, hole })}
+          group={scoreRows.map(r => ({
+            participantId: r.id,
+            name: r.name,
+            isSelf: r.isSelf,
+            holeScores: r.holes.map(h => ({ hole_number: h.hole_number, strokes: typeof h.strokes === 'number' && h.strokes > 0 ? h.strokes : null })),
+          }))}
+          existingScores={scoringRow.holes
+            .filter(h => typeof h.strokes === 'number' && h.strokes > 0)
+            .map(h => ({
+              id: '',
+              golf_participant_id: '',
+              hole_number: h.hole_number,
+              strokes: h.strokes as number,
+              putts: h.putts ?? null,
+              fairway_hit: h.fairway_hit ?? null,
+              green_in_regulation: h.green_in_regulation ?? null,
+              penalties: h.penalties ?? null,
+              penalty_strokes: h.penalty_strokes ?? null,
+              created_at: '',
+              updated_at: '',
+            }))}
+          onSave={async scores => {
+            const playerId = scoringRow.id;
+            setPlayerScores(prev => mergeCardSave(prev, playerId, scores));
+          }}
+          onClose={() => setScoring(null)}
+        />
       )}
 
       {/* Participant Selection Modal (for shared rounds). Outside the
