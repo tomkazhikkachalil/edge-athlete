@@ -102,7 +102,7 @@ for (const tag of ['', ' @mobile']) {
         await expect(readout(page, dial)).toHaveText('—');
         await expect(page.locator(`[data-dial="${dial}"]`)).toHaveAttribute('data-dial-angle', '-135');
       }
-      // No Men | Women switch (Tom, Nov 28 2026): the men's boxes, always.
+      // No Men | Women switch (Tom, Nov 27 2026): the men's boxes, always.
       await expect(page.getByRole('button', { name: 'Men', exact: true })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Women', exact: true })).toHaveCount(0);
       const rows = page.locator('[data-tee-table] [data-tee-row]');

@@ -35,7 +35,7 @@ export function teeLabel(key: string): string {
 
 // ── The tee table (the mechanical dialect, Nov 23 2026) ─────────────────────
 // Tom's visual spec: the tee picker is a table. It had a Men | Women switch
-// in place of the separate "(F)" rows until Nov 28 2026; a round now lists
+// in place of the separate "(F)" rows until Nov 27 2026; a round now lists
 // the men's boxes only (roundTeeKeys). The catalog marks a women's box only
 // where its key collides with a men's one — that " (f)" suffix (rowToCourse)
 // — so that is what the sides are split on.
@@ -52,7 +52,7 @@ export function splitTeeSides(keys: readonly string[]): { men: string[]; women: 
 }
 
 /** A round's tee list: the men's boxes, always. There is no Men | Women
- *  switch (Tom: indoor rounds Nov 27 2026, every round Nov 28 2026 — "it
+ *  switch (Tom: indoor rounds Nov 27 2026, every round later that day — "it
  *  should just be defaulted to mens where it just shows the yardage"). A
  *  course that only has women's boxes shows those, so a tee can always be
  *  picked. */

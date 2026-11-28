@@ -86,7 +86,7 @@ describe('the tee table — sides, labels, dots, and when the rating is typed', 
   });
 });
 
-describe('roundTeeKeys — every round lists the men\'s boxes (Tom: indoor Nov 27, every round Nov 28 2026)', () => {
+describe('roundTeeKeys — every round lists the men\'s boxes (Tom, Nov 27 2026: indoor first, then every round)', () => {
   it('drops the women\'s boxes, keeping the tee-sheet order', async () => {
     const { roundTeeKeys } = await import('../tees');
     expect(roundTeeKeys(['black', 'blue', 'white', 'blue (f)', 'red (f)'])).toEqual(['black', 'blue', 'white']);

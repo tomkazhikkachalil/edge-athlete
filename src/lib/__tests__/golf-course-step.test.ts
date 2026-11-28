@@ -55,7 +55,7 @@ describe('the picked course — the visuals drive the round', () => {
     // The Tees select is gone: one picker.
     expect(section).not.toContain('<select\n                value={sharedRoundDetails.teeColor}');
   });
-  it('the rows are the old select\'s options, the men\'s boxes; no Men | Women switch on any round (Nov 28 2026)', () => {
+  it('the rows are the old select\'s options, the men\'s boxes; no Men | Women switch on any round (Nov 27 2026)', () => {
     expect(section).toContain('isMapSheet(selectedCourse?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(selectedCourse)');
     expect(section).toContain('const teeRows: TeeTotal[] = roundTeeKeys(teeKeys).map(key =>');
     expect(section).not.toContain('label="Tees for"');

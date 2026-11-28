@@ -9,6 +9,15 @@
 **What it costs.** On a course with both sides, a women's tee, with its own rating and slope, can no longer be picked for a new round, so those numbers no longer reach the handicap. Saved rounds are untouched.
 
 **Proof.** `npm run verify` exit 0 (7,164 tests); guardrails 0; blocklists 0. Staging, against the build, one project at a time (`golf-course-step`, `golf-quick-entry`, `golf-already-played`, `golf-part2`, `golf-fit`): desktop 19, mobile 13, webkit-mobile 13, none failed. The course-step walk seeds a course with three men's and two women's tees and finds three rows, no Men / Women keys, no "(F)" row, and the picked tee's rating and slope on the saved round. The production line follows the merge.
+## November 27, 2026 (22:32) — Close: Already played golf rounds, outdoor and indoor, are on production
+
+Tom looked at the built flow and said to put it into production. PR #1648 was taken out of draft and merged as `7ff03b4f` (the four checks green on the head commit; no migration). `/api/health` on edgeathlete.ca and on edge-athlete.vercel.app shows `7ff03b4f`.
+
+**Production probe, one spec at a time with pauses, none failed.** Desktop 7: the played spec's four (outdoor to the review and Post with the database checked; indoor on Auto 2 with a partner and a two-stroke penalty; a failed scores save leaves no round and keeps the scores; a future date refused, and back to Live sends no score), step 1's keys, a live round to Go Live, the live scoring card. Mobile 5: the two played walks, step 1's keys, the live scoring card's two. Health read 42 ms after the last run.
+
+**The first probe run did nothing:** the new worktree had no `.env.prod`, so the suite stopped in setup before any request to production. Copied in from another worktree and rerun. A new worktree needs `.env.local`, `.env.staging` and `.env.prod`.
+
+**Not run in this close:** `npm audit`, `check:schema` / `check:schema:prod` (zero DDL), android / brave-android / firefox-mobile / webkit-mobile on production, the size ladders on production. **Owed:** Tom's look on a real phone; his adjustments to the played steps; the 36 px par dropdowns on a hand-typed course (reported, every round type).
 
 ## November 27, 2026 (22:15) — Golf: Already played is built for outdoor and indoor rounds, on the live round's scoring card (built, not merged)
 

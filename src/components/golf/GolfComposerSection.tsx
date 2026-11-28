@@ -1059,7 +1059,7 @@ export default function GolfComposerSection({
   // tees, the classic five colours for a map-only card or a typed course.
   const teeKeys: string[] = isMapSheet(selectedCourse?.sheetSource) ? [...FALLBACK_TEES] : courseTeeOptions(selectedCourse);
   // No Men | Women switch on any round (indoor Nov 27 2026, every round
-  // Nov 28 2026, Tom): the men's boxes, always (tees.ts roundTeeKeys).
+  // Nov 27 2026, Tom): the men's boxes, always (tees.ts roundTeeKeys).
   const teeRows: TeeTotal[] = roundTeeKeys(teeKeys).map(key =>
     teeTotals.find(t => t.key === key) ?? { key, label: teeLabel(key), yards: null, rating: null, slope: null }
   );
@@ -1543,7 +1543,7 @@ export default function GolfComposerSection({
                       rating/slope and per-hole yardages. Custom and history
                       courses keep the classic five colours. Every round
                       lists the men's boxes; there is no Men | Women switch
-                      (Nov 28 2026). */}
+                      (Nov 27 2026). */}
                   <TeeTable tees={teeRows} value={sharedRoundDetails.teeColor} onPick={pickTee} />
 
                   {/* Course rating & slope — the key that unlocks the
