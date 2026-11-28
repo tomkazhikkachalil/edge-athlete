@@ -1,5 +1,23 @@
 # Development Log
 
+## November 27, 2026 (18:53) — Maintenance after Ink: every gate green on `9c44f3df`; one test race found and fixed
+
+**Why.** Tom asked for the full checklist after Ink (#1646) reached production, with every customer-facing surface checked: web, large screen, phone, and the installed app.
+
+**Gates, on `9c44f3df` (main = production).** `npm run verify` exit 0 (7,137 tests: typecheck, lint, tests, build, the browser syntax floor). `npm audit --omit=dev` 0. Guardrails 0, blocklists 0. `check:schema` and `check:schema:prod` 0 (ledger 322 on both). `/api/health` on production shows `9c44f3df`.
+
+**Staging sweep, against the build, one project at a time: nothing failed.** Desktop 79 passed. Mobile 40. webkit-mobile, android, firefox-mobile and brave-android 20 each. The sets include the size ladders, `android-forced-dark`, the public site specs, and the installed-app specs (`install-app`, `sw-static-cache`, `offline`).
+
+**Production probe, one spec at a time with pauses.** Desktop 38 passed, 0 failed. Mobile 17 passed, 1 failed; webkit-mobile 12 passed, 1 failed; android 12 passed, 1 failed: each one `tab-bar`'s signed-out "Log in" step, the launch gate, as in every pass. `install-app` and `sw-static-cache` passed on all three phone projects. Health stayed fast (worst reading 77 ms). No WebKit burst this time (the probe paused 15 to 20 s between specs).
+
+**Found: a race in a test, not in the app.** `header-create` "an info button shows the text in place" failed once and passed on its retry on production mobile and android. The saved output showed why: the test read the Create sheet's boxes as soon as the sheet was visible, while it was still scaling in, so the first "before" reading had every box 8 % small ("28,315,265,66" against "16,296,288,72") and the comparison failed. Ink changes no sizes; a slow response exposes the race. Fixed in the test: it now waits until two readings in a row agree. With the fix the spec passed without retries on mobile, android, webkit-mobile and desktop on staging.
+
+**The driver now keeps a failing chunk's full output** (a lesson from this morning's pass, where a WebKit burst could not be classified because the error text was gone). That is what made the race above readable.
+
+**Earlier today, still open.** Two one-off WebKit composer failures that did not reproduce (Save draft on production, "the one page" on staging). Neither appeared in this pass.
+
+**Owed.** Tom's look on a real phone in both themes, including the app installed to the home screen. Emulated engines are not real devices.
+
 ## November 27, 2026 (17:36) — Ink: one line colour and a hard edge under every card, light and dark, across the app
 
 **Why.** Tom, Nov 27: dark mode looks great, light mode is underwhelming and its sections are not pronounced. He asked for examples and chose over four rounds of real screenshots: **Ink** for light (near-black outlines, a hard edge under each panel, brighter colours), **Dark + ink** for dark (black outlines and edges, panels a step lighter), both across the entire app. His other calls: **every line** takes the ink (I recommended cards only); the **public organisation sites stay as they are**.

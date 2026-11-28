@@ -194,7 +194,15 @@ async function infoWalk(page: Page, widths: (base: number) => number[]) {
     await page.setViewportSize({ width, height: base.height });
     await openSheet();
     const sheet = page.locator('[data-create-sheet]');
-    const rest = await boxes();
+    // The sheet scales in as it opens: measure it at rest, not on the way
+    // (Nov 27 2026: on a slow response the first "before" was read mid-
+    // animation, every box 8 % small, and the comparison failed once).
+    let rest = await boxes();
+    await expect.poll(async () => {
+      const prev = rest;
+      rest = await boxes();
+      return rest.join('|') === prev.join('|');
+    }, { message: 'the Create sheet comes to rest', intervals: [120, 120, 200, 300], timeout: 5_000 }).toBe(true);
     expect(rest).toHaveLength(DOORS.length);
     for (const [hook, title] of DOORS) {
       const box = sheet.locator(`[data-create-option="${hook}"]`);
